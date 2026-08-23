@@ -22,6 +22,7 @@ case "$1" in
     --check)
         cat <<'EOF'
   render dual Claude/Codex plugin manifests into ~/.local/share/agentstart/core-marketplace
+  qualify Codex skill prompts as $agentstart-core:<skill>; retain Pi's plain /<skill> names
   install agentstart-core@agentstart-managed for Claude Code and Codex
   link the same private skills into ~/.pi/agent/skills
 EOF
@@ -48,6 +49,49 @@ plugin_root="$marketplace_root/plugins/agentstart-core"
 skills_root="$plugin_root/skills"
 pi_skills_root="$HOME/.pi/agent/skills"
 
+qualify_codex_default_prompt() {
+    local skill_name="$1" manifest="$2" bare qualified current next mode
+    [ -f "$manifest" ] || return 0
+
+    bare="\$$skill_name"
+    qualified="\$agentstart-core:$skill_name"
+    current=$(/usr/bin/awk '/^[[:space:]]*default_prompt:[[:space:]]*/ { print; exit }' "$manifest")
+    [ -n "$current" ] || return 0
+
+    case "$current" in
+        *"$qualified"*)
+            return 0
+            ;;
+        *"$bare"*)
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    # Source skills stay portable: their OpenAI manifest names the skill
+    # plainly. Once that skill lives in this plugin, Codex's public name is
+    # namespaced. Rewrite only the generated plugin copy; Pi ignores this
+    # OpenAI-only manifest and continues to invoke the directory as /<skill>.
+    next="$manifest.agentstart-next"
+    /usr/bin/awk -v bare="$bare" -v qualified="$qualified" '
+        /^[[:space:]]*default_prompt:[[:space:]]*/ {
+            while ((position = index($0, bare)) > 0) {
+                $0 = substr($0, 1, position - 1) qualified \
+                    substr($0, position + length(bare))
+            }
+        }
+        { print }
+    ' "$manifest" >"$next"
+    mode=$(stat -f '%Lp' "$manifest")
+    chmod "$mode" "$next"
+    mv "$next" "$manifest"
+
+    /usr/bin/awk '/^[[:space:]]*default_prompt:[[:space:]]*/ { print; exit }' "$manifest" \
+        | grep -F "$qualified" >/dev/null \
+        || die "qualifying the $skill_name Codex default_prompt failed"
+}
+
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 
 mkdir -p \
@@ -71,6 +115,8 @@ for skill_dir in "$skills_root"/*/; do
     skill_dir=${skill_dir%/}
     skill_name=${skill_dir##*/}
     printf '%s\n' "$skill_name" >>"$next_managed_names"
+
+    qualify_codex_default_prompt "$skill_name" "$skill_dir/agents/openai.yaml"
 
     pi_target="$pi_skills_root/$skill_name"
     if [ -e "$pi_target" ] || [ -L "$pi_target" ]; then

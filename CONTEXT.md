@@ -47,10 +47,12 @@ never move on this path).
 **The core plugin** — the one managed skill tree under
 `~/.local/share/agentstart/core-marketplace/plugins/agentstart-core/skills`.
 Claude Code and Codex consume it as a plugin, so their names are qualified by
-`agentstart-core`; Pi links the same directories under its harness-only skill
-root and retains plain names. Fx scans none of those sources. _Avoid_: global
-skills, shared skills (those names imply the compatibility roots this design
-retired).
+`agentstart-core`: `$agentstart-core:<name>` in Codex and
+`/agentstart-core:<name>` in Claude Code. Pi links the same directories under
+its harness-only skill root and invokes `/<name>`. Codex-specific default
+prompts are qualified when the plugin artifact is packaged; portable source
+manifests stay plain. Fx scans none of those sources. _Avoid_: global skills,
+shared skills (those names imply the compatibility roots this design retired).
 
 **The Herdr config render** — the live `~/.config/herdr/config.toml` rendered
 by AgentStart from its tracked behavior config, which carries no palette.

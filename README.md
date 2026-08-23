@@ -121,8 +121,11 @@ tests/validate.sh
 A new fleet tool usually needs almost no edit here. Name the checkout
 `agent*` and export `skills/<name>/SKILL.md`, and the skills scan ships it
 through the private core plugin. Claude Code and Codex expose it under the
-`agentstart-core` plugin namespace; Pi retains the plain name. Only a tool
-with its own CLI installer joins the explicit loop in
+`agentstart-core` plugin namespace: `$agentstart-core:<name>` in Codex and
+`/agentstart-core:<name>` in Claude Code. Pi retains `/<name>`. AgentStart
+qualifies each generated Codex default prompt at packaging time while leaving
+the participant's portable source manifest plain. Only a tool with its own CLI
+installer joins the explicit loop in
 `scripts/install-agent-clis`. Whether to advertise it in
 `prompts/agentguidance/TOOLS.md` is a separate decision — make it
 deliberately, per the `tool-advertisement-policy` wiki page.

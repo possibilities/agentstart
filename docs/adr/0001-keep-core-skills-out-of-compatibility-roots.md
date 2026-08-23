@@ -16,7 +16,10 @@ additive there.
 
 Plugin namespaces are part of the isolation boundary. Claude Code and Codex
 therefore expose names qualified by `agentstart-core`; Pi retains plain skill
-names. Preserving plain Codex names would require moving the canonical
+names. AgentStart qualifies `agents/openai.yaml` default prompts in the
+generated plugin copy so Codex emits `$agentstart-core:<name>` while portable
+source manifests and Pi keep the plain name. Preserving plain Codex names would
+require moving the canonical
 `CODEX_HOME`, fragmenting assumptions shared by Codex, account balancing,
 voice profiles, session indexing, and the desktop app. Patching Fx to ignore
 compatibility roots would leave the resources globally available to other

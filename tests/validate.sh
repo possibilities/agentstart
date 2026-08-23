@@ -567,6 +567,16 @@ for code_skills_fixture in \
     notagent/skills/x; do
     printf '# fixture skill\n' >"$code_skills_root/$code_skills_fixture/SKILL.md"
 done
+# OpenAI manifests are portable source: their default prompt starts with the
+# plain skill name. The private plugin packaging must qualify that generated
+# copy without changing the source Pi also represents by a plain directory.
+mkdir -p "$code_skills_root/agentdemo/skills/demo/agents"
+cat >"$code_skills_root/agentdemo/skills/demo/agents/openai.yaml" <<'EOF'
+interface:
+  display_name: "Demo"
+  short_description: "Exercise private plugin prompt qualification"
+  default_prompt: "Use $demo with this fixture."
+EOF
 # agentdemo carries a post-sync hook (the agentguidance pattern): it must
 # appear in the plan, fire after the real sync, and fail the run when it
 # fails.
@@ -647,6 +657,14 @@ fixture_plugin_root="$code_skills_home/.local/share/agentstart/core-marketplace/
     || fail "skill sync did not render the Claude plugin manifest"
 [ -f "$fixture_plugin_root/.codex-plugin/plugin.json" ] \
     || fail "skill sync did not render the Codex plugin manifest"
+# shellcheck disable=SC2016 # Match the literal Codex plugin-qualified skill reference.
+grep -F 'default_prompt: "Use $agentstart-core:demo with this fixture."' \
+    "$fixture_plugin_root/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "the private plugin did not qualify demo's Codex default prompt"
+# shellcheck disable=SC2016 # Match the literal portable source skill reference.
+grep -F 'default_prompt: "Use $demo with this fixture."' \
+    "$code_skills_root/agentdemo/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "Codex prompt qualification changed the portable source manifest"
 [ -L "$code_skills_home/.pi/agent/skills/demo" ] \
     || fail "skill sync did not expose the private skill to Pi"
 [ "$(readlink "$code_skills_home/.pi/agent/skills/demo")" = "$fixture_plugin_root/skills/demo" ] \
@@ -743,6 +761,7 @@ for required_install in \
     'install hunk-review with --copy into the private core plugin' \
     'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
     'install herdr with --copy into the private core plugin' \
+    'qualify Codex skill prompts as $agentstart-core:<skill>; retain Pi'"'"'s plain /<skill> names' \
     'install agentstart-core@agentstart-managed for Claude Code and Codex' \
     "npx --yes skills add \"$code_skills_root/agentdemo\" --agent claude-code --skill demo second --global --copy --yes" \
     "\"$code_skills_root/agentdemo/scripts/post-sync\""; do
