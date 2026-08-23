@@ -72,11 +72,6 @@ export default function Home() {
       </section>
 
       <PackExplorer />
-
-      <footer>
-        <span>Common Pack / AgentStart</span>
-        <span>Generated from the installed pack</span>
-      </footer>
     </main>
   );
 }

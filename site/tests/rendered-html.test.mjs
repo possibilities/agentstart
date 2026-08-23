@@ -34,6 +34,7 @@ test("server-renders the Common Pack atlas", async () => {
   assert.match(html, /Three native dialects\./);
   assert.match(html, /Browse every file/);
   assert.match(html, /Reading the common pack/);
+  assert.doesNotMatch(html, /<footer\b|Generated from the installed pack/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
 });
 
