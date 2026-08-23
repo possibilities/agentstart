@@ -309,7 +309,7 @@ Command-line tools:
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   brew install or upgrade zig  # AgentVoice's native duplex audio path builds against it
-  scripts/install-fx  # fx from published fork/integration: rebase upstream in a scratch worktree, run the ReleaseSafe gate, build, and install with auto-upgrade disabled
+  ~/code/fxnk/scripts/install.sh --install  # fxnk owns the published fork/integration build and disables auto-upgrade
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
@@ -432,13 +432,13 @@ printf 'Installing Pi with its official installer.\n'
 printf 'Installing or upgrading Zig for Native SDK packaging (intentional duplicate of the machine'\''s Brewfile).\n'
 install_or_upgrade_formula zig
 
-# Fx is a carried public fork while its three patches are upstream: its
-# integration branch is every patch merged, the only ref the machine installs,
-# and the branch AgentStart rebases through a scratch-worktree ReleaseSafe gate
-# whenever upstream moves. The helper also disables Fx's own auto-upgrader so
-# a later dev-channel artifact cannot silently replace the bound build.
-printf 'Building and installing Fx from the bound integration branch.\n'
-"$script_dir/install-fx"
+# fxnk owns Fx fork maintenance and the hardened integration installer.
+# AgentStart decides that the harness is present and invokes that public
+# contract without reaching into its checkout or duplicating its branch logic.
+fxnk_installer="$code_root/fxnk/scripts/install.sh"
+[ -x "$fxnk_installer" ] || die "fxnk installer is unavailable: $fxnk_installer"
+printf 'Installing Fx through the fxnk integration contract.\n'
+"$fxnk_installer" --install
 
 # llm is an AI CLI, so it is AgentStart's outright — moved out of the
 # machine's Brewfile rather than duplicated from it.
