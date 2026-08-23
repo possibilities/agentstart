@@ -39,6 +39,12 @@
 - Finished work lands in main and is pushed — a worktree is where work
   happens, not where it stops. A pull request is a workflow to be asked
   for by name, not a default.
+- Nothing goes to an upstream repository — a pull request, its body, a
+  comment, a reply to a reviewer — without the human's approval, with two
+  autonomous exceptions: code changes answering a review when the required
+  change is clear, and the recap comment once those commits are pushed.
+  Anything offered upstream is adversarially reviewed by subagents before
+  it is pushed, with the model and effort named.
 - A fleet full-screen TUI follows the Signal Room design language. Before
   building or reshaping one, read the `fleet-tui-design` wiki page — the
   shell contract: chromeless, with no header, footer, identity row, or

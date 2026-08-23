@@ -380,6 +380,7 @@ Command-line tools:
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout's src/index.ts, so edits are live
+  ~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
@@ -799,8 +800,12 @@ install_herdr_plugins
 # installer of its own, so AgentStart owns the editable install: a frozen
 # dependency install plus bun link, which serves ~/.bun/bin/fmx straight from
 # the checkout's src/index.ts, so edits in the checkout are live without a
-# reinstall. A machine without the checkout skips; a present checkout that
-# fails to install is a real error.
+# reinstall. An editable fmx has no fmx-zmx beside it the way a release
+# does, so fmx's own script builds the Companion its companion.json pins
+# (from the ~/src/zmx fork checkout when it has the commit) into
+# ~/.local/bin/fmx-zmx — a no-op while the installed one reports the pin.
+# A machine without the checkout skips; a present checkout that fails to
+# install is a real error.
 fmx_root="$code_root/fmx"
 if [ -f "$fmx_root/package.json" ]; then
     command -v bun >/dev/null 2>&1 || die "bun is required to install fmx"
@@ -808,6 +813,11 @@ if [ -f "$fmx_root/package.json" ]; then
     bun install --cwd "$fmx_root" --frozen-lockfile \
         || die "installing fmx dependencies failed"
     (cd "$fmx_root" && bun link) || die "bun link failed for fmx"
+    [ -x "$fmx_root/scripts/install-companion.sh" ] \
+        || die "fmx checkout has no scripts/install-companion.sh; update $fmx_root"
+    printf 'Installing the Companion fmx is pinned to.\n'
+    "$fmx_root/scripts/install-companion.sh" \
+        || die "installing fmx's pinned Companion failed"
 else
     printf 'AgentStart installer: no fmx checkout at %s; skipping fmx.\n' \
         "$fmx_root"
