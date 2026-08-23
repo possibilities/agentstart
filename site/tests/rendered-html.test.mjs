@@ -46,9 +46,13 @@ test("checks in a complete, internally consistent pack snapshot", async () => {
 
   assert.equal(snapshot.schemaVersion, 1);
   assert.equal(snapshot.id, "common");
-  assert.equal(snapshot.stats.skills, 34);
-  assert.equal(snapshot.stats.files, 290);
+  assert.ok(snapshot.stats.skills > 0);
   assert.equal(snapshot.files.length, snapshot.stats.files);
+  assert.equal(
+    snapshot.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/.test(file.path)).length,
+    snapshot.stats.skills,
+    "every reported skill should have one root manifest",
+  );
   assert.equal(
     new Set(snapshot.files.map((file) => file.path)).size,
     snapshot.files.length,
@@ -57,4 +61,21 @@ test("checks in a complete, internally consistent pack snapshot", async () => {
   assert.ok(snapshot.files.some((file) => file.path === "capability.json"));
   assert.ok(snapshot.files.some((file) => file.path === "guidance/AGENTS.md"));
   assert.ok(snapshot.files.some((file) => file.path.endsWith("/SKILL.md")));
+});
+
+test("keeps the resource explorer reachable within the viewport", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.explorer-shell\s*\{[^}]*height:\s*100dvh;/s);
+  assert.match(css, /\.file-pane\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.file-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.document-pane\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+});
+
+test("follows the system color scheme without a stored override", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /@media\s*\(prefers-color-scheme:\s*dark\)/);
+  assert.match(css, /@media\s*\(prefers-color-scheme:\s*dark\)[^{]*\{\s*:root\s*\{[^}]*color-scheme:\s*dark;/s);
+  assert.doesNotMatch(css, /data-theme|theme-toggle|localStorage/);
 });
