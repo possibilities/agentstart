@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, extname, join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const siteRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -11,26 +11,135 @@ const capabilitiesRoot =
 const packRoot = join(capabilitiesRoot, "packs", "common");
 const outputPath = join(siteRoot, "public", "common-pack.json");
 
-const imageTypes = new Map([
-  [".png", "image/png"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-]);
+const categoryCatalog = [
+  {
+    id: "work",
+    label: "Shape and run work",
+    description: "Turn an idea into the right kind of collaboration, plan, or autonomous run.",
+    skills: ["collab", "prompt", "build", "orchestrate", "board", "groom", "story"],
+  },
+  {
+    id: "knowledge",
+    label: "Find and preserve knowledge",
+    description: "Research the web and local archives, then keep conclusions somewhere durable.",
+    skills: ["brain", "chats", "search", "scrape", "wiki", "resource-create", "resource-update"],
+  },
+  {
+    id: "operate",
+    label: "Operate tools and interfaces",
+    description: "Work through browsers, native apps, terminals, messages, and the live agent surface.",
+    skills: [
+      "browser",
+      "desktop",
+      "terminal-control",
+      "email",
+      "notify",
+      "keys",
+      "herdr",
+      "bus",
+      "hunk-review",
+    ],
+  },
+  {
+    id: "products",
+    label: "Build better products",
+    description: "Apply focused craft for AI interfaces, native apps, React, components, and visual design.",
+    skills: [
+      "ai-elements",
+      "ai-sdk",
+      "frontend-design",
+      "shadcn",
+      "vercel-react-best-practices",
+      "web-design-guidelines",
+      "native-sdk",
+    ],
+  },
+  {
+    id: "system",
+    label: "Extend and maintain the system",
+    description: "Discover new capabilities and keep the fleet, forks, and upstream work healthy.",
+    skills: ["find-skills", "fleet", "maintain", "watch-requests"],
+  },
+];
 
-const languageByExtension = new Map([
-  [".md", "markdown"],
-  [".json", "json"],
-  [".yaml", "yaml"],
-  [".yml", "yaml"],
-  [".ts", "typescript"],
-  [".tsx", "tsx"],
-  [".js", "javascript"],
-  [".mjs", "javascript"],
-  [".sh", "shell"],
-  [".txt", "text"],
-]);
+const displayNames = {
+  "ai-elements": "AI Elements",
+  "ai-sdk": "AI SDK",
+  board: "Board",
+  brain: "Brain",
+  browser: "Browser",
+  build: "Build",
+  bus: "Agent Bus",
+  chats: "Past Chats",
+  collab: "Collaborate",
+  desktop: "Desktop",
+  email: "Email and Calendar",
+  "find-skills": "Find Skills",
+  fleet: "Fleet Map",
+  "frontend-design": "Frontend Design",
+  groom: "Groom the Plan",
+  herdr: "Herdr",
+  "hunk-review": "Hunk Review",
+  keys: "Keyboard Shortcuts",
+  maintain: "Maintain a Fork",
+  "native-sdk": "Native SDK",
+  notify: "Notify",
+  orchestrate: "Orchestrate",
+  prompt: "Write an Agent Prompt",
+  "resource-create": "Create a Research Resource",
+  "resource-update": "Update a Research Resource",
+  scrape: "Fetch a URL",
+  search: "Search the Web",
+  shadcn: "shadcn/ui",
+  story: "Explain a Codebase",
+  "terminal-control": "Terminal Control",
+  "vercel-react-best-practices": "React Best Practices",
+  "watch-requests": "Watch Pull Requests",
+  "web-design-guidelines": "Review a Web Interface",
+  wiki: "Durable Wiki",
+};
+
+const utilityCatalog = [
+  {
+    id: "pi-subagents",
+    title: "Subagents for Pi",
+    harness: "Pi",
+    prefix: "pi/extensions/pi-subagents/",
+    summary:
+      "Gives Pi a deliberate way to dispatch isolated workers, since Pi does not include subagents of its own.",
+    capabilities: [
+      "Dispatches focused workers from the active session",
+      "Carries its own workflow prompts and supporting skills",
+      "Loads only in the Pi session projection",
+    ],
+  },
+  {
+    id: "pi-statusline",
+    title: "A shared Pi statusline",
+    harness: "Pi",
+    path: "pi/extensions/agentstart-statusline.ts",
+    summary:
+      "Replaces Pi’s footer with the fleet statusline so model, effort, context, and session state read consistently.",
+    capabilities: [
+      "Shows the session’s useful operating state",
+      "Matches the information available in Claude and Codex",
+      "Stays present without becoming another command to remember",
+    ],
+  },
+  {
+    id: "herdr-agent-state",
+    title: "Live Herdr session state",
+    harness: "Pi",
+    path: "pi/extensions/herdr-agent-state.ts",
+    summary:
+      "Lets Pi report useful activity state to Herdr while leaving native conversation history and resume behavior untouched.",
+    capabilities: [
+      "Reports when the agent is working, idle, or blocked",
+      "Keeps surface state separate from conversation storage",
+      "Supports the same live-session ergonomics as the other harnesses",
+    ],
+  },
+];
 
 async function exists(path) {
   try {
@@ -67,12 +176,51 @@ function stripQuotes(value) {
   return trimmed;
 }
 
-function frontmatterValue(content, key) {
-  if (!content.startsWith("---\n")) return null;
+function foldYamlLines(lines) {
+  const paragraphs = [];
+  let current = [];
+  for (const line of lines) {
+    const text = line.trim();
+    if (text === "") {
+      if (current.length > 0) paragraphs.push(current.join(" "));
+      current = [];
+    } else {
+      current.push(text);
+    }
+  }
+  if (current.length > 0) paragraphs.push(current.join(" "));
+  return paragraphs.join("\n\n");
+}
+
+function frontmatter(content) {
+  if (!content.startsWith("---\n")) return { attributes: {}, body: content };
   const end = content.indexOf("\n---", 4);
-  if (end < 0) return null;
-  const match = content.slice(4, end).match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
-  return match ? stripQuotes(match[1]) : null;
+  if (end < 0) return { attributes: {}, body: content };
+
+  const lines = content.slice(4, end).split("\n");
+  const attributes = {};
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/^([A-Za-z0-9_-]+):(?:\s*(.*))?$/);
+    if (!match) continue;
+    const [, key, rawValue = ""] = match;
+    if (/^[>|][+-]?$/.test(rawValue)) {
+      const block = [];
+      while (index + 1 < lines.length && /^(\s+|$)/.test(lines[index + 1])) {
+        index += 1;
+        block.push(lines[index]);
+      }
+      attributes[key] = rawValue.startsWith(">")
+        ? foldYamlLines(block)
+        : block.map((line) => line.replace(/^\s+/, "")).join("\n");
+    } else {
+      attributes[key] = stripQuotes(rawValue);
+    }
+  }
+
+  return {
+    attributes,
+    body: content.slice(end + 4).replace(/^\s+/, ""),
+  };
 }
 
 function heading(content, fallback) {
@@ -80,48 +228,19 @@ function heading(content, fallback) {
   return match ? match[1].replaceAll("`", "") : fallback;
 }
 
-function classify(path) {
-  if (path === "capability.json") return "manifest";
-  if (path.startsWith("guidance/")) return "guidance";
-  if (path.startsWith("pi/")) return "pi";
-  if (/^skills\/[^/]+\/SKILL\.md$/.test(path)) return "skill";
-  return "support";
-}
-
-function skillFor(path) {
-  const match = path.match(/^skills\/([^/]+)\//);
-  return match ? match[1] : null;
+function shortSummary(description) {
+  const firstSentence = description.match(/^(.+?[.!?])(?:\s|$)/)?.[1] || description;
+  if (firstSentence.length <= 220) return firstSentence;
+  const clipped = firstSentence.slice(0, 217).replace(/\s+\S*$/, "");
+  return `${clipped}…`;
 }
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function snapshotFile(absolutePath) {
-  const path = relative(packRoot, absolutePath).split("\\").join("/");
-  const extension = extname(path).toLowerCase();
-  const metadata = await stat(absolutePath);
-  const mime = imageTypes.get(extension) || "text/plain; charset=utf-8";
-  const encoding = imageTypes.has(extension) ? "base64" : "utf8";
-  const content = await readFile(absolutePath, encoding);
-  const text = encoding === "utf8" ? content : "";
-  const fallbackTitle = basename(path);
-
-  return {
-    path,
-    title: heading(text, fallbackTitle),
-    description: frontmatterValue(text, "description"),
-    skill: skillFor(path),
-    kind: classify(path),
-    language: imageTypes.has(extension)
-      ? "image"
-      : languageByExtension.get(extension) || "text",
-    mime,
-    encoding,
-    size: metadata.size,
-    hash: sha256(content),
-    content,
-  };
+function categoryFor(skillId) {
+  return categoryCatalog.find((category) => category.skills.includes(skillId))?.id || "system";
 }
 
 if (!(await exists(packRoot))) {
@@ -133,27 +252,116 @@ if (!(await exists(packRoot))) {
 }
 
 const absoluteFiles = await walk(packRoot);
-const files = await Promise.all(absoluteFiles.map(snapshotFile));
-const manifestFile = files.find((file) => file.path === "capability.json");
-const manifest = manifestFile ? JSON.parse(manifestFile.content) : {};
-const digest = sha256(files.map((file) => `${file.path}\0${file.hash}`).join("\n")).slice(0, 24);
+const inventory = await Promise.all(
+  absoluteFiles.map(async (absolutePath) => {
+    const path = relative(packRoot, absolutePath).split("\\").join("/");
+    const content = await readFile(absolutePath);
+    return { absolutePath, path, hash: sha256(content) };
+  }),
+);
+
+const skillIds = inventory
+  .map((file) => file.path.match(/^skills\/([^/]+)\/SKILL\.md$/)?.[1])
+  .filter(Boolean)
+  .sort();
+
+const skills = await Promise.all(
+  skillIds.map(async (id) => {
+    const manifestPath = join(packRoot, "skills", id, "SKILL.md");
+    const manifestSource = await readFile(manifestPath, "utf8");
+    const parsed = frontmatter(manifestSource);
+    const description = parsed.attributes.description || `Advice for using ${displayNames[id] || id}.`;
+    const referenceFiles = inventory.filter(
+      (file) =>
+        file.path.startsWith(`skills/${id}/`) &&
+        file.path !== `skills/${id}/SKILL.md` &&
+        file.path.toLowerCase().endsWith(".md"),
+    );
+    const references = await Promise.all(
+      referenceFiles.map(async (file) => {
+        const source = await readFile(file.absolutePath, "utf8");
+        const reference = frontmatter(source);
+        return {
+          id: file.path,
+          title: heading(reference.body, basename(file.path, ".md")),
+          content: reference.body,
+        };
+      }),
+    );
+
+    return {
+      id,
+      title: displayNames[id] || heading(parsed.body, id),
+      category: categoryFor(id),
+      summary: shortSummary(description),
+      description,
+      content: parsed.body,
+      references,
+      dialects: {
+        claude: `/agent:${id}`,
+        codex: `$${id}`,
+        pi: `/${id}`,
+      },
+    };
+  }),
+);
+
+const guidanceFiles = inventory.filter((file) => /^guidance\/.*\.md$/i.test(file.path));
+const guidance = await Promise.all(
+  guidanceFiles.map(async (file) => {
+    const source = await readFile(file.absolutePath, "utf8");
+    const parsed = frontmatter(source);
+    return {
+      id: file.path,
+      title: heading(parsed.body, basename(file.path, ".md")),
+      content: parsed.body,
+    };
+  }),
+);
+
+const utilities = utilityCatalog.map((utility) => ({
+  id: utility.id,
+  title: utility.title,
+  harness: utility.harness,
+  summary: utility.summary,
+  capabilities: utility.capabilities,
+  fileCount: inventory.filter((file) =>
+    utility.prefix ? file.path.startsWith(utility.prefix) : file.path === utility.path,
+  ).length,
+}));
+
+const manifestPath = join(packRoot, "capability.json");
+const manifest = (await exists(manifestPath))
+  ? JSON.parse(await readFile(manifestPath, "utf8"))
+  : {};
+const digest = sha256(inventory.map((file) => `${file.path}\0${file.hash}`).join("\n")).slice(0, 24);
+const referenceCount = skills.reduce((total, skill) => total + skill.references.length, 0);
 const snapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: manifest.id || "common",
   description: manifest.description || "AgentStart's default capability pack",
   digest,
+  categories: categoryCatalog.map((category) => ({
+    id: category.id,
+    label: category.label,
+    description: category.description,
+  })),
+  startingSkills: ["collab", "prompt", "search", "browser", "wiki"],
+  skills,
+  guidance,
+  utilities,
   stats: {
-    skills: files.filter((file) => file.kind === "skill").length,
-    files: files.length,
-    bytes: files.reduce((total, file) => total + file.size, 0),
-    guidance: files.filter((file) => file.kind === "guidance").length,
-    piResources: files.filter((file) => file.kind === "pi").length,
+    skills: skills.length,
+    references: referenceCount,
+    guidance: guidance.length,
+    utilities: utilities.length,
+    implementationFiles: inventory.length,
+    adviceDocuments: skills.length + referenceCount + guidance.length,
   },
-  files,
 };
 
 await mkdir(join(siteRoot, "public"), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(snapshot)}\n`);
 console.log(
-  `Snapshotted ${snapshot.stats.skills} skills and ${snapshot.stats.files} files from common (${digest}).`,
+  `Snapshotted ${snapshot.stats.skills} skills, ${snapshot.stats.references} references, and ${snapshot.stats.utilities} utility summaries from common (${digest}).`,
 );

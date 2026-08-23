@@ -1,4 +1,4 @@
-import { PackExplorer } from "./PackExplorer";
+import { PackGuide } from "./PackGuide";
 
 export default function Home() {
   return (
@@ -9,25 +9,25 @@ export default function Home() {
           <span>Common Pack</span>
         </a>
         <div className="header-meta">
-          <span>AgentStart capability atlas</span>
-          <a href="#explorer">Browse every file ↓</a>
+          <span>AgentStart advice field guide</span>
+          <a href="#guide">Find the right playbook ↓</a>
         </div>
       </header>
 
       <section className="hero" id="top">
         <div className="hero-copy">
-          <p className="eyebrow">The default capability pack</p>
+          <p className="eyebrow">What every managed session already knows</p>
           <h1>
-            One field manual.
-            <span>Three native dialects.</span>
+            Your agents arrive
+            <span>with a field guide.</span>
           </h1>
           <p className="hero-deck">
-            Common gathers the skills, guidance, scripts, examples, and harness
-            resources that travel with every managed agent session. Explore the
-            actual installed content—nothing summarized away.
+            Common teaches agents how to collaborate, research, operate tools,
+            build products, and preserve what they learn. Browse the advice by
+            intent; leave the implementation backstage.
           </p>
-          <a className="primary-link" href="#explorer">
-            Open the atlas <span aria-hidden="true">↘</span>
+          <a className="primary-link" href="#guide">
+            Open the field guide <span aria-hidden="true">↘</span>
           </a>
         </div>
 
@@ -37,7 +37,7 @@ export default function Home() {
             <div>
               <span className="micro-label">Source</span>
               <strong>common</strong>
-              <small>portable resources</small>
+              <small>shared advice</small>
             </div>
           </div>
           <div className="transmission-lines" aria-hidden="true">
@@ -66,12 +66,12 @@ export default function Home() {
       </section>
 
       <section className="thesis-strip" aria-label="Common pack principles">
-        <p><span>01</span> One canonical bundle</p>
-        <p><span>02</span> Native session histories stay native</p>
-        <p><span>03</span> Session packs compose without ambient discovery</p>
+        <p><span>01</span> Start with what you want done</p>
+        <p><span>02</span> A playbook teaches the method</p>
+        <p><span>03</span> Each harness speaks natively</p>
       </section>
 
-      <PackExplorer />
+      <PackGuide />
     </main>
   );
 }

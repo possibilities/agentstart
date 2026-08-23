@@ -18,9 +18,9 @@ const monoFont = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Common Pack — AgentStart capability atlas",
+  title: "Common Pack — AgentStart advice field guide",
   description:
-    "Browse every skill, reference, script, example, and harness resource in AgentStart's common capability pack.",
+    "Learn what AgentStart's shared advice is for, find the right playbook by intent, and understand the utilities every managed session carries.",
 };
 
 export const viewport: Viewport = {

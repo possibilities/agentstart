@@ -1,8 +1,14 @@
-# Common Pack Atlas
+# Common Pack Advice Field Guide
 
-An interactive reader for AgentStart's installed `common` capability pack.
-The site exposes the real pack contract, skills, supporting references,
-guidance, and harness-specific resources in one searchable interface.
+An interactive guide to the advice AgentStart makes available in every managed
+session. It organizes the `common` capability pack by intent, introduces useful
+starting points, and makes each skill's playbook, supporting field notes, and
+harness invocation easy to browse.
+
+The guide includes canonical session guidance and plain-language summaries of
+harness utilities. Their implementation files are counted for transparency but
+are deliberately not copied into the site: this is a reader for operational
+advice, not a source-code browser.
 
 ## Development
 
@@ -27,8 +33,8 @@ npm test
 npm run lint
 ```
 
-The tests cover the rendered atlas shell and validate the checked-in snapshot's
-counts, required files, and path uniqueness.
+The tests cover the rendered field-guide shell and validate the checked-in
+snapshot's advice coverage, category structure, utility summaries, and size.
 
 ## Hosting
 

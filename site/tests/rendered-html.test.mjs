@@ -23,54 +23,63 @@ async function render() {
   );
 }
 
-test("server-renders the Common Pack atlas", async () => {
+test("server-renders the Common Pack field guide", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Common Pack — AgentStart capability atlas<\/title>/i);
-  assert.match(html, /One field manual\./);
-  assert.match(html, /Three native dialects\./);
-  assert.match(html, /Browse every file/);
-  assert.match(html, /Reading the common pack/);
+  assert.match(html, /<title>Common Pack — AgentStart advice field guide<\/title>/i);
+  assert.match(html, /Your agents arrive/);
+  assert.match(html, /with a field guide\./);
+  assert.match(html, /Find the right playbook/);
+  assert.match(html, /Opening the common pack field guide/);
   assert.doesNotMatch(html, /<footer\b|Generated from the installed pack/i);
-  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|Building your site/i);
+  assert.doesNotMatch(html, /Browse every file|codex-preview|Your site is taking shape|Building your site/i);
 });
 
-test("checks in a complete, internally consistent pack snapshot", async () => {
+test("checks in a complete, advice-focused pack snapshot", async () => {
   const source = await readFile(
     new URL("../public/common-pack.json", import.meta.url),
     "utf8",
   );
   const snapshot = JSON.parse(source);
 
-  assert.equal(snapshot.schemaVersion, 1);
+  assert.equal(snapshot.schemaVersion, 2);
   assert.equal(snapshot.id, "common");
-  assert.ok(snapshot.stats.skills > 0);
-  assert.equal(snapshot.files.length, snapshot.stats.files);
+  assert.equal(snapshot.skills.length, snapshot.stats.skills);
+  assert.equal(snapshot.utilities.length, snapshot.stats.utilities);
+  assert.equal(snapshot.guidance.length, snapshot.stats.guidance);
   assert.equal(
-    snapshot.files.filter((file) => /^skills\/[^/]+\/SKILL\.md$/.test(file.path)).length,
-    snapshot.stats.skills,
-    "every reported skill should have one root manifest",
+    snapshot.skills.reduce((total, skill) => total + skill.references.length, 0),
+    snapshot.stats.references,
   );
   assert.equal(
-    new Set(snapshot.files.map((file) => file.path)).size,
-    snapshot.files.length,
-    "every snapshot path should be unique",
+    new Set(snapshot.skills.map((skill) => skill.id)).size,
+    snapshot.skills.length,
+    "every advice skill should be unique",
   );
-  assert.ok(snapshot.files.some((file) => file.path === "capability.json"));
-  assert.ok(snapshot.files.some((file) => file.path === "guidance/AGENTS.md"));
-  assert.ok(snapshot.files.some((file) => file.path.endsWith("/SKILL.md")));
+  assert.ok(snapshot.skills.every((skill) => skill.description.length > 20));
+  assert.ok(snapshot.skills.every((skill) => !/^[>|][+-]?$/.test(skill.description)));
+  assert.ok(snapshot.skills.every((skill) => snapshot.categories.some((category) => category.id === skill.category)));
+  assert.ok(snapshot.startingSkills.every((id) => snapshot.skills.some((skill) => skill.id === id)));
+  assert.ok(snapshot.guidance.some((item) => item.id === "guidance/AGENTS.md"));
+  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.codex, "$collab");
+  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.claude, "/agent:collab");
+  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.pi, "/collab");
+  assert.equal(snapshot.utilities.find((utility) => utility.id === "pi-subagents")?.fileCount, 1898);
+  assert.equal(snapshot.files, undefined, "raw implementation inventory should not ship to the browser");
+  assert.ok(snapshot.stats.implementationFiles > snapshot.stats.adviceDocuments);
+  assert.ok(Buffer.byteLength(source) < 2_000_000, "the advice guide should stay far smaller than the raw pack");
 });
 
-test("keeps the resource explorer reachable within the viewport", async () => {
+test("keeps the advice guide reachable within the viewport", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(css, /\.explorer-shell\s*\{[^}]*height:\s*100dvh;/s);
-  assert.match(css, /\.file-pane\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
-  assert.match(css, /\.file-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
-  assert.match(css, /\.document-pane\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.guide-shell\s*\{[^}]*height:\s*100dvh;/s);
+  assert.match(css, /\.guide-nav\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+  assert.match(css, /\.skill-list\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+  assert.match(css, /\.guide-reader\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
 });
 
 test("follows the system color scheme without a stored override", async () => {
