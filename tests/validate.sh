@@ -634,11 +634,35 @@ printf '%s\n' "$sync_plan" \
 [ ! -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync plan ran a post-sync hook instead of only printing"
 
+# The Pi subagent package the full installer pins. The renderer only carries an
+# install that is already present, so the fixture stands in for one.
+fixture_pi_subagents_root="$code_skills_home/pi-subagents-install"
+mkdir -p \
+    "$fixture_pi_subagents_root/pi-subagents/node_modules/yaml" \
+    "$fixture_pi_subagents_root/pi-subagents/skills/pi-subagents" \
+    "$fixture_pi_subagents_root/pi-subagents/prompts"
+cat >"$fixture_pi_subagents_root/pi-subagents/package.json" <<'FIXTURE_JSON'
+{
+  "name": "pi-subagents",
+  "version": "9.9.9",
+  "pi": { "extensions": ["./index.ts"], "skills": ["./skills"], "prompts": ["./prompts"] }
+}
+FIXTURE_JSON
+printf 'export default () => {}\n' \
+    >"$fixture_pi_subagents_root/pi-subagents/index.ts"
+printf '{"name":"yaml"}\n' \
+    >"$fixture_pi_subagents_root/pi-subagents/node_modules/yaml/package.json"
+printf -- '---\nname: pi-subagents\ndescription: fixture\n---\n' \
+    >"$fixture_pi_subagents_root/pi-subagents/skills/pi-subagents/SKILL.md"
+printf -- '---\ndescription: fixture workflow\n---\n' \
+    >"$fixture_pi_subagents_root/pi-subagents/prompts/parallel-review.md"
+
 HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
     AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
     AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
     AGENTSTART_CLAUDE_BIN=/usr/bin/true \
     AGENTSTART_CODEX_BIN=/usr/bin/true \
+    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
     "$root/scripts/sync-skills" >/dev/null
 grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentdemo> <--agent> <claude-code> <--skill> <demo> <second> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
@@ -690,6 +714,53 @@ cmp -s \
     "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" \
     "$fixture_common_root/pi/extensions/herdr-agent-state.ts" \
     || fail "skill sync did not copy Pi's Herdr extension exactly into common"
+
+# The subagent package rides the pack as a directory, because AgentLaunch names
+# a directory with --extension and Pi reads the manifest inside it to register
+# the extension, its skills, and its workflow templates from that one path.
+fixture_pi_subagents_packed="$fixture_common_root/pi/extensions/pi-subagents"
+[ -f "$fixture_pi_subagents_packed/package.json" ] \
+    || fail "skill sync did not carry the Pi subagent package into common"
+grep -F '"pi":' "$fixture_pi_subagents_packed/package.json" >/dev/null \
+    || fail "the packed Pi subagent package lost the manifest Pi resolves it by"
+# Pi never installs dependencies for a local path, and AgentLaunch projects an
+# entry by copying its own subtree, so the dependencies must ride inside it.
+[ -f "$fixture_pi_subagents_packed/node_modules/yaml/package.json" ] \
+    || fail "the packed Pi subagent package lost its runtime dependencies"
+[ -f "$fixture_pi_subagents_packed/prompts/parallel-review.md" ] \
+    || fail "the packed Pi subagent package lost its workflow prompt templates"
+[ -f "$fixture_pi_subagents_packed/skills/pi-subagents/SKILL.md" ] \
+    || fail "the packed Pi subagent package lost its own skills"
+[ ! -e "$code_skills_home/.pi/agent/extensions/pi-subagents" ] \
+    || fail "skill sync installed the Pi subagent package into Pi's ambient root"
+
+# A matching version is a no-op: this is the one pack resource large enough
+# that re-copying it every six hours would be felt.
+printf 'sentinel\n' >"$fixture_pi_subagents_packed/render-sentinel"
+HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
+    AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
+    AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
+    AGENTSTART_CLAUDE_BIN=/usr/bin/true \
+    AGENTSTART_CODEX_BIN=/usr/bin/true \
+    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
+    "$root/scripts/sync-skills" >/dev/null
+[ -f "$fixture_pi_subagents_packed/render-sentinel" ] \
+    || fail "the renderer re-copied an unchanged Pi subagent package"
+
+# A newer pin replaces the packed copy wholesale.
+/usr/bin/sed -i '' 's/"9.9.9"/"9.9.10"/' \
+    "$fixture_pi_subagents_root/pi-subagents/package.json"
+HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
+    AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
+    AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
+    AGENTSTART_CLAUDE_BIN=/usr/bin/true \
+    AGENTSTART_CODEX_BIN=/usr/bin/true \
+    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
+    "$root/scripts/sync-skills" >/dev/null
+[ ! -e "$fixture_pi_subagents_packed/render-sentinel" ] \
+    || fail "the renderer kept a stale Pi subagent package across a version change"
+grep -F '"9.9.10"' "$fixture_pi_subagents_packed/package.json" >/dev/null \
+    || fail "the renderer did not carry the newer Pi subagent pin into common"
 [ ! -e "$code_skills_home/.agents/skills/demo" ] \
     || fail "skill sync leaked a managed skill into Fx's compatibility root"
 
