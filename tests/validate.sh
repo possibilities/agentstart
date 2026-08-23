@@ -13,9 +13,9 @@ fail() {
 shell_files="
 scripts/install.sh
 scripts/sync-skills
+scripts/render-capabilities
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
-scripts/install-core-plugin
 scripts/install-agentvoice-cli
 scripts/remove-retired-integrations
 scripts/install-launchagents
@@ -37,7 +37,7 @@ if command -v shellcheck >/dev/null 2>&1; then
 fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis \
-    scripts/install-agentlaunch-shims scripts/install-core-plugin scripts/install-launchagents \
+    scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
@@ -62,18 +62,21 @@ done
 [ ! -e scripts/install-agentsurface-shims ] \
     || fail "retired AgentSurface shim installer returned"
 
-for manifest in \
-    config/core-plugin/plugin.json \
-    config/core-plugin/codex-plugin.json \
-    config/core-plugin/claude-marketplace.json \
-    config/core-plugin/codex-marketplace.json; do
+for manifest in config/capabilities/common/*.json; do
     /usr/bin/jq -e . "$manifest" >/dev/null \
-        || fail "core plugin manifest is not valid JSON: $manifest"
+        || fail "capability manifest is not valid JSON: $manifest"
 done
-/usr/bin/jq -e '.name == "agentstart-core"' config/core-plugin/plugin.json >/dev/null \
-    || fail "Claude core plugin manifest has the wrong namespace"
-/usr/bin/jq -e '.name == "agentstart-core"' config/core-plugin/codex-plugin.json >/dev/null \
-    || fail "Codex core plugin manifest has the wrong namespace"
+/usr/bin/jq -e '.schema_version == 1 and .id == "common" and .default == true' \
+    config/capabilities/common/capability.json >/dev/null \
+    || fail "common capability manifest has the wrong identity or default"
+/usr/bin/jq -e '.name == "agent"' config/capabilities/common/claude-plugin.json >/dev/null \
+    || fail "Claude session projection has the wrong plugin name"
+/usr/bin/jq -e '.name == "agent"' config/capabilities/common/codex-plugin.json >/dev/null \
+    || fail "Codex compatibility projection has the wrong plugin name"
+[ ! -e scripts/install-core-plugin ] \
+    || fail "retired core-plugin installer returned"
+[ ! -e config/core-plugin ] \
+    || fail "retired core-plugin manifests returned"
 
 # The installer links these into ~/.config/agentguidance and agentguidance
 # renders every skill against them, so an empty or missing prompt ships
@@ -551,6 +554,7 @@ code_skills_home="$skip_test_dir/code-home"
 code_skills_log="$skip_test_dir/npx.log"
 mkdir -p \
     "$code_skills_home" \
+    "$code_skills_home/.pi/agent/extensions" \
     "$code_skills_root/agentbus/skills/bus" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
@@ -567,14 +571,20 @@ for code_skills_fixture in \
     notagent/skills/x; do
     printf '# fixture skill\n' >"$code_skills_root/$code_skills_fixture/SKILL.md"
 done
+cat >"$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" <<'EOF'
+// installed by herdr
+// managed by herdr; reinstalling or updating the integration overwrites this file.
+// HERDR_INTEGRATION_ID=pi
+export {};
+EOF
 # OpenAI manifests are portable source: their default prompt starts with the
-# plain skill name. The private plugin packaging must qualify that generated
-# copy without changing the source Pi also represents by a plain directory.
+# plain skill name. Compatibility packaging must qualify only its generated
+# copy without changing the canonical common pack.
 mkdir -p "$code_skills_root/agentdemo/skills/demo/agents"
 cat >"$code_skills_root/agentdemo/skills/demo/agents/openai.yaml" <<'EOF'
 interface:
   display_name: "Demo"
-  short_description: "Exercise private plugin prompt qualification"
+  short_description: "Exercise compatibility plugin prompt qualification"
   default_prompt: "Use $demo with this fixture."
 EOF
 # agentdemo carries a post-sync hook (the agentguidance pattern): it must
@@ -650,25 +660,36 @@ fi
     || fail "skill sync did not invoke the skills tool exactly once per source"
 [ -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync did not run a participant's post-sync hook after its skills landed"
-fixture_plugin_root="$code_skills_home/.local/share/agentstart/core-marketplace/plugins/agentstart-core"
-[ -f "$fixture_plugin_root/skills/demo/SKILL.md" ] \
-    || fail "skill sync did not copy a participant into the private core plugin"
-[ -f "$fixture_plugin_root/.claude-plugin/plugin.json" ] \
-    || fail "skill sync did not render the Claude plugin manifest"
-[ -f "$fixture_plugin_root/.codex-plugin/plugin.json" ] \
-    || fail "skill sync did not render the Codex plugin manifest"
+fixture_capabilities_root="$code_skills_home/.local/share/agentstart/capabilities"
+fixture_common_root="$fixture_capabilities_root/packs/common"
+fixture_claude_root="$fixture_capabilities_root/projections/common/claude/agent"
+fixture_codex_root="$fixture_capabilities_root/compatibility/codex-marketplace/plugins/agent"
+[ -f "$fixture_common_root/skills/demo/SKILL.md" ] \
+    || fail "skill sync did not copy a participant into the common capability pack"
+[ -f "$fixture_common_root/capability.json" ] \
+    || fail "skill sync did not render the common capability manifest"
+[ -f "$fixture_claude_root/.claude-plugin/plugin.json" ] \
+    || fail "skill sync did not render the Claude session projection"
+[ -f "$fixture_codex_root/.codex-plugin/plugin.json" ] \
+    || fail "skill sync did not render the Codex compatibility projection"
 # shellcheck disable=SC2016 # Match the literal Codex plugin-qualified skill reference.
-grep -F 'default_prompt: "Use $agentstart-core:demo with this fixture."' \
-    "$fixture_plugin_root/skills/demo/agents/openai.yaml" >/dev/null \
-    || fail "the private plugin did not qualify demo's Codex default prompt"
+grep -F 'default_prompt: "Use $agent:demo with this fixture."' \
+    "$fixture_codex_root/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "the compatibility projection did not qualify demo's Codex default prompt"
 # shellcheck disable=SC2016 # Match the literal portable source skill reference.
 grep -F 'default_prompt: "Use $demo with this fixture."' \
-    "$code_skills_root/agentdemo/skills/demo/agents/openai.yaml" >/dev/null \
-    || fail "Codex prompt qualification changed the portable source manifest"
-[ -L "$code_skills_home/.pi/agent/skills/demo" ] \
-    || fail "skill sync did not expose the private skill to Pi"
-[ "$(readlink "$code_skills_home/.pi/agent/skills/demo")" = "$fixture_plugin_root/skills/demo" ] \
-    || fail "Pi's skill link does not resolve to the private core plugin"
+    "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "Codex prompt qualification changed the canonical pack manifest"
+[ ! -e "$code_skills_home/.pi/agent/skills/demo" ] \
+    || fail "skill sync leaked a common skill into Pi's ambient global root"
+[ -f "$fixture_common_root/pi/extensions/herdr-agent-state.ts" ] \
+    || fail "skill sync did not collect Pi's generated Herdr extension into common"
+[ -f "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" ] \
+    || fail "unattended skill sync removed Pi's ambient Herdr extension"
+cmp -s \
+    "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" \
+    "$fixture_common_root/pi/extensions/herdr-agent-state.ts" \
+    || fail "skill sync did not copy Pi's Herdr extension exactly into common"
 [ ! -e "$code_skills_home/.agents/skills/demo" ] \
     || fail "skill sync leaked a managed skill into Fx's compatibility root"
 
@@ -741,14 +762,14 @@ for required_install in \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
     'native skills list' \
-    'ln -sfn prompts/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
-    'ln -sfn prompts/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
-    'ln -sfn prompts/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
+    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
+    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
+    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot' \
     'ln -sfn ~/.agents/prompts/agentvoice/{ORCHESTRATOR.md,ORCHESTRATOR_SESSION_START.md} into ~/.config/agentvoice  # the voice orchestrator'"'"'s doctrine; agentguidance renders it, so this links after sync-skills' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
-    'install external skill packs with --copy into ~/.local/share/agentstart/core-marketplace/plugins/agentstart-core/skills' \
+    'install external skill packs with --copy into ~/.local/share/agentstart/capabilities/packs/common/skills' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
@@ -758,11 +779,12 @@ for required_install in \
     'https://github.com/vercel-labs/native: native-sdk' \
     'anomalyco/terminal-control@v<installed termctrl version>: terminal-control' \
     'hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it' \
-    'install hunk-review with --copy into the private core plugin' \
+    'install hunk-review with --copy into the common capability pack' \
     'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
-    'install herdr with --copy into the private core plugin' \
-    'qualify Codex skill prompts as $agentstart-core:<skill>; retain Pi'"'"'s plain /<skill> names' \
-    'install agentstart-core@agentstart-managed for Claude Code and Codex' \
+    'install herdr with --copy into the common capability pack' \
+    'render one session-only Claude plugin named agent (/agent:<skill>)' \
+    'render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed' \
+    'leave retired-plugin and ambient-link cleanup to the explicit full installer' \
     "npx --yes skills add \"$code_skills_root/agentdemo\" --agent claude-code --skill demo second --global --copy --yes" \
     "\"$code_skills_root/agentdemo/scripts/post-sync\""; do
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
@@ -903,7 +925,7 @@ grep -F 'install_or_upgrade_formula zig' scripts/install.sh >/dev/null \
 # Terminal Control is built from its locked crates.io release with the exact
 # Zig line libghostty-vt requires. Its upstream skill is selected from the
 # installed binary's matching release tag and then shipped through the common
-# private core plugin to Claude Code, Codex, and Pi.
+# common capability pack to Claude Code, Codex, and Pi.
 grep -F 'install_or_upgrade_formula rustup' scripts/install.sh >/dev/null \
     || fail "installer does not converge Rustup for Terminal Control"
 # shellcheck disable=SC2016 # Match the literal formula-owned Rustup variable.
@@ -1069,7 +1091,7 @@ grep -F 'hunk skill path hunk-review' scripts/install.sh >/dev/null \
     || fail "installer does not resolve the review skill from the installed Hunk binary"
 # shellcheck disable=SC2016 # Match the literal pack-root variable in the installer.
 grep -F 'install_private_skill_pack "$pack_root" hunk-review' scripts/install.sh >/dev/null \
-    || fail "installer does not copy Hunk's bundled review skill into the private core plugin"
+    || fail "installer does not copy Hunk's bundled review skill into the common capability pack"
 if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.sh >/dev/null; then
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi
@@ -1101,10 +1123,12 @@ for renderer in config/statusline/claude-statusline.sh config/statusline/pi-stat
     [ -s "$renderer" ] \
         || fail "statusline renderer is missing or empty: $renderer"
 done
-# Every step preserves a file it does not own, the same conflict rule the
-# guidance links follow.
-[ "$(grep -c 'refusing to replace an independent' scripts/install-statusline)" -eq 2 ] \
-    || fail "the statusline installer would replace an independent claude or pi file"
+# Claude refuses an independent statusline; Pi's ambient slot is retired and
+# an independent occupant is explicitly left untouched.
+grep -F 'refusing to replace an independent claude renderer' scripts/install-statusline >/dev/null \
+    || fail "the statusline installer would replace an independent Claude file"
+grep -F 'Leaving independent pi extension untouched' scripts/install-statusline >/dev/null \
+    || fail "the statusline installer would replace an independent Pi extension"
 if grep -F 'agent-hooks/claude-statusline.sh' config/statusline/claude-statusline.sh >/dev/null; then
     fail "the claude renderer still forwards statusline payloads to the retired Orca sink"
 fi
@@ -1131,6 +1155,16 @@ grep -F 'skills remove --global --yes' scripts/install.sh >/dev/null \
 if grep -F 'skills remove' scripts/sync-skills >/dev/null; then
     fail "sync-skills removes skills on the unattended path"
 fi
+grep -F 'remove_retired_core_plugin' scripts/install.sh >/dev/null \
+    || fail "full installer does not retire the old core plugin"
+if grep -Eq 'plugin (uninstall|remove)|plugin marketplace remove' scripts/render-capabilities; then
+    fail "render-capabilities uninstalls plugins on the unattended path"
+fi
+if grep -Eq 'rm -- .*herdr-agent-state|unlink .*herdr-agent-state' scripts/render-capabilities; then
+    fail "render-capabilities removes Pi resources on the unattended path"
+fi
+grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
+    || fail "full installer does not retire Pi resources after packing them"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
 # launcher shells its balance contract), agentweb must precede agentbrain

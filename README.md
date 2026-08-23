@@ -34,10 +34,10 @@ believing any of this.
     skills. Linked into `~/.config/agentguidance/`.
   - `agentvoice/` — the voice orchestrator's doctrine and `server.json`,
     linked into `~/.config/agentvoice/` and read at server boot.
-  - `AGENTS.md` — the deliberately empty harness guidance source, linked
-    directly into the Claude Code, Codex, and Pi global slots. Advice belongs
-    in the extension prompts.
-- `config/` — harness configuration, the private core-plugin manifests, the
+  - `AGENTS.md` — the deliberately empty harness guidance source, copied into
+    the common capability pack and linked from there into the Claude Code,
+    Codex, and Pi global slots. Advice belongs in the extension prompts.
+- `config/` — harness configuration, common capability-pack manifests, the
   Herdr and fmx operator configs, and the launchd templates for fleet services
   AgentStart owns.
 - `skills/` — skills this checkout exports through the agent* scan, like any
@@ -64,7 +64,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
-  - the external skill packs inside the private `agentstart-core` plugin;
+  - the external skills and fleet resources inside the default `common`
+    capability pack;
   - the AgentVoice CLI, and the agentwiki, agentboard, agentsearch,
     agentkeys, codex-swap, agentusage, and agentlaunch CLIs;
   - the public `possibilities/claude-swap` fork and the codex-swap provider
@@ -76,10 +77,10 @@ flags, and skip-versus-fail semantics are load-bearing:
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.
 - `scripts/sync-skills` — the cheap convergence path: the agent* checkout
-  skill scan into `~/.local/share/agentstart/core-marketplace`, followed by
-  Claude Code/Codex plugin refresh and Pi links to the same skill tree. The
-  scheduled updater calls this every six hours. It never removes a skill
-  from a compatibility root or restarts services. `--check` prints the plan.
+  scan into `~/.local/share/agentstart/capabilities/packs/common`, followed by
+  projection refresh. The scheduled updater calls this every six hours. It
+  never removes a skill from a compatibility root or restarts services.
+  `--check` prints the plan.
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`/`pi`; the machine's wrapper of the same name delegates
   here.
@@ -119,13 +120,14 @@ tests/validate.sh
 ```
 
 A new fleet tool usually needs almost no edit here. Name the checkout
-`agent*` and export `skills/<name>/SKILL.md`, and the skills scan ships it
-through the private core plugin. Claude Code and Codex expose it under the
-`agentstart-core` plugin namespace: `$agentstart-core:<name>` in Codex and
-`/agentstart-core:<name>` in Claude Code. Pi retains `/<name>`. AgentStart
-qualifies each generated Codex default prompt at packaging time while leaving
-the participant's portable source manifest plain. Only a tool with its own CLI
-installer joins the explicit loop in
+`agent*` and export `skills/<name>/SKILL.md`, and the scan ships it into the
+default `common` capability pack. AgentLaunch composes that pack into every
+managed session: Claude Code exposes `/agent:<name>`, while Codex keeps
+`$<name>` and Pi keeps `/<name>`. A temporary Codex compatibility projection
+named `agent` serves desktop clients outside AgentLaunch. Participant source
+manifests remain portable and bare; only that compatibility copy qualifies
+Codex default prompts. Only a tool with its own CLI installer joins the
+explicit loop in
 `scripts/install-agent-clis`. Whether to advertise it in
 `prompts/agentguidance/TOOLS.md` is a separate decision — make it
 deliberately, per the `tool-advertisement-policy` wiki page.

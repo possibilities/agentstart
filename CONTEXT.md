@@ -16,7 +16,7 @@ the rule).
 
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
-extension prompts, and every skill in the private core plugin. The AI *desktop
+extension prompts, and every resource in the common capability pack. The AI *desktop
 applications* are not toolchain; they are Homebrew casks, and the machine's.
 _Avoid_: stack, setup.
 
@@ -40,19 +40,32 @@ skill).
 
 **The sync path** — `scripts/sync-skills`: the unattended-safe convergence
 the scheduled updater runs every six hours — the participant scan into the
-private `agentstart-core` plugin, plugin cache refresh, no elevation, no
+default `common` capability pack, projection refresh, no elevation, no
 compatibility-root cleanup, no restarts. _Avoid_: update, upgrade (binaries
 never move on this path).
 
-**The core plugin** — the one managed skill tree under
-`~/.local/share/agentstart/core-marketplace/plugins/agentstart-core/skills`.
-Claude Code and Codex consume it as a plugin, so their names are qualified by
-`agentstart-core`: `$agentstart-core:<name>` in Codex and
-`/agentstart-core:<name>` in Claude Code. Pi links the same directories under
-its harness-only skill root and invokes `/<name>`. Codex-specific default
-prompts are qualified when the plugin artifact is packaged; portable source
-manifests stay plain. Fx scans none of those sources. _Avoid_: global skills,
-shared skills (those names imply the compatibility roots this design retired).
+**Capability pack** — an AgentStart-installed bundle of session-visible
+resources: portable skills and guidance plus explicitly harness-specific
+commands, extensions, templates, and configuration. Packs live only under
+`~/.local/share/agentstart/capabilities/packs`; AgentLaunch composes them for a
+session. _Avoid_: skill pack (a pack contains more than skills), plugin (that
+is only one harness projection).
+
+**The common pack** — the default capability pack, named `common`, containing
+every fleet participant skill, external managed skill, the canonical global
+`AGENTS.md`, and AgentStart's session resources. Every managed launch includes
+it unless explicitly suppressed. _Avoid_: core plugin, agentstart-core.
+
+**Session projection** — an immutable harness-native rendering of one resolved
+set of capability packs. Claude receives one plugin named `agent`, Codex
+receives standalone extra skill roots, and Pi receives explicit skill,
+extension, and template paths. _Avoid_: install (a projection is selected for
+one launch, not registered globally).
+
+**Compatibility projection** — the temporary Codex plugin named `agent` for
+desktop and other Codex clients that do not launch through AgentLaunch. It is
+rendered from `common`; portable manifests stay bare in the pack and only the
+plugin copy qualifies names as `$agent:<name>`. _Avoid_: canonical plugin.
 
 **The Herdr config render** — the live `~/.config/herdr/config.toml` rendered
 by AgentStart from its tracked behavior config, which carries no palette.

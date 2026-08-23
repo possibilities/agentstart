@@ -1,0 +1,154 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'AgentStart capabilities: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    printf 'Usage: render-capabilities --install|--check\n'
+}
+
+[ "$#" -eq 1 ] || {
+    usage >&2
+    exit 64
+}
+
+case "$1" in
+    --install) ;;
+    --check)
+        cat <<'EOF'
+  render the default common capability pack under ~/.local/share/agentstart/capabilities
+  render one session-only Claude plugin named agent (/agent:<skill>)
+  render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed
+  leave retired-plugin and ambient-link cleanup to the explicit full installer
+EOF
+        exit 0
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac
+
+[ "$(uname -s)" = Darwin ] || die "macOS is required"
+[ "$(id -u)" -ne 0 ] || die "run as the target user, not root"
+
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+repo_root=$(cd -P -- "$script_dir/.." && pwd)
+template_root="$repo_root/config/capabilities/common"
+capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
+pack_root="$capabilities_root/packs/common"
+skills_root="$pack_root/skills"
+projection_root="$capabilities_root/projections/common"
+claude_plugin_root="$projection_root/claude/agent"
+marketplace_root="$capabilities_root/compatibility/codex-marketplace"
+managed_names="$capabilities_root/managed-skills.txt"
+
+[ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
+command -v jq >/dev/null 2>&1 || die "jq is required"
+
+mkdir -p \
+    "$pack_root/guidance" \
+    "$pack_root/claude" \
+    "$pack_root/pi/extensions" \
+    "$pack_root/pi/prompt-templates" \
+    "$capabilities_root/projections" \
+    "$capabilities_root/compatibility"
+
+cp "$template_root/capability.json" "$pack_root/capability.json"
+cp "$repo_root/prompts/AGENTS.md" "$pack_root/guidance/AGENTS.md"
+cp "$repo_root/config/statusline/pi-statusline.ts" \
+    "$pack_root/pi/extensions/agentstart-statusline.ts"
+
+# Herdr's installer has to write Pi's integration into Pi's ambient discovery
+# directory because that is the only surface it knows. Managed Pi sessions
+# disable ambient extensions, so copy the generated, ownership-marked file
+# into common. The explicit full installer retires the ambient copy after this
+# renderer; the six-hour sync remains additive and never removes it.
+pi_herdr_source="$HOME/.pi/agent/extensions/herdr-agent-state.ts"
+pi_herdr_target="$pack_root/pi/extensions/herdr-agent-state.ts"
+if [ -e "$pi_herdr_source" ] || [ -L "$pi_herdr_source" ]; then
+    [ -f "$pi_herdr_source" ] \
+        || die "refusing non-file Pi Herdr integration: $pi_herdr_source"
+    grep -F '// managed by herdr;' "$pi_herdr_source" >/dev/null \
+        || die "refusing independent Pi extension at Herdr's managed path: $pi_herdr_source"
+    grep -F '// HERDR_INTEGRATION_ID=pi' "$pi_herdr_source" >/dev/null \
+        || die "Pi Herdr integration has the wrong identity: $pi_herdr_source"
+    cp "$pi_herdr_source" "$pi_herdr_target"
+    printf 'Copied the Herdr Pi integration into common: %s.\n' "$pi_herdr_target"
+fi
+
+next_managed_names="$capabilities_root/managed-skills.next"
+: >"$next_managed_names"
+for skill_dir in "$skills_root"/*/; do
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    skill_dir=${skill_dir%/}
+    printf '%s\n' "${skill_dir##*/}" >>"$next_managed_names"
+done
+LC_ALL=C sort -u "$next_managed_names" -o "$next_managed_names"
+[ -s "$next_managed_names" ] || die "the common capability pack contains no skills"
+mv "$next_managed_names" "$managed_names"
+
+render_root=$(mktemp -d "$capabilities_root/.render.XXXXXX")
+trap 'rm -rf -- "$render_root"' EXIT
+
+next_claude="$render_root/claude/agent"
+mkdir -p "$next_claude/.claude-plugin"
+cp "$template_root/claude-plugin.json" "$next_claude/.claude-plugin/plugin.json"
+cp -R "$skills_root" "$next_claude/skills"
+for resource in commands agents hooks .mcp.json settings.json; do
+    [ -e "$pack_root/claude/$resource" ] || continue
+    cp -R "$pack_root/claude/$resource" "$next_claude/$resource"
+done
+
+next_marketplace="$render_root/codex-marketplace"
+next_codex="$next_marketplace/plugins/agent"
+mkdir -p "$next_codex/.codex-plugin" "$next_marketplace/.agents/plugins"
+cp "$template_root/codex-plugin.json" "$next_codex/.codex-plugin/plugin.json"
+cp "$template_root/codex-marketplace.json" "$next_marketplace/.agents/plugins/marketplace.json"
+cp -R "$skills_root" "$next_codex/skills"
+
+# The canonical pack remains portable and standalone, so its OpenAI manifests
+# keep $<skill>. Only the compatibility plugin copy needs Codex's plugin name.
+for skill_dir in "$next_codex/skills"/*/; do
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    skill_dir=${skill_dir%/}
+    skill_name=${skill_dir##*/}
+    manifest="$skill_dir/agents/openai.yaml"
+    [ -f "$manifest" ] || continue
+    bare="\$$skill_name"
+    qualified="\$agent:$skill_name"
+    /usr/bin/awk -v bare="$bare" -v qualified="$qualified" '
+        /^[[:space:]]*default_prompt:[[:space:]]*/ {
+            while ((position = index($0, bare)) > 0) {
+                $0 = substr($0, 1, position - 1) qualified \
+                    substr($0, position + length(bare))
+            }
+        }
+        { print }
+    ' "$manifest" >"$manifest.next"
+    mv "$manifest.next" "$manifest"
+done
+
+rm -rf -- "$claude_plugin_root" "$marketplace_root"
+mkdir -p "$(dirname "$claude_plugin_root")" "$(dirname "$marketplace_root")"
+mv "$next_claude" "$claude_plugin_root"
+mv "$next_marketplace" "$marketplace_root"
+
+codex_bin="${AGENTSTART_CODEX_BIN:-$(command -v codex || true)}"
+[ -x "$codex_bin" ] || die "codex is required to install the compatibility projection"
+
+"$codex_bin" plugin marketplace add "$marketplace_root" >/dev/null \
+    || die "registering the Codex compatibility marketplace failed"
+"$codex_bin" plugin add agent@agentstart-managed >/dev/null \
+    || die "installing the Codex compatibility projection failed"
+
+printf 'Rendered common with %s skills; installed Codex compatibility plugin agent@agentstart-managed.\n' \
+    "$(wc -l <"$managed_names" | tr -d ' ')"

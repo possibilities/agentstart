@@ -90,21 +90,21 @@ install_claude_statusline() {
     printf 'Installed the claude statusline: %s.\n' "$target"
 }
 
-# Pi loads every .ts in its extensions directory at startup. The name is ours
-# and carries the owner, so it cannot collide with another extension.
+# Pi receives the renderer from the common capability pack on each managed
+# launch. Remove only the old ambient link, because AgentLaunch disables
+# ambient discovery and passes the projected file explicitly.
 install_pi_statusline() {
     local source="$source_dir/pi-statusline.ts"
     local target="$HOME/.pi/agent/extensions/agentstart-statusline.ts"
 
     [ -s "$source" ] || die "pi renderer is missing or empty: $source"
-    if [ ! -L "$target" ] && [ -s "$target" ]; then
-        die "refusing to replace an independent pi extension: $target"
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+        unlink "$target"
+        printf 'Removed the retired ambient pi statusline link: %s.\n' "$target"
+    elif [ -e "$target" ] || [ -L "$target" ]; then
+        printf 'Leaving independent pi extension untouched: %s.\n' "$target"
     fi
-    mkdir -p "$(dirname "$target")"
-    ln -sfn "$source" "$target"
-    cmp -s "$source" "$target" \
-        || die "linked pi renderer does not resolve to $source: $target"
-    printf 'Installed the pi statusline extension: %s.\n' "$target"
+    printf 'Pi receives its statusline from the common capability pack.\n'
 }
 
 # Codex's config is TOML, and it has no `config set` subcommand. Rather than
@@ -189,7 +189,7 @@ if [ "$check_only" -eq 1 ]; then
 Fleet statusline:
   ln -sfn config/statusline/claude-statusline.sh ~/.claude/statusline.sh
   set .statusLine in ~/.claude/settings.json
-  ln -sfn config/statusline/pi-statusline.ts ~/.pi/agent/extensions/agentstart-statusline.ts  # pi has a footer, not a status line
+  copy config/statusline/pi-statusline.ts into the common capability pack  # AgentLaunch passes it per session; pi has a footer, not a status line
   set [tui] status_line in ~/.codex/config.toml  # codex renders its own bar; only the item list is ours
     $CODEX_STATUS_LINE_ITEMS
 EOF

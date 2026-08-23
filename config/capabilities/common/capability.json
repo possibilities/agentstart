@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "common",
+  "default": true,
+  "description": "AgentStart-managed capabilities loaded into every managed harness session.",
+  "resources": {
+    "skills": "skills",
+    "guidance": "guidance/AGENTS.md",
+    "claude": "claude",
+    "pi_extensions": "pi/extensions",
+    "pi_prompt_templates": "pi/prompt-templates"
+  }
+}

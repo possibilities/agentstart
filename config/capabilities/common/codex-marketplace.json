@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "agentstart-core",
+      "name": "agent",
       "source": {
         "source": "local",
-        "path": "./plugins/agentstart-core"
+        "path": "./plugins/agent"
       },
       "category": "Developer Tools",
       "policy": {

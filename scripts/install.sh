@@ -12,9 +12,11 @@ repo_root=$(cd -P -- "$script_dir/.." && pwd)
 # from, and a worktree run must still find the real fleet rather than silently
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
-core_marketplace_root="${AGENTSTART_CORE_MARKETPLACE_ROOT:-$HOME/.local/share/agentstart/core-marketplace}"
-core_plugin_root="$core_marketplace_root/plugins/agentstart-core"
-core_skills_state_root="$core_marketplace_root/skills-state"
+capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
+common_pack_root="$capabilities_root/packs/common"
+capabilities_skills_state_root="$capabilities_root/skills-state"
+legacy_core_marketplace_root="${AGENTSTART_CORE_MARKETPLACE_ROOT:-$HOME/.local/share/agentstart/core-marketplace}"
+legacy_core_plugin_root="$legacy_core_marketplace_root/plugins/agentstart-core"
 
 usage() {
     cat <<'EOF'
@@ -63,8 +65,8 @@ install_private_skill_pack() {
     local source="$1"
     shift
 
-    mkdir -p "$core_plugin_root" "$core_skills_state_root"
-    CLAUDE_CONFIG_DIR="$core_plugin_root" XDG_STATE_HOME="$core_skills_state_root" \
+    mkdir -p "$common_pack_root" "$capabilities_skills_state_root"
+    CLAUDE_CONFIG_DIR="$common_pack_root" XDG_STATE_HOME="$capabilities_skills_state_root" \
         npx --yes skills add "$source" \
         --agent claude-code \
         --skill "$@" \
@@ -99,14 +101,17 @@ remove_legacy_global_skills() {
         done
     done
 
-    previous_names="$core_marketplace_root/managed-skills.txt"
-    if [ -f "$previous_names" ]; then
-        while IFS= read -r skill_name; do
-            [ -n "$skill_name" ] && names+=("$skill_name")
-        done <"$previous_names"
-    fi
+    for previous_names in \
+        "$capabilities_root/managed-skills.txt" \
+        "$legacy_core_marketplace_root/managed-skills.txt"; do
+        if [ -f "$previous_names" ]; then
+            while IFS= read -r skill_name; do
+                [ -n "$skill_name" ] && names+=("$skill_name")
+            done <"$previous_names"
+        fi
+    done
 
-    # The private plugin may already have been synchronized before the first
+    # The common pack may already have been synchronized before the first
     # full migration run. Detach only its Pi links before asking the generic
     # skills CLI to remove legacy installs, so that tool can never mistake a
     # link into the private canonical tree for content it owns.
@@ -115,11 +120,63 @@ remove_legacy_global_skills() {
         [ -L "$pi_target" ] || continue
         pi_link=$(readlink "$pi_target")
         case "$pi_link" in
-            "$core_plugin_root"/skills/*) unlink "$pi_target" ;;
+            "$common_pack_root"/skills/*|"$legacy_core_plugin_root"/skills/*) unlink "$pi_target" ;;
         esac
     done
 
     npx --yes skills remove --global --yes "${names[@]}"
+}
+
+remove_retired_core_plugin() {
+    local legacy_owned=0 legacy_plugin manifest
+
+    # This migration is intentionally a full-install operation. The six-hour
+    # sync only re-adds the Codex compatibility projection in place; it never
+    # uninstalls plugins or ambient resources that a live session may use.
+    claude plugin uninstall agentstart-core@agentstart-managed --scope user >/dev/null 2>&1 || true
+    claude plugin uninstall agent@agentstart-managed --scope user >/dev/null 2>&1 || true
+    claude plugin marketplace remove agentstart-managed >/dev/null 2>&1 || true
+
+    codex plugin remove agentstart-core@agentstart-managed >/dev/null 2>&1 || true
+    codex plugin remove agent@agentstart-managed >/dev/null 2>&1 || true
+    codex plugin marketplace remove agentstart-managed >/dev/null 2>&1 || true
+
+    # The old marketplace was wholly AgentStart-owned, but prove that identity
+    # before removing a recursive tree. Preserve and name an unexpected occupant.
+    if [ -d "$legacy_core_marketplace_root" ]; then
+        legacy_plugin="$legacy_core_plugin_root"
+        for manifest in \
+            "$legacy_plugin/.claude-plugin/plugin.json" \
+            "$legacy_plugin/.codex-plugin/plugin.json"; do
+            [ -f "$manifest" ] || continue
+            if /usr/bin/jq -e '.name == "agentstart-core"' "$manifest" >/dev/null 2>&1; then
+                legacy_owned=1
+                break
+            fi
+        done
+        if [ "$legacy_owned" -eq 1 ]; then
+            rm -rf -- "$legacy_core_marketplace_root"
+            printf 'Removed retired AgentStart core marketplace: %s.\n' \
+                "$legacy_core_marketplace_root"
+        else
+            printf 'Leaving unrecognized legacy marketplace untouched: %s.\n' \
+                "$legacy_core_marketplace_root" >&2
+        fi
+    fi
+}
+
+remove_packed_pi_ambient_resources() {
+    local source="$HOME/.pi/agent/extensions/herdr-agent-state.ts"
+
+    [ -e "$source" ] || [ -L "$source" ] || return 0
+    [ -f "$source" ] \
+        || die "refusing non-file Pi Herdr integration: $source"
+    grep -F '// managed by herdr;' "$source" >/dev/null \
+        || die "refusing independent Pi extension at Herdr's managed path: $source"
+    grep -F '// HERDR_INTEGRATION_ID=pi' "$source" >/dev/null \
+        || die "Pi Herdr integration has the wrong identity: $source"
+    rm -- "$source"
+    printf 'Removed the ambient Pi Herdr integration after packing it: %s.\n' "$source"
 }
 
 # Pi's installer reads its prompts from /dev/tty instead of stdin, so redirecting
@@ -152,8 +209,9 @@ configure_shadcn_mcp() {
     claude mcp add --scope user shadcn -- npx shadcn@latest mcp
 }
 
-# AgentStart owns one guidance slot for each harness. Link all three directly
-# at prompts/AGENTS.md, which stays deliberately empty — global advice belongs
+# AgentStart owns one guidance slot for each harness. Link all three to the
+# common pack's canonical AGENTS.md, which stays deliberately empty — global
+# advice belongs
 # in the extension prompts below, rendered into the collab and build skills,
 # not in a file loaded into every session. Claude Code reads only CLAUDE.md,
 # Codex skips empty guidance files, and pi's designated global slot is
@@ -161,7 +219,7 @@ configure_shadcn_mcp() {
 # target is preserved and reported — the same conflict rule the guidance file
 # itself prescribes for repositories.
 link_agent_guidance() {
-    local source="$repo_root/prompts/AGENTS.md"
+    local source="$common_pack_root/guidance/AGENTS.md"
     local target
 
     [ -f "$source" ] \
@@ -178,15 +236,16 @@ link_agent_guidance() {
     done
 }
 
-# Remove only the exact home guidance symlink this checkout previously
+# Remove only the exact home guidance symlinks this checkout previously
 # created. With the three harness slots linked directly, ~/AGENTS.md is a
 # project guidance location again; an independent occupant belongs to its
 # owner and is left alone.
 remove_retired_home_guidance() {
     local retired_source="$repo_root/prompts/AGENTS.md"
+    local current_source="$common_pack_root/guidance/AGENTS.md"
     local target="$HOME/AGENTS.md"
 
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$retired_source" ]; then
+    if [ -L "$target" ] && { [ "$(readlink "$target")" = "$retired_source" ] || [ "$(readlink "$target")" = "$current_source" ]; }; then
         rm -- "$target"
         printf 'Removed retired AgentStart-owned home guidance symlink: %s.\n' "$target"
     elif [ -e "$target" ] || [ -L "$target" ]; then
@@ -333,9 +392,9 @@ Agent documentation:
   native skills list
 
 Agent guidance:
-  ln -sfn prompts/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
-  ln -sfn prompts/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
-  ln -sfn prompts/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
+  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
+  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
+  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
   remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
   ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot
@@ -344,8 +403,8 @@ Agent guidance:
   remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
   remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved
 
-Agent core plugin:
-  install external skill packs with --copy into ~/.local/share/agentstart/core-marketplace/plugins/agentstart-core/skills
+Common capability pack:
+  install external skill packs with --copy into ~/.local/share/agentstart/capabilities/packs/common/skills
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
@@ -355,9 +414,9 @@ Agent core plugin:
   https://github.com/vercel-labs/native: native-sdk
   anomalyco/terminal-control@v<installed termctrl version>: terminal-control
   hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it
-  install hunk-review with --copy into the private core plugin
+  install hunk-review with --copy into the common capability pack
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
-  install herdr with --copy into the private core plugin
+  install herdr with --copy into the common capability pack
 EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-launchagents" --check
@@ -811,9 +870,6 @@ command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
 configure_shadcn_mcp
 
-printf 'Linking the harness guidance for Claude Code, Codex, and pi.\n'
-link_agent_guidance
-
 printf 'Removing the retired home guidance hub if AgentStart owns it.\n'
 remove_retired_home_guidance
 
@@ -840,13 +896,16 @@ fi
 printf 'Removing AgentStart-managed skills from Fx-visible compatibility roots.\n'
 remove_legacy_global_skills
 
+printf 'Retiring AgentStart-owned legacy plugin registrations and marketplace.\n'
+remove_retired_core_plugin
+
 # The fleet statusline is harness configuration in each CLI's own idiom, so
 # it converges here rather than from a launcher. It runs after the three CLIs
 # are installed above: the codex step edits config.toml, which the Codex
 # installer creates.
 "$script_dir/install-statusline" --install
 
-printf 'Installing the private skill discovery helper.\n'
+printf 'Installing the common skill discovery helper.\n'
 install_private_skill_pack https://github.com/vercel-labs/skills find-skills
 
 printf 'Installing the privately managed design skills.\n'
@@ -878,7 +937,7 @@ install_private_skill_pack \
 # `hunk skill path` as the authority instead of copying the GitHub head: the
 # skill describes the exact `hunk session` commands this build accepts. The
 # resolved package root already has the skills/<name>/SKILL.md shape consumed
-# by the common private-plugin installer. Deliberately not advertised in
+# by the common capability-pack renderer. Deliberately not advertised in
 # TOOLS.md: its own trigger covers live Hunk sessions and interactive diff
 # review without spending attention in unrelated conversations (see the
 # tool-advertisement-policy wiki page).
@@ -912,10 +971,10 @@ install_hunk_skill
 # harness integrations above, and never tracks a different head: update-herdr
 # is herdr's one update path, and the skill follows it. The rendered pack lives
 # in a managed state root shaped like a checkout (skills/herdr/) so the same
-# `skills add` mechanism ships it into the private core plugin. Deliberately
-# not advertised in
-# TOOLS.md: a role skill is named by the orchestrator doctrine, not by the
-# always-on advertisement surface (the tool-advertisement-policy wiki page).
+# `skills add` mechanism ships it into the common capability pack. Deliberately
+# not advertised in TOOLS.md: a role skill is named by the orchestrator
+# doctrine, not by the always-on advertisement surface (the
+# tool-advertisement-policy wiki page).
 install_herdr_skill() {
     local pack_root="$HOME/.local/share/agentstart/herdr-skill"
     local skill_dir="$pack_root/skills/herdr"
@@ -1013,6 +1072,17 @@ printf 'Installing the fleet launch agents.\n'
 # post-sync hook re-renders the templates the scan ships against the
 # operator extension prompts linked above.
 "$script_dir/sync-skills"
+
+# The renderer above copied Herdr's generated Pi extension into common. Only
+# the explicit full installer retires the ambient source; the six-hour sync
+# must remain additive and leave live-session resources in place.
+printf 'Retiring AgentStart-owned Pi resources now packed into common.\n'
+remove_packed_pi_ambient_resources
+
+# The sync above renders the common pack's canonical guidance source. Link the
+# three harness discovery slots only after that source is guaranteed to exist.
+printf 'Linking the common harness guidance for Claude Code, Codex, and pi.\n'
+link_agent_guidance
 
 # The sync above is where agentguidance renders the orchestrator doctrine,
 # so only now can it be linked where the server discovers it.

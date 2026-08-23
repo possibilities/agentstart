@@ -1,5 +1,8 @@
 # 0001: Keep core skills out of compatibility roots
 
+Superseded by ADR 0002. The isolation boundary remains, but the private
+`agentstart-core` plugin described below is no longer the canonical store.
+
 Fx intentionally discovers user skills from `~/.agents/skills`,
 `~/.claude/skills`, and `~/.codex/skills`. AgentStart previously used the
 cross-agent `skills` CLI defaults, which made every fleet and external skill
