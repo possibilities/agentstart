@@ -230,13 +230,18 @@ branch and is **not** moved by this — refreshing an open PR is a separate
 operation against a different audience. Whether a fork is wired at all is a
 declared constant in the owning installer, so retiring it is an edit and a
 rerun; a binding hand-written into the installed shim is unwired by the next
-install, which is how the codex-multi-auth one was lost once. The
-`fork-rebase-policy` wiki page is the contract.
+install, which is how the codex-multi-auth one was lost once. The Fx and
+zmx forks are owned by workshop repositories (`fxnk`, `zmax`) instead of an
+installer: each workshop's `MAINTAIN.md` is that fork's contract, the shared
+`maintain` skill (agentguidance) is the cycle, and the workshop's consumer
+step binds the result — fxnk's installer, zmax's move of fmx's Companion
+pin. The `fork-rebase-policy` wiki page is the overview of the arrangement.
 
 | Fork | Integration branch | Owner | Gate |
 | --- | --- | --- | --- |
 | `~/src/claude-swap` | `integration` | `agentusage/scripts/install-providers.sh` | `uv sync --locked && uv run pytest` |
 | `~/src/fx` | `integration` | `fxnk` via `/maintain` and `scripts/install.sh` | `zig fmt --check src/`, public-surface audit, ReleaseSafe build and unit tests |
+| `~/src/zmx` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `fmx/companion.json`) | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, fmx's suite against it |
 
 Codex-swap no longer binds `~/src/codex-multi-auth`: it uses the exact stock
 npm pin. Open upstream PRs #664 and #665 address helper cleanup for the retired

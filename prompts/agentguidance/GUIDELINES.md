@@ -4,10 +4,12 @@
   branch is the one the task means — the default, or our fork's branch when
   we carry patches — then pull and fast-forward. A genuinely diverged
   branch is reported, not resolved in passing.
-- Forks we patch keep two kinds of branch: `integration` — every patch,
-  merged, the only ref an installer binds — and per-PR branches, which an
-  install never moves. Installers own the binding, never hands. The
-  `fork-rebase-policy` wiki page is the contract.
+- A fork we patch is owned by a workshop repository (`fxnk` for Fx, `zmax`
+  for zmx): its `MAINTAIN.md` is the contract for that fork, `/maintain` the
+  procedure, and `integration` the only ref a consumer binds — through the
+  workshop's own consumer step, never by hand. Upstream pull requests are
+  evidence, not dependencies, and nothing moves their branches in passing.
+  The `fork-rebase-policy` wiki page is the overview, not the contract.
 - Worktrees and branches belong to the orchestrator that starts sessions:
   work where you were started, and say so when the task needs topology you
   were not given.
