@@ -56,6 +56,13 @@ every fleet participant skill, external managed skill, the canonical global
 `AGENTS.md`, and AgentStart's session resources. Every managed launch includes
 it unless explicitly suppressed. _Avoid_: core plugin, agentstart-core.
 
+**Subagent capability** — the fleet's answer to a harness that dispatches no
+workers of its own. Pi's is the pinned `pi-subagents` package, installed
+self-contained and carried in the common pack's `pi_extensions` resource,
+which registers a dispatch tool, its skills, and its workflow prompt
+templates from one directory. _Avoid_: subagent plugin (Pi calls the unit a
+package), worker (that is what a dispatched agent is, not the capability).
+
 **Session projection** — an immutable harness-native rendering of one resolved
 set of capability packs. Claude receives one plugin named `agent`, Codex
 receives standalone extra skill roots, and Pi receives explicit skill,

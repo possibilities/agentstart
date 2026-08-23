@@ -420,6 +420,7 @@ Common capability pack:
   install herdr with --copy into the common capability pack
 EOF
     "$script_dir/install-statusline" --check
+    "$script_dir/install-pi-subagents" --check
     "$script_dir/install-launchagents" --check
     "$script_dir/sync-skills" --check
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
@@ -914,6 +915,12 @@ remove_retired_core_plugin
 # are installed above: the codex step edits config.toml, which the Codex
 # installer creates.
 "$script_dir/install-statusline" --install
+
+# Pi ships no subagents deliberately and points at third-party packages
+# instead, so the fleet installs one and pins it. This must precede the skill
+# sync below, because that is what renders the common capability pack, and the
+# renderer carries whatever this step has installed.
+"$script_dir/install-pi-subagents" --install
 
 printf 'Installing the common skill discovery helper.\n'
 install_private_skill_pack https://github.com/vercel-labs/skills find-skills

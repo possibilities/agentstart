@@ -21,6 +21,7 @@ case "$1" in
     --check)
         cat <<'EOF'
   render the default common capability pack under ~/.local/share/agentstart/capabilities
+  carry the pinned Pi subagent package into common when the full installer has installed it
   render one session-only Claude plugin named agent (/agent:<skill>)
   render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed
   leave retired-plugin and ambient-link cleanup to the explicit full installer
@@ -83,6 +84,42 @@ if [ -e "$pi_herdr_source" ] || [ -L "$pi_herdr_source" ]; then
         || die "Pi Herdr integration has the wrong identity: $pi_herdr_source"
     cp "$pi_herdr_source" "$pi_herdr_target"
     printf 'Copied the Herdr Pi integration into common: %s.\n' "$pi_herdr_target"
+fi
+
+# The Pi subagent capability, installed and pinned by the explicit full
+# installer. Copy it whole: AgentLaunch names this directory with --extension,
+# and Pi reads the package.json "pi" manifest inside it to register the
+# extension, its skills, and its workflow prompt templates from the one path.
+# The copy carries node_modules because a projected entry is copied by subtree
+# and Pi never installs dependencies for a local path.
+#
+# Absence is not an error. The six-hour sync runs this renderer, and a machine
+# that has not yet run the full installer simply has no subagent capability
+# yet. A version match skips the copy, because this is the one pack resource
+# large enough for a needless re-copy to be felt.
+pi_subagents_source="${AGENTSTART_PI_SUBAGENTS_ROOT:-$HOME/.local/share/agentstart/pi-subagents}/pi-subagents"
+pi_subagents_target="$pack_root/pi/extensions/pi-subagents"
+if [ -d "$pi_subagents_source" ]; then
+    [ -f "$pi_subagents_source/package.json" ] \
+        || die "refusing Pi subagents install without a package manifest: $pi_subagents_source"
+    source_version=$(/usr/bin/env node -e \
+        'process.stdout.write(require(process.argv[1]).version ?? "")' \
+        "$pi_subagents_source/package.json" 2>/dev/null || true)
+    [ -n "$source_version" ] \
+        || die "Pi subagents install has no version: $pi_subagents_source"
+    target_version=''
+    if [ -f "$pi_subagents_target/package.json" ]; then
+        target_version=$(/usr/bin/env node -e \
+            'process.stdout.write(require(process.argv[1]).version ?? "")' \
+            "$pi_subagents_target/package.json" 2>/dev/null || true)
+    fi
+    if [ "$source_version" != "$target_version" ] \
+        || [ ! -d "$pi_subagents_target/node_modules" ]; then
+        rm -rf -- "$pi_subagents_target"
+        cp -R "$pi_subagents_source" "$pi_subagents_target"
+        printf 'Copied Pi subagents %s into common: %s.\n' \
+            "$source_version" "$pi_subagents_target"
+    fi
 fi
 
 next_managed_names="$capabilities_root/managed-skills.next"
