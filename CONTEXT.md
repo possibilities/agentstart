@@ -72,7 +72,10 @@ one launch, not registered globally).
 **Compatibility projection** — the temporary Codex plugin named `agent` for
 desktop and other Codex clients that do not launch through AgentLaunch. It is
 rendered from `common`; portable manifests stay bare in the pack and only the
-plugin copy qualifies names as `$agent:<name>`. _Avoid_: canonical plugin.
+plugin copy qualifies names as `$agent:<name>`. AgentLaunch enumerates this
+projection and name-disables those qualified aliases in managed sessions,
+because Codex does not apply session-flag plugin enablement to plugin loading.
+_Avoid_: canonical plugin.
 
 **The Herdr config render** — the live `~/.config/herdr/config.toml` rendered
 by AgentStart from its tracked behavior config, which carries no palette.
