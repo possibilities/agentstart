@@ -730,6 +730,7 @@ for required_install in \
     'brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     'bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout'"'"'s src/index.ts, so edits are live' \
+    '~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
@@ -1026,6 +1027,14 @@ grep -F 'bun install --cwd "$fmx_root" --frozen-lockfile' scripts/install.sh >/d
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '(cd "$fmx_root" && bun link)' scripts/install.sh >/dev/null \
     || fail "installer does not bun-link fmx editable"
+# An editable fmx needs the Companion its companion.json pins on PATH; fmx's
+# own script builds and places it, and the installer never builds it by hand.
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F '"$fmx_root/scripts/install-companion.sh"' scripts/install.sh >/dev/null \
+    || fail "installer does not install fmx's pinned Companion"
+if grep -F 'Dcompanion' scripts/install.sh >/dev/null; then
+    fail "installer builds the Companion by hand instead of through fmx's script"
+fi
 # fmx's config is linked because fmx does not mutate it; both the tracked source
 # and the installer stay pinned to the same Ctrl-Space prefix used by Herdr.
 grep -Fqx 'prefix = "ctrl+space"' config/fmx/config.toml \
