@@ -82,6 +82,16 @@ test("keeps the advice guide reachable within the viewport", async () => {
   assert.match(css, /\.guide-reader\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
 });
 
+test("keeps the field guide comfortable to read", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.intent-search input\s*\{[^}]*font-size:\s*16px;/s);
+  assert.match(css, /\.skill-list\s*>\s*button p\s*\{[^}]*font-size:\s*14px;/s);
+  assert.match(css, /\.skill-list\s*>\s*button strong\s*\{[^}]*font-size:\s*20px;/s);
+  assert.match(css, /\.advice-markdown\s*\{[^}]*font-size:\s*18px;/s);
+  assert.match(css, /\.advice-markdown table\s*\{[^}]*font-size:\s*14px;/s);
+});
+
 test("follows the system color scheme without a stored override", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 

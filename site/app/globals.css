@@ -96,6 +96,7 @@ body {
   background-size: 32px 32px;
   color: var(--ink);
   font-family: var(--font-body), sans-serif;
+  font-size: 17px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -129,7 +130,7 @@ pre:focus-visible {
   margin: 0;
   color: var(--indigo-dark);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -175,7 +176,7 @@ pre:focus-visible {
   gap: 32px;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -500,7 +501,7 @@ pre:focus-visible {
   margin-top: 5px;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -540,7 +541,7 @@ pre:focus-visible {
 .skill-list > button > span {
   color: var(--indigo-dark);
   font-family: var(--font-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -559,7 +560,7 @@ pre:focus-visible {
   max-width: 350px;
   margin: 12px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
@@ -586,7 +587,7 @@ pre:focus-visible {
   max-width: 430px;
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.55;
 }
 
@@ -597,7 +598,7 @@ pre:focus-visible {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-mono), monospace;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
@@ -674,7 +675,7 @@ pre:focus-visible {
 .utility-grid header small {
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .utility-grid h4 {
@@ -689,7 +690,7 @@ pre:focus-visible {
   max-width: 390px;
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.58;
 }
 
@@ -703,7 +704,7 @@ pre:focus-visible {
   padding: 9px 0 9px 18px;
   position: relative;
   border-top: 1px solid var(--line);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -724,7 +725,7 @@ pre:focus-visible {
   min-height: 620px;
   margin-top: 110px;
   display: grid;
-  grid-template-columns: minmax(340px, 0.82fr) minmax(0, 1.78fr);
+  grid-template-columns: minmax(390px, 0.9fr) minmax(0, 1.7fr);
   overflow: hidden;
   border: 1px solid var(--ink);
   background: var(--paper-strong);
@@ -743,7 +744,7 @@ pre:focus-visible {
 
 .guide-nav-head {
   flex: 0 0 auto;
-  padding: 18px;
+  padding: 20px;
   border-bottom: 1px solid var(--line-strong);
 }
 
@@ -771,7 +772,7 @@ pre:focus-visible {
   outline: 0;
   background: transparent;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .intent-search input::placeholder { color: var(--muted); }
@@ -782,7 +783,7 @@ pre:focus-visible {
   background: var(--field-muted);
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .category-list {
@@ -794,7 +795,7 @@ pre:focus-visible {
 
 .category-list button {
   min-width: 0;
-  padding: 7px 8px;
+  padding: 9px 10px;
   display: flex;
   justify-content: space-between;
   gap: 6px;
@@ -802,7 +803,7 @@ pre:focus-visible {
   background: transparent;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 8px;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
 }
@@ -818,7 +819,7 @@ pre:focus-visible {
   overflow: hidden;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -833,8 +834,8 @@ pre:focus-visible {
 
 .skill-list > button {
   width: 100%;
-  min-height: 132px;
-  padding: 16px 18px;
+  min-height: 150px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -845,7 +846,7 @@ pre:focus-visible {
   text-align: left;
   cursor: pointer;
   content-visibility: auto;
-  contain-intrinsic-size: 132px;
+  contain-intrinsic-size: 150px;
 }
 
 .skill-list > button:hover { background: var(--hover); }
@@ -854,7 +855,7 @@ pre:focus-visible {
 .skill-list > button strong {
   margin-top: 6px;
   font-family: var(--font-display), sans-serif;
-  font-size: 17px;
+  font-size: 20px;
   letter-spacing: -0.025em;
 }
 
@@ -863,8 +864,8 @@ pre:focus-visible {
   margin: 7px 0 0;
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -873,7 +874,7 @@ pre:focus-visible {
   margin-top: 10px;
   color: var(--muted);
   font-family: var(--font-mono), monospace;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .no-results {
@@ -907,7 +908,7 @@ pre:focus-visible {
 }
 
 .reader-kicker { display: flex; align-items: center; gap: 10px; }
-.reader-kicker small { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 9px; }
+.reader-kicker small { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 11px; }
 
 .reader-head h3 {
   max-width: 880px;
@@ -922,7 +923,7 @@ pre:focus-visible {
   max-width: 760px;
   margin: 22px 0 0;
   color: var(--muted);
-  font-size: 17px;
+  font-size: 19px;
   line-height: 1.55;
 }
 
@@ -940,9 +941,9 @@ pre:focus-visible {
 }
 
 .dialect-row div:last-child { border-right: 0; }
-.dialect-row dt { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+.dialect-row dt { color: var(--muted); font-family: var(--font-mono), monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
 .dialect-row dd { margin: 5px 0 0; }
-.dialect-row code { color: var(--indigo-dark); font-family: var(--font-mono), monospace; font-size: 11px; }
+.dialect-row code { color: var(--indigo-dark); font-family: var(--font-mono), monospace; font-size: 14px; }
 
 .purpose-panel {
   width: min(900px, calc(100% - 48px));
@@ -952,7 +953,7 @@ pre:focus-visible {
   background: var(--quote-bg);
 }
 
-.purpose-panel p { margin: 10px 0 0; color: var(--quote-copy); font-size: 14px; line-height: 1.62; }
+.purpose-panel p { margin: 10px 0 0; color: var(--quote-copy); font-size: 17px; line-height: 1.62; }
 
 .reading-toolbar {
   width: min(900px, calc(100% - 48px));
@@ -974,15 +975,15 @@ pre:focus-visible {
   border-radius: 0;
   background: var(--paper-strong);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .advice-markdown {
   width: min(900px, calc(100% - 48px));
   margin: 42px auto 96px;
   color: var(--document-copy);
-  font-size: 15px;
-  line-height: 1.72;
+  font-size: 18px;
+  line-height: 1.75;
 }
 
 .advice-markdown > *:first-child { margin-top: 0; }
@@ -997,10 +998,10 @@ pre:focus-visible {
   letter-spacing: -0.045em;
 }
 
-.advice-markdown h1 { margin: 0 0 32px; font-size: 46px; }
-.advice-markdown h2 { margin: 54px 0 17px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 29px; }
-.advice-markdown h3 { margin: 36px 0 12px; font-size: 21px; }
-.advice-markdown h4 { margin: 28px 0 8px; font-size: 17px; }
+.advice-markdown h1 { margin: 0 0 32px; font-size: 48px; }
+.advice-markdown h2 { margin: 54px 0 17px; padding-top: 22px; border-top: 1px solid var(--line); font-size: 32px; }
+.advice-markdown h3 { margin: 36px 0 12px; font-size: 24px; }
+.advice-markdown h4 { margin: 28px 0 8px; font-size: 20px; }
 .advice-markdown p,
 .advice-markdown ul,
 .advice-markdown ol { margin: 0 0 18px; }
@@ -1033,7 +1034,7 @@ pre:focus-visible {
   background: var(--code-bg);
   color: var(--code-text);
   font-family: var(--font-mono), monospace;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
   tab-size: 2;
 }
@@ -1044,12 +1045,12 @@ pre:focus-visible {
   width: 100%;
   margin: 24px 0;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .advice-markdown th,
 .advice-markdown td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-.advice-markdown th { background: var(--table-head); font-family: var(--font-mono), monospace; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; }
+.advice-markdown th { background: var(--table-head); font-family: var(--font-mono), monospace; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
 .advice-markdown hr { margin: 50px 0; border: 0; border-top: 1px solid var(--line-strong); }
 
 .empty-reader { min-height: 100%; display: grid; place-content: center; color: var(--muted); }
@@ -1063,7 +1064,7 @@ pre:focus-visible {
   .starting-prompts button { border-bottom: 1px solid var(--ink); }
   .starting-prompts button:nth-child(3) { border-right: 0; }
   .starting-prompts button:nth-child(n+4) { border-bottom: 0; }
-  .guide-shell { grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.5fr); }
+  .guide-shell { grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.5fr); }
 }
 
 @media (max-width: 860px) {
