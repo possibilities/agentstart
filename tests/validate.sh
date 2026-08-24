@@ -48,6 +48,13 @@ done
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
+for supervisor_script in \
+    skills/supervisor/scripts/watch.ts \
+    skills/supervisor/scripts/integrate.ts \
+    skills/supervisor/scripts/reap.ts; do
+    [ -x "$supervisor_script" ] \
+        || fail "supervisor helper is not executable: $supervisor_script"
+done
 
 # The obsolete llm model records stay gone, and the retired Orca overlay must
 # not return as a second harness-configuration path.
@@ -136,6 +143,23 @@ grep -q '```mermaid' skills/fleet/MAP.md \
 if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
+
+# The supervisor is a portable skill with executable mechanics: its watcher
+# carries the Herdr reconnect/reconcile contract and its integrator guards the
+# exact commit that may move main, while its reaper preserves branch identity.
+# Exercise them against disposable repositories and a fake socket rather than
+# accepting prose-only coverage.
+[ -f skills/supervisor/SKILL.md ] \
+    || fail "the supervisor skill is missing: skills/supervisor/SKILL.md"
+grep -q '^name: supervisor$' skills/supervisor/SKILL.md \
+    || fail "the supervisor skill frontmatter does not name /supervisor"
+[ -f skills/supervisor/agents/openai.yaml ] \
+    || fail "the supervisor skill is missing its agents/openai.yaml manifest"
+grep -q 'allow_implicit_invocation: true' skills/supervisor/agents/openai.yaml \
+    || fail "the supervisor skill manifest does not allow implicit invocation"
+command -v bun >/dev/null 2>&1 \
+    || fail "bun is required to test the supervisor's TypeScript helpers"
+bun test tests/supervisor.test.ts
 
 # Cross-project guidance lives in the wiki, not in this repository; a
 # guidance/ directory reappearing here means the decision reversed silently.

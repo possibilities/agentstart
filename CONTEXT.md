@@ -90,3 +90,10 @@ checkout without one is not misconfigured; it is simply not a participant.
 This repository is itself a participant (the `fleet` skill). _Avoid_:
 registered, enrolled (there is no registry — the convention is the whole
 interface).
+
+**Supervisor** — a persistent agent role that watches peer lifecycle events,
+obtains readiness for an exact commit, integrates that commit into local
+`main`, pushes `origin/main`, and reaps a clean worktree only after Herdr has
+observed its agent end and workspace close. It preserves the branch and a
+durable association receipt. _Avoid_: orchestrator (a broader control-plane
+role), Land (which combines integration and release).
