@@ -79,11 +79,20 @@ repository. A candidate is evidence, not permission to merge.
 1. Read `clean`, `head`, `main_head`, `worktree`, and `session_id` from the
    event. If the source is dirty, ask the peer to finish or discard its
    uncommitted state first.
-2. Message the peer by stable session id:
+2. Message the peer by stable session id, leaving a calling card. A peer
+   knows nothing about you: its own guidance stops its work at a commit and
+   says nothing about supervisors, so every reach-out carries what it needs
+   to answer you. The bus supplies your identity mechanically — it prefixes
+   the message with your name, session id, and worktree, which is the address
+   the peer replies to — so the card adds only what the prefix cannot: the
+   skill to reach back with, the exact reply, and whose job integration is.
 
    ```sh
-   agentsurface message <session-id> "Supervisor found commit <full-sha> in <worktree>. Is this exact commit clean, verified, complete, and ready for local main? Reply over the bus with exactly READY <full-sha>, or explain what remains."
+   agentsurface message <session-id> "Supervisor here. I found commit <full-sha> in <worktree>. Is that exact commit clean, verified, complete, and ready for me to fast-forward into local main? Load your bus skill and reply to the session named in this message's prefix with exactly READY <full-sha> and nothing else, or tell me what remains. Integration and publication are mine — leave main and the remote alone."
    ```
+
+   Every later message keeps the card: name the exact SHA under discussion,
+   and reaffirm the boundary whenever you assign the peer work of its own.
 
 3. Accept only `READY <full-sha>` for the candidate's exact full object id.
    Normal conversation, an earlier approval, a shortened id, or approval for a

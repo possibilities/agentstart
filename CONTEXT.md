@@ -91,6 +91,12 @@ This repository is itself a participant (the `fleet` skill). _Avoid_:
 registered, enrolled (there is no registry — the convention is the whole
 interface).
 
+**Peer** — an agent session doing ordinary work in its own worktree. Its
+result stops at a clean, verified commit; it never moves `main` or a remote,
+and it learns a supervisor exists only from the calling card in that
+supervisor's first message. _Avoid_: worker (which runs a dispatched brief
+under an orchestrator), child, sub-agent.
+
 **Supervisor** — a persistent agent role that watches peer lifecycle events,
 obtains readiness for an exact commit, integrates that commit into local
 `main`, pushes `origin/main`, and reaps a clean worktree only after Herdr has

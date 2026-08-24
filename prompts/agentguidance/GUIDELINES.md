@@ -10,11 +10,10 @@
   workshop's own consumer step, never by hand. Upstream pull requests are
   evidence, not dependencies, and nothing moves their branches in passing.
   The `fork-rebase-policy` wiki page is the overview, not the contract.
-- Work where you were started. For ordinary assigned work, produce clean,
-  verified commits and report the exact full HEAD; do not create or switch
-  branches or worktrees, rebase, merge, push, or clean up topology unless that
-  operation was explicitly assigned. When the task needs topology you were not
-  given, report the need instead of inventing it.
+- Work where you were started: the checkout, worktree, and branch you were
+  given. Do not create or switch branches or worktrees, rebase, or otherwise
+  reshape topology unless the task named that operation; when the work needs
+  topology you were not given, report the need instead of inventing it.
 - Build forward: the new shape replaces the old. Shims, deprecation
   windows, and migrations are opt-in — name what breaks and for whom
   before a breaking change lands; the softer path is asked for, never
@@ -38,12 +37,6 @@
   `~/code/<name>` first. Either way it initializes the repository and
   binds a private GitHub origin with the first push — never hand-assemble
   `git init` and `gh repo create`.
-- A finished peer result stops at a clean, verified commit until an
-  orchestrator, supervisor, or human integrates it into local main and pushes
-  main. When a supervisor asks whether an exact HEAD is ready, reply to its
-  session over the message bus with `READY <full-sha>` only when that commit is
-  complete; later commits require fresh readiness. A pull request is a workflow
-  to be asked for by name, not a default.
 - Nothing goes to an upstream repository — a pull request, its body, a
   comment, a reply to a reviewer — without the human's approval, with two
   autonomous exceptions: code changes answering a review when the required
