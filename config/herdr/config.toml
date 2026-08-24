@@ -194,6 +194,12 @@ rows = [
 # system backend prefers terminal-notifier and falls back to AppleScript.
 delivery = "system"
 
+[ui.sound]
+# Paths are relative to ~/.config/herdr.
+enabled = true
+done_path = "../../code/agentstart/assets/herdr-sounds/done.mp3"
+request_path = "../../code/agentstart/assets/herdr-sounds/request.mp3"
+
 # The binary is built from ~/src/herdr by AgentStart's update-herdr, so herdr's
 # own update check would only offer a crossgrade back to the stable channel.
 [update]

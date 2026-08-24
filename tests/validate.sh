@@ -1115,6 +1115,16 @@ grep -F 'status_indicators = "dots"' config/herdr/config.toml >/dev/null \
     || fail "Herdr status indicators do not keep a uniform icon size"
 grep -F 'delivery = "system"' config/herdr/config.toml >/dev/null \
     || fail "Herdr notifications do not use the terminal-notifier-backed system delivery"
+for sound in "done" request; do
+    [ -s "assets/herdr-sounds/${sound}.mp3" ] \
+        || fail "Herdr ${sound} sound is missing from AgentStart"
+    grep -Fqx "${sound}_path = \"../../code/agentstart/assets/herdr-sounds/${sound}.mp3\"" \
+        config/herdr/config.toml \
+        || fail "Herdr ${sound} sound does not resolve to AgentStart's owned asset"
+done
+if grep -F 'code/funk/assets/herdr-sounds' config/herdr/config.toml >/dev/null; then
+    fail "Herdr sound config still crosses into Funk"
+fi
 grep -Fqx 'name = "terminal"' config/herdr/config.toml \
     || fail "Herdr does not follow the terminal's own palette"
 if grep -Eq '^\[theme\.custom\]' config/herdr/config.toml; then
