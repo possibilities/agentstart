@@ -560,10 +560,11 @@ class HerdrWatcher {
 }
 
 /**
- * A worktree Git reported, turned into a candidate. It becomes a merge
- * candidate when an ADE can name the agent working there — the readiness
- * handshake needs someone to ask — and an unowned candidate otherwise, which
- * the supervisor brings to its human instead of merging on its own authority.
+ * A worktree Git reported, turned into a candidate, or `null` when it holds
+ * nothing for the supervisor. It becomes a merge candidate when an ADE can
+ * name the agent working there — the readiness handshake needs someone to ask
+ * — and an unowned candidate otherwise, which the supervisor brings to its
+ * human instead of merging on its own authority.
  */
 export async function candidateFromWorktree(
   worktree: DiscoveredWorktree,
@@ -581,6 +582,10 @@ export async function candidateFromWorktree(
   // than waiting for an ADE to notice its workspace close.
   if (state === "landed") {
     const placed = place(worktree, owner);
+    // A quiet worktree is not news: either no work was ever done in it, or the
+    // agent that did the work is still sitting there. Nothing is at stake in
+    // either, and reporting them buries the worktrees that need a human.
+    if (placed.category === "quiet") return null;
     // Uncommitted work under a live session is the one landed state not worth
     // announcing: it changes with every file the agent saves. Left behind by a
     // session that is gone, the same state is exactly what a human must hear.
@@ -628,10 +633,14 @@ export function startDiscovery(
       try {
         const candidate = await candidateFromWorktree(worktree, ownership);
         if (candidate) await sink.publish(candidate);
+        // An unreported worktree stays unannounced, so a later scan sees it
+        // afresh: ownership can change without Git moving a single ref.
+        return candidate !== null;
       } catch (error) {
         process.stderr.write(
           `supervisor watch: discovery publish failed: ${error instanceof Error ? error.message : String(error)}\n`,
         );
+        return false;
       }
     },
     onDiagnostic: (message) => process.stderr.write(`supervisor watch: ${message}\n`),

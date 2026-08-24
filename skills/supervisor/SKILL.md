@@ -17,18 +17,24 @@ and no worktree becomes removable without the human hearing it.
 
 Resolve this skill's directory, then run `scripts/watch.ts` as a long-lived
 process. Its first stdout line is a `roster` object — every worktree under the
-project roots, each placed as **watching**, **landed**, or **removable** — and
-the same object is available at any time from `scripts/status.ts`, which takes
-the same `--project-root` and `--socket` arguments and needs no watcher.
+project roots, each placed as **watching**, **quiet**, **landed**, or
+**removable** — and the same object is available at any time from
+`scripts/status.ts`, which takes the same `--project-root` and `--socket`
+arguments and needs no watcher.
 
 Report that roster to the human as the first thing you do, before working any
 candidate. Keep it compact: one line per worktree, grouped by category, naming
 the branch, the short head, the live session where there is one, and the
 blocker on anything landed that is not removable. Say the counts plainly —
-how many are watching, landed, and removable — and say when
+how many are watching, quiet, landed, and removable — and say when
 `ownership_available` is false, because an unreachable agent development
 environment means no session is knowable and a worktree that looks unowned
 may not be.
+
+A **quiet** worktree is a count and nothing more. It holds no unmerged commits
+and nothing uncommitted, and either no work was ever done in it or the agent
+that did the work is still sitting there. Spending a line on each of them is
+how the worktrees that need a human get buried.
 
 Report the roster again whenever the operator stops the supervisor, and
 whenever they ask what you are watching. A run that ends without one has left
@@ -87,6 +93,14 @@ reconnects by itself. If it exits, diagnose and restart it; do not replace it
 with an `agentsurface agents` polling loop. Another ADE would satisfy the same
 small contract — name the session working in a given worktree, and report when
 a workspace closes — without touching discovery.
+
+A worktree where no work has been done is not reported at all. Git cannot tell
+a finished worktree from an untouched one — both are clean and both are
+contained in `main` — so discovery asks the worktree's own reflog whether a
+commit was ever made in it. One that has none is a checkout somebody opened,
+not work: no event, no queue entry, nothing to say to the human. Its first
+commit makes it a candidate like any other, and when its workspace closes the
+ordinary reap path removes it.
 
 A discovered worktree whose commits `main` already contains arrives as a
 `removable_worktree` rather than a merge candidate — see below. One that still
@@ -179,8 +193,9 @@ Continue supervising other repositories while one is waiting.
 
 ## Report a removable worktree
 
-A `removable_worktree` says a worktree has nothing left to integrate. It
-carries `removable`, `blockers`, and `owner` alongside the usual identity.
+A `removable_worktree` says a worktree that was worked in has nothing left to
+integrate. It carries `removable`, `blockers`, and `owner` alongside the usual
+identity.
 
 Tell the human every time one arrives, and say which of the two it is:
 
@@ -188,10 +203,13 @@ Tell the human every time one arrives, and say which of the two it is:
   uncommitted is left in it, it is a branch and not `main`, and no session is
   in it. The directory is now the only thing left. Name the path, the branch,
   and the head.
-- `removable: false` — say the blocker in the event's own words. A live
-  session means "removable once that session closes"; uncommitted changes in a
-  worktree nobody is sitting in means real work is about to be lost with the
-  directory, and that is the one to raise loudest.
+- `removable: false` — say the blocker in the event's own words. Uncommitted
+  changes in a worktree nobody is sitting in means real work is about to be
+  lost with the directory, and that is the one to raise loudest.
+
+Nothing arrives while an agent is still sitting in a clean worktree whose work
+has landed: that is quiet, and the event comes when the session is gone and the
+directory is genuinely all that is left.
 
 Reporting is the whole of this. A `removable_worktree` is never authority to
 remove anything: it observes Git, and Git cannot see whether a human still has

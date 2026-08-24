@@ -97,6 +97,12 @@ and it learns a supervisor exists only from the calling card in that
 supervisor's first message. _Avoid_: worker (which runs a dispatched brief
 under an orchestrator), child, sub-agent.
 
+**Quiet worktree** — a worktree holding nothing for the supervisor: no
+unmerged commits, nothing uncommitted, and either no commit ever made in it or
+its agent still sitting there. It is counted in the roster and never
+announced. _Avoid_: idle (which describes the agent, not the worktree), empty
+(a quiet worktree is usually a full checkout).
+
 **Supervisor** — a persistent agent role that watches peer lifecycle events,
 obtains readiness for an exact commit, integrates that commit into local
 `main`, pushes `origin/main`, and reaps a clean worktree only after Herdr has

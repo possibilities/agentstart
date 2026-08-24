@@ -13,7 +13,7 @@ import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./w
  * of whichever events happened to fire.
  */
 
-export type RosterCategory = "main" | "watching" | "landed" | "removable";
+export type RosterCategory = "main" | "watching" | "quiet" | "landed" | "removable";
 
 export interface RosterWorktree extends WorktreeIdentity {
   category: RosterCategory;
@@ -41,17 +41,23 @@ export interface Roster {
   project_roots: string[];
   /** Whether an agent development environment answered; false means no session is knowable. */
   ownership_available: boolean;
-  counts: { watching: number; landed: number; removable: number };
+  counts: { watching: number; quiet: number; landed: number; removable: number };
   repositories: RosterRepository[];
 }
 
 /**
  * Where one surveyed worktree belongs, and what stands between it and removal.
  *
- * Removable means exactly this: its commits are in `main`, nothing uncommitted
- * is left in it, it is a branch and not `main` itself, and no agent is still
- * sitting in it. Anything short of that is a blocker with a name, because a
- * human reading the roster deserves the reason and not just the verdict.
+ * Removable means exactly this: work was done here, its commits are in `main`,
+ * nothing uncommitted is left in it, it is a branch and not `main` itself, and
+ * no agent is still sitting in it. Anything short of that is a blocker with a
+ * name, because a human reading the roster deserves the reason and not just
+ * the verdict.
+ *
+ * Quiet is the absence of all of it: a landed, clean worktree where no work
+ * was ever done, or where the agent that did it has not left yet. Neither
+ * holds anything for the supervisor, and a roster that spends a line on each
+ * of them buries the ones that do.
  */
 export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null): RosterWorktree {
   const blockers: string[] = [];
@@ -65,14 +71,21 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
   if (worktree.branch === null) blockers.push("detached HEAD");
   if (owner) blockers.push(`session live (${owner.harness ?? "agent"} ${owner.session_id})`);
 
-  const removable = worktree.state === "landed" && blockers.length === 0;
-  const category: RosterCategory =
-    worktree.state === "unmerged" || owner ? "watching" : removable ? "removable" : "landed";
+  const removable = worktree.state === "landed" && worktree.worked && blockers.length === 0;
+  const quiet =
+    worktree.state === "landed" && worktree.clean && (!worktree.worked || owner !== null);
+  const category: RosterCategory = quiet
+    ? "quiet"
+    : worktree.state === "unmerged" || owner
+      ? "watching"
+      : removable
+        ? "removable"
+        : "landed";
   return { ...identity(worktree), category, owner, removable, blockers };
 }
 
 function identity(worktree: DiscoveredWorktree): WorktreeIdentity {
-  const { repository: _repository, state: _state, ...rest } = worktree;
+  const { repository: _repository, state: _state, worked: _worked, ...rest } = worktree;
   return rest;
 }
 
@@ -82,7 +95,7 @@ export async function buildRoster(
   occasion: string,
 ): Promise<Roster> {
   const repositories: RosterRepository[] = [];
-  const counts = { watching: 0, landed: 0, removable: 0 };
+  const counts = { watching: 0, quiet: 0, landed: 0, removable: 0 };
 
   for (const repository of findRepositories(roots)) {
     const surveyed = surveyRepository(repository, roots);

@@ -2,9 +2,18 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { AgentTracker, ReapTracker } from "../skills/supervisor/scripts/watch.ts";
+import {
+  AgentTracker,
+  ReapTracker,
+  candidateFromWorktree,
+} from "../skills/supervisor/scripts/watch.ts";
 import { listLiveWorktrees, normalizePath } from "../skills/supervisor/scripts/git.ts";
-import { findRepositories, scanRepository, surveyRepository } from "../skills/supervisor/scripts/worktrees.ts";
+import {
+  WorktreeDiscovery,
+  findRepositories,
+  scanRepository,
+  surveyRepository,
+} from "../skills/supervisor/scripts/worktrees.ts";
 import { buildRoster } from "../skills/supervisor/scripts/roster.ts";
 
 const root = resolve(import.meta.dir, "..");
@@ -806,26 +815,72 @@ describe("The roster", () => {
     expect(left?.blockers).toEqual(["uncommitted changes"]);
   });
 
-  test("names the live session holding a landed worktree open", async () => {
+  test("quiets a landed worktree its session has not left yet, naming the session", async () => {
     const fixture = createFixture();
     land(fixture);
 
-    const roster = await buildRoster([fixture.projectsRoot], {
-      owner: async (worktree) =>
+    const ownership = {
+      owner: async (worktree: string) =>
         worktree === normalizePath(fixture.worktree)
           ? { harness: "codex", session_id: "session-7", pane_id: "pane-7" }
           : null,
-    }, "test");
+    };
+    const roster = await buildRoster([fixture.projectsRoot], ownership, "test");
     const peer = roster.repositories
       .flatMap((repository) => repository.worktrees)
       .find((row) => row.worktree === normalizePath(fixture.worktree));
 
+    // Nothing to integrate and nothing uncommitted, so the supervisor has no
+    // business with it until its agent leaves — but the roster still knows who
+    // is there, and says so if asked.
     expect(peer).toMatchObject({
-      category: "watching",
+      category: "quiet",
       removable: false,
       owner: { harness: "codex", session_id: "session-7", pane_id: "pane-7" },
     });
     expect(peer?.blockers).toEqual(["session live (codex session-7)"]);
+    expect(roster.counts).toMatchObject({ quiet: 1, watching: 0, removable: 0 });
+
+    // And it is not announced: the same worktree emits an event only once the
+    // session is gone and it is genuinely a directory to remove.
+    const surveyed = surveyRepository(fixture.main, [fixture.projectsRoot]);
+    const landed = surveyed.find((row) => row.worktree === normalizePath(fixture.worktree));
+    if (!landed) throw new Error("the landed worktree was not surveyed");
+    expect(await candidateFromWorktree(landed, ownership)).toBeNull();
+    expect(await candidateFromWorktree(landed, { owner: async () => null })).toMatchObject({
+      type: "removable_worktree",
+      removable: true,
+    });
+  });
+
+  test("ignores a worktree where no work has ever been done", async () => {
+    const fixture = createFixture();
+    const fresh = join(fixture.root, "worktrees", "fresh");
+    git(fixture.main, "worktree", "add", "-b", "worktree/fresh", fresh, "main");
+
+    const surveyed = surveyRepository(fixture.main, [fixture.projectsRoot]);
+    const untouched = surveyed.find((row) => row.worktree === normalizePath(fresh));
+    expect(untouched).toMatchObject({ state: "landed", clean: true, worked: false });
+
+    // Nobody is in it and nothing is at stake, but it is not finished work
+    // either: no commit was ever made here, so it is quiet rather than
+    // removable, and the stream says nothing about it.
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    const row = roster.repositories
+      .flatMap((repository) => repository.worktrees)
+      .find((entry) => entry.worktree === normalizePath(fresh));
+    expect(row).toMatchObject({ category: "quiet", removable: false, blockers: [] });
+    if (!untouched) throw new Error("the untouched worktree was not surveyed");
+    expect(await candidateFromWorktree(untouched, null)).toBeNull();
+
+    // The first commit made there is work, and it is watched like any other.
+    writeFileSync(join(fresh, "first.txt"), "first\n");
+    git(fresh, "add", "first.txt");
+    git(fresh, "commit", "-m", "first work");
+    const working = surveyRepository(fixture.main, [fixture.projectsRoot]).find(
+      (entry) => entry.worktree === normalizePath(fresh),
+    );
+    expect(working).toMatchObject({ state: "unmerged", worked: true });
   });
 
   test("status.ts prints the same roster on demand", async () => {
@@ -851,6 +906,46 @@ describe("The roster", () => {
       ownership_available: false,
       counts: { removable: 1 },
     });
+  });
+
+  test("offers an ignored worktree again on the next scan", async () => {
+    const fixture = createFixture();
+    land(fixture);
+
+    const offered: string[] = [];
+    let reported = false;
+    const discovery = new WorktreeDiscovery({
+      projectRoots: [fixture.projectsRoot],
+      sweepIntervalSeconds: 0,
+      onWorktree: (worktree) => {
+        if (worktree.worktree === normalizePath(fixture.worktree)) offered.push(worktree.head);
+        return reported;
+      },
+    });
+
+    try {
+      discovery.start();
+      discovery.drainNow();
+      await Promise.resolve();
+      expect(offered).toEqual([fixture.workerHead]);
+
+      // Nothing changed in Git — and that is the point. A worktree passed over
+      // because of who was sitting in it must be reconsidered when nobody is,
+      // and no ref moves when an agent quits.
+      reported = true;
+      discovery.sweep();
+      discovery.drainNow();
+      await Promise.resolve();
+      expect(offered).toEqual([fixture.workerHead, fixture.workerHead]);
+
+      // Once it has been reported, the same situation is not offered again.
+      discovery.sweep();
+      discovery.drainNow();
+      await Promise.resolve();
+      expect(offered).toHaveLength(2);
+    } finally {
+      discovery.stop();
+    }
   });
 
   test("the survey keeps landed worktrees the candidate scan drops", () => {

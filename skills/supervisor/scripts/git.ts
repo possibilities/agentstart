@@ -248,3 +248,22 @@ export function inspectWorktree(cwd: string, roots: readonly string[]): Worktree
     clean: status.stdout.trim() === "",
   };
 }
+
+/**
+ * Whether a commit was ever made in this worktree, from its own HEAD reflog.
+ *
+ * A linked worktree keeps its own log under the repository's `worktrees/<id>/`
+ * directory, so this asks what happened *here* rather than what happened to
+ * the branch elsewhere. It is the one question Git's commit graph cannot
+ * answer: a worktree created an hour ago and a worktree whose work was
+ * fast-forwarded into `main` are both contained in `main` and both clean, and
+ * only the second is finished work. An unreadable or absent log answers true —
+ * unknown history is never grounds for ignoring a worktree.
+ */
+export function worktreeHasCommits(worktree: string): boolean {
+  const result = runGit(worktree, ["reflog", "show", "--format=%gs", "HEAD"]);
+  if (result.code !== 0) return true;
+  const entries = result.stdout.split("\n").filter((line) => line.trim() !== "");
+  if (entries.length === 0) return true;
+  return entries.some((entry) => entry.startsWith("commit"));
+}

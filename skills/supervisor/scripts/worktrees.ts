@@ -11,6 +11,7 @@ import {
   repositoryContext,
   resolveCommonDir,
   runGit,
+  worktreeHasCommits,
 } from "./git.ts";
 
 /**
@@ -61,6 +62,12 @@ export interface DiscoveredWorktree extends WorktreeIdentity {
   /** Absolute path of the repository whose registry produced this worktree. */
   repository: string;
   state: WorktreeState;
+  /**
+   * Whether any work was ever done here — a commit made in this worktree, or
+   * uncommitted changes sitting in it now. A worktree that has neither is a
+   * checkout somebody opened, not work the supervisor has any business with.
+   */
+  worked: boolean;
 }
 
 export interface DiscoveryOptions {
@@ -72,7 +79,14 @@ export interface DiscoveryOptions {
    * disables sweeping entirely and makes discovery purely event-driven.
    */
   sweepIntervalSeconds: number;
-  onWorktree(worktree: DiscoveredWorktree): void | Promise<void>;
+  /**
+   * Returning `false` says the worktree was not reported, which un-marks it so
+   * a later scan reconsiders the same situation. A worktree the supervisor
+   * ignores today — nobody has done any work in it, or the agent that did is
+   * still sitting there — becomes reportable when its ownership changes, and
+   * ownership is not something Git's registry ever moves.
+   */
+  onWorktree(worktree: DiscoveredWorktree): void | boolean | Promise<void | boolean>;
   onDiagnostic?(message: string): void;
 }
 
@@ -142,12 +156,16 @@ export function surveyRepository(
       if (!identity) continue;
       const state: WorktreeState =
         normalizePath(record.path) === context.main_worktree ? "main" : "landed";
-      surveyed.push({ ...identity, repository: home, state });
+      // The reflog is read only where its answer changes anything: a clean,
+      // landed worktree is the one place where "finished" and "never started"
+      // look identical to the commit graph.
+      const worked = state === "main" || !identity.clean || worktreeHasCommits(identity.worktree);
+      surveyed.push({ ...identity, repository: home, state, worked });
       continue;
     }
 
     const identity = inspectCandidate(record.path, roots);
-    if (identity) surveyed.push({ ...identity, repository: home, state: "unmerged" });
+    if (identity) surveyed.push({ ...identity, repository: home, state: "unmerged", worked: true });
   }
   return surveyed;
 }
@@ -347,7 +365,10 @@ export class WorktreeDiscovery {
       const situation = `${worktree.state}:${worktree.head}:${worktree.clean}`;
       if (this.announced.get(worktree.worktree) === situation) continue;
       this.announced.set(worktree.worktree, situation);
-      void this.options.onWorktree(worktree);
+      const path = worktree.worktree;
+      void Promise.resolve(this.options.onWorktree(worktree)).then((reported) => {
+        if (reported === false && this.announced.get(path) === situation) this.announced.delete(path);
+      });
     }
   }
 
