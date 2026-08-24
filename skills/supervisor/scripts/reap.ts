@@ -16,6 +16,8 @@ import {
 interface AgentIdentity {
   harness: string;
   session_id: string;
+  /** The session's name slug when the event carried one; the receipt keeps what a human would recognise. */
+  session_name?: string;
   pane_id: string;
 }
 
@@ -57,7 +59,12 @@ function parseAgent(value: string): AgentIdentity {
   ) {
     throw new Error("each --agent-json must contain harness, session_id, and pane_id strings");
   }
-  return { harness: parsed.harness, session_id: parsed.session_id, pane_id: parsed.pane_id };
+  return {
+    harness: parsed.harness,
+    session_id: parsed.session_id,
+    ...(typeof parsed.session_name === "string" ? { session_name: parsed.session_name } : {}),
+    pane_id: parsed.pane_id,
+  };
 }
 
 if (import.meta.main) {

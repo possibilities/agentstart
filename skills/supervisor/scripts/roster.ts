@@ -1,6 +1,6 @@
 import type { WorktreeIdentity } from "./git.ts";
 import { mainIsPushed, normalizePath } from "./git.ts";
-import type { OwnershipProvider, WorktreeOwner } from "./ade.ts";
+import { describeSession, type OwnershipProvider, type WorktreeOwner } from "./ade.ts";
 import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./worktrees.ts";
 
 /**
@@ -69,7 +69,7 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
   }
   if (!worktree.clean) blockers.push("uncommitted changes");
   if (worktree.branch === null) blockers.push("detached HEAD");
-  if (owner) blockers.push(`session live (${owner.harness ?? "agent"} ${owner.session_id})`);
+  if (owner) blockers.push(`session live (${describeSession(owner)})`);
 
   const removable = worktree.state === "landed" && worktree.worked && blockers.length === 0;
   const quiet =

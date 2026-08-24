@@ -15,6 +15,7 @@ import {
   surveyRepository,
 } from "../skills/supervisor/scripts/worktrees.ts";
 import { buildRoster } from "../skills/supervisor/scripts/roster.ts";
+import { ownerOf } from "../skills/supervisor/scripts/ade.ts";
 
 const root = resolve(import.meta.dir, "..");
 const watchScript = join(root, "skills", "supervisor", "scripts", "watch.ts");
@@ -815,6 +816,31 @@ describe("The roster", () => {
     expect(left?.blockers).toEqual(["uncommitted changes"]);
   });
 
+  test("names a worktree's owner by its session slug, falling back to the id", () => {
+    const worktree = "/tmp/projects/app/worktree-calm-field";
+    const named = ownerOf(
+      [
+        {
+          pane_id: "w1:p1",
+          cwd: worktree,
+          tokens: { conversation: "supervise-peer-worktrees", project: "app  calm-field" },
+          agent_session: { agent: "codex", value: "session-1" },
+        },
+      ],
+      worktree,
+      null,
+    );
+    expect(named).toMatchObject({ session_id: "session-1", session_name: "supervise-peer-worktrees" });
+
+    // A session too young to have been named still has an id to address.
+    const unnamed = ownerOf(
+      [{ pane_id: "w1:p1", cwd: worktree, agent_session: { agent: "codex", value: "session-1" } }],
+      worktree,
+      null,
+    );
+    expect(unnamed).toMatchObject({ session_id: "session-1", session_name: null });
+  });
+
   test("quiets a landed worktree its session has not left yet, naming the session", async () => {
     const fixture = createFixture();
     land(fixture);
@@ -822,7 +848,12 @@ describe("The roster", () => {
     const ownership = {
       owner: async (worktree: string) =>
         worktree === normalizePath(fixture.worktree)
-          ? { harness: "codex", session_id: "session-7", pane_id: "pane-7" }
+          ? {
+              harness: "codex",
+              session_id: "session-7",
+              session_name: "tidy-the-installer",
+              pane_id: "pane-7",
+            }
           : null,
     };
     const roster = await buildRoster([fixture.projectsRoot], ownership, "test");
@@ -836,9 +867,10 @@ describe("The roster", () => {
     expect(peer).toMatchObject({
       category: "quiet",
       removable: false,
-      owner: { harness: "codex", session_id: "session-7", pane_id: "pane-7" },
+      owner: { harness: "codex", session_id: "session-7", session_name: "tidy-the-installer" },
     });
-    expect(peer?.blockers).toEqual(["session live (codex session-7)"]);
+    // The human hears the session's own name, not the id that addresses it.
+    expect(peer?.blockers).toEqual(["session live (codex tidy-the-installer)"]);
     expect(roster.counts).toMatchObject({ quiet: 1, watching: 0, removable: 0 });
 
     // And it is not announced: the same worktree emits an event only once the

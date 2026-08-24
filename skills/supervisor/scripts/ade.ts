@@ -19,6 +19,8 @@ export type RecordValue = Record<string, unknown>;
 export interface WorktreeOwner {
   harness: string | null;
   session_id: string;
+  /** The session's own name slug, which is what a human calls it. */
+  session_name: string | null;
   pane_id: string | null;
 }
 
@@ -36,6 +38,27 @@ export function asRecord(value: unknown): RecordValue | null {
 
 export function paneId(row: RecordValue): string | null {
   return typeof row["pane_id"] === "string" ? row["pane_id"] : null;
+}
+
+/**
+ * A session's name slug, as the ADE knows it.
+ *
+ * A session id addresses a peer; a slug identifies it to a human. Herdr keeps
+ * the slug under `tokens.conversation`, and it is the same string the operator
+ * sees on the pane, which is why every human-facing mention of an agent uses
+ * it. It can be absent — a session too young to have been named — so
+ * `describeSession` below is what callers speak, never the raw field.
+ */
+export function sessionName(row: RecordValue): string | null {
+  const tokens = asRecord(row["tokens"]);
+  const slug = tokens && typeof tokens["conversation"] === "string" ? tokens["conversation"] : null;
+  return slug && slug.length > 0 ? slug : null;
+}
+
+/** How an owner is named in prose: its slug when it has one, its id when it does not. */
+export function describeSession(owner: WorktreeOwner): string {
+  const label = owner.session_name ?? owner.session_id;
+  return owner.harness ? `${owner.harness} ${label}` : label;
 }
 
 export function defaultSocketPath(): string {
@@ -106,6 +129,7 @@ export function ownerOf(
     return {
       harness: session && typeof session["agent"] === "string" ? session["agent"] : null,
       session_id: sessionId,
+      session_name: sessionName(row),
       pane_id: id,
     };
   }

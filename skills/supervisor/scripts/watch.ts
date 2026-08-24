@@ -12,6 +12,7 @@ import {
   listAgents,
   ownerOf,
   paneId,
+  sessionName,
 } from "./ade.ts";
 import { defaultProjectRoots, inspectCandidate, inspectWorktree, normalizePath } from "./git.ts";
 import { buildRoster, place } from "./roster.ts";
@@ -279,6 +280,7 @@ export function candidateFromTrigger(
     reason: trigger.reason,
     pane_id: id,
     session_id: sessionId,
+    session_name: sessionName(agent),
     harness: session && typeof session["agent"] === "string" ? session["agent"] : null,
     cwd: declaredCwd ?? foregroundCwd,
     ...repository,
@@ -312,6 +314,7 @@ export function reapCandidateFromTrigger(
       {
         pane_id: paneId(agent),
         session_id: sessionId,
+        session_name: sessionName(agent),
         harness: session && typeof session["agent"] === "string" ? session["agent"] : null,
       },
     ];
@@ -615,6 +618,7 @@ export async function candidateFromWorktree(
     reason: "discovered",
     pane_id: owner.pane_id,
     session_id: owner.session_id,
+    session_name: owner.session_name,
     harness: owner.harness,
     cwd: worktree.worktree,
     ...identity,

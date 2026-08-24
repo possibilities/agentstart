@@ -13,6 +13,18 @@ Never close a session or workspace yourself, and never delete a branch.
 Report standing, not just change. A run opens and closes with the full roster,
 and no worktree becomes removable without the human hearing it.
 
+## Name agents by their session
+
+Every event and roster entry that has an owner carries `session_name`, the
+session's own name slug, beside the `session_id` that addresses it. The slug is
+what the operator sees on the pane and what they call that agent, so it is what
+you say: name a peer by its slug, and pair it with the worktree only when the
+worktree itself is the subject — a path to remove, a branch to integrate. A
+worktree name is a location, not an identity, and two sessions can pass through
+one. Fall back to the session id only when `session_name` is absent, and keep
+using the id for `agentsurface message`, which addresses sessions and not
+names.
+
 ## Open with the roster
 
 Resolve this skill's directory, then run `scripts/watch.ts` as a long-lived
@@ -117,8 +129,9 @@ no lifecycle event will ever mention again.
 Maintain a queue keyed by `common_dir`, with only one active candidate per
 repository. A candidate is evidence, not permission to merge.
 
-1. Read `clean`, `head`, `main_head`, `worktree`, and `session_id` from the
-   event. If the source is dirty, ask the peer to finish or discard its
+1. Read `clean`, `head`, `main_head`, `worktree`, `session_id`, and
+   `session_name` from the event — the id is who you message, the slug is who
+   you call it in front of the human. If the source is dirty, ask the peer to finish or discard its
    uncommitted state first.
 2. Message the peer by stable session id, leaving a calling card. A peer
    knows nothing about you: its own guidance stops its work at a commit and
@@ -235,7 +248,7 @@ scripts/reap.ts \
   --expected-branch <candidate-branch> \
   --expected-head <candidate-full-sha> \
   --workspace-id <herdr-workspace-id> \
-  --agent-json '{"harness":"codex","session_id":"<id>","pane_id":"<id>"}'
+  --agent-json '{"harness":"codex","session_id":"<id>","session_name":"<slug>","pane_id":"<id>"}'
 ```
 
 Pass custom `--project-root` arguments as above. The reaper checks the exact
@@ -243,7 +256,7 @@ registered worktree, branch, HEAD, project root, and cleanliness; refuses
 `main`; runs ordinary `git worktree remove` without force; verifies the branch
 still names the same commit; and writes an append-only audit log at
 `~/.local/state/agentstart/supervisor/reaped.jsonl`. Each successful cycle has
-`reap_started` and `reaped` JSONL records with the harness/session/pane set,
+`reap_started` and `reaped` JSONL records with the harness/session/slug/pane set,
 Herdr workspace, repository common directory, main worktree, removed path,
 preserved branch, and HEAD.
 
