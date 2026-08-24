@@ -4,7 +4,14 @@ import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { defaultProjectRoots, inspectCandidate, inspectWorktree, normalizePath } from "./git.ts";
+import {
+  defaultProjectRoots,
+  inspectCandidate,
+  inspectWorktree,
+  normalizePath,
+  pathIsWithin,
+} from "./git.ts";
+import { type DiscoveredWorktree, WorktreeDiscovery } from "./worktrees.ts";
 
 type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
 type RecordValue = Record<string, unknown>;
@@ -31,6 +38,48 @@ interface WatchOptions {
   selfPaneId: string | null;
   wakeSelf: boolean;
   once: boolean;
+  discover: boolean;
+  sweepIntervalSeconds: number;
+}
+
+/**
+ * Who, if anyone, is currently working in a worktree.
+ *
+ * Discovery is answered by Git alone, but the readiness handshake needs a
+ * session to talk to, and only the agent development environment knows that.
+ * Herdr is this machine's ADE and supplies the implementation below; any other
+ * ADE satisfies the same one-method contract, and when none can answer, an
+ * unowned worktree is still reported rather than silently dropped.
+ */
+export interface OwnershipProvider {
+  owner(worktree: string): Promise<WorktreeOwner | null>;
+}
+
+export interface WorktreeOwner {
+  harness: string | null;
+  session_id: string;
+  pane_id: string | null;
+}
+
+/**
+ * The single exit for every candidate, wherever it was discovered. Holding the
+ * dedupe here is what lets Git-driven discovery and ADE lifecycle events find
+ * the same commit without announcing it twice.
+ */
+export class CandidateSink {
+  private readonly announced = new Set<string>();
+  private readonly emit: (line: string) => Promise<void>;
+
+  constructor(emit: (line: string) => Promise<void>) {
+    this.emit = emit;
+  }
+
+  async publish(candidate: RecordValue): Promise<void> {
+    const key = `${candidate["type"]}:${candidate["worktree"]}:${candidate["head"]}`;
+    if (this.announced.has(key)) return;
+    this.announced.add(key);
+    await this.emit(JSON.stringify(candidate));
+  }
 }
 
 const SUBSCRIPTIONS = [
@@ -309,8 +358,11 @@ class HerdrWatcher {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private selfSessionId: string | null | undefined;
 
-  constructor(options: WatchOptions) {
+  private readonly sink: CandidateSink;
+
+  constructor(options: WatchOptions, sink: CandidateSink) {
     this.options = options;
+    this.sink = sink;
   }
 
   async runOnce(): Promise<void> {
@@ -449,9 +501,37 @@ class HerdrWatcher {
   }
 
   private async publish(candidate: RecordValue): Promise<void> {
-    const line = JSON.stringify(candidate);
-    process.stdout.write(`${line}\n`);
-    if (this.options.wakeSelf) await this.wakeSelf(line);
+    await this.sink.publish(candidate);
+  }
+
+  /** Live agents keyed by the worktree they are working in. */
+  async owner(worktree: string): Promise<WorktreeOwner | null> {
+    let rows: RecordValue[];
+    try {
+      rows = await this.listAgents();
+    } catch (error) {
+      this.diagnostic(`ownership lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+    for (const row of rows) {
+      const id = paneId(row);
+      if (!id || id === this.options.selfPaneId) continue;
+      const cwd = typeof row["cwd"] === "string" ? row["cwd"] : null;
+      const foreground = typeof row["foreground_cwd"] === "string" ? row["foreground_cwd"] : null;
+      const inside = [cwd, foreground].some(
+        (path) => path !== null && pathIsWithin(path, [worktree]),
+      );
+      if (!inside) continue;
+      const session = asRecord(row["agent_session"]);
+      const sessionId = session && typeof session["value"] === "string" ? session["value"] : null;
+      if (!sessionId) continue;
+      return {
+        harness: session && typeof session["agent"] === "string" ? session["agent"] : null,
+        session_id: sessionId,
+        pane_id: id,
+      };
+    }
+    return null;
   }
 
   private async listAgents(): Promise<RecordValue[]> {
@@ -539,8 +619,84 @@ class HerdrWatcher {
   }
 }
 
+/**
+ * A worktree Git reported, turned into a candidate. It becomes a merge
+ * candidate when an ADE can name the agent working there — the readiness
+ * handshake needs someone to ask — and an unowned candidate otherwise, which
+ * the supervisor brings to its human instead of merging on its own authority.
+ */
+export async function candidateFromWorktree(
+  worktree: DiscoveredWorktree,
+  ownership: OwnershipProvider | null,
+): Promise<RecordValue> {
+  const { repository: _repository, ...identity } = worktree;
+  const owner = ownership ? await ownership.owner(worktree.worktree) : null;
+  if (!owner) {
+    return {
+      schema_version: 1,
+      type: "unowned_candidate",
+      reason: "discovered",
+      ...identity,
+    };
+  }
+  return {
+    schema_version: 1,
+    type: "merge_candidate",
+    reason: "discovered",
+    pane_id: owner.pane_id,
+    session_id: owner.session_id,
+    harness: owner.harness,
+    cwd: worktree.worktree,
+    ...identity,
+  };
+}
+
+export function startDiscovery(
+  options: WatchOptions,
+  sink: CandidateSink,
+  ownership: OwnershipProvider | null,
+): WorktreeDiscovery {
+  const discovery = new WorktreeDiscovery({
+    projectRoots: options.projectRoots,
+    sweepIntervalSeconds: options.sweepIntervalSeconds,
+    onWorktree: async (worktree) => {
+      try {
+        await sink.publish(await candidateFromWorktree(worktree, ownership));
+      } catch (error) {
+        process.stderr.write(
+          `supervisor watch: discovery publish failed: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+    },
+    onDiagnostic: (message) => process.stderr.write(`supervisor watch: ${message}\n`),
+  });
+  discovery.start();
+  return discovery;
+}
+
 function usage(): string {
-  return `Usage: watch.ts [--project-root <path>]... [--socket <path>] [--wake-self] [--once]\n\nEmits merge_candidate and reap_candidate JSON objects, one per line, from peer and workspace lifecycle events.\n`;
+  return `Usage: watch.ts [--project-root <path>]... [--socket <path>] [--wake-self] [--once]
+                [--no-discover] [--sweep-interval <seconds>]
+
+Emits merge_candidate, unowned_candidate, and reap_candidate JSON objects, one
+per line.
+
+Worktrees are discovered from Git itself — each repository's worktree registry,
+watched on the filesystem — so a worktree created by any tool is found. Agent
+lifecycle events from the ADE supply session ownership and workspace closure.
+
+  --no-discover               rely only on ADE lifecycle events
+  --sweep-interval <seconds>  safety rescan cadence, 0 to disable (default 300)
+`;
+}
+
+function parseSweepInterval(value: string | undefined): number {
+  if (value === undefined) return 300;
+  const seconds = Number.parseInt(value, 10);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new Error(`--sweep-interval expects a non-negative number of seconds, got ${value}`);
+  }
+  return seconds;
 }
 
 export function parseOptions(argv: string[]): WatchOptions {
@@ -551,6 +707,8 @@ export function parseOptions(argv: string[]): WatchOptions {
       socket: { type: "string" },
       "wake-self": { type: "boolean", default: false },
       once: { type: "boolean", default: false },
+      "no-discover": { type: "boolean", default: false },
+      "sweep-interval": { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
     strict: true,
@@ -569,21 +727,38 @@ export function parseOptions(argv: string[]): WatchOptions {
     selfPaneId: process.env.HERDR_PANE_ID ?? null,
     wakeSelf: parsed.values["wake-self"] ?? false,
     once: parsed.values.once ?? false,
+    discover: !(parsed.values["no-discover"] ?? false),
+    sweepIntervalSeconds: parseSweepInterval(parsed.values["sweep-interval"]),
   };
 }
 
 if (import.meta.main) {
   const options = parseOptions(process.argv.slice(2));
-  const watcher = new HerdrWatcher(options);
+  const sink = new CandidateSink(async (line) => {
+    process.stdout.write(`${line}\n`);
+    if (options.wakeSelf) await wake(options, line);
+  });
+  const watcher = new HerdrWatcher(options, sink);
+  let discovery: WorktreeDiscovery | null = null;
   const stop = () => {
+    discovery?.stop();
     watcher.stop();
     process.exit(0);
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  if (options.once) await watcher.runOnce();
-  else {
+  if (options.once) {
+    // A single pass still reports every worktree Git knows about, so `--once`
+    // remains a complete snapshot rather than only the ADE's live sessions.
+    if (options.discover) {
+      discovery = startDiscovery({ ...options, sweepIntervalSeconds: 0 }, sink, watcher);
+      discovery.drainNow();
+    }
+    await watcher.runOnce();
+    discovery?.stop();
+  } else {
     watcher.start();
+    if (options.discover) discovery = startDiscovery(options, sink, watcher);
     await new Promise(() => {});
   }
 }

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 
 export interface CommandResult {
   code: number;
@@ -13,6 +13,8 @@ export interface WorktreeRecord {
   path: string;
   head: string | null;
   branch: string | null;
+  detached: boolean;
+  prunable: string | null;
 }
 
 export interface WorktreeIdentity {
@@ -80,11 +82,21 @@ export function parseWorktrees(output: string): WorktreeRecord[] {
     }
     if (line.startsWith("worktree ")) {
       if (current) records.push(current);
-      current = { path: line.slice("worktree ".length), head: null, branch: null };
+      current = {
+        path: line.slice("worktree ".length),
+        head: null,
+        branch: null,
+        detached: false,
+        prunable: null,
+      };
     } else if (current && line.startsWith("HEAD ")) {
       current.head = line.slice("HEAD ".length);
     } else if (current && line.startsWith("branch ")) {
       current.branch = line.slice("branch ".length);
+    } else if (current && line === "detached") {
+      current.detached = true;
+    } else if (current && (line === "prunable" || line.startsWith("prunable "))) {
+      current.prunable = line === "prunable" ? "prunable" : line.slice("prunable ".length);
     }
   }
   if (current) records.push(current);
@@ -94,6 +106,17 @@ export function parseWorktrees(output: string): WorktreeRecord[] {
 export function listWorktrees(repository: string): WorktreeRecord[] {
   const result = runGit(repository, ["worktree", "list", "--porcelain"]);
   return result.code === 0 ? parseWorktrees(result.stdout) : [];
+}
+
+/**
+ * Worktrees Git still registers whose checkout is present on disk. Git marks a
+ * registration whose checkout has been deleted `prunable`; the existence check
+ * is a second, independent confirmation for the racy window before Git notices.
+ */
+export function listLiveWorktrees(repository: string): WorktreeRecord[] {
+  return listWorktrees(repository).filter(
+    (worktree) => worktree.prunable === null && existsSync(worktree.path),
+  );
 }
 
 export function findMainWorktree(repository: string): WorktreeRecord | null {

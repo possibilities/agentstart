@@ -1,6 +1,6 @@
 ---
 name: supervisor
-description: Run a persistent lifecycle loop for peer worktrees—wait on Herdr events, obtain exact-commit readiness, fast-forward work into local main, push origin/main, and reap clean worktrees after their agent and workspace close. Use when an agent should supervise peer commits and cleanup continuously.
+description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, obtain exact-commit readiness, fast-forward work into local main, push origin/main, and reap clean worktrees after their agent and workspace close. Use when an agent should supervise peer commits and cleanup continuously.
 ---
 
 # Supervisor
@@ -13,10 +13,10 @@ Never close a session or workspace yourself, and never delete a branch.
 ## Start the event loop
 
 Resolve this skill's directory, then run `scripts/watch.ts` as a long-lived
-process. It emits canonical `merge_candidate` and `reap_candidate` JSON
-objects, one per stdout line. It defaults to projects whose local `main`
-worktree is under `~/code` or `~/src`; add repeatable `--project-root <path>`
-arguments when the operator has other roots.
+process. It emits canonical `merge_candidate`, `unowned_candidate`, and
+`reap_candidate` JSON objects, one per stdout line. It defaults to projects
+whose local `main` worktree is under `~/code` or `~/src`; add repeatable
+`--project-root <path>` arguments when the operator has other roots.
 
 - In Claude Code, run the watcher through native `Monitor()` so each stdout
   event wakes the session. Re-arm the monitor as its contract requires.
@@ -28,12 +28,48 @@ arguments when the operator has other roots.
   facility and consume stdout incrementally. Poll only to recover a dead
   watcher, never to discover work.
 
-The watcher holds Herdr's `events.subscribe` stream, reconciles with
-`agent.list` on startup and every reconnect, excludes its own pane, and
-discovers arbitrary filesystem worktrees from each peer's cwd and Git common
-directory. It also correlates agent exit with `workspace.closed`; only both
-facts produce a reap candidate. It reconnects by itself. If it exits, diagnose
-and restart it; do not replace it with an `agentsurface agents` polling loop.
+### Two independent sources
+
+Worktrees are found by Git; sessions are found by the agent development
+environment. Keeping those separate is what makes the loop complete.
+
+**Git answers which worktrees exist.** Every linked worktree is registered in
+its repository's common directory, and `git worktree list --porcelain` marks a
+registration `prunable` once its checkout is gone from disk. The watcher walks
+the project roots for repositories, then watches each one's worktree registry
+and loose refs on the filesystem, rescanning the affected repository when
+either changes. A worktree created by an ADE, by a script, or by a person
+typing `git worktree add` is discovered identically, whether or not an agent
+ever ran there — and a commit made in an existing worktree is noticed the same
+way. Discovery holds no opinion about which ADE, if any, is running.
+
+Coming online is itself a full scan. Before any event arrives, the watcher
+reports every worktree in every project root that already carries unmerged
+commits — including ones whose agent committed, quit, and left days ago. Expect
+a burst of candidates at startup on a machine that has been running without a
+supervisor, and work them like any other.
+
+Filesystem watches are the signal; `--sweep-interval <seconds>` (default 300,
+`0` disables) is only a backstop for events a watch dropped, which happens on
+network and some virtualised filesystems. `--no-discover` turns Git discovery
+off entirely and leaves only ADE lifecycle events.
+
+**The ADE answers who is working there.** Herdr is this machine's ADE: the
+watcher holds its `events.subscribe` stream, reconciles with `agent.list` on
+startup and every reconnect, excludes its own pane, and correlates agent exit
+with `workspace.closed`; only both facts produce a reap candidate. It
+reconnects by itself. If it exits, diagnose and restart it; do not replace it
+with an `agentsurface agents` polling loop. Another ADE would satisfy the same
+small contract — name the session working in a given worktree, and report when
+a workspace closes — without touching discovery.
+
+A discovered worktree whose owner the ADE can name arrives as a
+`merge_candidate` with `reason: "discovered"`. One nobody can claim arrives as
+an `unowned_candidate`, which is never merged on your own authority: there is
+no session to give exact-SHA readiness, so bring it to the human with its
+branch, head, and commit count, and let them decide. This is the case the loop
+exists to stop losing — an agent that committed and quit leaves real work that
+no lifecycle event will ever mention again.
 
 ## Qualify a candidate
 
@@ -56,6 +92,12 @@ repository. A candidate is evidence, not permission to merge.
 If the peer declines or still has work, acknowledge it and wait for its next
 working-to-idle transition or a proactive exact-SHA readiness reply. Do not
 pressure an unfinished result into main.
+
+An `unowned_candidate` has no step 2 and no step 3. Nobody is there to approve
+it, and an absent peer is not a silent yes. Report it to the human with its
+repository, branch, head, commit count, and cleanliness, and integrate it only
+if they tell you to. Keep it out of the per-repository queue so it never blocks
+a live peer's work.
 
 ## Integrate and push
 
@@ -141,12 +183,15 @@ preserved branch, and HEAD.
 
 Reaping does not imply that the branch was merged. The preserved branch and
 receipt are the recovery and later-association contract when its creator has
-already quit.
+already quit. Git discovery reports such a worktree as an `unowned_candidate`
+while its checkout still exists, so raise that with the human before reaping
+rather than letting the commits leave with the workspace.
 
 ## Stay in the loop
 
 After every candidate reaches a stable outcome, return to sleeping on the
 watcher. The loop has no completion condition of its own; it ends only when the
 operator stops the supervisor. On shutdown, stop only the watcher process you
-started and report any approved-but-unpublished exact SHAs and any emitted
-reap candidates not yet brought to a stable outcome.
+started and report any approved-but-unpublished exact SHAs, any unowned
+candidates still awaiting a human decision, and any emitted reap candidates not
+yet brought to a stable outcome.

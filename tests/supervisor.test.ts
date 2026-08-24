@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { AgentTracker, ReapTracker } from "../skills/supervisor/scripts/watch.ts";
-import { normalizePath } from "../skills/supervisor/scripts/git.ts";
+import { listLiveWorktrees, normalizePath } from "../skills/supervisor/scripts/git.ts";
+import { findRepositories, scanRepository } from "../skills/supervisor/scripts/worktrees.ts";
 
 const root = resolve(import.meta.dir, "..");
 const watchScript = join(root, "skills", "supervisor", "scripts", "watch.ts");
@@ -120,6 +121,50 @@ async function readLine(stream: ReadableStream<Uint8Array>, timeoutMs = 2_000): 
   }
 }
 
+/**
+ * A reader that survives more than one line, for tests that watch a stream
+ * react to something they do between reads. `readLine` cancels its stream on
+ * the way out, which is right for a single expected line and wrong here.
+ */
+function lineReader(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  let buffered = "";
+
+  const read = async (): Promise<string> => {
+    while (true) {
+      const newline = buffered.indexOf("\n");
+      if (newline >= 0) {
+        const line = buffered.slice(0, newline);
+        buffered = buffered.slice(newline + 1);
+        if (line.trim() !== "") return line;
+        continue;
+      }
+      const { value, done } = await reader.read();
+      if (done) throw new Error("stream ended before a line arrived");
+      buffered += new TextDecoder().decode(value);
+    }
+  };
+
+  return {
+    async next(timeoutMs = 10_000): Promise<string> {
+      let deadline: ReturnType<typeof setTimeout> | null = null;
+      try {
+        return await Promise.race([
+          read(),
+          new Promise<string>((_resolve, reject) => {
+            deadline = setTimeout(() => reject(new Error("timed out waiting for watcher output")), timeoutMs);
+          }),
+        ]);
+      } finally {
+        if (deadline) clearTimeout(deadline);
+      }
+    },
+    release(): void {
+      void reader.cancel();
+    },
+  };
+}
+
 describe("AgentTracker", () => {
   const row = (status: string) => ({
     pane_id: "w1:p1",
@@ -216,7 +261,16 @@ test("the watcher reconciles through a fake Herdr socket and finds an arbitrary 
   const environment = { ...process.env } as Record<string, string>;
   delete environment.HERDR_PANE_ID;
   const result = await run(
-    [process.execPath, watchScript, "--once", "--socket", socketPath, "--project-root", fixture.projectsRoot],
+    [
+      process.execPath,
+      watchScript,
+      "--once",
+      "--no-discover",
+      "--socket",
+      socketPath,
+      "--project-root",
+      fixture.projectsRoot,
+    ],
     environment,
   );
   listener.stop(true);
@@ -276,7 +330,15 @@ test("the long-lived watcher emits an event that arrives during bootstrap reconc
   });
 
   const child = Bun.spawn(
-    [process.execPath, watchScript, "--socket", socketPath, "--project-root", fixture.projectsRoot],
+    [
+      process.execPath,
+      watchScript,
+      "--no-discover",
+      "--socket",
+      socketPath,
+      "--project-root",
+      fixture.projectsRoot,
+    ],
     { cwd: root, env: process.env, stdout: "pipe", stderr: "pipe" },
   );
   const line = await readLine(child.stdout);
@@ -353,7 +415,15 @@ test("the watcher wakes with a reap candidate after agent exit and workspace clo
   });
 
   const child = Bun.spawn(
-    [process.execPath, watchScript, "--socket", socketPath, "--project-root", fixture.projectsRoot],
+    [
+      process.execPath,
+      watchScript,
+      "--no-discover",
+      "--socket",
+      socketPath,
+      "--project-root",
+      fixture.projectsRoot,
+    ],
     { cwd: root, env: process.env, stdout: "pipe", stderr: "pipe" },
   );
   const line = await readLine(child.stdout);
@@ -515,4 +585,153 @@ test("the reaper preserves a dirty closed worktree", async () => {
   expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: "worktree_not_clean" });
   expect(existsSync(fixture.worktree)).toBe(true);
   expect(existsSync(log)).toBe(false);
+});
+
+describe("Git-native worktree discovery", () => {
+  test("drops a registration whose checkout no longer exists on disk", () => {
+    const fixture = createFixture();
+    expect(listLiveWorktrees(fixture.main).map((worktree) => normalizePath(worktree.path))).toContain(
+      normalizePath(fixture.worktree),
+    );
+
+    // Git keeps the registration until someone prunes it, and reports it as
+    // prunable. A supervisor must not offer a checkout that is already gone.
+    rmSync(fixture.worktree, { recursive: true, force: true });
+    expect(listLiveWorktrees(fixture.main).map((worktree) => normalizePath(worktree.path))).not.toContain(
+      normalizePath(fixture.worktree),
+    );
+  });
+
+  test("finds repositories under a project root without descending into them", () => {
+    const fixture = createFixture();
+    mkdirSync(join(fixture.main, "node_modules", "package", ".git"), { recursive: true });
+    mkdirSync(join(fixture.projectsRoot, "not-a-repo", "nested"), { recursive: true });
+
+    const repositories = findRepositories([fixture.projectsRoot]);
+    expect(repositories).toEqual([normalizePath(fixture.main)]);
+  });
+
+  test("reports worktrees carrying commits main does not, and nothing else", () => {
+    const fixture = createFixture();
+    const discovered = scanRepository(fixture.main, [fixture.projectsRoot]);
+    expect(discovered.map((worktree) => worktree.worktree)).toEqual([normalizePath(fixture.worktree)]);
+    expect(discovered[0]).toMatchObject({
+      branch: "worktree/peer",
+      head: fixture.workerHead,
+      commits_ahead: 1,
+      clean: true,
+      main_worktree: normalizePath(fixture.main),
+    });
+  });
+
+  test("discovers a worktree with no agent development environment at all", async () => {
+    const fixture = createFixture();
+    // No socket, so nothing can answer who owns this worktree. Discovery is
+    // Git's answer alone and must still report the commit.
+    const result = await run([
+      process.execPath,
+      watchScript,
+      "--once",
+      "--socket",
+      join(fixture.root, "absent.sock"),
+      "--project-root",
+      fixture.projectsRoot,
+    ]);
+    const candidate = JSON.parse(result.stdout.trim().split("\n")[0] ?? "{}");
+    expect(candidate).toMatchObject({
+      type: "unowned_candidate",
+      reason: "discovered",
+      worktree: normalizePath(fixture.worktree),
+      head: fixture.workerHead,
+    });
+  });
+
+  test("reports work an agent committed and quit before the supervisor came online", async () => {
+    const fixture = createFixture();
+
+    // A second repository whose peer also finished and left. Nothing is
+    // running anywhere: no pane, no session, no lifecycle event will ever
+    // mention either of these commits again.
+    const second = join(fixture.projectsRoot, "second");
+    mkdirSync(second, { recursive: true });
+    git(second, "init", "--initial-branch=main");
+    git(second, "config", "user.name", "Supervisor Test");
+    git(second, "config", "user.email", "supervisor@example.invalid");
+    writeFileSync(join(second, "base.txt"), "base\n");
+    git(second, "add", "base.txt");
+    git(second, "commit", "-m", "base");
+    const abandoned = join(fixture.root, "worktrees", "abandoned");
+    git(second, "worktree", "add", "-b", "worktree/abandoned", abandoned, "main");
+    writeFileSync(join(abandoned, "result.txt"), "finished and quit\n");
+    git(abandoned, "add", "result.txt");
+    git(abandoned, "commit", "-m", "finished and quit");
+
+    const result = await run([
+      process.execPath,
+      watchScript,
+      "--once",
+      "--socket",
+      join(fixture.root, "absent.sock"),
+      "--project-root",
+      fixture.projectsRoot,
+    ]);
+
+    const reported = result.stdout
+      .trim()
+      .split("\n")
+      .filter((line) => line !== "")
+      .map((line) => JSON.parse(line));
+    expect(reported.every((candidate) => candidate.type === "unowned_candidate")).toBe(true);
+    expect(new Set(reported.map((candidate) => candidate.worktree))).toEqual(
+      new Set([normalizePath(fixture.worktree), normalizePath(abandoned)]),
+    );
+    for (const candidate of reported) {
+      expect(candidate).toMatchObject({ reason: "discovered", commits_ahead: 1, clean: true });
+    }
+  });
+
+  test("reports a worktree created after the watcher is already live", async () => {
+    const fixture = createFixture();
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        watchScript,
+        "--socket",
+        join(fixture.root, "absent.sock"),
+        "--project-root",
+        fixture.projectsRoot,
+        "--sweep-interval",
+        "0",
+      ],
+      { cwd: root, stdout: "pipe", stderr: "pipe" },
+    );
+
+    const lines = lineReader(child.stdout);
+    try {
+      // The worktree that already existed is reported from the startup scan.
+      const first = JSON.parse(await lines.next());
+      expect(first).toMatchObject({ worktree: normalizePath(fixture.worktree) });
+
+      // Now create one Git has never seen, with no ADE involved whatsoever.
+      const late = join(fixture.root, "worktrees", "late");
+      git(fixture.main, "worktree", "add", "-b", "worktree/late", late, "main");
+      writeFileSync(join(late, "late.txt"), "late work\n");
+      git(late, "add", "late.txt");
+      git(late, "commit", "-m", "late work");
+
+      const second = JSON.parse(await lines.next());
+      expect(second).toMatchObject({
+        type: "unowned_candidate",
+        reason: "discovered",
+        worktree: normalizePath(late),
+        branch: "worktree/late",
+        head: git(late, "rev-parse", "HEAD"),
+        commits_ahead: 1,
+      });
+    } finally {
+      lines.release();
+      child.kill();
+      await child.exited;
+    }
+  });
 });
