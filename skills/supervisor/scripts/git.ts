@@ -133,6 +133,82 @@ export function inspectCandidate(cwd: string, roots: readonly string[]): Reposit
   return repository && repository.commits_ahead > 0 ? repository : null;
 }
 
+/**
+ * What every worktree of one repository shares: where `main` lives, what it
+ * points at, and which common directory registers them all. Resolving this
+ * once per scan is what makes surveying settled worktrees affordable — each
+ * one then costs a status call and a count instead of a full inspection.
+ */
+export interface RepositoryContext {
+  common_dir: string;
+  main_worktree: string;
+  main_head: string;
+}
+
+export function repositoryContext(
+  repository: string,
+  roots: readonly string[],
+): RepositoryContext | null {
+  const commonDir = resolveCommonDir(repository);
+  if (!commonDir) return null;
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) return null;
+  const mainWorktree = findMainWorktree(repository);
+  if (!mainWorktree || !pathIsWithin(mainWorktree.path, roots)) return null;
+  const mainHead = gitValue(repository, ["rev-parse", "refs/heads/main"]);
+  if (!mainHead) return null;
+  return {
+    common_dir: commonDir,
+    main_worktree: normalizePath(mainWorktree.path),
+    main_head: mainHead,
+  };
+}
+
+/**
+ * A worktree whose HEAD `main` already contains. Its commits have landed, so
+ * the expensive questions — how far ahead, which merge base — are answered
+ * already; all that remains is whether anything uncommitted is still sitting
+ * there and how far behind it has drifted.
+ */
+export function inspectSettled(
+  record: WorktreeRecord,
+  context: RepositoryContext,
+): WorktreeIdentity | null {
+  if (!record.head) return null;
+  const worktree = normalizePath(record.path);
+  const status = runGit(worktree, ["status", "--porcelain=v1", "--untracked-files=normal"]);
+  if (status.code !== 0) return null;
+  const behindText = gitValue(worktree, ["rev-list", "--count", "HEAD..refs/heads/main"]);
+  const commitsBehind = behindText === null ? Number.NaN : Number.parseInt(behindText, 10);
+  if (!Number.isFinite(commitsBehind)) return null;
+
+  return {
+    worktree,
+    common_dir: context.common_dir,
+    main_worktree: context.main_worktree,
+    branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
+    head: record.head,
+    main_head: context.main_head,
+    commits_ahead: 0,
+    commits_behind: commitsBehind,
+    clean: status.stdout.trim() === "",
+  };
+}
+
+/** Whether `origin/main` already contains local `main`, or null with no such ref. */
+export function mainIsPushed(repository: string): boolean | null {
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"]).code !== 0) {
+    return null;
+  }
+  return (
+    runGit(repository, [
+      "merge-base",
+      "--is-ancestor",
+      "refs/heads/main",
+      "refs/remotes/origin/main",
+    ]).code === 0
+  );
+}
+
 export type RepositoryCandidate = WorktreeIdentity;
 
 export function inspectWorktree(cwd: string, roots: readonly string[]): WorktreeIdentity | null {

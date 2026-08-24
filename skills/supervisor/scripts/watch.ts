@@ -1,20 +1,25 @@
 #!/usr/bin/env bun
 
 import { spawn } from "node:child_process";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
-  defaultProjectRoots,
-  inspectCandidate,
-  inspectWorktree,
-  normalizePath,
-  pathIsWithin,
-} from "./git.ts";
+  type OwnershipProvider,
+  type RecordValue,
+  type WorktreeOwner,
+  asRecord,
+  callHerdr,
+  defaultSocketPath,
+  listAgents,
+  ownerOf,
+  paneId,
+} from "./ade.ts";
+import { defaultProjectRoots, inspectCandidate, inspectWorktree, normalizePath } from "./git.ts";
+import { buildRoster, place } from "./roster.ts";
 import { type DiscoveredWorktree, WorktreeDiscovery } from "./worktrees.ts";
 
 type AgentStatus = "idle" | "working" | "blocked" | "done" | "unknown";
-type RecordValue = Record<string, unknown>;
+
+export type { OwnershipProvider, RecordValue, WorktreeOwner };
 
 export interface CandidateTrigger {
   agent: RecordValue;
@@ -43,25 +48,6 @@ interface WatchOptions {
 }
 
 /**
- * Who, if anyone, is currently working in a worktree.
- *
- * Discovery is answered by Git alone, but the readiness handshake needs a
- * session to talk to, and only the agent development environment knows that.
- * Herdr is this machine's ADE and supplies the implementation below; any other
- * ADE satisfies the same one-method contract, and when none can answer, an
- * unowned worktree is still reported rather than silently dropped.
- */
-export interface OwnershipProvider {
-  owner(worktree: string): Promise<WorktreeOwner | null>;
-}
-
-export interface WorktreeOwner {
-  harness: string | null;
-  session_id: string;
-  pane_id: string | null;
-}
-
-/**
  * The single exit for every candidate, wherever it was discovered. Holding the
  * dedupe here is what lets Git-driven discovery and ADE lifecycle events find
  * the same commit without announcing it twice.
@@ -75,10 +61,17 @@ export class CandidateSink {
   }
 
   async publish(candidate: RecordValue): Promise<void> {
-    const key = `${candidate["type"]}:${candidate["worktree"]}:${candidate["head"]}`;
+    const key = `${candidate["type"]}:${candidate["worktree"]}:${candidate["head"]}:${
+      Array.isArray(candidate["blockers"]) ? candidate["blockers"].join(",") : ""
+    }`;
     if (this.announced.has(key)) return;
     this.announced.add(key);
     await this.emit(JSON.stringify(candidate));
+  }
+
+  /** Emitted whole, never deduped: a roster is a standing picture, not a change. */
+  async announce(record: RecordValue): Promise<void> {
+    await this.emit(JSON.stringify(record));
   }
 }
 
@@ -91,20 +84,10 @@ const SUBSCRIPTIONS = [
   { type: "workspace.closed" },
 ];
 
-function asRecord(value: unknown): RecordValue | null {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as RecordValue)
-    : null;
-}
-
 function asStatus(value: unknown): AgentStatus {
   return value === "idle" || value === "working" || value === "blocked" || value === "done"
     ? value
     : "unknown";
-}
-
-function paneId(row: RecordValue): string | null {
-  return typeof row["pane_id"] === "string" ? row["pane_id"] : null;
 }
 
 function stopped(status: AgentStatus): boolean {
@@ -506,38 +489,25 @@ class HerdrWatcher {
 
   /** Live agents keyed by the worktree they are working in. */
   async owner(worktree: string): Promise<WorktreeOwner | null> {
-    let rows: RecordValue[];
+    const rows = await this.agentRows();
+    return rows ? ownerOf(rows, worktree, this.options.selfPaneId) : null;
+  }
+
+  async available(): Promise<boolean> {
+    return (await this.agentRows()) !== null;
+  }
+
+  private async agentRows(): Promise<RecordValue[] | null> {
     try {
-      rows = await this.listAgents();
+      return await this.listAgents();
     } catch (error) {
       this.diagnostic(`ownership lookup failed: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
-    for (const row of rows) {
-      const id = paneId(row);
-      if (!id || id === this.options.selfPaneId) continue;
-      const cwd = typeof row["cwd"] === "string" ? row["cwd"] : null;
-      const foreground = typeof row["foreground_cwd"] === "string" ? row["foreground_cwd"] : null;
-      const inside = [cwd, foreground].some(
-        (path) => path !== null && pathIsWithin(path, [worktree]),
-      );
-      if (!inside) continue;
-      const session = asRecord(row["agent_session"]);
-      const sessionId = session && typeof session["value"] === "string" ? session["value"] : null;
-      if (!sessionId) continue;
-      return {
-        harness: session && typeof session["agent"] === "string" ? session["agent"] : null,
-        session_id: sessionId,
-        pane_id: id,
-      };
-    }
-    return null;
   }
 
-  private async listAgents(): Promise<RecordValue[]> {
-    const result = await this.call("agent.list", {});
-    const agents = Array.isArray(result["agents"]) ? result["agents"] : [];
-    return agents.map(asRecord).filter((row): row is RecordValue => row !== null);
+  private listAgents(): Promise<RecordValue[]> {
+    return listAgents(this.options.socketPath);
   }
 
   private async wakeSelf(line: string): Promise<void> {
@@ -571,37 +541,7 @@ class HerdrWatcher {
   }
 
   private call(method: string, params: RecordValue): Promise<RecordValue> {
-    return new Promise((resolvePromise, rejectPromise) => {
-      let response = "";
-      let settled = false;
-      void Bun.connect({
-        unix: this.options.socketPath,
-        socket: {
-          open: (socket) => socket.write(`${JSON.stringify({ id: `supervisor:${method}`, method, params })}\n`),
-          data: (socket, chunk) => {
-            response += new TextDecoder().decode(chunk);
-            const newline = response.indexOf("\n");
-            if (newline < 0 || settled) return;
-            settled = true;
-            socket.end();
-            try {
-              const envelope = asRecord(JSON.parse(response.slice(0, newline)));
-              const error = envelope ? asRecord(envelope["error"]) : null;
-              const result = envelope ? asRecord(envelope["result"]) : null;
-              if (error) rejectPromise(new Error(String(error["message"] ?? error["code"] ?? method)));
-              else if (result) resolvePromise(result);
-              else rejectPromise(new Error(`${method} returned no result`));
-            } catch (error) {
-              rejectPromise(error);
-            }
-          },
-          close: () => {
-            if (!settled) rejectPromise(new Error(`${method} connection closed without a response`));
-          },
-          error: (_socket, error) => rejectPromise(error),
-        },
-      }).catch(rejectPromise);
-    });
+    return callHerdr(this.options.socketPath, method, params);
   }
 
   private scheduleReconnect(): void {
@@ -628,9 +568,34 @@ class HerdrWatcher {
 export async function candidateFromWorktree(
   worktree: DiscoveredWorktree,
   ownership: OwnershipProvider | null,
-): Promise<RecordValue> {
-  const { repository: _repository, ...identity } = worktree;
+): Promise<RecordValue | null> {
+  const { repository: _repository, state, ...identity } = worktree;
   const owner = ownership ? await ownership.owner(worktree.worktree) : null;
+
+  // The integration target is not a candidate for anything.
+  if (state === "main") return null;
+
+  // Landed work has nothing left to integrate, which is precisely when a
+  // worktree stops being work and starts being a directory. Say so — including
+  // the moment the supervisor's own fast-forward puts it in this state — rather
+  // than waiting for an ADE to notice its workspace close.
+  if (state === "landed") {
+    const placed = place(worktree, owner);
+    // Uncommitted work under a live session is the one landed state not worth
+    // announcing: it changes with every file the agent saves. Left behind by a
+    // session that is gone, the same state is exactly what a human must hear.
+    if (!placed.clean && owner) return null;
+    return {
+      schema_version: 1,
+      type: "removable_worktree",
+      reason: "discovered",
+      removable: placed.removable,
+      blockers: placed.blockers,
+      owner,
+      ...identity,
+    };
+  }
+
   if (!owner) {
     return {
       schema_version: 1,
@@ -661,7 +626,8 @@ export function startDiscovery(
     sweepIntervalSeconds: options.sweepIntervalSeconds,
     onWorktree: async (worktree) => {
       try {
-        await sink.publish(await candidateFromWorktree(worktree, ownership));
+        const candidate = await candidateFromWorktree(worktree, ownership);
+        if (candidate) await sink.publish(candidate);
       } catch (error) {
         process.stderr.write(
           `supervisor watch: discovery publish failed: ${error instanceof Error ? error.message : String(error)}\n`,
@@ -678,8 +644,9 @@ function usage(): string {
   return `Usage: watch.ts [--project-root <path>]... [--socket <path>] [--wake-self] [--once]
                 [--no-discover] [--sweep-interval <seconds>]
 
-Emits merge_candidate, unowned_candidate, and reap_candidate JSON objects, one
-per line.
+Emits one roster JSON object at startup, then merge_candidate,
+unowned_candidate, removable_worktree, and reap_candidate objects, one per
+line.
 
 Worktrees are discovered from Git itself — each repository's worktree registry,
 watched on the filesystem — so a worktree created by any tool is found. Agent
@@ -719,10 +686,7 @@ export function parseOptions(argv: string[]): WatchOptions {
   }
   const roots = parsed.values["project-root"] ?? defaultProjectRoots();
   return {
-    socketPath:
-      parsed.values.socket ??
-      process.env.HERDR_SOCKET_PATH ??
-      resolve(homedir(), ".config", "herdr", "herdr.sock"),
+    socketPath: parsed.values.socket ?? defaultSocketPath(),
     projectRoots: roots.map(normalizePath),
     selfPaneId: process.env.HERDR_PANE_ID ?? null,
     wakeSelf: parsed.values["wake-self"] ?? false,
@@ -747,6 +711,16 @@ if (import.meta.main) {
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
+  // The roster comes first, before any event. A supervisor should open its run
+  // knowing everything it watches — what still holds work, what has landed, and
+  // what is now removable — rather than assembling that from whichever events
+  // happen to fire.
+  if (options.discover) {
+    await sink.announce(
+      await buildRoster(options.projectRoots, watcher, options.once ? "snapshot" : "start"),
+    );
+  }
+
   if (options.once) {
     // A single pass still reports every worktree Git knows about, so `--once`
     // remains a complete snapshot rather than only the ADE's live sessions.

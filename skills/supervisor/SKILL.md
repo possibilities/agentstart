@@ -1,6 +1,6 @@
 ---
 name: supervisor
-description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, obtain exact-commit readiness, fast-forward work into local main, push origin/main, and reap clean worktrees after their agent and workspace close. Use when an agent should supervise peer commits and cleanup continuously.
+description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into local main, push origin/main, tell the human whenever a worktree becomes clean and removable, and reap it after its agent and workspace close. Use when an agent should supervise peer commits and cleanup continuously.
 ---
 
 # Supervisor
@@ -10,12 +10,36 @@ Keep finished peer work moving from its worktree into local `main` and
 integration, publication, communication, and the final guarded worktree reap.
 Never close a session or workspace yourself, and never delete a branch.
 
-## Start the event loop
+Report standing, not just change. A run opens and closes with the full roster,
+and no worktree becomes removable without the human hearing it.
+
+## Open with the roster
 
 Resolve this skill's directory, then run `scripts/watch.ts` as a long-lived
-process. It emits canonical `merge_candidate`, `unowned_candidate`, and
-`reap_candidate` JSON objects, one per stdout line. It defaults to projects
-whose local `main` worktree is under `~/code` or `~/src`; add repeatable
+process. Its first stdout line is a `roster` object — every worktree under the
+project roots, each placed as **watching**, **landed**, or **removable** — and
+the same object is available at any time from `scripts/status.ts`, which takes
+the same `--project-root` and `--socket` arguments and needs no watcher.
+
+Report that roster to the human as the first thing you do, before working any
+candidate. Keep it compact: one line per worktree, grouped by category, naming
+the branch, the short head, the live session where there is one, and the
+blocker on anything landed that is not removable. Say the counts plainly —
+how many are watching, landed, and removable — and say when
+`ownership_available` is false, because an unreachable agent development
+environment means no session is knowable and a worktree that looks unowned
+may not be.
+
+Report the roster again whenever the operator stops the supervisor, and
+whenever they ask what you are watching. A run that ends without one has left
+its picture in the scrollback.
+
+## Consume the event stream
+
+After the roster, the watcher emits canonical `merge_candidate`,
+`unowned_candidate`, `removable_worktree`, and `reap_candidate` JSON objects,
+one per stdout line. Both the watcher and `status.ts` default to projects whose
+local `main` worktree is under `~/code` or `~/src`; add repeatable
 `--project-root <path>` arguments when the operator has other roots.
 
 - In Claude Code, run the watcher through native `Monitor()` so each stdout
@@ -44,10 +68,11 @@ ever ran there — and a commit made in an existing worktree is noticed the same
 way. Discovery holds no opinion about which ADE, if any, is running.
 
 Coming online is itself a full scan. Before any event arrives, the watcher
-reports every worktree in every project root that already carries unmerged
-commits — including ones whose agent committed, quit, and left days ago. Expect
-a burst of candidates at startup on a machine that has been running without a
-supervisor, and work them like any other.
+reports the roster, then every worktree in every project root that already
+carries unmerged commits — including ones whose agent committed, quit, and left
+days ago — and every worktree whose work has already landed. Expect a burst of
+candidates at startup on a machine that has been running without a supervisor,
+and work them like any other.
 
 Filesystem watches are the signal; `--sweep-interval <seconds>` (default 300,
 `0` disables) is only a backstop for events a watch dropped, which happens on
@@ -63,7 +88,9 @@ with an `agentsurface agents` polling loop. Another ADE would satisfy the same
 small contract — name the session working in a given worktree, and report when
 a workspace closes — without touching discovery.
 
-A discovered worktree whose owner the ADE can name arrives as a
+A discovered worktree whose commits `main` already contains arrives as a
+`removable_worktree` rather than a merge candidate — see below. One that still
+carries unmerged commits and whose owner the ADE can name arrives as a
 `merge_candidate` with `reason: "discovered"`. One nobody can claim arrives as
 an `unowned_candidate`, which is never merged on your own authority: there is
 no session to give exact-SHA readiness, so bring it to the human with its
@@ -127,7 +154,9 @@ stdout JSON object is authoritative.
 
 - `integrated_and_pushed`: tell the peer the exact SHA is now local main and
   origin/main. Then advance that repository's queue. Do not close or remove
-  anything as part of integration.
+  anything as part of integration — the worktree you just emptied of unmerged
+  work will arrive on the stream as a `removable_worktree`, and that, not the
+  integration itself, is what you report to the human.
 - `source_head_changed` or `source_not_clean`: ask the peer to finish and
   approve its new exact HEAD.
 - `source_needs_reconciliation`: send the peer the reported `main_head` and
@@ -147,6 +176,28 @@ stdout JSON object is authoritative.
 Collaborate with the peer when reconciliation is ordinary and bounded. Ask the
 human only for genuine repository ownership, divergence, or intent decisions.
 Continue supervising other repositories while one is waiting.
+
+## Report a removable worktree
+
+A `removable_worktree` says a worktree has nothing left to integrate. It
+carries `removable`, `blockers`, and `owner` alongside the usual identity.
+
+Tell the human every time one arrives, and say which of the two it is:
+
+- `removable: true` with empty `blockers` — its commits are in `main`, nothing
+  uncommitted is left in it, it is a branch and not `main`, and no session is
+  in it. The directory is now the only thing left. Name the path, the branch,
+  and the head.
+- `removable: false` — say the blocker in the event's own words. A live
+  session means "removable once that session closes"; uncommitted changes in a
+  worktree nobody is sitting in means real work is about to be lost with the
+  directory, and that is the one to raise loudest.
+
+Reporting is the whole of this. A `removable_worktree` is never authority to
+remove anything: it observes Git, and Git cannot see whether a human still has
+that directory open. Cleanup happens only on a `reap_candidate`, whose two
+lifecycle facts are the authorization, or when the human tells you to reap a
+specific worktree by name.
 
 ## Reap a closed worktree
 
@@ -200,7 +251,12 @@ rather than letting the commits leave with the workspace.
 
 After every candidate reaches a stable outcome, return to sleeping on the
 watcher. The loop has no completion condition of its own; it ends only when the
-operator stops the supervisor. On shutdown, stop only the watcher process you
-started and report any approved-but-unpublished exact SHAs, any unowned
-candidates still awaiting a human decision, and any emitted reap candidates not
-yet brought to a stable outcome.
+operator stops the supervisor.
+
+On shutdown, stop only the watcher process you started, then close the same way
+you opened: run `scripts/status.ts --occasion stop` with the roots you
+supervised and report the full roster — what is still watching, what has
+landed, and what is removable. Follow it with the loose ends the roster cannot
+show: any approved-but-unpublished exact SHAs, any unowned candidates still
+awaiting a human decision, and any emitted reap candidates not yet brought to a
+stable outcome.

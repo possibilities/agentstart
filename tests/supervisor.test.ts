@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { AgentTracker, ReapTracker } from "../skills/supervisor/scripts/watch.ts";
 import { listLiveWorktrees, normalizePath } from "../skills/supervisor/scripts/git.ts";
-import { findRepositories, scanRepository } from "../skills/supervisor/scripts/worktrees.ts";
+import { findRepositories, scanRepository, surveyRepository } from "../skills/supervisor/scripts/worktrees.ts";
+import { buildRoster } from "../skills/supervisor/scripts/roster.ts";
 
 const root = resolve(import.meta.dir, "..");
 const watchScript = join(root, "skills", "supervisor", "scripts", "watch.ts");
 const integrateScript = join(root, "skills", "supervisor", "scripts", "integrate.ts");
 const reapScript = join(root, "skills", "supervisor", "scripts", "reap.ts");
+const statusScript = join(root, "skills", "supervisor", "scripts", "status.ts");
 const temporaryPaths: string[] = [];
 
 afterEach(() => {
@@ -126,6 +128,19 @@ async function readLine(stream: ReadableStream<Uint8Array>, timeoutMs = 2_000): 
  * react to something they do between reads. `readLine` cancels its stream on
  * the way out, which is right for a single expected line and wrong here.
  */
+/** Every emitted object, and the roster the watcher always opens with. */
+function emitted(stdout: string): Array<Record<string, unknown>> {
+  return stdout
+    .trim()
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+}
+
+function candidates(stdout: string): Array<Record<string, unknown>> {
+  return emitted(stdout).filter((record) => record["type"] !== "roster");
+}
+
 function lineReader(stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
   let buffered = "";
@@ -637,7 +652,10 @@ describe("Git-native worktree discovery", () => {
       "--project-root",
       fixture.projectsRoot,
     ]);
-    const candidate = JSON.parse(result.stdout.trim().split("\n")[0] ?? "{}");
+    const [roster] = emitted(result.stdout);
+    expect(roster).toMatchObject({ type: "roster", occasion: "snapshot" });
+
+    const candidate = candidates(result.stdout)[0] ?? {};
     expect(candidate).toMatchObject({
       type: "unowned_candidate",
       reason: "discovered",
@@ -676,11 +694,7 @@ describe("Git-native worktree discovery", () => {
       fixture.projectsRoot,
     ]);
 
-    const reported = result.stdout
-      .trim()
-      .split("\n")
-      .filter((line) => line !== "")
-      .map((line) => JSON.parse(line));
+    const reported = candidates(result.stdout);
     expect(reported.every((candidate) => candidate.type === "unowned_candidate")).toBe(true);
     expect(new Set(reported.map((candidate) => candidate.worktree))).toEqual(
       new Set([normalizePath(fixture.worktree), normalizePath(abandoned)]),
@@ -708,6 +722,11 @@ describe("Git-native worktree discovery", () => {
 
     const lines = lineReader(child.stdout);
     try {
+      // Every run opens with the roster: what is watched, what has landed,
+      // and what is removable, before a single event is reported.
+      const roster = JSON.parse(await lines.next());
+      expect(roster).toMatchObject({ type: "roster", occasion: "start" });
+
       // The worktree that already existed is reported from the startup scan.
       const first = JSON.parse(await lines.next());
       expect(first).toMatchObject({ worktree: normalizePath(fixture.worktree) });
@@ -727,6 +746,165 @@ describe("Git-native worktree discovery", () => {
         branch: "worktree/late",
         head: git(late, "rev-parse", "HEAD"),
         commits_ahead: 1,
+      });
+    } finally {
+      lines.release();
+      child.kill();
+      await child.exited;
+    }
+  });
+});
+
+describe("The roster", () => {
+  /** Fast-forward local main onto the peer's commit, as the integrator would. */
+  function land(fixture: Fixture): void {
+    git(fixture.main, "merge", "--ff-only", "worktree/peer");
+  }
+
+  test("places a landed, clean, unowned worktree as removable", async () => {
+    const fixture = createFixture();
+    land(fixture);
+
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    const rows = roster.repositories.flatMap((repository) => repository.worktrees);
+    const peer = rows.find((row) => row.worktree === normalizePath(fixture.worktree));
+
+    expect(peer).toMatchObject({
+      category: "removable",
+      removable: true,
+      blockers: [],
+      branch: "worktree/peer",
+      commits_ahead: 0,
+      clean: true,
+    });
+    expect(roster.counts).toMatchObject({ removable: 1, watching: 0 });
+
+    // The integration target is listed, and is never removable.
+    const mainRow = rows.find((row) => row.worktree === normalizePath(fixture.main));
+    expect(mainRow).toMatchObject({ category: "main", removable: false });
+    expect(roster.repositories[0]).toMatchObject({ main_pushed: false });
+  });
+
+  test("holds unmerged work and uncommitted changes back from removal, with the reason", async () => {
+    const fixture = createFixture();
+
+    const unmerged = await buildRoster([fixture.projectsRoot], null, "test");
+    const carrying = unmerged.repositories
+      .flatMap((repository) => repository.worktrees)
+      .find((row) => row.worktree === normalizePath(fixture.worktree));
+    expect(carrying).toMatchObject({ category: "watching", removable: false });
+    expect(carrying?.blockers).toEqual(["1 commit(s) not in main"]);
+
+    // Landed but dirty: nothing left to integrate, still not a directory to delete.
+    land(fixture);
+    writeFileSync(join(fixture.worktree, "scratch.txt"), "unsaved\n");
+    const dirty = await buildRoster([fixture.projectsRoot], null, "test");
+    const left = dirty.repositories
+      .flatMap((repository) => repository.worktrees)
+      .find((row) => row.worktree === normalizePath(fixture.worktree));
+    expect(left).toMatchObject({ category: "landed", removable: false });
+    expect(left?.blockers).toEqual(["uncommitted changes"]);
+  });
+
+  test("names the live session holding a landed worktree open", async () => {
+    const fixture = createFixture();
+    land(fixture);
+
+    const roster = await buildRoster([fixture.projectsRoot], {
+      owner: async (worktree) =>
+        worktree === normalizePath(fixture.worktree)
+          ? { harness: "codex", session_id: "session-7", pane_id: "pane-7" }
+          : null,
+    }, "test");
+    const peer = roster.repositories
+      .flatMap((repository) => repository.worktrees)
+      .find((row) => row.worktree === normalizePath(fixture.worktree));
+
+    expect(peer).toMatchObject({
+      category: "watching",
+      removable: false,
+      owner: { harness: "codex", session_id: "session-7", pane_id: "pane-7" },
+    });
+    expect(peer?.blockers).toEqual(["session live (codex session-7)"]);
+  });
+
+  test("status.ts prints the same roster on demand", async () => {
+    const fixture = createFixture();
+    land(fixture);
+
+    const result = await run([
+      process.execPath,
+      statusScript,
+      "--socket",
+      join(fixture.root, "absent.sock"),
+      "--project-root",
+      fixture.projectsRoot,
+      "--occasion",
+      "stop",
+    ]);
+    const roster = JSON.parse(result.stdout.trim());
+    expect(roster).toMatchObject({
+      type: "roster",
+      occasion: "stop",
+      // No ADE answered, so no session is knowable and the roster says so
+      // rather than letting silence read as "nobody is working here".
+      ownership_available: false,
+      counts: { removable: 1 },
+    });
+  });
+
+  test("the survey keeps landed worktrees the candidate scan drops", () => {
+    const fixture = createFixture();
+    land(fixture);
+
+    expect(scanRepository(fixture.main, [fixture.projectsRoot])).toEqual([]);
+    const surveyed = surveyRepository(fixture.main, [fixture.projectsRoot]);
+    expect(
+      surveyed.map((worktree) => [worktree.worktree, worktree.state]),
+    ).toEqual(
+      expect.arrayContaining([
+        [normalizePath(fixture.main), "main"],
+        [normalizePath(fixture.worktree), "landed"],
+      ]),
+    );
+  });
+
+  test("the watcher announces a worktree as removable once its work is in main", async () => {
+    const fixture = createFixture();
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        watchScript,
+        "--socket",
+        join(fixture.root, "absent.sock"),
+        "--project-root",
+        fixture.projectsRoot,
+        "--sweep-interval",
+        "0",
+      ],
+      { cwd: root, stdout: "pipe", stderr: "pipe" },
+    );
+
+    const lines = lineReader(child.stdout);
+    try {
+      expect(JSON.parse(await lines.next())).toMatchObject({ type: "roster", occasion: "start" });
+      expect(JSON.parse(await lines.next())).toMatchObject({
+        type: "unowned_candidate",
+        worktree: normalizePath(fixture.worktree),
+      });
+
+      // Local main moves onto that exact commit, as the integrator does. The
+      // worktree's HEAD has not changed at all — only its situation has.
+      land(fixture);
+
+      expect(JSON.parse(await lines.next())).toMatchObject({
+        type: "removable_worktree",
+        worktree: normalizePath(fixture.worktree),
+        branch: "worktree/peer",
+        head: fixture.workerHead,
+        removable: true,
+        blockers: [],
+        owner: null,
       });
     } finally {
       lines.release();

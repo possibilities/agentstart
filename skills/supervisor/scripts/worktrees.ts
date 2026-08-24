@@ -4,9 +4,11 @@ import { join } from "node:path";
 import {
   type WorktreeIdentity,
   inspectCandidate,
+  inspectSettled,
   listLiveWorktrees,
   normalizePath,
   pathIsWithin,
+  repositoryContext,
   resolveCommonDir,
   runGit,
 } from "./git.ts";
@@ -44,9 +46,21 @@ const REPOSITORY_DEBOUNCE_MS = 750;
 /** Coalescing window for project-root changes, which re-enumerate repositories. */
 const ROOT_DEBOUNCE_MS = 2_000;
 
+/**
+ * Where a worktree stands against its repository's `main`.
+ *
+ * `main` is the integration target itself. `unmerged` carries commits `main`
+ * does not, and is the supervisor's work. `landed` has nothing left to
+ * integrate — which is the state a finished worktree ends in, and the reason
+ * discovery reports it rather than dropping it: a landed worktree is where
+ * removability is decided.
+ */
+export type WorktreeState = "main" | "unmerged" | "landed";
+
 export interface DiscoveredWorktree extends WorktreeIdentity {
   /** Absolute path of the repository whose registry produced this worktree. */
   repository: string;
+  state: WorktreeState;
 }
 
 export interface DiscoveryOptions {
@@ -93,37 +107,60 @@ function descend(directory: string, depth: number, found: Set<string>): void {
 }
 
 /**
- * Every worktree of `repository` that is registered, present on disk, and
- * carries commits its repository's `main` does not.
+ * Every worktree of `repository` that is registered and present on disk, each
+ * placed against `main`.
+ *
+ * A worktree whose HEAD `main` already contains is landed, not uninteresting:
+ * it is exactly the set that becomes removable, so it is surveyed cheaply
+ * rather than skipped. The expensive inspection is reserved for worktrees that
+ * really do carry unmerged commits.
+ */
+export function surveyRepository(
+  repository: string,
+  roots: readonly string[],
+): DiscoveredWorktree[] {
+  const surveyed: DiscoveredWorktree[] = [];
+
+  // One resolution for the whole repository: with no local `main` there is
+  // nothing to integrate into, and inspecting each of its worktrees is waste.
+  const context = repositoryContext(repository, roots);
+  if (!context) return surveyed;
+  const home = normalizePath(repository);
+
+  for (const record of listLiveWorktrees(repository)) {
+    // Settle the common case with one Git call. On a machine with many
+    // finished worktrees nearly all of them are already contained in `main`,
+    // and a contained HEAD needs only a status and a count — not the ten calls
+    // a full inspection costs. Anything but a definite "yes, contained" falls
+    // through to the real inspection.
+    const contained =
+      record.head !== null &&
+      runGit(repository, ["merge-base", "--is-ancestor", record.head, "refs/heads/main"]).code === 0;
+
+    if (contained) {
+      const identity = inspectSettled(record, context);
+      if (!identity) continue;
+      const state: WorktreeState =
+        normalizePath(record.path) === context.main_worktree ? "main" : "landed";
+      surveyed.push({ ...identity, repository: home, state });
+      continue;
+    }
+
+    const identity = inspectCandidate(record.path, roots);
+    if (identity) surveyed.push({ ...identity, repository: home, state: "unmerged" });
+  }
+  return surveyed;
+}
+
+/**
+ * Every worktree of `repository` carrying commits its `main` does not — the
+ * survey narrowed to what the supervisor can actually integrate.
  */
 export function scanRepository(
   repository: string,
   roots: readonly string[],
 ): DiscoveredWorktree[] {
-  const discovered: DiscoveredWorktree[] = [];
-
-  // One check for the whole repository: with no local `main` there is nothing
-  // to integrate into, and inspecting each of its worktrees would be waste.
-  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) {
-    return discovered;
-  }
-
-  for (const record of listLiveWorktrees(repository)) {
-    // Reject the common case first. A HEAD already contained in `main` carries
-    // nothing to integrate, and on a machine with many settled worktrees that
-    // is nearly all of them — one Git call here instead of the ten a full
-    // inspection costs. Anything but a definite "yes, contained" falls through
-    // to the real inspection rather than being silently dropped.
-    if (
-      record.head &&
-      runGit(repository, ["merge-base", "--is-ancestor", record.head, "refs/heads/main"]).code === 0
-    ) {
-      continue;
-    }
-    const identity = inspectCandidate(record.path, roots);
-    if (identity) discovered.push({ ...identity, repository: normalizePath(repository) });
-  }
-  return discovered;
+  return surveyRepository(repository, roots).filter((worktree) => worktree.state === "unmerged");
 }
 
 export class WorktreeDiscovery {
@@ -302,9 +339,14 @@ export class WorktreeDiscovery {
       this.watchRepository(repository);
     }
 
-    for (const worktree of scanRepository(repository, this.roots)) {
-      if (this.announced.get(worktree.worktree) === worktree.head) continue;
-      this.announced.set(worktree.worktree, worktree.head);
+    for (const worktree of surveyRepository(repository, this.roots)) {
+      // A worktree can change what it deserves without changing its HEAD: the
+      // supervisor fast-forwards `main` past it and the very same commit turns
+      // from unmerged work into a removable checkout. Keying the announcement
+      // on the whole situation, not the commit, is what lets that be reported.
+      const situation = `${worktree.state}:${worktree.head}:${worktree.clean}`;
+      if (this.announced.get(worktree.worktree) === situation) continue;
+      this.announced.set(worktree.worktree, situation);
       void this.options.onWorktree(worktree);
     }
   }

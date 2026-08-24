@@ -51,7 +51,8 @@ done
 for supervisor_script in \
     skills/supervisor/scripts/watch.ts \
     skills/supervisor/scripts/integrate.ts \
-    skills/supervisor/scripts/reap.ts; do
+    skills/supervisor/scripts/reap.ts \
+    skills/supervisor/scripts/status.ts; do
     [ -x "$supervisor_script" ] \
         || fail "supervisor helper is not executable: $supervisor_script"
 done
