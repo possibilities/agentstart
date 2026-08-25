@@ -165,7 +165,9 @@ sentence around the match, never from the name alone.
 
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
-| agentstart | agentusage | `install-agent-clis` invokes the checkout's `scripts/install.sh --install`, which provisions the public claude-swap fork before installing the observer. It no longer writes a `codex-swap` shim — that command has one owner now | `agentstart/scripts/install-agent-clis`; `agentusage/scripts/install-providers.sh` |
+| agentstart | agentusage | `install-agent-clis` invokes the checkout's `scripts/install.sh --install`, which installs the claude-swap provider before installing the observer. It no longer writes a `codex-swap` shim, and no longer maintains the fork — both have one owner now | `agentstart/scripts/install-agent-clis`; `agentusage/scripts/install-providers.sh` |
+| agentusage | cswax | `scripts/install-providers.sh` invokes `~/code/cswax/scripts/install.sh --install --published` and does nothing else about the claude-swap fork. It previously rebased, gated, and force-pushed `integration` on every unattended converge; that moved to the workshop on 2026-08-25 | `agentusage/scripts/install-providers.sh`; `cswax/MAINTAIN.md` (Consumer); asserted by `cswax/tests/validate.sh` |
+| cswax | claude-swap | binds `~/src/claude-swap` to a published `fork/integration` commit and installs it with `uv tool install --force`, refusing a foreign fork remote, a dirty tree, or an unpublished commit, and reporting when integration trails upstream. `/maintain` separately composes the carry heads, gates, and publishes | `cswax/scripts/install.sh`; `cswax/MAINTAIN.md`; `cswax/scripts/reconcile-branches.sh` |
 | agentstart | codex-swap | `install-agent-clis` invokes `scripts/install.sh --install`, which writes the `codex-swap` command as a source shim into the checkout and installs the exact stock codex-multi-auth npm pin | `agentstart/scripts/install-agent-clis`; `codex-swap/scripts/install.sh` |
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex`/`pi` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentlaunch / Codex desktop | builds the default `common` capability pack, renders the session-only Claude `agent` plugin input and Codex desktop compatibility plugin, and leaves portable skill manifests bare. AgentLaunch composes per-session projections for all three harnesses and enumerates the compatibility copy's qualified skill names for managed-session suppression; the full installer removes only AgentStart-managed entries from retired compatibility roots, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/config/capabilities/common/*`; `agentstart/docs/adr/0002-compose-capabilities-without-moving-native-stores.md`; `agentlaunch/src/capabilities.ts` |
@@ -242,15 +244,16 @@ operation against a different audience. Whether a fork is wired at all is a
 declared constant in the owning installer, so retiring it is an edit and a
 rerun; a binding hand-written into the installed shim is unwired by the next
 install, which is how the codex-multi-auth one was lost once. The Fx and
-zmx forks are owned by workshop repositories (`fxnk`, `zmax`) instead of an
-installer: each workshop's `MAINTAIN.md` is that fork's contract, the shared
-`maintain` skill (agentguidance) is the cycle, and the workshop's consumer
-step binds the result — fxnk's installer, zmax's move of fmx's Companion
-pin. The `fork-rebase-policy` wiki page is the overview of the arrangement.
+zmx and claude-swap forks are owned by workshop repositories (`fxnk`, `zmax`,
+`cswax`) instead of an installer: each workshop's `MAINTAIN.md` is that fork's
+contract, the shared `maintain` skill (agentguidance) is the cycle, and the
+workshop's consumer step binds the result — fxnk's installer, zmax's move of
+fmx's Companion pin, cswax's `uv tool install`. The `fork-rebase-policy` wiki
+page is the overview of the arrangement.
 
 | Fork | Integration branch | Owner | Gate |
 | --- | --- | --- | --- |
-| `~/src/claude-swap` | `integration` | `agentusage/scripts/install-providers.sh` | `uv sync --locked && uv run pytest` |
+| `~/src/claude-swap` | `integration` | `cswax` via `/maintain` and `scripts/install.sh --install`, called by `agentusage/scripts/install-providers.sh` | all three of upstream's CI jobs (Ubuntu, macOS, macOS keychain contract), plus the fork's CI green on the exact candidate |
 | `~/src/fx` | `integration` | `fxnk` via `/maintain` and `scripts/install.sh --install --sha` | fxnk's exact-SHA Local development gate and ship gate |
 | `~/src/zmx` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `fmx/companion.json`) | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, fmx's suite against it |
 
@@ -390,4 +393,6 @@ global ones, so a caller that appends flags — codex-swap does — silently dro
 a policy placed in front of the subcommand.
 Updated 2026-08-25 for fxnk's exact-SHA installer contract: AgentStart now
 tracks the ship-gate-approved Fx Integration consumer pin, passes it on every
-convergence, and never mistakes the current remote tip for an approval.
+convergence, and never mistakes the current remote tip for an approval. Also
+2026-08-25: claude-swap's fork moved to the `cswax` workshop, so agentusage
+consumes it and no unattended converge can rewrite or publish a fork.
