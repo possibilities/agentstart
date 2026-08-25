@@ -1,9 +1,4 @@
 project_roots = ["~/code", "~/src"]
 
-[[panels]]
-id = "diff"
-label = "Diff"
-command = ["hunk", "diff", "--watch", "--pager"]
-
 [keys]
 prefix = "ctrl+space"
