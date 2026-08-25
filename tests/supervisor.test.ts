@@ -7,7 +7,7 @@ import {
   ReapTracker,
   candidateFromWorktree,
 } from "../skills/supervisor/scripts/watch.ts";
-import { listLiveWorktrees, normalizePath } from "../skills/supervisor/scripts/git.ts";
+import { listLiveWorktrees, normalizePath, resolveTrunk } from "../skills/supervisor/scripts/git.ts";
 import {
   WorktreeDiscovery,
   findRepositories,
@@ -308,7 +308,7 @@ test("the watcher reconciles through a fake Herdr socket and finds an arbitrary 
     reason: "startup",
     session_id: "peer-session",
     worktree: normalizePath(fixture.worktree),
-    main_worktree: normalizePath(fixture.main),
+    trunk_worktree: normalizePath(fixture.main),
     head: fixture.workerHead,
     commits_ahead: 1,
     clean: true,
@@ -467,6 +467,152 @@ test("the watcher wakes with a reap candidate after agent exit and workspace clo
   });
 });
 
+interface ForkFixture extends Fixture {
+  /** The bare repository standing in for the fork the trunk publishes to. */
+  fork: string;
+}
+
+/**
+ * A maintained fork: `main` mirrors an upstream nobody here may write to, and
+ * the real trunk is `integration`, tracking a second remote. It is the shape
+ * every fork under `~/src` already has, and the one a supervisor that assumes
+ * `main`/`origin` either ignores entirely or — worse — publishes to upstream.
+ */
+function createForkFixture(): ForkFixture {
+  const base = createFixture();
+  const fork = join(base.root, "fork.git");
+  git(base.root, "init", "--bare", "--initial-branch=main", fork);
+  git(base.main, "remote", "add", "fork", fork);
+  git(base.main, "branch", "integration", "main");
+  git(base.main, "push", "-u", "fork", "integration");
+  git(base.main, "config", "supervisor.trunk", "integration");
+  // The trunk has to be the checked-out branch, exactly as `main` was.
+  git(base.main, "checkout", "integration");
+  return { ...base, fork };
+}
+
+test("a fork's trunk resolves to its own branch and publishing remote", () => {
+  const fixture = createForkFixture();
+  expect(resolveTrunk(fixture.main)).toMatchObject({
+    branch: "integration",
+    ref: "refs/heads/integration",
+    remote: "fork",
+    remote_branch: "integration",
+    configured: true,
+  });
+});
+
+test("an unconfigured repository still resolves main through origin", () => {
+  const fixture = createFixture();
+  expect(resolveTrunk(fixture.main)).toMatchObject({
+    branch: "main",
+    remote: "origin",
+    configured: false,
+  });
+});
+
+test("the roster supervises a fork on its configured trunk", async () => {
+  const fixture = createForkFixture();
+  const roster = await buildRoster([fixture.projectsRoot], null, "test");
+  const repository = roster.repositories.find((entry) => entry.repository === normalizePath(fixture.main));
+
+  expect(repository).toMatchObject({
+    trunk_branch: "integration",
+    trunk_worktree: normalizePath(fixture.main),
+    trunk_remote: "fork",
+    blockers: [],
+  });
+  const peer = repository?.worktrees.find((entry) => entry.worktree === normalizePath(fixture.worktree));
+  expect(peer).toMatchObject({ category: "watching", commits_ahead: 1 });
+  expect(peer?.blockers).toEqual(["1 commit(s) not in integration"]);
+});
+
+test("the integrator publishes a fork's trunk to the fork, never to upstream", async () => {
+  const fixture = createForkFixture();
+  const upstreamBefore = git(fixture.root, "--git-dir", fixture.remote, "rev-parse", "main");
+
+  const result = await run([
+    process.execPath,
+    integrateScript,
+    "--source",
+    fixture.worktree,
+    "--expected-head",
+    fixture.workerHead,
+    "--project-root",
+    fixture.projectsRoot,
+  ]);
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    ok: true,
+    code: "integrated_and_pushed",
+    trunk_branch: "integration",
+    trunk_remote: "fork",
+    trunk_head: fixture.workerHead,
+    remote_head: fixture.workerHead,
+  });
+  expect(git(fixture.main, "rev-parse", "integration")).toBe(fixture.workerHead);
+  expect(git(fixture.root, "--git-dir", fixture.fork, "rev-parse", "integration")).toBe(fixture.workerHead);
+
+  // The whole point: upstream is untouched, and so is the local mirror of it.
+  expect(git(fixture.root, "--git-dir", fixture.remote, "rev-parse", "main")).toBe(upstreamBefore);
+  expect(git(fixture.main, "rev-parse", "main")).toBe(upstreamBefore);
+});
+
+test("the reaper refuses a fork's trunk branch, not the word main", async () => {
+  const fixture = createForkFixture();
+  const trunkHead = git(fixture.main, "rev-parse", "integration");
+  const result = await run([
+    process.execPath,
+    reapScript,
+    "--worktree",
+    fixture.main,
+    "--expected-branch",
+    "integration",
+    "--expected-head",
+    trunkHead,
+    "--unowned",
+    "--project-root",
+    fixture.projectsRoot,
+  ]);
+
+  expect(result.exitCode).not.toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: "branch_not_reapable" });
+  expect(existsSync(fixture.main)).toBe(true);
+});
+
+test("the integrator refuses a repository whose configured trunk is checked out nowhere", async () => {
+  const fixture = createForkFixture();
+  git(fixture.main, "checkout", "main");
+
+  const result = await run([
+    process.execPath,
+    integrateScript,
+    "--source",
+    fixture.worktree,
+    "--expected-head",
+    fixture.workerHead,
+    "--project-root",
+    fixture.projectsRoot,
+  ]);
+
+  expect(result.exitCode).not.toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({
+    ok: false,
+    code: "trunk_worktree_missing",
+    trunk_branch: "integration",
+  });
+  expect(git(fixture.main, "rev-parse", "integration")).not.toBe(fixture.workerHead);
+});
+
+test("the roster names the configured trunk in its refusal when it is missing", async () => {
+  const fixture = createFixture();
+  git(fixture.main, "config", "supervisor.trunk", "integration");
+  const roster = await buildRoster([fixture.projectsRoot], null, "test");
+  const repository = roster.repositories.find((entry) => entry.repository === normalizePath(fixture.main));
+  expect(repository?.blockers).toEqual(["configured trunk integration does not exist"]);
+});
+
 test("the integrator fast-forwards local main and pushes that exact commit", async () => {
   const fixture = createFixture();
   writeFileSync(join(fixture.main, "human-note.txt"), "preserve me\n");
@@ -485,7 +631,7 @@ test("the integrator fast-forwards local main and pushes that exact commit", asy
   expect(JSON.parse(result.stdout)).toMatchObject({
     ok: true,
     code: "integrated_and_pushed",
-    main_head: fixture.workerHead,
+    trunk_head: fixture.workerHead,
     remote_head: fixture.workerHead,
   });
   expect(git(fixture.main, "rev-parse", "main")).toBe(fixture.workerHead);
@@ -531,7 +677,7 @@ test("the integrator returns divergent work to the peer instead of merging", asy
   expect(JSON.parse(result.stdout)).toMatchObject({
     ok: false,
     code: "source_needs_reconciliation",
-    main_head: mainBefore,
+    trunk_head: mainBefore,
   });
   expect(git(fixture.main, "rev-parse", "main")).toBe(mainBefore);
 });
@@ -722,7 +868,7 @@ describe("Git-native worktree discovery", () => {
       head: fixture.workerHead,
       commits_ahead: 1,
       clean: true,
-      main_worktree: normalizePath(fixture.main),
+      trunk_worktree: normalizePath(fixture.main),
     });
   });
 
@@ -868,8 +1014,8 @@ describe("The roster", () => {
 
     // The integration target is listed, and is never removable.
     const mainRow = rows.find((row) => row.worktree === normalizePath(fixture.main));
-    expect(mainRow).toMatchObject({ category: "main", removable: false });
-    expect(roster.repositories[0]).toMatchObject({ main_pushed: false });
+    expect(mainRow).toMatchObject({ category: "trunk", removable: false });
+    expect(roster.repositories[0]).toMatchObject({ trunk_pushed: false });
   });
 
   test("holds unmerged work and uncommitted changes back from removal, with the reason", async () => {
@@ -1013,14 +1159,14 @@ describe("The roster", () => {
     // The repository is on the roster, saying what is wrong with it, and its
     // checkouts are all still named. Dropping them silently is what makes a
     // supervised repository and an unsupervised one read the same.
-    expect(repository).toMatchObject({ main_worktree: null, main_head: null, main_pushed: null });
-    expect(repository?.blockers).toEqual(["no local main checked out"]);
+    expect(repository).toMatchObject({ trunk_worktree: null, trunk_head: null, trunk_pushed: null });
+    expect(repository?.blockers).toEqual(["no worktree has main checked out"]);
     expect(repository?.worktrees.map((row) => row.worktree).sort()).toEqual(
       [normalizePath(fixture.main), normalizePath(fixture.worktree)].sort(),
     );
     for (const row of repository?.worktrees ?? []) {
       expect(row).toMatchObject({ category: "unsupervised", removable: false, commits_ahead: null });
-      expect(row.blockers).toEqual(["no local main checked out"]);
+      expect(row.blockers).toEqual(["no worktree has main checked out"]);
     }
     expect(roster.counts).toMatchObject({ unsupervised: 2, removable: 0, quiet: 0 });
   });
@@ -1040,7 +1186,7 @@ describe("The roster", () => {
       (entry) => entry.repository === normalizePath(fixture.main),
     );
 
-    expect(repository?.blockers).toEqual(["no local main branch"]);
+    expect(repository?.blockers).toEqual(["no trunk branch"]);
     expect(repository?.worktrees).toEqual([]);
     expect(repository?.worktree_count).toBe(2);
 
@@ -1197,7 +1343,7 @@ describe("The roster", () => {
       surveyed.map((worktree) => [worktree.worktree, worktree.state]),
     ).toEqual(
       expect.arrayContaining([
-        [normalizePath(fixture.main), "main"],
+        [normalizePath(fixture.main), "trunk"],
         [normalizePath(fixture.worktree), "landed"],
       ]),
     );

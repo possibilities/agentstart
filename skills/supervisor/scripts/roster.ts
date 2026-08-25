@@ -2,13 +2,14 @@ import type { WorktreeIdentity } from "./git.ts";
 import {
   isPrimaryWorktree,
   listLiveWorktrees,
-  mainIsPushed,
-  missingMainReason,
-  NO_MAIN_BRANCH,
+  missingTrunkReason,
+  NO_TRUNK_BRANCH,
   normalizePath,
   repositoryContext,
   resolveCommonDir,
+  resolveTrunk,
   runGit,
+  trunkIsPushed,
 } from "./git.ts";
 import { describeSession, type OwnershipProvider, type WorktreeOwner } from "./ade.ts";
 import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./worktrees.ts";
@@ -24,7 +25,7 @@ import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./w
  */
 
 export type RosterCategory =
-  | "main"
+  | "trunk"
   | "watching"
   | "quiet"
   | "landed"
@@ -33,14 +34,18 @@ export type RosterCategory =
 
 /**
  * A worktree the supervisor could not place at all keeps the identity fields
- * Git answers without a `main` to compare against — its path, its branch, its
+ * Git answers without a trunk to compare against — its path, its branch, its
  * head, whether anything is uncommitted — and nulls the rest. A null there is
- * the honest answer: there is no `main` for it to be ahead of.
+ * the honest answer: there is no trunk for it to be ahead of.
  */
 export interface RosterWorktree
-  extends Omit<WorktreeIdentity, "main_worktree" | "main_head" | "commits_ahead" | "commits_behind"> {
-  main_worktree: string | null;
-  main_head: string | null;
+  extends Omit<
+    WorktreeIdentity,
+    "trunk_branch" | "trunk_worktree" | "trunk_head" | "commits_ahead" | "commits_behind"
+  > {
+  trunk_branch: string | null;
+  trunk_worktree: string | null;
+  trunk_head: string | null;
   commits_ahead: number | null;
   commits_behind: number | null;
   category: RosterCategory;
@@ -53,11 +58,15 @@ export interface RosterWorktree
 export interface RosterRepository {
   repository: string;
   common_dir: string;
-  /** Where `main` is checked out; null when nowhere under the roots is. */
-  main_worktree: string | null;
-  main_head: string | null;
-  /** Whether `origin/main` already contains local `main`; null with no such ref. */
-  main_pushed: boolean | null;
+  /** The branch this repository integrates into; null when none was resolved. */
+  trunk_branch: string | null;
+  /** Where the trunk is checked out; null when nowhere under the roots is. */
+  trunk_worktree: string | null;
+  trunk_head: string | null;
+  /** The remote the trunk publishes to, from its own upstream. */
+  trunk_remote: string | null;
+  /** Whether the trunk's remote already contains it; null with no such ref. */
+  trunk_pushed: boolean | null;
   /** Why nothing in this repository can be supervised; empty when it can be. */
   blockers: string[];
   /**
@@ -90,11 +99,11 @@ export interface Roster {
 /**
  * Where one surveyed worktree belongs, and what stands between it and removal.
  *
- * Removable means exactly this: work was done here, its commits are in `main`,
- * nothing uncommitted is left in it, it is a branch and not `main` itself, and
- * no agent is still sitting in it. Anything short of that is a blocker with a
- * name, because a human reading the roster deserves the reason and not just
- * the verdict.
+ * Removable means exactly this: work was done here, its commits are in the
+ * trunk, nothing uncommitted is left in it, it is a branch and not the trunk
+ * itself, and no agent is still sitting in it. Anything short of that is a
+ * blocker with a name, because a human reading the roster deserves the reason
+ * and not just the verdict.
  *
  * Quiet is the absence of all of it: a landed, clean worktree whose agent has
  * not left yet. It holds nothing for the supervisor, and a roster that spends
@@ -110,19 +119,19 @@ export interface Roster {
  * The repository's primary checkout is the one blocker that never clears. It
  * is a person's working directory rather than a worktree somebody added for a
  * task, and which branch it happens to hold says nothing about that — refusing
- * only the worktree that holds `main` protects it just until an operator
+ * only the worktree that holds the trunk protects it just until an operator
  * switches branches. It is never quiet either, because a permanent blocker
  * that nobody is shown is the same as no blocker at all.
  */
 export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null): RosterWorktree {
   const blockers: string[] = [];
-  if (worktree.state === "main") {
-    return { ...identity(worktree), category: "main", owner, removable: false, blockers };
+  if (worktree.state === "trunk") {
+    return { ...identity(worktree), category: "trunk", owner, removable: false, blockers };
   }
   const primary = isPrimaryWorktree(worktree.worktree, worktree.common_dir);
   if (primary) blockers.push("the repository's primary checkout");
   if (worktree.state === "unmerged") {
-    blockers.push(`${worktree.commits_ahead} commit(s) not in main`);
+    blockers.push(`${worktree.commits_ahead} commit(s) not in ${worktree.trunk_branch}`);
   }
   if (!worktree.clean) blockers.push("uncommitted changes");
   if (worktree.branch === null) blockers.push("detached HEAD");
@@ -141,11 +150,10 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
 }
 
 /**
- * A repository whose `main` the supervisor cannot resolve, on the roster
- * anyway.
+ * A repository whose trunk the supervisor cannot resolve, on the roster anyway.
  *
  * Nothing here can be integrated and nothing here can be reaped, because both
- * are defined against a `main` that is not there. What must not happen is the
+ * are defined against a trunk that is not there. What must not happen is the
  * repository disappearing: its checkouts still exist, work still happens in
  * them, and a roster that omits them prints counts a human reads as coverage.
  * Dropped and clean have to look different, so every worktree Git still lists
@@ -154,24 +162,27 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
 function unsupervisable(repository: string, roots: readonly string[]): RosterRepository {
   const home = normalizePath(repository);
   const commonDir = resolveCommonDir(repository) ?? home;
-  const blocker = missingMainReason(repository, roots);
+  const blocker = missingTrunkReason(repository, roots);
   const records = listLiveWorktrees(repository);
 
-  // A repository with no `main` branch at all is not a supervisable one that
-  // went wrong; it is a project that names its trunk something else and always
-  // will. Enumerating its every worktree on every roster spends lines on a
-  // condition that will never change, and the rows that do mean something —
-  // the repository whose one checkout moved onto a feature branch this
-  // afternoon — get buried among them. The repository still appears, still
-  // carries its reason, and still says how many worktrees it stands for; only
-  // the per-worktree rows are withheld, and only for the permanent case.
-  if (blocker === NO_MAIN_BRANCH) {
+  // A repository with no trunk branch at all is not a supervisable one that
+  // went wrong; it is a project nobody has told the supervisor how to
+  // integrate, and until somebody does it never will be. Enumerating its every
+  // worktree on every roster spends lines on a condition that will never
+  // change, and the rows that do mean something — the repository whose one
+  // checkout moved onto a feature branch this afternoon — get buried among
+  // them. The repository still appears, still carries its reason, and still
+  // says how many worktrees it stands for; only the per-worktree rows are
+  // withheld, and only for the permanent case.
+  if (blocker === NO_TRUNK_BRANCH) {
     return {
       repository: home,
       common_dir: commonDir,
-      main_worktree: null,
-      main_head: null,
-      main_pushed: null,
+      trunk_branch: null,
+      trunk_worktree: null,
+      trunk_head: null,
+      trunk_remote: null,
+      trunk_pushed: null,
       blockers: [blocker],
       worktree_count: records.length,
       worktrees: [],
@@ -184,10 +195,11 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
     return {
       worktree,
       common_dir: commonDir,
-      main_worktree: null,
+      trunk_branch: null,
+      trunk_worktree: null,
       branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
       head: record.head ?? "",
-      main_head: null,
+      trunk_head: null,
       commits_ahead: null,
       commits_behind: null,
       // An unreadable status is not a clean one; nothing about this repository
@@ -203,9 +215,11 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
   return {
     repository: home,
     common_dir: commonDir,
-    main_worktree: null,
-    main_head: null,
-    main_pushed: null,
+    trunk_branch: null,
+    trunk_worktree: null,
+    trunk_head: null,
+    trunk_remote: null,
+    trunk_pushed: null,
     blockers: [blocker],
     worktree_count: worktrees.length,
     worktrees,
@@ -240,20 +254,23 @@ export async function buildRoster(
     if (surveyed.length === 0) continue;
     const worktrees: RosterWorktree[] = [];
     for (const worktree of surveyed) {
-      if (worktree.state !== "main" && !worktree.worked) continue;
+      if (worktree.state !== "trunk" && !worktree.worked) continue;
       const owner = ownership ? await ownership.owner(worktree.worktree) : null;
       const placed = place(worktree, owner);
-      if (placed.category !== "main") counts[placed.category] += 1;
+      if (placed.category !== "trunk") counts[placed.category] += 1;
       worktrees.push(placed);
     }
     const first = surveyed[0];
     if (!first) continue;
+    const trunk = resolveTrunk(repository);
     repositories.push({
       repository: normalizePath(repository),
       common_dir: first.common_dir,
-      main_worktree: first.main_worktree,
-      main_head: first.main_head,
-      main_pushed: mainIsPushed(repository),
+      trunk_branch: first.trunk_branch,
+      trunk_worktree: first.trunk_worktree,
+      trunk_head: first.trunk_head,
+      trunk_remote: trunk.remote,
+      trunk_pushed: trunkIsPushed(repository, trunk),
       blockers: [],
       worktree_count: worktrees.length,
       worktrees,

@@ -20,10 +20,12 @@ export interface WorktreeRecord {
 export interface WorktreeIdentity {
   worktree: string;
   common_dir: string;
-  main_worktree: string;
+  /** The branch this repository integrates into, and where it is checked out. */
+  trunk_branch: string;
+  trunk_worktree: string;
   branch: string | null;
   head: string;
-  main_head: string;
+  trunk_head: string;
   commits_ahead: number;
   commits_behind: number;
   clean: boolean;
@@ -119,8 +121,63 @@ export function listLiveWorktrees(repository: string): WorktreeRecord[] {
   );
 }
 
-export function findMainWorktree(repository: string): WorktreeRecord | null {
-  return listWorktrees(repository).find((worktree) => worktree.branch === "refs/heads/main") ?? null;
+/** Where a repository's trunk configuration is read from. */
+export const TRUNK_CONFIG_KEY = "supervisor.trunk";
+
+/**
+ * The branch a repository integrates into, and the remote that publishes it.
+ *
+ * `main` is a default, not a law. A fork under maintenance keeps `main` as an
+ * untouched mirror of upstream and does its real integration on a branch of its
+ * own, so a supervisor that hardcodes `main` either supervises nothing there or
+ * — far worse — fast-forwards a peer's work onto the upstream mirror and pushes
+ * it at somebody else's repository.
+ *
+ * The remote is never configured separately, because Git already knows it: the
+ * trunk's own upstream is the branch the operator pulls and pushes by hand, and
+ * a supervisor publishing anywhere else would be publishing somewhere nobody
+ * asked for. In a fork that upstream is the fork remote, which is exactly what
+ * keeps `origin` — the read-only upstream project — out of reach.
+ */
+export interface Trunk {
+  /** Local branch name; `main` unless configured otherwise. */
+  branch: string;
+  /** `refs/heads/<branch>`. */
+  ref: string;
+  /** Remote the trunk publishes to, taken from its own upstream. */
+  remote: string;
+  /** The branch's name on that remote, which need not match the local one. */
+  remote_branch: string;
+  /** `refs/remotes/<remote>/<remote_branch>`. */
+  remote_ref: string;
+  /** Whether the branch name was configured rather than defaulted. */
+  configured: boolean;
+}
+
+export function resolveTrunk(repository: string): Trunk {
+  const configured = gitValue(repository, ["config", "--get", TRUNK_CONFIG_KEY]);
+  const branch = configured && configured.trim() !== "" ? configured.trim() : "main";
+
+  // A branch tracking another local branch records `.` as its remote, which is
+  // a real answer and not a remote to push to. Falling back to `origin` there
+  // keeps the default repository behaving exactly as it always has.
+  const trackedRemote = gitValue(repository, ["config", "--get", `branch.${branch}.remote`]);
+  const remote = trackedRemote && trackedRemote !== "." ? trackedRemote : "origin";
+  const merge = gitValue(repository, ["config", "--get", `branch.${branch}.merge`]);
+  const remoteBranch = merge?.startsWith("refs/heads/") ? merge.slice("refs/heads/".length) : branch;
+
+  return {
+    branch,
+    ref: `refs/heads/${branch}`,
+    remote,
+    remote_branch: remoteBranch,
+    remote_ref: `refs/remotes/${remote}/${remoteBranch}`,
+    configured: configured !== null && configured.trim() !== "",
+  };
+}
+
+export function findTrunkWorktree(repository: string, trunk: Trunk): WorktreeRecord | null {
+  return listWorktrees(repository).find((worktree) => worktree.branch === trunk.ref) ?? null;
 }
 
 export function resolveCommonDir(cwd: string): string | null {
@@ -149,15 +206,17 @@ export function inspectCandidate(cwd: string, roots: readonly string[]): Reposit
 }
 
 /**
- * What every worktree of one repository shares: where `main` lives, what it
- * points at, and which common directory registers them all. Resolving this
- * once per scan is what makes surveying settled worktrees affordable — each
- * one then costs a status call and a count instead of a full inspection.
+ * What every worktree of one repository shares: which branch is its trunk,
+ * where that trunk lives, what it points at, and which common directory
+ * registers them all. Resolving this once per scan is what makes surveying
+ * settled worktrees affordable — each one then costs a status call and a count
+ * instead of a full inspection.
  */
 export interface RepositoryContext {
   common_dir: string;
-  main_worktree: string;
-  main_head: string;
+  trunk: Trunk;
+  trunk_worktree: string;
+  trunk_head: string;
 }
 
 export function repositoryContext(
@@ -166,48 +225,54 @@ export function repositoryContext(
 ): RepositoryContext | null {
   const commonDir = resolveCommonDir(repository);
   if (!commonDir) return null;
-  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) return null;
-  const mainWorktree = findMainWorktree(repository);
-  if (!mainWorktree || !pathIsWithin(mainWorktree.path, roots)) return null;
-  const mainHead = gitValue(repository, ["rev-parse", "refs/heads/main"]);
-  if (!mainHead) return null;
+  const trunk = resolveTrunk(repository);
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", trunk.ref]).code !== 0) return null;
+  const trunkWorktree = findTrunkWorktree(repository, trunk);
+  if (!trunkWorktree || !pathIsWithin(trunkWorktree.path, roots)) return null;
+  const trunkHead = gitValue(repository, ["rev-parse", trunk.ref]);
+  if (!trunkHead) return null;
   return {
     common_dir: commonDir,
-    main_worktree: normalizePath(mainWorktree.path),
-    main_head: mainHead,
+    trunk,
+    trunk_worktree: normalizePath(trunkWorktree.path),
+    trunk_head: trunkHead,
   };
 }
 
 /**
- * The reason a repository names its trunk something other than `main`. It is
- * the one refusal that never becomes actionable, so callers match on it by
- * name rather than by retyping the sentence.
+ * The reason a repository has no trunk the supervisor can name. Unlike the
+ * others it is not a mistake to correct in Git — a repository whose trunk is
+ * `master`, or an upstream clone nobody integrates into at all, is simply not
+ * this supervisor's business until somebody says otherwise — so callers match
+ * on it by name to collapse those repositories rather than list them.
  */
-export const NO_MAIN_BRANCH = "no local main branch";
+export const NO_TRUNK_BRANCH = "no trunk branch";
 
 /**
  * Why `repositoryContext` refused, in the words a human needs to act on.
  *
  * A repository the supervisor cannot place still belongs on the roster, so the
  * reason has to travel with it. Each branch here is a different thing to fix,
- * and "no local main checked out" is much the likeliest: an operator moved
- * their one checkout onto a feature branch, and nothing else changed at all.
+ * and a trunk that exists but is checked out nowhere is much the likeliest: an
+ * operator moved their one checkout onto a feature branch, and nothing else
+ * changed at all.
  */
-export function missingMainReason(repository: string, roots: readonly string[]): string {
+export function missingTrunkReason(repository: string, roots: readonly string[]): string {
   if (!resolveCommonDir(repository)) return "not a Git repository";
-  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) {
-    return NO_MAIN_BRANCH;
+  const trunk = resolveTrunk(repository);
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", trunk.ref]).code !== 0) {
+    return trunk.configured ? `configured trunk ${trunk.branch} does not exist` : NO_TRUNK_BRANCH;
   }
-  const mainWorktree = findMainWorktree(repository);
-  if (!mainWorktree) return "no local main checked out";
-  if (!pathIsWithin(mainWorktree.path, roots)) {
-    return `main is checked out outside the project roots (${normalizePath(mainWorktree.path)})`;
+  const trunkWorktree = findTrunkWorktree(repository, trunk);
+  if (!trunkWorktree) return `no worktree has ${trunk.branch} checked out`;
+  if (!pathIsWithin(trunkWorktree.path, roots)) {
+    return `${trunk.branch} is checked out outside the project roots (${normalizePath(trunkWorktree.path)})`;
   }
-  return "main could not be resolved";
+  return `${trunk.branch} could not be resolved`;
 }
 
 /**
- * A worktree whose HEAD `main` already contains. Its commits have landed, so
+ * A worktree whose HEAD the trunk already contains. Its commits have landed, so
  * the expensive questions — how far ahead, which merge base — are answered
  * already; all that remains is whether anything uncommitted is still sitting
  * there and how far behind it has drifted.
@@ -220,35 +285,31 @@ export function inspectSettled(
   const worktree = normalizePath(record.path);
   const status = runGit(worktree, ["status", "--porcelain=v1", "--untracked-files=normal"]);
   if (status.code !== 0) return null;
-  const behindText = gitValue(worktree, ["rev-list", "--count", "HEAD..refs/heads/main"]);
+  const behindText = gitValue(worktree, ["rev-list", "--count", `HEAD..${context.trunk.ref}`]);
   const commitsBehind = behindText === null ? Number.NaN : Number.parseInt(behindText, 10);
   if (!Number.isFinite(commitsBehind)) return null;
 
   return {
     worktree,
     common_dir: context.common_dir,
-    main_worktree: context.main_worktree,
+    trunk_branch: context.trunk.branch,
+    trunk_worktree: context.trunk_worktree,
     branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
     head: record.head,
-    main_head: context.main_head,
+    trunk_head: context.trunk_head,
     commits_ahead: 0,
     commits_behind: commitsBehind,
     clean: status.stdout.trim() === "",
   };
 }
 
-/** Whether `origin/main` already contains local `main`, or null with no such ref. */
-export function mainIsPushed(repository: string): boolean | null {
-  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/remotes/origin/main"]).code !== 0) {
+/** Whether the trunk's remote already contains it, or null with no such ref. */
+export function trunkIsPushed(repository: string, trunk: Trunk): boolean | null {
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", trunk.remote_ref]).code !== 0) {
     return null;
   }
   return (
-    runGit(repository, [
-      "merge-base",
-      "--is-ancestor",
-      "refs/heads/main",
-      "refs/remotes/origin/main",
-    ]).code === 0
+    runGit(repository, ["merge-base", "--is-ancestor", trunk.ref, trunk.remote_ref]).code === 0
   );
 }
 
@@ -259,17 +320,17 @@ export function inspectWorktree(cwd: string, roots: readonly string[]): Worktree
   const commonDir = resolveCommonDir(cwd);
   if (!worktree || !commonDir) return null;
 
-  const mainRef = runGit(worktree, ["show-ref", "--verify", "--quiet", "refs/heads/main"]);
-  if (mainRef.code !== 0) return null;
+  const trunk = resolveTrunk(worktree);
+  if (runGit(worktree, ["show-ref", "--verify", "--quiet", trunk.ref]).code !== 0) return null;
 
-  const mainWorktree = findMainWorktree(worktree);
-  if (!mainWorktree || !pathIsWithin(mainWorktree.path, roots)) return null;
+  const trunkWorktree = findTrunkWorktree(worktree, trunk);
+  if (!trunkWorktree || !pathIsWithin(trunkWorktree.path, roots)) return null;
 
   const head = gitValue(worktree, ["rev-parse", "HEAD"]);
-  const mainHead = gitValue(worktree, ["rev-parse", "refs/heads/main"]);
-  const aheadText = gitValue(worktree, ["rev-list", "--count", "refs/heads/main..HEAD"]);
-  const behindText = gitValue(worktree, ["rev-list", "--count", "HEAD..refs/heads/main"]);
-  if (!head || !mainHead || aheadText === null || behindText === null) return null;
+  const trunkHead = gitValue(worktree, ["rev-parse", trunk.ref]);
+  const aheadText = gitValue(worktree, ["rev-list", "--count", `${trunk.ref}..HEAD`]);
+  const behindText = gitValue(worktree, ["rev-list", "--count", `HEAD..${trunk.ref}`]);
+  if (!head || !trunkHead || aheadText === null || behindText === null) return null;
 
   const commitsAhead = Number.parseInt(aheadText, 10);
   const commitsBehind = Number.parseInt(behindText, 10);
@@ -282,10 +343,11 @@ export function inspectWorktree(cwd: string, roots: readonly string[]): Worktree
   return {
     worktree: normalizePath(worktree),
     common_dir: commonDir,
-    main_worktree: normalizePath(mainWorktree.path),
+    trunk_branch: trunk.branch,
+    trunk_worktree: normalizePath(trunkWorktree.path),
     branch,
     head,
-    main_head: mainHead,
+    trunk_head: trunkHead,
     commits_ahead: commitsAhead,
     commits_behind: commitsBehind,
     clean: status.stdout.trim() === "",

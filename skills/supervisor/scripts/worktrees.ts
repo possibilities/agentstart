@@ -49,15 +49,15 @@ const REPOSITORY_DEBOUNCE_MS = 750;
 const ROOT_DEBOUNCE_MS = 2_000;
 
 /**
- * Where a worktree stands against its repository's `main`.
+ * Where a worktree stands against its repository's trunk.
  *
- * `main` is the integration target itself. `unmerged` carries commits `main`
- * does not, and is the supervisor's work. `landed` has nothing left to
+ * `trunk` is the integration target itself. `unmerged` carries commits the
+ * trunk does not, and is the supervisor's work. `landed` has nothing left to
  * integrate — which is the state a finished worktree ends in, and the reason
  * discovery reports it rather than dropping it: a landed worktree is where
  * removability is decided.
  */
-export type WorktreeState = "main" | "unmerged" | "landed";
+export type WorktreeState = "trunk" | "unmerged" | "landed";
 
 export interface DiscoveredWorktree extends WorktreeIdentity {
   /** Absolute path of the repository whose registry produced this worktree. */
@@ -91,7 +91,7 @@ export interface DiscoveryOptions {
   onDiagnostic?(message: string): void;
 }
 
-/** Repositories whose main worktree sits inside one of the project roots. */
+/** Repositories whose trunk worktree sits inside one of the project roots. */
 export function findRepositories(roots: readonly string[]): string[] {
   const found = new Set<string>();
   for (const root of roots) descend(normalizePath(root), 0, found);
@@ -102,14 +102,14 @@ export function findRepositories(roots: readonly string[]): string[] {
  * One entry point per repository, not one per checkout.
  *
  * Two checkouts of the same repository can both sit directly under a project
- * root — a primary checkout beside a dedicated `main` worktree is the ordinary
+ * root — a primary checkout beside a dedicated trunk worktree is the ordinary
  * reason — and they share a common directory, so surveying both lists and
  * counts every worktree of that repository twice. The common directory is what
  * identifies a repository; a path only identifies a window onto one.
  *
  * The primary checkout wins the tie where there is one, because it is the path
  * that names the repository itself. Nothing downstream depends on the choice:
- * every question the survey asks — which worktrees are registered, where `main`
+ * every question the survey asks — which worktrees are registered, where the trunk
  * is checked out, what it points at — is answered for the whole repository from
  * any of its worktrees.
  */
@@ -157,9 +157,9 @@ function descend(directory: string, depth: number, found: Set<string>): void {
 
 /**
  * Every worktree of `repository` that is registered and present on disk, each
- * placed against `main`.
+ * placed against its trunk.
  *
- * A worktree whose HEAD `main` already contains is landed, not uninteresting:
+ * A worktree whose HEAD the trunk already contains is landed, not uninteresting:
  * it is exactly the set that becomes removable, so it is surveyed cheaply
  * rather than skipped. The expensive inspection is reserved for worktrees that
  * really do carry unmerged commits.
@@ -170,8 +170,9 @@ export function surveyRepository(
 ): DiscoveredWorktree[] {
   const surveyed: DiscoveredWorktree[] = [];
 
-  // One resolution for the whole repository: with no local `main` there is
-  // nothing to integrate into, and inspecting each of its worktrees is waste.
+  // One resolution for the whole repository: with no trunk checked out there
+  // is nothing to integrate into, and inspecting each of its worktrees is
+  // waste.
   // An empty survey is not the same as a clean one, which is why the roster
   // asks `repositoryContext` itself rather than reading silence here as
   // "nothing to report" — see `unsupervisable` in roster.ts.
@@ -181,23 +182,23 @@ export function surveyRepository(
 
   for (const record of listLiveWorktrees(repository)) {
     // Settle the common case with one Git call. On a machine with many
-    // finished worktrees nearly all of them are already contained in `main`,
+    // finished worktrees nearly all of them are already contained in the trunk,
     // and a contained HEAD needs only a status and a count — not the ten calls
     // a full inspection costs. Anything but a definite "yes, contained" falls
     // through to the real inspection.
     const contained =
       record.head !== null &&
-      runGit(repository, ["merge-base", "--is-ancestor", record.head, "refs/heads/main"]).code === 0;
+      runGit(repository, ["merge-base", "--is-ancestor", record.head, context.trunk.ref]).code === 0;
 
     if (contained) {
       const identity = inspectSettled(record, context);
       if (!identity) continue;
       const state: WorktreeState =
-        normalizePath(record.path) === context.main_worktree ? "main" : "landed";
+        normalizePath(record.path) === context.trunk_worktree ? "trunk" : "landed";
       // The reflog is read only where its answer changes anything: a clean,
       // landed worktree is the one place where "finished" and "never started"
       // look identical to the commit graph.
-      const worked = state === "main" || !identity.clean || worktreeHasCommits(identity.worktree);
+      const worked = state === "trunk" || !identity.clean || worktreeHasCommits(identity.worktree);
       surveyed.push({ ...identity, repository: home, state, worked });
       continue;
     }
@@ -209,7 +210,7 @@ export function surveyRepository(
 }
 
 /**
- * Every worktree of `repository` carrying commits its `main` does not — the
+ * Every worktree of `repository` carrying commits its trunk does not — the
  * survey narrowed to what the supervisor can actually integrate.
  */
 export function scanRepository(
@@ -347,7 +348,7 @@ export class WorktreeDiscovery {
     if (registry) watchers.push(registry);
 
     // Loose branch refs, which move when any worktree of this repository
-    // commits, including the main worktree merging work in.
+    // commits, including the trunk worktree merging work in.
     const heads = this.observe(join(commonDir, "refs", "heads"), true, schedule);
     if (heads) watchers.push(heads);
 
@@ -397,7 +398,7 @@ export class WorktreeDiscovery {
 
     for (const worktree of surveyRepository(repository, this.roots)) {
       // A worktree can change what it deserves without changing its HEAD: the
-      // supervisor fast-forwards `main` past it and the very same commit turns
+      // supervisor fast-forwards the trunk past it and the very same commit turns
       // from unmerged work into a removable checkout. Keying the announcement
       // on the whole situation, not the commit, is what lets that be reported.
       const situation = `${worktree.state}:${worktree.head}:${worktree.clean}`;

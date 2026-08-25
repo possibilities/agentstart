@@ -5,11 +5,12 @@ import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
   defaultProjectRoots,
-  findMainWorktree,
+  findTrunkWorktree,
   gitValue,
   normalizePath,
   pathIsWithin,
   resolveCommonDir,
+  resolveTrunk,
   runGit,
 } from "./git.ts";
 
@@ -20,8 +21,10 @@ interface ResultEnvelope {
   message: string;
   source?: string;
   expected_head?: string;
-  main_worktree?: string;
-  main_head?: string;
+  trunk_branch?: string;
+  trunk_remote?: string;
+  trunk_worktree?: string;
+  trunk_head?: string;
   remote_head?: string;
   detail?: string;
 }
@@ -110,118 +113,155 @@ if (import.meta.main) {
   }
   sourceStillReady(source, expectedHead);
 
-  const main = findMainWorktree(worktree);
-  if (!main) fail(40, "main_worktree_missing", "no local worktree has refs/heads/main checked out", { source });
-  const mainWorktree = normalizePath(main.path);
-  if (!pathIsWithin(mainWorktree, roots)) {
-    fail(12, "repository_outside_roots", "the local main worktree is outside the configured project roots", {
+  // The trunk is whatever this repository integrates into, and the remote is
+  // the trunk's own upstream rather than a hardcoded `origin`. In a maintained
+  // fork those differ on purpose: `origin` is the upstream project nobody here
+  // may write to, and publishing a peer's work there is the one mistake this
+  // resolution exists to make impossible.
+  const trunk = resolveTrunk(worktree);
+  const trunkRecord = findTrunkWorktree(worktree, trunk);
+  if (!trunkRecord) {
+    fail(40, "trunk_worktree_missing", `no local worktree has ${trunk.ref} checked out`, {
       source,
-      main_worktree: mainWorktree,
+      trunk_branch: trunk.branch,
     });
   }
-  if (gitValue(mainWorktree, ["symbolic-ref", "--quiet", "HEAD"]) !== "refs/heads/main") {
-    fail(40, "main_not_checked_out", "the selected main worktree no longer has main checked out", {
-      main_worktree: mainWorktree,
+  const trunkWorktree = normalizePath(trunkRecord.path);
+  if (!pathIsWithin(trunkWorktree, roots)) {
+    fail(12, "repository_outside_roots", "the local trunk worktree is outside the configured project roots", {
+      source,
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
     });
   }
-  const inProgress = operationInProgress(mainWorktree);
+  if (gitValue(trunkWorktree, ["symbolic-ref", "--quiet", "HEAD"]) !== trunk.ref) {
+    fail(40, "trunk_not_checked_out", "the selected trunk worktree no longer has the trunk checked out", {
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
+    });
+  }
+  const inProgress = operationInProgress(trunkWorktree);
   if (inProgress) {
-    fail(40, "main_operation_in_progress", "local main already has an unfinished Git operation", {
-      main_worktree: mainWorktree,
+    fail(40, "trunk_operation_in_progress", "the local trunk already has an unfinished Git operation", {
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
       detail: inProgress,
     });
   }
 
-  const fetch = runGit(mainWorktree, ["fetch", "--prune", "origin", "+refs/heads/main:refs/remotes/origin/main"], 120_000);
+  const fetch = runGit(
+    trunkWorktree,
+    ["fetch", "--prune", trunk.remote, `+refs/heads/${trunk.remote_branch}:${trunk.remote_ref}`],
+    120_000,
+  );
   if (fetch.code !== 0) {
-    fail(20, "fetch_failed", "could not refresh origin/main", {
-      main_worktree: mainWorktree,
+    fail(20, "fetch_failed", `could not refresh ${trunk.remote}/${trunk.remote_branch}`, {
+      trunk_branch: trunk.branch,
+      trunk_remote: trunk.remote,
+      trunk_worktree: trunkWorktree,
       detail: fetch.stderr.trim() || fetch.stdout.trim(),
     });
   }
   sourceStillReady(source, expectedHead);
 
-  let mainHead = gitValue(mainWorktree, ["rev-parse", "refs/heads/main"]);
-  const remoteHead = gitValue(mainWorktree, ["rev-parse", "refs/remotes/origin/main"]);
-  if (!mainHead || !remoteHead) {
-    fail(40, "main_state_unreadable", "local main or origin/main could not be resolved", {
-      main_worktree: mainWorktree,
+  let trunkHead = gitValue(trunkWorktree, ["rev-parse", trunk.ref]);
+  const remoteHead = gitValue(trunkWorktree, ["rev-parse", trunk.remote_ref]);
+  if (!trunkHead || !remoteHead) {
+    fail(40, "trunk_state_unreadable", "the local trunk or its remote could not be resolved", {
+      trunk_branch: trunk.branch,
+      trunk_remote: trunk.remote,
+      trunk_worktree: trunkWorktree,
     });
   }
 
-  if (!isAncestor(mainWorktree, remoteHead, mainHead)) {
-    if (!isAncestor(mainWorktree, mainHead, remoteHead)) {
-      fail(30, "main_remote_diverged", "local main and origin/main have diverged", {
-        main_worktree: mainWorktree,
-        main_head: mainHead,
+  if (!isAncestor(trunkWorktree, remoteHead, trunkHead)) {
+    if (!isAncestor(trunkWorktree, trunkHead, remoteHead)) {
+      fail(30, "trunk_remote_diverged", `local ${trunk.branch} and ${trunk.remote}/${trunk.remote_branch} have diverged`, {
+        trunk_branch: trunk.branch,
+        trunk_remote: trunk.remote,
+        trunk_worktree: trunkWorktree,
+        trunk_head: trunkHead,
         remote_head: remoteHead,
       });
     }
-    const update = runGit(mainWorktree, ["merge", "--ff-only", remoteHead], 120_000);
+    const update = runGit(trunkWorktree, ["merge", "--ff-only", remoteHead], 120_000);
     if (update.code !== 0) {
-      fail(40, "main_update_refused", "Git could not fast-forward local main to origin/main", {
-        main_worktree: mainWorktree,
-        main_head: mainHead,
+      fail(40, "trunk_update_refused", `Git could not fast-forward local ${trunk.branch} to its remote`, {
+        trunk_branch: trunk.branch,
+        trunk_remote: trunk.remote,
+        trunk_worktree: trunkWorktree,
+        trunk_head: trunkHead,
         remote_head: remoteHead,
         detail: update.stderr.trim() || update.stdout.trim(),
       });
     }
-    mainHead = remoteHead;
+    trunkHead = remoteHead;
   }
 
   sourceStillReady(source, expectedHead);
-  if (!isAncestor(mainWorktree, mainHead, expectedHead)) {
-    fail(30, "source_needs_reconciliation", "the approved commit is not a fast-forward from current local main", {
+  if (!isAncestor(trunkWorktree, trunkHead, expectedHead)) {
+    fail(30, "source_needs_reconciliation", `the approved commit is not a fast-forward from current local ${trunk.branch}`, {
       source,
       expected_head: expectedHead,
-      main_worktree: mainWorktree,
-      main_head: mainHead,
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
+      trunk_head: trunkHead,
       remote_head: remoteHead,
     });
   }
 
-  const integrate = runGit(mainWorktree, ["merge", "--ff-only", expectedHead], 120_000);
+  const integrate = runGit(trunkWorktree, ["merge", "--ff-only", expectedHead], 120_000);
   if (integrate.code !== 0) {
-    fail(40, "local_integration_refused", "Git refused the fast-forward into local main", {
+    fail(40, "local_integration_refused", "Git refused the fast-forward into the local trunk", {
       source,
       expected_head: expectedHead,
-      main_worktree: mainWorktree,
-      main_head: mainHead,
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
+      trunk_head: trunkHead,
       detail: integrate.stderr.trim() || integrate.stdout.trim(),
     });
   }
-  const integratedHead = gitValue(mainWorktree, ["rev-parse", "refs/heads/main"]);
+  const integratedHead = gitValue(trunkWorktree, ["rev-parse", trunk.ref]);
   if (integratedHead !== expectedHead) {
-    fail(40, "local_integration_mismatch", "local main did not reach the approved commit", {
+    fail(40, "local_integration_mismatch", "the local trunk did not reach the approved commit", {
       expected_head: expectedHead,
-      main_worktree: mainWorktree,
-      main_head: integratedHead ?? undefined,
+      trunk_branch: trunk.branch,
+      trunk_worktree: trunkWorktree,
+      trunk_head: integratedHead ?? undefined,
     });
   }
 
   const push = runGit(
-    mainWorktree,
-    ["push", "--porcelain", "origin", "refs/heads/main:refs/heads/main"],
+    trunkWorktree,
+    ["push", "--porcelain", trunk.remote, `${trunk.ref}:refs/heads/${trunk.remote_branch}`],
     120_000,
   );
   if (push.code !== 0) {
-    fail(20, "push_failed", "local main contains the work, but pushing origin/main failed", {
+    fail(20, "push_failed", `the local trunk contains the work, but pushing ${trunk.remote}/${trunk.remote_branch} failed`, {
       source,
       expected_head: expectedHead,
-      main_worktree: mainWorktree,
-      main_head: integratedHead,
+      trunk_branch: trunk.branch,
+      trunk_remote: trunk.remote,
+      trunk_worktree: trunkWorktree,
+      trunk_head: integratedHead,
       detail: push.stderr.trim() || push.stdout.trim(),
     });
   }
 
-  const verify = runGit(mainWorktree, ["ls-remote", "--exit-code", "origin", "refs/heads/main"], 120_000);
+  const verify = runGit(
+    trunkWorktree,
+    ["ls-remote", "--exit-code", trunk.remote, `refs/heads/${trunk.remote_branch}`],
+    120_000,
+  );
   const publishedHead = verify.code === 0 ? verify.stdout.trim().split(/\s+/)[0]?.toLowerCase() : null;
   if (publishedHead !== expectedHead) {
-    fail(20, "push_verification_failed", "the push returned successfully but origin/main did not verify at the approved commit", {
+    fail(20, "push_verification_failed", `the push returned successfully but ${trunk.remote}/${trunk.remote_branch} did not verify at the approved commit`, {
       source,
       expected_head: expectedHead,
-      main_worktree: mainWorktree,
-      main_head: integratedHead,
+      trunk_branch: trunk.branch,
+      trunk_remote: trunk.remote,
+      trunk_worktree: trunkWorktree,
+      trunk_head: integratedHead,
       remote_head: publishedHead ?? undefined,
       detail: verify.stderr.trim(),
     });
@@ -231,11 +271,13 @@ if (import.meta.main) {
     schema_version: 1,
     ok: true,
     code: "integrated_and_pushed",
-    message: "the approved commit is local main and origin/main",
+    message: `the approved commit is local ${trunk.branch} and ${trunk.remote}/${trunk.remote_branch}`,
     source,
     expected_head: expectedHead,
-    main_worktree: mainWorktree,
-    main_head: integratedHead,
+    trunk_branch: trunk.branch,
+    trunk_remote: trunk.remote,
+    trunk_worktree: trunkWorktree,
+    trunk_head: integratedHead,
     remote_head: publishedHead,
   });
 }

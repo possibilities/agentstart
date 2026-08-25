@@ -11,6 +11,7 @@ import {
   isPrimaryWorktree,
   listWorktrees,
   normalizePath,
+  resolveTrunk,
   runGit,
 } from "./git.ts";
 
@@ -113,11 +114,11 @@ if (import.meta.main) {
   if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(expectedArg)) {
     fail(64, "expected_head_not_full", "--expected-head must be a full Git object id");
   }
-  if (
-    expectedBranch === "main" ||
-    runGit(process.cwd(), ["check-ref-format", "--branch", expectedBranch]).code !== 0
-  ) {
-    fail(12, "branch_not_reapable", "the expected branch is main or is not a valid local branch name");
+  // Whether the branch is the repository's trunk cannot be answered yet — that
+  // takes the worktree's own repository, resolved below. This is only the
+  // shape check, which needs nothing.
+  if (runGit(process.cwd(), ["check-ref-format", "--branch", expectedBranch]).code !== 0) {
+    fail(12, "branch_not_reapable", "the expected branch is not a valid local branch name");
   }
 
   let agents: AgentIdentity[];
@@ -136,8 +137,14 @@ if (import.meta.main) {
       worktree,
     });
   }
-  if (identity.main_worktree === worktree) {
-    fail(12, "main_worktree_refused", "the local main worktree can never be reaped", { worktree });
+  const trunk = resolveTrunk(worktree);
+  if (expectedBranch === trunk.branch) {
+    fail(12, "branch_not_reapable", `the expected branch is this repository's trunk (${trunk.branch})`, {
+      worktree,
+    });
+  }
+  if (identity.trunk_worktree === worktree) {
+    fail(12, "trunk_worktree_refused", "the local trunk worktree can never be reaped", { worktree });
   }
   // Independently of the branch it holds: the repository's own root is an
   // operator's working directory, not a worktree somebody added for a task.
@@ -162,7 +169,7 @@ if (import.meta.main) {
       head: identity.head,
     });
   }
-  if (!listWorktrees(identity.main_worktree).some((entry) => normalizePath(entry.path) === worktree)) {
+  if (!listWorktrees(identity.trunk_worktree).some((entry) => normalizePath(entry.path) === worktree)) {
     fail(12, "worktree_not_registered", "Git no longer lists the exact worktree path", { worktree });
   }
 
@@ -189,7 +196,8 @@ if (import.meta.main) {
     agents,
     worktree,
     common_dir: identity.common_dir,
-    main_worktree: identity.main_worktree,
+    trunk_branch: identity.trunk_branch,
+    trunk_worktree: identity.trunk_worktree,
     branch: expectedBranch,
     head: expectedHead,
   };
@@ -205,7 +213,7 @@ if (import.meta.main) {
     });
   }
 
-  const remove = runGit(identity.main_worktree, ["worktree", "remove", "--", worktree], 120_000);
+  const remove = runGit(identity.trunk_worktree, ["worktree", "remove", "--", worktree], 120_000);
   if (remove.code !== 0) {
     appendFileSync(
       logFd,
@@ -227,10 +235,10 @@ if (import.meta.main) {
     });
   }
 
-  const stillRegistered = listWorktrees(identity.main_worktree).some(
+  const stillRegistered = listWorktrees(identity.trunk_worktree).some(
     (entry) => normalizePath(entry.path) === worktree,
   );
-  const preservedHead = gitValue(identity.main_worktree, ["rev-parse", `refs/heads/${expectedBranch}`]);
+  const preservedHead = gitValue(identity.trunk_worktree, ["rev-parse", `refs/heads/${expectedBranch}`]);
   if (stillRegistered || preservedHead?.toLowerCase() !== expectedHead) {
     appendFileSync(
       logFd,

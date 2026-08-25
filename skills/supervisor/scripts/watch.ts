@@ -304,7 +304,7 @@ export function reapCandidateFromTrigger(
         : null;
   if (!checkout) return null;
   const repository = inspectWorktree(checkout, roots);
-  if (!repository || !repository.branch || repository.branch === "main") return null;
+  if (!repository || !repository.branch || repository.branch === repository.trunk_branch) return null;
 
   const agents = recordedAgents.flatMap((agent) => {
     const session = asRecord(agent["agent_session"]);
@@ -577,7 +577,7 @@ export async function candidateFromWorktree(
   const owner = ownership ? await ownership.owner(worktree.worktree) : null;
 
   // The integration target is not a candidate for anything.
-  if (state === "main") return null;
+  if (state === "trunk") return null;
 
   // A checkout somebody opened is not work. No commit was ever made here and
   // nothing is uncommitted, so there is nothing to integrate and nothing to

@@ -1,12 +1,12 @@
 ---
 name: supervisor
-description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into local main, push origin/main, and reap each worktree once it is clean, landed, and nobody is in it. Use when an agent should supervise peer commits and cleanup continuously.
+description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into each repository's own trunk, publish it to that trunk's remote, and reap each worktree once it is clean, landed, and nobody is in it. Use when an agent should supervise peer commits and cleanup continuously.
 ---
 
 # Supervisor
 
-Keep finished peer work moving from its worktree into local `main` and
-`origin/main`. The peer owns a clean, verified commit. You own readiness,
+Keep finished peer work moving from its worktree into the repository's trunk
+and out to that trunk's remote. The peer owns a clean, verified commit. You own readiness,
 integration, publication, communication, and the final guarded worktree reap.
 Never close a session or workspace yourself, and never delete a branch.
 
@@ -58,17 +58,45 @@ how many are watching, quiet, landed, removable, and unsupervised — and say wh
 environment means no session is knowable and a worktree that looks unowned
 may not be.
 
-An **unsupervised** worktree belongs to a repository whose `main` could not be
+An **unsupervised** worktree belongs to a repository whose trunk could not be
 resolved — usually because its one checkout is on a feature branch, so nothing
-holds `main` any more. Nothing there can be integrated or reaped, and the
+holds the trunk any more. Nothing there can be integrated or reaped, and the
 repository carries its own `blockers` saying why. Read the reason before
-deciding how loud to be. `no local main checked out` is the one to raise by
-name and immediately: the repository was supervisable until somebody switched
-branches, its worktrees still hold real work, and none of it is covered any
-more. `no local main branch` is a repository that never took part — its
-default branch is `master` or `integration` — so name those once as a group
-and move on. Either way they are on the roster: a repository that is not
-covered has to look different from one that is clean.
+deciding how loud to be. `no worktree has <branch> checked out` is the one to
+raise by name and immediately: the repository was supervisable until somebody
+switched branches, its worktrees still hold real work, and none of it is
+covered any more. `no trunk branch` is a repository nobody has told the
+supervisor how to integrate — so name those once as a group, and offer the
+trunk configuration below rather than listing them again every run. Either way
+they are on the roster: a repository that is not covered has to look different
+from one that is clean.
+
+## Name the trunk a repository actually integrates into
+
+`main` is the default trunk, not the only one. A fork under maintenance keeps
+`main` as an untouched mirror of the upstream project and does its real
+integration on a branch of its own, and a supervisor that assumes otherwise
+either covers nothing there or fast-forwards a peer's work onto the mirror and
+pushes it at somebody else's repository.
+
+The trunk is read per repository from Git's own config:
+
+```sh
+git -C <repository> config supervisor.trunk integration
+```
+
+The publishing remote is never configured separately, because Git already
+knows it: the trunk's own upstream (`branch.<trunk>.remote`) is the remote an
+operator already pulls and pushes by hand. In a fork that is the fork remote,
+which is exactly what keeps the read-only upstream out of reach. A trunk with
+no upstream falls back to `origin`, which is what an ordinary repository has
+always meant.
+
+Setting it is an operator's decision, not yours. When the roster shows a
+repository blocked on `no trunk branch` and its checkouts are plainly doing
+real work, say so and offer the one-line command — do not run it on your own
+authority, because choosing what a repository publishes is exactly the kind of
+intent decision this skill sends to the human.
 
 A **quiet** worktree is a count and nothing more: it holds no unmerged commits
 and nothing uncommitted, and the agent that did the work is still sitting
@@ -90,7 +118,7 @@ its picture in the scrollback.
 After the roster, the watcher emits canonical `merge_candidate`,
 `unowned_candidate`, `removable_worktree`, and `reap_candidate` JSON objects,
 one per stdout line. Both the watcher and `status.ts` default to projects whose
-local `main` worktree is under `~/code` or `~/src`; add repeatable
+trunk worktree is under `~/code` or `~/src`; add repeatable
 `--project-root <path>` arguments when the operator has other roots.
 
 - In Claude Code, run the watcher through native `Monitor()` so each stdout
@@ -141,13 +169,13 @@ a workspace closes — without touching discovery.
 
 A worktree where no work has been done is not reported at all. Git cannot tell
 a finished worktree from an untouched one — both are clean and both are
-contained in `main` — so discovery asks the worktree's own reflog whether a
+contained in the trunk — so discovery asks the worktree's own reflog whether a
 commit was ever made in it. One that has none is a checkout somebody opened,
 not work: no event, no queue entry, nothing to say to the human. Its first
 commit makes it a candidate like any other, and when its workspace closes the
 ordinary reap path removes it.
 
-A discovered worktree whose commits `main` already contains arrives as a
+A discovered worktree whose commits the trunk already contains arrives as a
 `removable_worktree` rather than a merge candidate — see below. One that still
 carries unmerged commits and whose owner the ADE can name arrives as a
 `merge_candidate` with `reason: "discovered"`. One nobody can claim arrives as
@@ -162,7 +190,7 @@ no lifecycle event will ever mention again.
 Maintain a queue keyed by `common_dir`, with only one active candidate per
 repository. A candidate is evidence, not permission to merge.
 
-1. Read `clean`, `head`, `main_head`, `worktree`, `session_id`, and
+1. Read `clean`, `head`, `trunk_branch`, `trunk_head`, `worktree`, `session_id`, and
    `session_name` from the event — the id is who you message, the slug is who
    you call it in front of the human. If the source is dirty, ask the peer to finish or discard its
    uncommitted state first.
@@ -175,7 +203,7 @@ repository. A candidate is evidence, not permission to merge.
    skill to reach back with, the exact reply, and whose job integration is.
 
    ```sh
-   agentsurface message <session-id> "Supervisor here. I found commit <full-sha> in <worktree>. Is that exact commit clean, verified, complete, and ready for me to fast-forward into local main? Load your bus skill and reply to the session named in this message's prefix with exactly READY <full-sha> and nothing else, or tell me what remains. Integration and publication are mine — leave main and the remote alone."
+   agentsurface message <session-id> "Supervisor here. I found commit <full-sha> in <worktree>. Is that exact commit clean, verified, complete, and ready for me to fast-forward into <trunk-branch>? Load your bus skill and reply to the session named in this message's prefix with exactly READY <full-sha> and nothing else, or tell me what remains. Integration and publication are mine — leave <trunk-branch> and the remote alone."
    ```
 
    Every later message keeps the card: name the exact SHA under discussion,
@@ -187,7 +215,7 @@ repository. A candidate is evidence, not permission to merge.
 
 If the peer declines or still has work, acknowledge it and wait for its next
 working-to-idle transition or a proactive exact-SHA readiness reply. Do not
-pressure an unfinished result into main.
+pressure an unfinished result into the trunk.
 
 An `unowned_candidate` has no step 2 and no step 3. Nobody is there to approve
 it, and an absent peer is not a silent yes. Report it to the human with its
@@ -206,14 +234,15 @@ scripts/integrate.ts \
 ```
 
 Pass the same repeatable `--project-root` arguments used by the watcher when
-custom roots apply. The helper revalidates the exact source HEAD and
-cleanliness, finds the worktree holding local `main`, fetches `origin/main`,
-allows Git to preserve non-overlapping human changes in that main worktree,
-fast-forwards only, pushes `main`, and verifies the remote exact SHA. Its one
-stdout JSON object is authoritative.
+custom roots apply. The helper resolves the repository's trunk, revalidates the
+exact source HEAD and cleanliness, finds the worktree holding that trunk,
+fetches the trunk's remote, allows Git to preserve non-overlapping human
+changes in that trunk worktree, fast-forwards only, pushes the trunk to its own
+remote, and verifies the remote exact SHA. Its one stdout JSON object is
+authoritative, and it names the `trunk_branch` and `trunk_remote` it used.
 
-- `integrated_and_pushed`: tell the peer the exact SHA is now local main and
-  origin/main. Then advance that repository's queue. Do not close or remove
+- `integrated_and_pushed`: tell the peer the exact SHA is now the local trunk
+  and published on its remote. Then advance that repository's queue. Do not close or remove
   anything as part of integration — the worktree you just emptied of unmerged
   work will arrive on the stream as a `removable_worktree`, and that, not the
   integration itself, is what you report to the human.
@@ -221,7 +250,7 @@ stdout JSON object is authoritative.
   Say what shipped, not only that something did. A SHA and a repository name
   tell the human a transaction completed; they do not tell them what their
   machine now does differently, which is the only part they cannot reconstruct
-  later. So read what you just landed — `git log --oneline <old-main>..<new>`
+  later. So read what you just landed — `git log --oneline <old-trunk>..<new>`
   and a `--stat` when the subjects are thin — and give one or two plain
   sentences on what the change does. Not the commit subject copied out: the
   behaviour it produces, in the words a person would use for the feature.
@@ -236,18 +265,21 @@ stdout JSON object is authoritative.
   internal commit is allowed to be described as exactly that.
 - `source_head_changed` or `source_not_clean`: ask the peer to finish and
   approve its new exact HEAD.
-- `source_needs_reconciliation`: send the peer the reported `main_head` and
+- `source_needs_reconciliation`: send the peer the reported `trunk_head` and
   explicitly assign reconciliation in its worktree. It may rebase or otherwise
   resolve there because you have now tasked it with that topology work. Require
   fresh verification, a clean worktree, and a new `READY <sha>` afterward.
-- `main_remote_diverged`: stop that repository and bring the divergence to the
+- `trunk_remote_diverged`: stop that repository and bring the divergence to the
   human; never force-push.
-- `main_update_refused`, `local_integration_refused`, or
-  `main_operation_in_progress`: preserve the local-main worktree exactly as it
+- `trunk_update_refused`, `local_integration_refused`, or
+  `trunk_operation_in_progress`: preserve the trunk worktree exactly as it
   is. Resolve with its human owner or retry after their state changes; never
   stash, discard, or rewrite their work.
-- `push_failed` or `push_verification_failed`: the JSON says whether local main
-  already contains the commit. Keep responsibility for publication and retry
+- `trunk_worktree_missing` or `trunk_not_checked_out`: the repository's trunk is
+  checked out nowhere, so there is nothing to fast-forward into. Report it with
+  the trunk's name; the fix is an operator's checkout, never yours.
+- `push_failed` or `push_verification_failed`: the JSON says whether the local
+  trunk already contains the commit. Keep responsibility for publication and retry
   safely after refreshing remote state; do not tell the peer it shipped yet.
 
 Collaborate with the peer when reconciliation is ordinary and bounded. Ask the
@@ -260,8 +292,8 @@ A `removable_worktree` says a worktree that was worked in has nothing left to
 integrate. It carries `removable`, `blockers`, and `owner` alongside the usual
 identity.
 
-- `removable: true` with empty `blockers` — its commits are in `main`, nothing
-  uncommitted is left in it, it is a branch and not `main`, and no session is
+- `removable: true` with empty `blockers` — its commits are in the trunk,
+  nothing uncommitted is left in it, it is a branch and not the trunk, and no session is
   in it. The directory is the only thing left, and it is yours to remove.
   Reap it immediately with the unowned form below, then report the removed
   path, the preserved branch and head, and the log path.
@@ -319,19 +351,19 @@ scripts/reap.ts \
 
 Pass custom `--project-root` arguments as above. The reaper checks the exact
 registered worktree, branch, HEAD, project root, and cleanliness; refuses
-`main` and the repository's own primary checkout; runs ordinary
+the trunk and the repository's own primary checkout; runs ordinary
 `git worktree remove` without force; verifies the branch
 still names the same commit; and writes an append-only audit log at
 `~/.local/state/agentstart/supervisor/reaped.jsonl`. Each successful cycle has
 `reap_started` and `reaped` JSONL records with the harness/session/slug/pane set,
-Herdr workspace, repository common directory, main worktree, removed path,
+Herdr workspace, repository common directory, trunk worktree, removed path,
 preserved branch, and HEAD.
 
 - `worktree_reaped`: report it as the session finishing rather than as a path
   disappearing — name the agent whose work it was where the event named one,
   then the removed path, the preserved branch and HEAD, and the log path. No
   further cleanup is due.
-- `main_worktree_refused` or `primary_worktree_refused`: the path is the
+- `trunk_worktree_refused` or `primary_worktree_refused`: the path is the
   repository's integration target or its own root, which is somebody's working
   directory whatever branch it holds. Never reap either, however clean and
   landed it looks; tell the human where the request came from.
