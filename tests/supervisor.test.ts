@@ -491,6 +491,42 @@ function createForkFixture(): ForkFixture {
   return { ...base, fork };
 }
 
+test("a repository's SUPERVISE.md travels with every worktree of it", async () => {
+  const fixture = createFixture();
+  const guidance = join(fixture.main, "SUPERVISE.md");
+  writeFileSync(guidance, "# How this repository wants to be supervised\n");
+
+  const roster = await buildRoster([fixture.projectsRoot], null, "test");
+  const repository = roster.repositories.find((entry) => entry.repository === normalizePath(fixture.main));
+  expect(repository?.guidance).toBe(normalizePath(guidance));
+
+  // Every candidate carries it too, so a supervisor never has to go looking.
+  const peer = repository?.worktrees.find((entry) => entry.worktree === normalizePath(fixture.worktree));
+  expect(peer?.guidance).toBe(normalizePath(guidance));
+});
+
+test("a repository without a SUPERVISE.md says so rather than guessing", async () => {
+  const fixture = createFixture();
+  const roster = await buildRoster([fixture.projectsRoot], null, "test");
+  expect(roster.repositories[0]?.guidance).toBeNull();
+});
+
+test("SUPERVISE.md is found in the primary checkout when the trunk lives elsewhere", async () => {
+  const fixture = createFixture();
+  // Move the trunk into a linked worktree, leaving the primary on a branch —
+  // the fxnk shape, and the case where "the repository root" and "where main
+  // is" are two different directories.
+  const trunkHolder = join(fixture.projectsRoot, "project-main");
+  git(fixture.main, "checkout", "-b", "parked");
+  git(fixture.main, "worktree", "add", trunkHolder, "main");
+  const guidance = join(fixture.main, "SUPERVISE.md");
+  writeFileSync(guidance, "# local-only instructions\n");
+
+  const roster = await buildRoster([fixture.projectsRoot], null, "test");
+  const repository = roster.repositories.find((entry) => entry.common_dir.startsWith(normalizePath(fixture.main)));
+  expect(repository?.guidance).toBe(normalizePath(guidance));
+});
+
 test("a fork's trunk resolves to its own branch and publishing remote", () => {
   const fixture = createForkFixture();
   expect(resolveTrunk(fixture.main)).toMatchObject({

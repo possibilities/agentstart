@@ -9,6 +9,7 @@ import {
   resolveCommonDir,
   resolveTrunk,
   runGit,
+  supervisionGuidance,
   trunkIsPushed,
 } from "./git.ts";
 import { describeSession, type OwnershipProvider, type WorktreeOwner } from "./ade.ts";
@@ -41,11 +42,12 @@ export type RosterCategory =
 export interface RosterWorktree
   extends Omit<
     WorktreeIdentity,
-    "trunk_branch" | "trunk_worktree" | "trunk_head" | "commits_ahead" | "commits_behind"
+    "trunk_branch" | "trunk_worktree" | "trunk_head" | "guidance" | "commits_ahead" | "commits_behind"
   > {
   trunk_branch: string | null;
   trunk_worktree: string | null;
   trunk_head: string | null;
+  guidance: string | null;
   commits_ahead: number | null;
   commits_behind: number | null;
   category: RosterCategory;
@@ -67,6 +69,13 @@ export interface RosterRepository {
   trunk_remote: string | null;
   /** Whether the trunk's remote already contains it; null with no such ref. */
   trunk_pushed: boolean | null;
+  /**
+   * This repository's own supervision instructions, when it keeps a
+   * `SUPERVISE.md`. Read it before deciding anything here: it is the only
+   * place a repository can say that its branches do not mean what branches
+   * usually mean.
+   */
+  guidance: string | null;
   /** Why nothing in this repository can be supervised; empty when it can be. */
   blockers: string[];
   /**
@@ -183,6 +192,7 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
       trunk_head: null,
       trunk_remote: null,
       trunk_pushed: null,
+      guidance: supervisionGuidance(home, commonDir),
       blockers: [blocker],
       worktree_count: records.length,
       worktrees: [],
@@ -197,6 +207,7 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
       common_dir: commonDir,
       trunk_branch: null,
       trunk_worktree: null,
+      guidance: null,
       branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
       head: record.head ?? "",
       trunk_head: null,
@@ -220,6 +231,7 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
     trunk_head: null,
     trunk_remote: null,
     trunk_pushed: null,
+    guidance: supervisionGuidance(home, commonDir),
     blockers: [blocker],
     worktree_count: worktrees.length,
     worktrees,
@@ -271,6 +283,7 @@ export async function buildRoster(
       trunk_head: first.trunk_head,
       trunk_remote: trunk.remote,
       trunk_pushed: trunkIsPushed(repository, trunk),
+      guidance: first.guidance,
       blockers: [],
       worktree_count: worktrees.length,
       worktrees,

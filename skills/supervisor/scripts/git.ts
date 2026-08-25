@@ -23,6 +23,8 @@ export interface WorktreeIdentity {
   /** The branch this repository integrates into, and where it is checked out. */
   trunk_branch: string;
   trunk_worktree: string;
+  /** This repository's own supervision instructions, or null where it has none. */
+  guidance: string | null;
   branch: string | null;
   head: string;
   trunk_head: string;
@@ -200,6 +202,34 @@ export function isPrimaryWorktree(worktree: string, commonDir: string): boolean 
   return normalizePath(worktree) === normalizePath(dirname(commonDir));
 }
 
+/** The file a repository uses to tell a supervisor how it wants to be handled. */
+export const GUIDANCE_FILENAME = "SUPERVISE.md";
+
+/**
+ * A repository's own supervision instructions, if it keeps any.
+ *
+ * The supervisor's default reading — a branch ahead of the trunk is finished
+ * work waiting to be shipped — is true of most repositories and wrong about
+ * some. A fork under maintenance carries long-lived patch branches that are
+ * permanently ahead on purpose and are rebuilt into the trunk by a tool of its
+ * own, and no amount of general policy can know that from the commit graph.
+ * The repository is the only thing that knows, so it is given somewhere to say
+ * so, and a supervisor reads it before deciding anything about that repository.
+ *
+ * The trunk worktree holds the branch of record and is asked first; the
+ * primary checkout answers second, which is what lets an operator drop
+ * instructions in without committing them. Absent from both, the repository
+ * has no special handling and the default reading stands.
+ */
+export function supervisionGuidance(trunkWorktree: string, commonDir: string): string | null {
+  const primary = normalizePath(dirname(commonDir));
+  for (const directory of [normalizePath(trunkWorktree), primary]) {
+    const candidate = resolve(directory, GUIDANCE_FILENAME);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 export function inspectCandidate(cwd: string, roots: readonly string[]): RepositoryCandidate | null {
   const repository = inspectWorktree(cwd, roots);
   return repository && repository.commits_ahead > 0 ? repository : null;
@@ -217,6 +247,7 @@ export interface RepositoryContext {
   trunk: Trunk;
   trunk_worktree: string;
   trunk_head: string;
+  guidance: string | null;
 }
 
 export function repositoryContext(
@@ -236,6 +267,7 @@ export function repositoryContext(
     trunk,
     trunk_worktree: normalizePath(trunkWorktree.path),
     trunk_head: trunkHead,
+    guidance: supervisionGuidance(trunkWorktree.path, commonDir),
   };
 }
 
@@ -294,6 +326,7 @@ export function inspectSettled(
     common_dir: context.common_dir,
     trunk_branch: context.trunk.branch,
     trunk_worktree: context.trunk_worktree,
+    guidance: context.guidance,
     branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
     head: record.head,
     trunk_head: context.trunk_head,
@@ -345,6 +378,7 @@ export function inspectWorktree(cwd: string, roots: readonly string[]): Worktree
     common_dir: commonDir,
     trunk_branch: trunk.branch,
     trunk_worktree: normalizePath(trunkWorktree.path),
+    guidance: supervisionGuidance(trunkWorktree.path, commonDir),
     branch,
     head,
     trunk_head: trunkHead,

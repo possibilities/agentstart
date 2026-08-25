@@ -113,6 +113,31 @@ Report the roster again whenever the operator stops the supervisor, and
 whenever they ask what you are watching. A run that ends without one has left
 its picture in the scrollback.
 
+## Read the repository's own instructions first
+
+Every roster repository, every roster row, and every candidate carries
+`guidance`: the path to that repository's `SUPERVISE.md`, or null where it has
+none. When it is not null, read it before you qualify anything in that
+repository, and follow it over your own default reading.
+
+It exists because the default reading is wrong about some repositories. A
+branch ahead of the trunk normally means finished work waiting to ship — but a
+fork under maintenance carries long-lived patch branches that are permanently
+ahead on purpose and are rebuilt into the trunk by a tool of its own, and
+nothing in the commit graph says so. The repository is the only thing that
+knows, and `SUPERVISE.md` is where it says it.
+
+A repository may use it to tell you which branches are never candidates, who
+owns integration when you do not, what a landing there requires, or what to
+raise with the human instead of handling yourself. Where it contradicts this
+skill about that repository, it wins; where it is silent, this skill stands. It
+never authorizes skipping a guard — no file makes a dirty worktree reapable or
+an unapproved commit integrable.
+
+It is found in the trunk worktree first and the repository's primary checkout
+second, which is what lets an operator leave instructions without committing
+them.
+
 ## Consume the event stream
 
 After the roster, the watcher emits canonical `merge_candidate`,
