@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+function die(message) {
+  console.error(`AgentStart skill invocation policy: ${message}`);
+  process.exit(1);
+}
+
+if (process.argv.length !== 4 || !["--install", "--check"].includes(process.argv[2])) {
+  console.error("Usage: render-skill-invocation-policy --install|--check <skills-root>");
+  process.exit(64);
+}
+
+const mode = process.argv[2];
+const skillsRoot = process.argv[3];
+
+function canonicalModelInvocation(skillFile) {
+  const contents = readFileSync(skillFile, "utf8");
+  if (!contents.startsWith("---\n")) die(`${skillFile}: missing YAML frontmatter`);
+  const end = contents.indexOf("\n---\n", 4);
+  if (end < 0) die(`${skillFile}: unterminated YAML frontmatter`);
+
+  const declarations = contents
+    .slice(4, end)
+    .split("\n")
+    .filter((line) => /^disable-model-invocation\s*:/.test(line));
+  if (declarations.length > 1) die(`${skillFile}: duplicate disable-model-invocation fields`);
+  if (declarations.length === 0) return true;
+
+  const match = declarations[0].match(/^disable-model-invocation\s*:\s*(true|false)\s*(?:#.*)?$/);
+  if (match === null) {
+    die(`${skillFile}: disable-model-invocation must be true or false`);
+  }
+  return match[1] === "false";
+}
+
+function policyBounds(lines, manifest) {
+  const starts = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/^policy:\s*(?:#.*)?$/.test(lines[index])) starts.push(index);
+  }
+  if (starts.length > 1) die(`${manifest}: duplicate policy sections`);
+  if (starts.length === 0) return null;
+
+  const start = starts[0];
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^[A-Za-z0-9_-]+:/.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return { start, end };
+}
+
+function renderedManifest(contents, modelInvocable, manifest) {
+  const desired = modelInvocable ? "true" : "false";
+  const lines = contents.replace(/\n$/, "").split("\n");
+  const bounds = policyBounds(lines, manifest);
+
+  if (bounds === null) {
+    if (lines.length === 1 && lines[0] === "") lines.length = 0;
+    if (lines.length > 0) lines.push("");
+    lines.push("policy:", `  allow_implicit_invocation: ${desired}`);
+    return `${lines.join("\n")}\n`;
+  }
+
+  const fields = [];
+  for (let index = bounds.start + 1; index < bounds.end; index += 1) {
+    if (/^  allow_implicit_invocation\s*:/.test(lines[index])) fields.push(index);
+  }
+  if (fields.length > 1) die(`${manifest}: duplicate allow_implicit_invocation fields`);
+  if (fields.length === 0) {
+    lines.splice(bounds.start + 1, 0, `  allow_implicit_invocation: ${desired}`);
+  } else {
+    lines[fields[0]] = `  allow_implicit_invocation: ${desired}`;
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+function manifestModelInvocation(contents, manifest) {
+  const lines = contents.replace(/\n$/, "").split("\n");
+  const bounds = policyBounds(lines, manifest);
+  if (bounds === null) return true;
+
+  const values = [];
+  for (let index = bounds.start + 1; index < bounds.end; index += 1) {
+    const match = lines[index].match(
+      /^  allow_implicit_invocation\s*:\s*(true|false)\s*(?:#.*)?$/,
+    );
+    if (match !== null) values.push(match[1] === "true");
+  }
+  if (values.length > 1) die(`${manifest}: duplicate allow_implicit_invocation fields`);
+  return values.length === 0 ? true : values[0];
+}
+
+let checked = 0;
+for (const entry of readdirSync(skillsRoot, { withFileTypes: true }).sort((a, b) =>
+  a.name.localeCompare(b.name),
+)) {
+  if (!entry.isDirectory()) continue;
+  const skillFile = join(skillsRoot, entry.name, "SKILL.md");
+  if (!existsSync(skillFile)) continue;
+
+  const modelInvocable = canonicalModelInvocation(skillFile);
+  const agentsRoot = join(skillsRoot, entry.name, "agents");
+  const manifest = join(agentsRoot, "openai.yaml");
+
+  if (mode === "--install") {
+    if (existsSync(manifest)) {
+      const current = readFileSync(manifest, "utf8");
+      const rendered = renderedManifest(current, modelInvocable, manifest);
+      if (rendered !== current) writeFileSync(manifest, rendered);
+    } else if (!modelInvocable) {
+      mkdirSync(agentsRoot, { recursive: true });
+      writeFileSync(manifest, "policy:\n  allow_implicit_invocation: false\n");
+    }
+  }
+
+  const codexModelInvocable = existsSync(manifest)
+    ? manifestModelInvocation(readFileSync(manifest, "utf8"), manifest)
+    : true;
+  if (codexModelInvocable !== modelInvocable) {
+    die(
+      `${entry.name}: SKILL.md says model-invocable=${modelInvocable}, ` +
+        `but agents/openai.yaml says model-invocable=${codexModelInvocable}`,
+    );
+  }
+  checked += 1;
+}
+
+if (checked === 0) die(`${skillsRoot}: contains no skills`);
+console.log(`${mode === "--install" ? "Rendered and checked" : "Checked"} ${checked} skill invocation policies.`);

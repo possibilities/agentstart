@@ -21,6 +21,7 @@ case "$1" in
     --check)
         cat <<'EOF'
   render the default common capability pack under ~/.local/share/agentstart/capabilities
+  derive and audit Codex invocation policy from portable skill frontmatter
   carry the pinned Pi subagent package into common when the full installer has installed it
   render one session-only Claude plugin named agent (/agent:<skill>)
   render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed
@@ -47,6 +48,7 @@ template_root="$repo_root/config/capabilities/common"
 capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
 pack_root="$capabilities_root/packs/common"
 skills_root="$pack_root/skills"
+invocation_policy_renderer="$script_dir/render-skill-invocation-policy"
 projection_root="$capabilities_root/projections/common"
 claude_plugin_root="$projection_root/claude/agent"
 marketplace_root="$capabilities_root/compatibility/codex-marketplace"
@@ -54,6 +56,8 @@ managed_names="$capabilities_root/managed-skills.txt"
 
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 command -v jq >/dev/null 2>&1 || die "jq is required"
+[ -x "$invocation_policy_renderer" ] \
+    || die "skill invocation policy renderer is unavailable: $invocation_policy_renderer"
 
 mkdir -p \
     "$pack_root/guidance" \
@@ -121,6 +125,12 @@ if [ -d "$pi_subagents_source" ]; then
             "$source_version" "$pi_subagents_target"
     fi
 fi
+
+# SKILL.md frontmatter is the portable source of truth for whether a model may
+# discover a skill. Claude and Pi consume disable-model-invocation directly;
+# Codex reads the inverse from agents/openai.yaml. Derive that product-specific
+# field in the copied common pack, then audit every skill before projecting it.
+"$invocation_policy_renderer" --install "$skills_root"
 
 next_managed_names="$capabilities_root/managed-skills.next"
 : >"$next_managed_names"

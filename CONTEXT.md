@@ -91,6 +91,12 @@ This repository is itself a participant (the `fleet` skill). _Avoid_:
 registered, enrolled (there is no registry — the convention is the whole
 interface).
 
+**Model invocation policy** — the portable fact recorded by
+`disable-model-invocation` in a skill's `SKILL.md` frontmatter; absent or false
+means model-invocable. The common-pack render derives Codex's inverse
+`allow_implicit_invocation` field from it, while Claude and Pi consume the fact
+directly. _Avoid_: OpenAI policy (that is one rendered representation).
+
 **Peer** — an agent session doing ordinary work in its own worktree. Its
 result stops at a clean, verified commit; it never moves `main` or a remote,
 and it learns a supervisor exists only from the calling card in that

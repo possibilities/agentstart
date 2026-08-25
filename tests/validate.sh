@@ -38,6 +38,7 @@ fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis \
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
+    scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
@@ -594,8 +595,15 @@ for code_skills_fixture in \
     agentretired/skills/orchestration \
     agentvoice/skills/story \
     notagent/skills/x; do
-    printf '# fixture skill\n' >"$code_skills_root/$code_skills_fixture/SKILL.md"
+    code_skills_name=${code_skills_fixture##*/}
+    printf -- '---\nname: %s\ndescription: fixture skill\n---\n' "$code_skills_name" \
+        >"$code_skills_root/$code_skills_fixture/SKILL.md"
 done
+# The portable frontmatter is the invocation-policy source of truth. This
+# skill deliberately has no OpenAI manifest; the renderer must create one.
+sed -i '' '/^description:/a\
+disable-model-invocation: true
+' "$code_skills_root/agentdemo/skills/second/SKILL.md"
 cat >"$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" <<'EOF'
 // installed by herdr
 // managed by herdr; reinstalling or updating the integration overwrites this file.
@@ -611,6 +619,8 @@ interface:
   display_name: "Demo"
   short_description: "Exercise compatibility plugin prompt qualification"
   default_prompt: "Use $demo with this fixture."
+policy:
+  allow_implicit_invocation: false
 EOF
 # agentdemo carries a post-sync hook (the agentguidance pattern): it must
 # appear in the plan, fire after the real sync, and fail the run when it
@@ -729,6 +739,25 @@ grep -F 'default_prompt: "Use $agent:demo with this fixture."' \
 grep -F 'default_prompt: "Use $demo with this fixture."' \
     "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
     || fail "Codex prompt qualification changed the canonical pack manifest"
+grep -F 'allow_implicit_invocation: true' \
+    "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "the renderer did not replace stale Codex policy from canonical frontmatter"
+grep -F 'allow_implicit_invocation: false' \
+    "$fixture_common_root/skills/second/agents/openai.yaml" >/dev/null \
+    || fail "the renderer did not create Codex policy for an explicit-only skill"
+"$root/scripts/render-skill-invocation-policy" --check \
+    "$fixture_common_root/skills" >/dev/null \
+    || fail "the rendered common pack does not pass its invocation-policy audit"
+# The audit is independently useful: prove it rejects drift instead of merely
+# agreeing with the renderer that just ran.
+sed -i '' 's/allow_implicit_invocation: true/allow_implicit_invocation: false/' \
+    "$fixture_common_root/skills/demo/agents/openai.yaml"
+if "$root/scripts/render-skill-invocation-policy" --check \
+    "$fixture_common_root/skills" >/dev/null 2>&1; then
+    fail "the invocation-policy audit accepted drift from canonical frontmatter"
+fi
+"$root/scripts/render-skill-invocation-policy" --install \
+    "$fixture_common_root/skills" >/dev/null
 [ ! -e "$code_skills_home/.pi/agent/skills/demo" ] \
     || fail "skill sync leaked a common skill into Pi's ambient global root"
 [ -f "$fixture_common_root/pi/extensions/herdr-agent-state.ts" ] \
