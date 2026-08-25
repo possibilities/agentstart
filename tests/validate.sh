@@ -630,7 +630,11 @@ cat >"$code_skills_root/agentdemo/scripts/post-sync" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 [ -z "${AGENTSTART_TEST_HOOK_EXIT:-}" ] || exit "$AGENTSTART_TEST_HOOK_EXIT"
-touch "$(cd -P -- "$(dirname -- "$0")/.." && pwd)/post-sync-ran"
+marker="$(cd -P -- "$(dirname -- "$0")/.." && pwd)/post-sync-ran"
+if [ ! -e "$marker" ]; then
+    chmod 444 "$AGENTGUIDANCE_SKILLS_ROOT/demo/agents/openai.yaml"
+fi
+touch "$marker"
 EOF
 chmod +x "$code_skills_root/agentdemo/scripts/post-sync"
 
@@ -742,6 +746,8 @@ grep -F 'default_prompt: "Use $demo with this fixture."' \
 grep -F 'allow_implicit_invocation: true' \
     "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
     || fail "the renderer did not replace stale Codex policy from canonical frontmatter"
+[ ! -w "$fixture_common_root/skills/demo/agents/openai.yaml" ] \
+    || fail "the invocation-policy renderer changed a read-only manifest's mode"
 grep -F 'allow_implicit_invocation: false' \
     "$fixture_common_root/skills/second/agents/openai.yaml" >/dev/null \
     || fail "the renderer did not create Codex policy for an explicit-only skill"
@@ -758,6 +764,7 @@ if "$root/scripts/render-skill-invocation-policy" --check \
 fi
 "$root/scripts/render-skill-invocation-policy" --install \
     "$fixture_common_root/skills" >/dev/null
+chmod 644 "$fixture_common_root/skills/demo/agents/openai.yaml"
 [ ! -e "$code_skills_home/.pi/agent/skills/demo" ] \
     || fail "skill sync leaked a common skill into Pi's ambient global root"
 [ -f "$fixture_common_root/pi/extensions/herdr-agent-state.ts" ] \

@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 function die(message) {
@@ -80,6 +89,17 @@ function renderedManifest(contents, modelInvocable, manifest) {
   return `${lines.join("\n")}\n`;
 }
 
+function replacePreservingMode(path, contents) {
+  const mode = statSync(path).mode & 0o777;
+  const replacement = `${path}.agentstart-${process.pid}`;
+  try {
+    writeFileSync(replacement, contents, { mode });
+    renameSync(replacement, path);
+  } finally {
+    rmSync(replacement, { force: true });
+  }
+}
+
 function manifestModelInvocation(contents, manifest) {
   const lines = contents.replace(/\n$/, "").split("\n");
   const bounds = policyBounds(lines, manifest);
@@ -112,7 +132,7 @@ for (const entry of readdirSync(skillsRoot, { withFileTypes: true }).sort((a, b)
     if (existsSync(manifest)) {
       const current = readFileSync(manifest, "utf8");
       const rendered = renderedManifest(current, modelInvocable, manifest);
-      if (rendered !== current) writeFileSync(manifest, rendered);
+      if (rendered !== current) replacePreservingMode(manifest, rendered);
     } else if (!modelInvocable) {
       mkdirSync(agentsRoot, { recursive: true });
       writeFileSync(manifest, "policy:\n  allow_implicit_invocation: false\n");
