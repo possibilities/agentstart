@@ -51,13 +51,13 @@ done
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
-for supervisor_script in \
-    skills/supervisor/scripts/watch.ts \
-    skills/supervisor/scripts/integrate.ts \
-    skills/supervisor/scripts/reap.ts \
-    skills/supervisor/scripts/status.ts; do
-    [ -x "$supervisor_script" ] \
-        || fail "supervisor helper is not executable: $supervisor_script"
+for supervise_script in \
+    skills/supervise/scripts/watch.ts \
+    skills/supervise/scripts/integrate.ts \
+    skills/supervise/scripts/reap.ts \
+    skills/supervise/scripts/status.ts; do
+    [ -x "$supervise_script" ] \
+        || fail "supervise helper is not executable: $supervise_script"
 done
 
 # The obsolete llm model records stay gone, and the retired Orca overlay must
@@ -148,22 +148,22 @@ if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
 
-# The supervisor is a portable skill with executable mechanics: its watcher
+# The supervise skill is portable with executable mechanics: its watcher
 # carries the Herdr reconnect/reconcile contract and its integrator guards the
 # exact commit that may move main, while its reaper preserves branch identity.
 # Exercise them against disposable repositories and a fake socket rather than
 # accepting prose-only coverage.
-[ -f skills/supervisor/SKILL.md ] \
-    || fail "the supervisor skill is missing: skills/supervisor/SKILL.md"
-grep -q '^name: supervisor$' skills/supervisor/SKILL.md \
-    || fail "the supervisor skill frontmatter does not name /supervisor"
-[ -f skills/supervisor/agents/openai.yaml ] \
-    || fail "the supervisor skill is missing its agents/openai.yaml manifest"
-grep -q 'allow_implicit_invocation: true' skills/supervisor/agents/openai.yaml \
-    || fail "the supervisor skill manifest does not allow implicit invocation"
+[ -f skills/supervise/SKILL.md ] \
+    || fail "the supervise skill is missing: skills/supervise/SKILL.md"
+grep -q '^name: supervise$' skills/supervise/SKILL.md \
+    || fail "the supervise skill frontmatter does not name /supervise"
+[ -f skills/supervise/agents/openai.yaml ] \
+    || fail "the supervise skill is missing its agents/openai.yaml manifest"
+grep -q 'allow_implicit_invocation: true' skills/supervise/agents/openai.yaml \
+    || fail "the supervise skill manifest does not allow implicit invocation"
 command -v bun >/dev/null 2>&1 \
-    || fail "bun is required to test the supervisor's TypeScript helpers"
-bun test tests/supervisor.test.ts
+    || fail "bun is required to test the supervise skill's TypeScript helpers"
+bun test tests/supervise.test.ts
 
 # Cross-project guidance lives in the wiki, not in this repository; a
 # guidance/ directory reappearing here means the decision reversed silently.
@@ -907,6 +907,7 @@ for required_install in \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
+    'remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
@@ -976,6 +977,10 @@ grep -F "/\\.claude-swap-backup/sessions/" \
     || fail "installer does not prune stale Claude swap-session Herdr hook definitions"
 printf '%s\n' "$install_plan" | grep -F 'retired livekit-simulations' >/dev/null \
     || fail "installation plan no longer scrubs the retired LiveKit skill"
+# A rename leaves the previous skill directory in the pack, and the additive
+# scan never removes it, so both spellings would reach every session.
+grep -F 'remove_renamed_pack_skills' scripts/install.sh >/dev/null \
+    || fail "installer no longer prunes renamed skills left in the common pack"
 # AgentVoice exports skills/ like the other agent tools and is scanned like
 # them; nothing about it is special to this plan.
 printf '%s\n' "$install_plan" \

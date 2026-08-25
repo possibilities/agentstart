@@ -58,7 +58,7 @@ const categoryCatalog = [
     id: "system",
     label: "Extend and maintain the system",
     description: "Discover new capabilities and keep the fleet, forks, and upstream work healthy.",
-    skills: ["find-skills", "fleet", "maintain", "supervisor", "watch-requests"],
+    skills: ["find-skills", "fleet", "maintain", "supervise", "watch-requests"],
   },
 ];
 
@@ -92,7 +92,7 @@ const displayNames = {
   search: "Search the Web",
   shadcn: "shadcn/ui",
   story: "Explain a Codebase",
-  supervisor: "Supervisor",
+  supervise: "Supervisor",
   "terminal-control": "Terminal Control",
   "vercel-react-best-practices": "React Best Practices",
   "watch-requests": "Watch Pull Requests",

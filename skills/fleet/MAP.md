@@ -38,7 +38,7 @@ flowchart LR
     end
 
     voice[agentvoice]
-    supervisor[agentstart / supervisor skill]
+    supervise[agentstart / supervise skill]
     board[agentboard]
     wiki[agentwiki]
     chats[cass / agentchats]
@@ -68,8 +68,8 @@ flowchart LR
     voice -->|balance codex| usage
     voice -.->|fallback: select| swap
     voice -->|surface wakes: events.subscribe, unix socket| herdr
-    supervisor -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
-    supervisor -->|readiness, optional self-wake, completion messages| surface
+    supervise -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
+    supervise -->|readiness, optional self-wake, completion messages| surface
     brain -->|extraction and discovery| scrape
     scrape -->|drives| browser
     scrape -->|sessions/resolve, unix-socket IPC| web
@@ -188,7 +188,7 @@ sentence around the match, never from the name alone.
 | agentvoice | codex | runs the resident `codex app-server` under launchd via a rendered wrapper, and `codex login --device-auth` for profile onboarding | `agentvoice/src/resident/contract.ts` (`residentArgv`), `src/resident/install.ts` (`renderWrapper`), `src/main.ts` (`accounts add`) |
 | agentvoice | agentusage → codex-swap | `agentusage balance codex`, falling back to `codex-swap select`, consulted by the resident wrapper at every spawn (`pick-home`) and by the console's rotation check | `agentvoice/src/core/accounts.ts` (`selectAccount`), `src/resident/install.ts` (`runPickHome`), `src/core/runtime.ts` (`maybeRotate`) |
 | agentvoice | herdr | unix-socket IPC, not a spawn: with `surface.events` on, the console holds an `events.subscribe` NDJSON stream on herdr's socket and reconciles via one-shot `agent.list` calls; pane lifecycle events for token-tagged placed workers become `<surface_report>` turns at the orchestrator | `agentvoice/src/core/surface.ts` (`HerdrSurface`), `src/core/runtime.ts` (surface wiring); enabled by `agentstart/prompts/agentvoice/server.json` |
-| agentstart `supervisor` skill | herdr, agentsurface | its long-lived watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API and reconciles via `agent.list`; candidate readiness, the optional Codex self-wake, and pushed confirmations travel through `agentsurface message`. The guarded integrator mutates only the owning repository's local `main` and `origin/main`. After agent exit and `workspace.closed` correlate, the guarded reaper removes only the exact clean registered worktree, preserves its branch, and appends harness/session/worktree receipts under AgentStart's local state | `agentstart/skills/supervisor/SKILL.md`; `agentstart/skills/supervisor/scripts/watch.ts`; `agentstart/skills/supervisor/scripts/integrate.ts`; `agentstart/skills/supervisor/scripts/reap.ts` |
+| agentstart `supervise` skill | herdr, agentsurface | its long-lived watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API and reconciles via `agent.list`; candidate readiness, the optional Codex self-wake, and pushed confirmations travel through `agentsurface message`. The guarded integrator mutates only the owning repository's local `main` and `origin/main`. After agent exit and `workspace.closed` correlate, the guarded reaper removes only the exact clean registered worktree, preserves its branch, and appends harness/session/worktree receipts under AgentStart's local state | `agentstart/skills/supervise/SKILL.md`; `agentstart/skills/supervise/scripts/watch.ts`; `agentstart/skills/supervise/scripts/integrate.ts`; `agentstart/skills/supervise/scripts/reap.ts` |
 | agentstart | herdr | `scripts/update-herdr` (the one update path: fast-forward the clean `~/src/herdr` checkout at upstream master, build with the pinned `zig@0.15`, install to `~/.local/bin/herdr`, notify instead of forcing a blocked checkout), `herdr integration install claude\|codex\|pi` every run, `herdr plugin link` of agentsurface's launcher-pane and tab-naming plugin directory (registration by checkout path, so relinking converges), and the surface skill rendered from `herdr --skill` into the common capability pack — the skill converges with the installed build. The Herdr-generated, ownership-marked Pi extension is also moved from ambient discovery into common because managed Pi launches disable ambient extensions. The homebrew-core formula is retired and uninstalled by the full installer | `agentstart/scripts/update-herdr`; `agentstart/scripts/install.sh` (`install_herdr_integrations`, `install_herdr_skill`); `agentstart/scripts/render-capabilities`; asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then calls `herdr server reload-config`; a missing server is nonfatal because the next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`) |
 | agentbrain | agentscrape | evidence pipeline in four argv shapes — `fetch-markdown --markdown`, `fetch-markdown --envelope --allow-private-network --max-content-bytes`, `discover-feed`, `fetch-links --preset x-timeline --limit --max-scrolls` — plus a doctor check; a flag change breaks each shape separately | `agentbrain/src/agentscrape.ts:642,1298-1306,2038,2121-2129`, `src/jobs.ts:736` |

@@ -521,7 +521,7 @@ class HerdrWatcher {
     }
     const message = [
       `<supervisor_event>${line}</supervisor_event>`,
-      "Automated supervisor wake — inspect this exact candidate and continue the /supervisor loop.",
+      "Automated supervisor wake — inspect this exact candidate and continue the /supervise loop.",
     ].join("\n");
     const child = spawn("agentsurface", ["message", this.selfSessionId, message], {
       stdio: ["ignore", "ignore", "pipe"],

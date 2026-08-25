@@ -95,6 +95,7 @@ remove_legacy_global_skills() {
         orca-cli
         orchestration
         computer-use
+        supervisor
     )
     local project skill_dir skill_name previous_names pi_target pi_link
 
@@ -258,6 +259,46 @@ remove_retired_home_guidance() {
     elif [ -e "$target" ] || [ -L "$target" ]; then
         printf 'Leaving independent home guidance untouched: %s.\n' "$target"
     fi
+}
+
+# A renamed skill leaves its previous directory behind in the common pack: the
+# scan discovers the new name and the copy never removes the old one, so both
+# spellings would render into every session. Name each rename's previous
+# spelling here once. A name that any fleet checkout exports again is in
+# service and is left alone. Like every removal here, this belongs to the
+# explicit full installer; the six-hour sync stays additive.
+renamed_pack_skill_names=(
+    supervisor
+)
+
+remove_renamed_pack_skills() {
+    local name project target pi_target in_service
+
+    for name in "${renamed_pack_skill_names[@]}"; do
+        in_service=0
+        for project in "$code_root"/agent*/; do
+            [ -f "$project/skills/$name/SKILL.md" ] || continue
+            in_service=1
+            break
+        done
+        if [ "$in_service" -eq 1 ]; then
+            printf 'Leaving the %s skill in place; a fleet checkout exports it again.\n' "$name"
+            continue
+        fi
+
+        target="$common_pack_root/skills/$name"
+        if [ -d "$target" ]; then
+            rm -rf -- "$target"
+            printf 'Removed the renamed skill left in the common pack: %s.\n' "$target"
+        fi
+
+        pi_target="$HOME/.pi/agent/skills/$name"
+        if [ -L "$pi_target" ]; then
+            case "$(readlink "$pi_target")" in
+                "$common_pack_root"/skills/*) unlink "$pi_target" ;;
+            esac
+        fi
+    done
 }
 
 # The extra model records are retired. Remove only the exact symlink this
@@ -425,6 +466,7 @@ Common capability pack:
   install hunk-review with --copy into the common capability pack
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the common capability pack
+  remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it
 EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-pi-subagents" --check
@@ -1095,6 +1137,9 @@ printf 'Installing the fleet launch agents.\n'
 # That includes this checkout's own skills and agentguidance's, whose
 # post-sync hook re-renders the templates the scan ships against the
 # operator extension prompts linked above.
+printf 'Removing renamed skills left behind in the common pack.\n'
+remove_renamed_pack_skills
+
 "$script_dir/sync-skills"
 
 # The renderer above copied Herdr's generated Pi extension into common. Only

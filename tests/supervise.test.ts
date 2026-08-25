@@ -6,22 +6,22 @@ import {
   AgentTracker,
   ReapTracker,
   candidateFromWorktree,
-} from "../skills/supervisor/scripts/watch.ts";
-import { listLiveWorktrees, normalizePath, resolveTrunk } from "../skills/supervisor/scripts/git.ts";
+} from "../skills/supervise/scripts/watch.ts";
+import { listLiveWorktrees, normalizePath, resolveTrunk } from "../skills/supervise/scripts/git.ts";
 import {
   WorktreeDiscovery,
   findRepositories,
   scanRepository,
   surveyRepository,
-} from "../skills/supervisor/scripts/worktrees.ts";
-import { buildRoster } from "../skills/supervisor/scripts/roster.ts";
-import { ownerOf } from "../skills/supervisor/scripts/ade.ts";
+} from "../skills/supervise/scripts/worktrees.ts";
+import { buildRoster } from "../skills/supervise/scripts/roster.ts";
+import { ownerOf } from "../skills/supervise/scripts/ade.ts";
 
 const root = resolve(import.meta.dir, "..");
-const watchScript = join(root, "skills", "supervisor", "scripts", "watch.ts");
-const integrateScript = join(root, "skills", "supervisor", "scripts", "integrate.ts");
-const reapScript = join(root, "skills", "supervisor", "scripts", "reap.ts");
-const statusScript = join(root, "skills", "supervisor", "scripts", "status.ts");
+const watchScript = join(root, "skills", "supervise", "scripts", "watch.ts");
+const integrateScript = join(root, "skills", "supervise", "scripts", "integrate.ts");
+const reapScript = join(root, "skills", "supervise", "scripts", "reap.ts");
+const statusScript = join(root, "skills", "supervise", "scripts", "status.ts");
 const temporaryPaths: string[] = [];
 
 afterEach(() => {

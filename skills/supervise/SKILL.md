@@ -1,5 +1,5 @@
 ---
-name: supervisor
+name: supervise
 description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into each repository's own trunk, publish it to that trunk's remote, and reap each worktree once it is clean, landed, and nobody is in it. Use when an agent should supervise peer commits and cleanup continuously.
 ---
 
