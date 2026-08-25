@@ -1171,10 +1171,20 @@ fi
 sidebar_settings=$(grep -E '^sidebar_[[:alnum:]_]* = ' config/herdr/config.toml || true)
 [ "$sidebar_settings" = 'sidebar_max_width = 106' ] \
     || fail "Herdr sidebar does not keep only its 50%-of-screen width allowance"
-if grep -E '^((agent_panel_sort|status_indicators) = |\[ui\.sidebar\.)' \
-    config/herdr/config.toml >/dev/null; then
-    fail "Herdr config still customizes the left sidebar beyond its width allowance"
+if grep -E '^(agent_panel_sort|status_indicators) = ' config/herdr/config.toml >/dev/null; then
+    fail "Herdr config still customizes the left sidebar beyond its width and agent rows"
 fi
+# The Agents panel must name the project (root repository plus worktree branch)
+# and the conversation slug AgentSurface publishes. Herdr's defaults draw the
+# workspace label and the harness kind instead, which identify neither, and
+# this has regressed twice — pin the rows, not just the section.
+grep -F '[ui.sidebar.agents]' config/herdr/config.toml >/dev/null \
+    || fail "Herdr agent sidebar rows are missing"
+grep -F "[\"state_icon\", { token = \"\$project\", bold = true, dim = false }]," \
+    config/herdr/config.toml >/dev/null \
+    || fail "Herdr agent sidebar does not lead with AgentSurface's \$project token"
+grep -F "[\"\$conversation\"]," config/herdr/config.toml >/dev/null \
+    || fail "Herdr agent sidebar does not show AgentSurface's \$conversation slug"
 grep -F 'delivery = "system"' config/herdr/config.toml >/dev/null \
     || fail "Herdr notifications do not use the terminal-notifier-backed system delivery"
 for sound in "done" request; do
