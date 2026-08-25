@@ -113,12 +113,37 @@ done
 # shellcheck disable=SC2016 # Match the literal rendered-doctrine path in the script.
 grep -F 'rendered_dir="$HOME/.agents/prompts/agentvoice"' scripts/install.sh >/dev/null \
     || fail "install.sh does not link the rendered AgentVoice doctrine"
-voice_link_line=$(grep -n '^link_agentvoice_config$' scripts/install.sh | cut -d: -f1)
+# Both calls now live inside converge_repo_content, so they are indented; the
+# ordering they encode is what matters and is still asserted by line number.
+voice_link_line=$(grep -n '^ *link_agentvoice_config$' scripts/install.sh | cut -d: -f1)
 # shellcheck disable=SC2016 # Match the literal sync-skills call, $-sign and all.
-sync_skills_line=$(grep -n '^"$script_dir/sync-skills"$' scripts/install.sh | cut -d: -f1)
+sync_skills_line=$(grep -n '^ *"$script_dir/sync-skills"$' scripts/install.sh | cut -d: -f1)
 [ -n "$voice_link_line" ] && [ -n "$sync_skills_line" ] \
     && [ "$voice_link_line" -gt "$sync_skills_line" ] \
     || fail "link_agentvoice_config must run after sync-skills renders the doctrine"
+
+# Content convergence is one function with one call site, because two lists of
+# what "content" means would drift apart on the first step somebody adds to
+# only one of them. --content runs it alone; the full install ends with it.
+grep -q '^converge_repo_content() {$' scripts/install.sh \
+    || fail "install.sh does not define converge_repo_content"
+[ "$(grep -c '^converge_repo_content$' scripts/install.sh)" -eq 1 ] \
+    || fail "converge_repo_content must have exactly one call site in the full install"
+grep -q -- '--content)' scripts/install.sh \
+    || fail "install.sh does not accept --content"
+for content_step in remove_retired_home_guidance link_extension_prompts \
+    remove_retired_llm_config remove_legacy_global_skills \
+    remove_retired_core_plugin remove_renamed_pack_skills \
+    remove_packed_pi_ambient_resources link_agent_guidance link_agentvoice_config; do
+    [ "$(grep -c "^ *$content_step\$" scripts/install.sh)" -eq 1 ] \
+        || fail "content step is called from more than one place: $content_step"
+done
+# The cheap path installs nothing: no formula, no fetch, no third-party pack.
+content_body=$(sed -n '/^converge_repo_content() {$/,/^}$/p' scripts/install.sh)
+printf '%s' "$content_body" | grep -Eq 'install_or_upgrade_formula|install_private_skill_pack|install-pi-subagents|curl|npm install' \
+    && fail "converge_repo_content installs or downloads something; it must only converge repository content"
+printf '%s' "$content_body" | grep -q 'sync-skills' \
+    || fail "converge_repo_content does not run the skill sync"
 
 # Global advice belongs in the operator extension prompts, so the harness
 # guidance source stays deliberately empty; the tripwire keeps advice from accreting
@@ -1036,7 +1061,7 @@ if grep -F 'home_guidance=' scripts/install.sh >/dev/null \
     || grep -F 'ln -sfn prompts/AGENTS.md ~/AGENTS.md' scripts/install.sh >/dev/null; then
     fail "installer still creates the retired home guidance hub"
 fi
-grep -q '^remove_retired_home_guidance$' scripts/install.sh \
+grep -q '^ *remove_retired_home_guidance$' scripts/install.sh \
     || fail "installer does not remove its retired home guidance symlink"
 grep -F 'link_extension_prompts' scripts/install.sh >/dev/null \
     || fail "installer does not link the operator extension prompts"

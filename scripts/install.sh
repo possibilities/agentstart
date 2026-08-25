@@ -3,6 +3,7 @@
 set -euo pipefail
 
 check_only=0
+content_only=0
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 
@@ -25,7 +26,7 @@ legacy_core_plugin_root="$legacy_core_marketplace_root/plugins/agentstart-core"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/install.sh [--install|--check]
+Usage: scripts/install.sh [--install|--check|--content]
 
 Install the AI command-line tools, harness configuration, and agent skills
 owned by AgentStart. The machine's installer invokes this after converging
@@ -34,6 +35,10 @@ Homebrew and the AI desktop applications; it is also safe to run standalone.
 Options:
   --install  Install or upgrade everything
   --check    Print the installation plan without changing the system
+  --content  Converge only what this repository owns as content — skills,
+             prompts, guidance, the statusline, and the capability pack —
+             installing and upgrading nothing. Cheap and safe to rerun on a
+             machine a full install has already converged.
 EOF
 }
 
@@ -389,11 +394,93 @@ link_extension_prompts() {
     done
 }
 
+# Everything this repository owns as content, in the one order that works.
+#
+# The full install runs this as its last act, and `--content` runs it alone.
+# That is the whole difference between the two: a full install converges the
+# machine — Homebrew formulas, the harness CLIs, built binaries, services —
+# and then converges content on top of it, while `--content` trusts that the
+# machine is already there and rebuilds only what a `git pull` in this
+# checkout can change.
+#
+# It is not a second installer and not a second synchronization path. Every
+# step below is a step the full install already ran, called from one place so
+# the two can never disagree about what content convergence means.
+#
+# What it deliberately leaves out is anything that installs, upgrades, or
+# downloads: the pinned third-party skill packs, the Pi subagents package, and
+# the retired-harness-integration cleanup that touches live harness state.
+# Those persist from the last full install, and the renderer below carries
+# whatever they left behind. A machine that has never had a full install is
+# not a machine this mode can converge.
+converge_repo_content() {
+    printf 'Removing the retired home guidance hub if AgentStart owns it.\n'
+    remove_retired_home_guidance
+
+    printf 'Linking the operator extension prompts into ~/.config/agentguidance.\n'
+    link_extension_prompts
+
+    printf 'Removing the retired llm model configuration if AgentStart owns it.\n'
+    remove_retired_llm_config
+
+    # This cleanup belongs only to the explicit full installer. sync-skills is
+    # the six-hour unattended path and remains additive: it never uninstalls a
+    # skill that may be in use by a live session. The exact managed set is the
+    # external packs, every discovered fleet skill, and the previous install
+    # receipt; independent compatibility-root occupants are preserved.
+    printf 'Removing AgentStart-managed skills from Fx-visible compatibility roots.\n'
+    remove_legacy_global_skills
+
+    printf 'Retiring AgentStart-owned legacy plugin registrations and marketplace.\n'
+    remove_retired_core_plugin
+
+    # The fleet statusline is harness configuration in each CLI's own idiom, so
+    # it converges here rather than from a launcher. It reads config the harness
+    # installers create, which is why content convergence assumes a machine a
+    # full install has already been through.
+    "$script_dir/install-statusline" --install
+
+    # A renamed skill leaves its previous directory behind in the common pack,
+    # and the additive sync below would render both spellings into every
+    # session. Remove before the sync, never after.
+    printf 'Removing renamed skills left behind in the common pack.\n'
+    remove_renamed_pack_skills
+
+    # Every agent tool publishes its skills by convention — skills/<name>/
+    # inside a checkout named agent* — so they are discovered rather than
+    # listed here, and a tool that adds or renames a skill needs no edit in
+    # this file. That includes this checkout's own skills and agentguidance's,
+    # whose post-sync hook re-renders the templates the scan ships against the
+    # operator extension prompts linked above.
+    "$script_dir/sync-skills"
+
+    # The renderer above copied Herdr's generated Pi extension into common.
+    # Only the explicit full installer retires the ambient source; the
+    # six-hour sync must remain additive and leave live-session resources in
+    # place.
+    printf 'Retiring AgentStart-owned Pi resources now packed into common.\n'
+    remove_packed_pi_ambient_resources
+
+    # The sync above renders the common pack's canonical guidance source. Link
+    # the three harness discovery slots only after that source is guaranteed
+    # to exist.
+    printf 'Linking the common harness guidance for Claude Code, Codex, and pi.\n'
+    link_agent_guidance
+
+    # The sync above is where agentguidance renders the orchestrator doctrine,
+    # so only now can it be linked where the server discovers it.
+    printf 'Linking the AgentVoice doctrine into ~/.config/agentvoice.\n'
+    link_agentvoice_config
+}
+
 case "${1:-}" in
     --install)
         ;;
     --check)
         check_only=1
+        ;;
+    --content)
+        content_only=1
         ;;
     -h|--help)
         usage
@@ -408,6 +495,22 @@ esac
     usage >&2
     exit 64
 }
+
+# Content convergence is the tail of a full install run on its own. It refuses
+# to guess at a machine it has never seen: without the common pack there has
+# been no full install, and rendering content into a machine whose harnesses
+# and binaries are absent would report success over a half-built system.
+if [ "$content_only" -eq 1 ]; then
+    [ "$(uname -s)" = Darwin ] || die "macOS is required"
+    [ "$(id -u)" -ne 0 ] || die "run as the target user, not root"
+    command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
+    [ -d "$common_pack_root" ] \
+        || die "no common capability pack at $common_pack_root; run scripts/install.sh --install first"
+    printf 'Converging AgentStart repository content only; installing nothing.\n'
+    converge_repo_content
+    printf 'AgentStart content convergence complete.\n'
+    exit 0
+fi
 
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
@@ -467,6 +570,9 @@ Common capability pack:
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the common capability pack
   remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it
+
+Content convergence (everything below is also scripts/install.sh --content,
+which runs it alone and installs nothing):
 EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-pi-subagents" --check
@@ -930,15 +1036,6 @@ command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
 configure_shadcn_mcp
 
-printf 'Removing the retired home guidance hub if AgentStart owns it.\n'
-remove_retired_home_guidance
-
-printf 'Linking the operator extension prompts into ~/.config/agentguidance.\n'
-link_extension_prompts
-
-printf 'Removing the retired llm model configuration if AgentStart owns it.\n'
-remove_retired_llm_config
-
 printf 'Removing retired AgentSurface, AgentBus, and Orca harness integrations.\n'
 retired_integrations_status=0
 "$script_dir/remove-retired-integrations" || retired_integrations_status=$?
@@ -947,23 +1044,6 @@ if [ "$retired_integrations_status" -ne 0 ]; then
         "$retired_integrations_status" >&2
     exit "$retired_integrations_status"
 fi
-
-# This cleanup belongs only to the explicit full installer. sync-skills is the
-# six-hour unattended path and remains additive: it never uninstalls a skill
-# that may be in use by a live session. The exact managed set is the external
-# packs, every discovered fleet skill, and the previous install receipt;
-# independent compatibility-root occupants are preserved.
-printf 'Removing AgentStart-managed skills from Fx-visible compatibility roots.\n'
-remove_legacy_global_skills
-
-printf 'Retiring AgentStart-owned legacy plugin registrations and marketplace.\n'
-remove_retired_core_plugin
-
-# The fleet statusline is harness configuration in each CLI's own idiom, so
-# it converges here rather than from a launcher. It runs after the three CLIs
-# are installed above: the codex step edits config.toml, which the Codex
-# installer creates.
-"$script_dir/install-statusline" --install
 
 # Pi ships no subagents deliberately and points at third-party packages
 # instead, so the fleet installs one and pins it. This must precede the skill
@@ -1131,29 +1211,8 @@ fi
 printf 'Installing the fleet launch agents.\n'
 "$script_dir/install-launchagents" --install
 
-# Every agent tool publishes its skills by convention — skills/<name>/
-# inside a checkout named agent* — so they are discovered rather than listed
-# here, and a tool that adds or renames a skill needs no edit in this file.
-# That includes this checkout's own skills and agentguidance's, whose
-# post-sync hook re-renders the templates the scan ships against the
-# operator extension prompts linked above.
-printf 'Removing renamed skills left behind in the common pack.\n'
-remove_renamed_pack_skills
-
-"$script_dir/sync-skills"
-
-# The renderer above copied Herdr's generated Pi extension into common. Only
-# the explicit full installer retires the ambient source; the six-hour sync
-# must remain additive and leave live-session resources in place.
-printf 'Retiring AgentStart-owned Pi resources now packed into common.\n'
-remove_packed_pi_ambient_resources
-
-# The sync above renders the common pack's canonical guidance source. Link the
-# three harness discovery slots only after that source is guaranteed to exist.
-printf 'Linking the common harness guidance for Claude Code, Codex, and pi.\n'
-link_agent_guidance
-
-# The sync above is where agentguidance renders the orchestrator doctrine,
-# so only now can it be linked where the server discovers it.
-printf 'Linking the AgentVoice doctrine into ~/.config/agentvoice.\n'
-link_agentvoice_config
+# Everything this repository owns as content — skills, prompts, guidance, the
+# statusline, and the rendered capability pack — converges last, on top of the
+# machine the steps above just built. `--content` runs exactly this and nothing
+# else, which is why it lives in one function rather than inline here.
+converge_repo_content
