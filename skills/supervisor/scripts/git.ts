@@ -179,6 +179,13 @@ export function repositoryContext(
 }
 
 /**
+ * The reason a repository names its trunk something other than `main`. It is
+ * the one refusal that never becomes actionable, so callers match on it by
+ * name rather than by retyping the sentence.
+ */
+export const NO_MAIN_BRANCH = "no local main branch";
+
+/**
  * Why `repositoryContext` refused, in the words a human needs to act on.
  *
  * A repository the supervisor cannot place still belongs on the roster, so the
@@ -186,13 +193,6 @@ export function repositoryContext(
  * and "no local main checked out" is much the likeliest: an operator moved
  * their one checkout onto a feature branch, and nothing else changed at all.
  */
-/**
- * The reason a repository names its trunk something other than `main`. It is
- * the one refusal that never becomes actionable, so callers match on it by
- * name rather than by retyping the sentence.
- */
-export const NO_MAIN_BRANCH = "no local main branch";
-
 export function missingMainReason(repository: string, roots: readonly string[]): string {
   if (!resolveCommonDir(repository)) return "not a Git repository";
   if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) {
