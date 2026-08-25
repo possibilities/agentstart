@@ -1201,9 +1201,14 @@ fi
 sidebar_settings=$(grep -E '^sidebar_[[:alnum:]_]* = ' config/herdr/config.toml || true)
 [ "$sidebar_settings" = 'sidebar_max_width = 106' ] \
     || fail "Herdr sidebar does not keep only its 50%-of-screen width allowance"
-if grep -E '^(agent_panel_sort|status_indicators) = ' config/herdr/config.toml >/dev/null; then
-    fail "Herdr config still customizes the left sidebar beyond its width and agent rows"
+if grep -E '^status_indicators = ' config/herdr/config.toml >/dev/null; then
+    fail "Herdr config still customizes the left sidebar beyond its width, sort, and agent rows"
 fi
+# Herdr overwrites the runtime agent sort from config on every reload, so an
+# absent key does not mean "leave it alone" — it means the in-app toggle
+# reverts to grouped whenever this file changes.
+grep -F 'agent_panel_sort = "priority"' config/herdr/config.toml >/dev/null \
+    || fail "Herdr agent panel does not hold the priority sort across config reloads"
 # The Agents panel must name the project (root repository plus worktree branch)
 # and the conversation slug AgentSurface publishes. Herdr's defaults draw the
 # workspace label and the harness kind instead, which identify neither, and
