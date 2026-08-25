@@ -4,6 +4,7 @@ import {
   listLiveWorktrees,
   mainIsPushed,
   missingMainReason,
+  NO_MAIN_BRANCH,
   normalizePath,
   repositoryContext,
   resolveCommonDir,
@@ -59,6 +60,12 @@ export interface RosterRepository {
   main_pushed: boolean | null;
   /** Why nothing in this repository can be supervised; empty when it can be. */
   blockers: string[];
+  /**
+   * How many worktrees the repository has, whether or not they are listed
+   * below. A collapsed repository still says how much it is standing for, so
+   * shortening the roster never costs the reader a number.
+   */
+  worktree_count: number;
   worktrees: RosterWorktree[];
 }
 
@@ -148,7 +155,30 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
   const home = normalizePath(repository);
   const commonDir = resolveCommonDir(repository) ?? home;
   const blocker = missingMainReason(repository, roots);
-  const worktrees = listLiveWorktrees(repository).map((record): RosterWorktree => {
+  const records = listLiveWorktrees(repository);
+
+  // A repository with no `main` branch at all is not a supervisable one that
+  // went wrong; it is a project that names its trunk something else and always
+  // will. Enumerating its every worktree on every roster spends lines on a
+  // condition that will never change, and the rows that do mean something —
+  // the repository whose one checkout moved onto a feature branch this
+  // afternoon — get buried among them. The repository still appears, still
+  // carries its reason, and still says how many worktrees it stands for; only
+  // the per-worktree rows are withheld, and only for the permanent case.
+  if (blocker === NO_MAIN_BRANCH) {
+    return {
+      repository: home,
+      common_dir: commonDir,
+      main_worktree: null,
+      main_head: null,
+      main_pushed: null,
+      blockers: [blocker],
+      worktree_count: records.length,
+      worktrees: [],
+    };
+  }
+
+  const worktrees = records.map((record): RosterWorktree => {
     const worktree = normalizePath(record.path);
     const status = runGit(worktree, ["status", "--porcelain=v1", "--untracked-files=normal"]);
     return {
@@ -177,6 +207,7 @@ function unsupervisable(repository: string, roots: readonly string[]): RosterRep
     main_head: null,
     main_pushed: null,
     blockers: [blocker],
+    worktree_count: worktrees.length,
     worktrees,
   };
 }
@@ -201,7 +232,7 @@ export async function buildRoster(
     // without saying so.
     if (!repositoryContext(repository, roots)) {
       const unplaceable = unsupervisable(repository, roots);
-      counts.unsupervised += unplaceable.worktrees.length;
+      counts.unsupervised += unplaceable.worktree_count;
       repositories.push(unplaceable);
       continue;
     }
@@ -224,6 +255,7 @@ export async function buildRoster(
       main_head: first.main_head,
       main_pushed: mainIsPushed(repository),
       blockers: [],
+      worktree_count: worktrees.length,
       worktrees,
     });
   }

@@ -1025,6 +1025,30 @@ describe("The roster", () => {
     expect(roster.counts).toMatchObject({ unsupervised: 2, removable: 0, quiet: 0 });
   });
 
+  test("collapses a repository that has no main branch at all, keeping its count", async () => {
+    const fixture = createFixture();
+
+    // A project that names its trunk something else — an upstream checkout on
+    // `master`, not a supervised repository that went wrong. This condition
+    // never becomes actionable, so its worktrees are not enumerated; the
+    // repository still appears, still says why, and still says how many
+    // checkouts it stands for.
+    git(fixture.main, "branch", "-m", "main", "master");
+
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    const repository = roster.repositories.find(
+      (entry) => entry.repository === normalizePath(fixture.main),
+    );
+
+    expect(repository?.blockers).toEqual(["no local main branch"]);
+    expect(repository?.worktrees).toEqual([]);
+    expect(repository?.worktree_count).toBe(2);
+
+    // The count still reflects every worktree, so collapsing shortens the
+    // roster without understating what is unsupervised.
+    expect(roster.counts).toMatchObject({ unsupervised: 2, removable: 0, quiet: 0 });
+  });
+
   test("counts one repository once however many of its checkouts are under a root", async () => {
     const fixture = createFixture();
     git(fixture.main, "checkout", "-b", "operator/work");
