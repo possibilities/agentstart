@@ -1112,8 +1112,10 @@ grep -F 'command = "escape-to-quit agentusage"' config/herdr/config.toml >/dev/n
 if grep -E 'key = "prefix\+[\[\]]"' config/herdr/config.toml >/dev/null; then
     fail "Herdr config still contains theme-cycling bindings"
 fi
-grep -F 'status_indicators = "dots"' config/herdr/config.toml >/dev/null \
-    || fail "Herdr status indicators do not keep a uniform icon size"
+if grep -E '^((agent_panel_sort|sidebar_[[:alnum:]_]*) = |status_indicators = |\[ui\.sidebar\.)' \
+    config/herdr/config.toml >/dev/null; then
+    fail "Herdr config still customizes the left sidebar"
+fi
 grep -F 'delivery = "system"' config/herdr/config.toml >/dev/null \
     || fail "Herdr notifications do not use the terminal-notifier-backed system delivery"
 for sound in "done" request; do

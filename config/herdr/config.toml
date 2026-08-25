@@ -159,12 +159,6 @@ auto_switch = false
 pane_borders = true
 pane_gaps = false
 pane_outer_borders = false
-agent_panel_sort = "priority"
-sidebar_collapsed_mode = "hidden"
-sidebar_max_width = 72
-# Keep one optical size across Spaces and Agents. State remains distinguishable
-# by hue, while unseen idle agents use a hollow dot.
-status_indicators = "dots"
 # Agent memory per kind ("cc 3.4 / co 2.1"), summed over each agent pane's
 # process tree by Funk's machine-config script. The status area ends flush
 # against the terminal edge, and command output is trimmed before it is drawn,
@@ -173,20 +167,6 @@ status_indicators = "dots"
 tab_bar_right = [
   { type = "command", command = "~/.config/herdr/agent-mem.sh", interval_seconds = 10 },
   { type = "text", text = " " },
-]
-
-# AgentSurface publishes $project as the workspace label, or the root repository
-# name plus worktree branch for a linked worktree. One token keeps that first
-# line contiguous and gives it the standard inactive workspace-name treatment:
-# under the terminal theme a custom token's own grey is the same grey the
-# builtin name uses, so bold without the extra dim lands on it exactly. Row two
-# is AgentSurface's $conversation token, not herdr's builtin tab name: the
-# builtin elides a single unnamed tab, while the plugin holds "untitled agent"
-# until naming lands, so the row never goes blank.
-[ui.sidebar.agents]
-rows = [
-  ["state_icon", { token = "$project", bold = true, dim = false }],
-  ["$conversation"],
 ]
 
 [ui.toast]
