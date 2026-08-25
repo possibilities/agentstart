@@ -30,8 +30,9 @@ names.
 
 Resolve this skill's directory, then run `scripts/watch.ts` as a long-lived
 process. Its first stdout line is a `roster` object — every worktree under the
-project roots, each placed as **watching**, **quiet**, **landed**, or
-**removable** — and the same object is available at any time from
+project roots, each placed as **watching**, **quiet**, **landed**,
+**removable**, or **unsupervised** — and the same object is available at any
+time from
 `scripts/status.ts`, which takes the same `--project-root` and `--socket`
 arguments and needs no watcher.
 
@@ -39,10 +40,22 @@ Report that roster to the human as the first thing you do, before working any
 candidate. Keep it compact: one line per worktree, grouped by category, naming
 the branch, the short head, the live session where there is one, and the
 blocker on anything landed that is not removable. Say the counts plainly —
-how many are watching, quiet, landed, and removable — and say when
+how many are watching, quiet, landed, removable, and unsupervised — and say when
 `ownership_available` is false, because an unreachable agent development
 environment means no session is knowable and a worktree that looks unowned
 may not be.
+
+An **unsupervised** worktree belongs to a repository whose `main` could not be
+resolved — usually because its one checkout is on a feature branch, so nothing
+holds `main` any more. Nothing there can be integrated or reaped, and the
+repository carries its own `blockers` saying why. Read the reason before
+deciding how loud to be. `no local main checked out` is the one to raise by
+name and immediately: the repository was supervisable until somebody switched
+branches, its worktrees still hold real work, and none of it is covered any
+more. `no local main branch` is a repository that never took part — its
+default branch is `master` or `integration` — so name those once as a group
+and move on. Either way they are on the roster: a repository that is not
+covered has to look different from one that is clean.
 
 A **quiet** worktree is a count and nothing more: it holds no unmerged commits
 and nothing uncommitted, and the agent that did the work is still sitting
@@ -276,7 +289,8 @@ scripts/reap.ts \
 
 Pass custom `--project-root` arguments as above. The reaper checks the exact
 registered worktree, branch, HEAD, project root, and cleanliness; refuses
-`main`; runs ordinary `git worktree remove` without force; verifies the branch
+`main` and the repository's own primary checkout; runs ordinary
+`git worktree remove` without force; verifies the branch
 still names the same commit; and writes an append-only audit log at
 `~/.local/state/agentstart/supervisor/reaped.jsonl`. Each successful cycle has
 `reap_started` and `reaped` JSONL records with the harness/session/slug/pane set,
@@ -285,6 +299,10 @@ preserved branch, and HEAD.
 
 - `worktree_reaped`: report the removed path, preserved branch and HEAD, and
   log path. No further cleanup is due.
+- `main_worktree_refused` or `primary_worktree_refused`: the path is the
+  repository's integration target or its own root, which is somebody's working
+  directory whatever branch it holds. Never reap either, however clean and
+  landed it looks; tell the human where the request came from.
 - `worktree_identity_changed`: wait for a fresh event or investigate; never
   remove a path using stale identity.
 - `worktree_not_clean`: preserve it and notify the human that uncommitted state

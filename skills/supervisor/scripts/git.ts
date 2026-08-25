@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { existsSync, realpathSync } from "node:fs";
 
 export interface CommandResult {
@@ -128,6 +128,21 @@ export function resolveCommonDir(cwd: string): string | null {
   return value ? normalizePath(value) : null;
 }
 
+/**
+ * Whether this checkout is the repository itself rather than a linked worktree.
+ *
+ * Git registers every added worktree under the common directory and gives it a
+ * gitfile pointing back at it; the one checkout registered no such way is the
+ * repository root, whose own `.git` *is* the common directory. That is a
+ * structural fact and not a branch: the primary checkout is somebody's working
+ * directory whatever it happens to have checked out, and assuming it is
+ * whichever worktree holds `main` is how a supervisor talks itself into
+ * deleting an operator's own directory.
+ */
+export function isPrimaryWorktree(worktree: string, commonDir: string): boolean {
+  return normalizePath(worktree) === normalizePath(dirname(commonDir));
+}
+
 export function inspectCandidate(cwd: string, roots: readonly string[]): RepositoryCandidate | null {
   const repository = inspectWorktree(cwd, roots);
   return repository && repository.commits_ahead > 0 ? repository : null;
@@ -161,6 +176,27 @@ export function repositoryContext(
     main_worktree: normalizePath(mainWorktree.path),
     main_head: mainHead,
   };
+}
+
+/**
+ * Why `repositoryContext` refused, in the words a human needs to act on.
+ *
+ * A repository the supervisor cannot place still belongs on the roster, so the
+ * reason has to travel with it. Each branch here is a different thing to fix,
+ * and "no local main checked out" is much the likeliest: an operator moved
+ * their one checkout onto a feature branch, and nothing else changed at all.
+ */
+export function missingMainReason(repository: string, roots: readonly string[]): string {
+  if (!resolveCommonDir(repository)) return "not a Git repository";
+  if (runGit(repository, ["show-ref", "--verify", "--quiet", "refs/heads/main"]).code !== 0) {
+    return "no local main branch";
+  }
+  const mainWorktree = findMainWorktree(repository);
+  if (!mainWorktree) return "no local main checked out";
+  if (!pathIsWithin(mainWorktree.path, roots)) {
+    return `main is checked out outside the project roots (${normalizePath(mainWorktree.path)})`;
+  }
+  return "main could not be resolved";
 }
 
 /**

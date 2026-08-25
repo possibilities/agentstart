@@ -1,5 +1,14 @@
 import type { WorktreeIdentity } from "./git.ts";
-import { mainIsPushed, normalizePath } from "./git.ts";
+import {
+  isPrimaryWorktree,
+  listLiveWorktrees,
+  mainIsPushed,
+  missingMainReason,
+  normalizePath,
+  repositoryContext,
+  resolveCommonDir,
+  runGit,
+} from "./git.ts";
 import { describeSession, type OwnershipProvider, type WorktreeOwner } from "./ade.ts";
 import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./worktrees.ts";
 
@@ -13,9 +22,26 @@ import { type DiscoveredWorktree, findRepositories, surveyRepository } from "./w
  * of whichever events happened to fire.
  */
 
-export type RosterCategory = "main" | "watching" | "quiet" | "landed" | "removable";
+export type RosterCategory =
+  | "main"
+  | "watching"
+  | "quiet"
+  | "landed"
+  | "removable"
+  | "unsupervised";
 
-export interface RosterWorktree extends WorktreeIdentity {
+/**
+ * A worktree the supervisor could not place at all keeps the identity fields
+ * Git answers without a `main` to compare against — its path, its branch, its
+ * head, whether anything is uncommitted — and nulls the rest. A null there is
+ * the honest answer: there is no `main` for it to be ahead of.
+ */
+export interface RosterWorktree
+  extends Omit<WorktreeIdentity, "main_worktree" | "main_head" | "commits_ahead" | "commits_behind"> {
+  main_worktree: string | null;
+  main_head: string | null;
+  commits_ahead: number | null;
+  commits_behind: number | null;
   category: RosterCategory;
   owner: WorktreeOwner | null;
   removable: boolean;
@@ -26,10 +52,13 @@ export interface RosterWorktree extends WorktreeIdentity {
 export interface RosterRepository {
   repository: string;
   common_dir: string;
-  main_worktree: string;
-  main_head: string;
+  /** Where `main` is checked out; null when nowhere under the roots is. */
+  main_worktree: string | null;
+  main_head: string | null;
   /** Whether `origin/main` already contains local `main`; null with no such ref. */
   main_pushed: boolean | null;
+  /** Why nothing in this repository can be supervised; empty when it can be. */
+  blockers: string[];
   worktrees: RosterWorktree[];
 }
 
@@ -41,7 +70,13 @@ export interface Roster {
   project_roots: string[];
   /** Whether an agent development environment answered; false means no session is knowable. */
   ownership_available: boolean;
-  counts: { watching: number; quiet: number; landed: number; removable: number };
+  counts: {
+    watching: number;
+    quiet: number;
+    landed: number;
+    removable: number;
+    unsupervised: number;
+  };
   repositories: RosterRepository[];
 }
 
@@ -64,12 +99,21 @@ export interface Roster {
  * would inflate quiet with directories the supervisor has no business in. Its
  * first commit — or any uncommitted change, which discovery already treats as
  * work — brings it into the picture like any other.
+ *
+ * The repository's primary checkout is the one blocker that never clears. It
+ * is a person's working directory rather than a worktree somebody added for a
+ * task, and which branch it happens to hold says nothing about that — refusing
+ * only the worktree that holds `main` protects it just until an operator
+ * switches branches. It is never quiet either, because a permanent blocker
+ * that nobody is shown is the same as no blocker at all.
  */
 export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null): RosterWorktree {
   const blockers: string[] = [];
   if (worktree.state === "main") {
     return { ...identity(worktree), category: "main", owner, removable: false, blockers };
   }
+  const primary = isPrimaryWorktree(worktree.worktree, worktree.common_dir);
+  if (primary) blockers.push("the repository's primary checkout");
   if (worktree.state === "unmerged") {
     blockers.push(`${worktree.commits_ahead} commit(s) not in main`);
   }
@@ -78,7 +122,7 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
   if (owner) blockers.push(`session live (${describeSession(owner)})`);
 
   const removable = worktree.state === "landed" && worktree.worked && blockers.length === 0;
-  const quiet = worktree.state === "landed" && worktree.clean && owner !== null;
+  const quiet = !primary && worktree.state === "landed" && worktree.clean && owner !== null;
   const category: RosterCategory = quiet
     ? "quiet"
     : worktree.state === "unmerged" || owner
@@ -87,6 +131,54 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
         ? "removable"
         : "landed";
   return { ...identity(worktree), category, owner, removable, blockers };
+}
+
+/**
+ * A repository whose `main` the supervisor cannot resolve, on the roster
+ * anyway.
+ *
+ * Nothing here can be integrated and nothing here can be reaped, because both
+ * are defined against a `main` that is not there. What must not happen is the
+ * repository disappearing: its checkouts still exist, work still happens in
+ * them, and a roster that omits them prints counts a human reads as coverage.
+ * Dropped and clean have to look different, so every worktree Git still lists
+ * is reported as unsupervised, carrying the reason and nothing it cannot know.
+ */
+function unsupervisable(repository: string, roots: readonly string[]): RosterRepository {
+  const home = normalizePath(repository);
+  const commonDir = resolveCommonDir(repository) ?? home;
+  const blocker = missingMainReason(repository, roots);
+  const worktrees = listLiveWorktrees(repository).map((record): RosterWorktree => {
+    const worktree = normalizePath(record.path);
+    const status = runGit(worktree, ["status", "--porcelain=v1", "--untracked-files=normal"]);
+    return {
+      worktree,
+      common_dir: commonDir,
+      main_worktree: null,
+      branch: record.detached || !record.branch ? null : record.branch.replace(/^refs\/heads\//, ""),
+      head: record.head ?? "",
+      main_head: null,
+      commits_ahead: null,
+      commits_behind: null,
+      // An unreadable status is not a clean one; nothing about this repository
+      // is being trusted enough to delete anything, but the roster still says
+      // what it saw.
+      clean: status.code === 0 && status.stdout.trim() === "",
+      category: "unsupervised",
+      owner: null,
+      removable: false,
+      blockers: [blocker],
+    };
+  });
+  return {
+    repository: home,
+    common_dir: commonDir,
+    main_worktree: null,
+    main_head: null,
+    main_pushed: null,
+    blockers: [blocker],
+    worktrees,
+  };
 }
 
 function identity(worktree: DiscoveredWorktree): WorktreeIdentity {
@@ -100,9 +192,19 @@ export async function buildRoster(
   occasion: string,
 ): Promise<Roster> {
   const repositories: RosterRepository[] = [];
-  const counts = { watching: 0, quiet: 0, landed: 0, removable: 0 };
+  const counts = { watching: 0, quiet: 0, landed: 0, removable: 0, unsupervised: 0 };
 
   for (const repository of findRepositories(roots)) {
+    // Ask first whether this repository can be supervised at all, because the
+    // survey answers "cannot" and "nothing to report" with the same empty
+    // array, and a roster that cannot tell them apart drops repositories
+    // without saying so.
+    if (!repositoryContext(repository, roots)) {
+      const unplaceable = unsupervisable(repository, roots);
+      counts.unsupervised += unplaceable.worktrees.length;
+      repositories.push(unplaceable);
+      continue;
+    }
     const surveyed = surveyRepository(repository, roots);
     if (surveyed.length === 0) continue;
     const worktrees: RosterWorktree[] = [];
@@ -121,6 +223,7 @@ export async function buildRoster(
       main_worktree: first.main_worktree,
       main_head: first.main_head,
       main_pushed: mainIsPushed(repository),
+      blockers: [],
       worktrees,
     });
   }

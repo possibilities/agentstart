@@ -693,6 +693,26 @@ describe("Git-native worktree discovery", () => {
     expect(repositories).toEqual([normalizePath(fixture.main)]);
   });
 
+  test("surveys one repository once however many of its checkouts are under a root", () => {
+    const fixture = createFixture();
+
+    // The shape an operator ends up with after giving a repository a dedicated
+    // main worktree: their own checkout on a feature branch, a second checkout
+    // holding main, both directly under the project root, one repository.
+    git(fixture.main, "checkout", "-b", "operator/work");
+    const mainHolder = join(fixture.projectsRoot, "project-main");
+    git(fixture.main, "worktree", "add", mainHolder, "main");
+
+    // Keyed by path, both checkouts are repositories and every worktree of the
+    // repository is surveyed — and counted — twice.
+    expect(findRepositories([fixture.projectsRoot])).toEqual([normalizePath(fixture.main)]);
+
+    const surveyed = surveyRepository(fixture.main, [fixture.projectsRoot]);
+    expect(surveyed.map((worktree) => worktree.worktree).sort()).toEqual(
+      [normalizePath(fixture.main), normalizePath(mainHolder), normalizePath(fixture.worktree)].sort(),
+    );
+  });
+
   test("reports worktrees carrying commits main does not, and nothing else", () => {
     const fixture = createFixture();
     const discovered = scanRepository(fixture.main, [fixture.projectsRoot]);
@@ -975,6 +995,107 @@ describe("The roster", () => {
         .flatMap((repository) => repository.worktrees)
         .find((entry) => entry.worktree === normalizePath(fresh)),
     ).toMatchObject({ category: "watching" });
+  });
+
+  test("keeps a repository whose main is not checked out anywhere, with the reason", async () => {
+    const fixture = createFixture();
+
+    // An operator commits their work and switches their one checkout to a
+    // feature branch. Nothing was deleted and nothing is finished; there is
+    // simply nowhere to integrate into any more.
+    git(fixture.main, "checkout", "-b", "operator/work");
+
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    const repository = roster.repositories.find(
+      (entry) => entry.repository === normalizePath(fixture.main),
+    );
+
+    // The repository is on the roster, saying what is wrong with it, and its
+    // checkouts are all still named. Dropping them silently is what makes a
+    // supervised repository and an unsupervised one read the same.
+    expect(repository).toMatchObject({ main_worktree: null, main_head: null, main_pushed: null });
+    expect(repository?.blockers).toEqual(["no local main checked out"]);
+    expect(repository?.worktrees.map((row) => row.worktree).sort()).toEqual(
+      [normalizePath(fixture.main), normalizePath(fixture.worktree)].sort(),
+    );
+    for (const row of repository?.worktrees ?? []) {
+      expect(row).toMatchObject({ category: "unsupervised", removable: false, commits_ahead: null });
+      expect(row.blockers).toEqual(["no local main checked out"]);
+    }
+    expect(roster.counts).toMatchObject({ unsupervised: 2, removable: 0, quiet: 0 });
+  });
+
+  test("counts one repository once however many of its checkouts are under a root", async () => {
+    const fixture = createFixture();
+    git(fixture.main, "checkout", "-b", "operator/work");
+    git(fixture.main, "worktree", "add", join(fixture.projectsRoot, "project-main"), "main");
+
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    expect(roster.repositories).toHaveLength(1);
+
+    // Every worktree of the repository appears exactly once, whichever of its
+    // checkouts the survey entered through.
+    const rows = roster.repositories.flatMap((repository) => repository.worktrees);
+    expect(new Set(rows.map((row) => row.worktree)).size).toBe(rows.length);
+    expect(roster.counts).toMatchObject({ watching: 1 });
+  });
+
+  test("never offers a repository's primary checkout for removal", async () => {
+    const fixture = createFixture();
+
+    // The primary checkout does the work, a dedicated worktree holds main, and
+    // the work lands. Clean, nobody in it, nothing left to integrate — every
+    // condition for removal except the one that matters.
+    git(fixture.main, "checkout", "-b", "operator/work");
+    writeFileSync(join(fixture.main, "operator.txt"), "operator work\n");
+    git(fixture.main, "add", "operator.txt");
+    git(fixture.main, "commit", "-m", "operator work");
+    const operatorHead = git(fixture.main, "rev-parse", "HEAD");
+    const mainHolder = join(fixture.projectsRoot, "project-main");
+    git(fixture.main, "worktree", "add", mainHolder, "main");
+    git(mainHolder, "merge", "--ff-only", "operator/work");
+
+    const roster = await buildRoster([fixture.projectsRoot], null, "test");
+    const operator = roster.repositories
+      .flatMap((repository) => repository.worktrees)
+      .find((row) => row.worktree === normalizePath(fixture.main));
+    expect(operator).toMatchObject({ category: "landed", removable: false, clean: true });
+    expect(operator?.blockers).toEqual(["the repository's primary checkout"]);
+
+    // And no event ever says otherwise.
+    const surveyed = surveyRepository(fixture.main, [fixture.projectsRoot]);
+    const landed = surveyed.find((row) => row.worktree === normalizePath(fixture.main));
+    if (!landed) throw new Error("the primary checkout was not surveyed");
+    expect(await candidateFromWorktree(landed, null)).toMatchObject({
+      type: "removable_worktree",
+      removable: false,
+      blockers: ["the repository's primary checkout"],
+    });
+
+    // The reaper refuses it on its own account, so a stale or hand-passed
+    // event cannot delete an operator's working directory either.
+    const result = await run([
+      process.execPath,
+      reapScript,
+      "--worktree",
+      fixture.main,
+      "--expected-branch",
+      "operator/work",
+      "--expected-head",
+      operatorHead,
+      "--workspace-id",
+      "workspace-1",
+      "--agent-json",
+      JSON.stringify({ harness: "codex", session_id: "session-1", pane_id: "w1:p1" }),
+      "--project-root",
+      fixture.projectsRoot,
+      "--log",
+      join(fixture.root, "reaped.jsonl"),
+    ]);
+    expect(result.exitCode).toBe(12);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: "primary_worktree_refused" });
+    expect(existsSync(join(fixture.main, "operator.txt"))).toBe(true);
+    expect(existsSync(join(fixture.root, "reaped.jsonl"))).toBe(false);
   });
 
   test("status.ts prints the same roster on demand", async () => {

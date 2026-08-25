@@ -8,6 +8,7 @@ import {
   defaultProjectRoots,
   gitValue,
   inspectWorktree,
+  isPrimaryWorktree,
   listWorktrees,
   normalizePath,
   runGit,
@@ -137,6 +138,15 @@ if (import.meta.main) {
   }
   if (identity.main_worktree === worktree) {
     fail(12, "main_worktree_refused", "the local main worktree can never be reaped", { worktree });
+  }
+  // Independently of the branch it holds: the repository's own root is an
+  // operator's working directory, not a worktree somebody added for a task.
+  // The classification never offers it, and this refuses it anyway, because a
+  // stale or hand-passed event must not be able to delete it either.
+  if (isPrimaryWorktree(worktree, identity.common_dir)) {
+    fail(12, "primary_worktree_refused", "the repository's primary checkout can never be reaped", {
+      worktree,
+    });
   }
   if (identity.branch !== expectedBranch || identity.head.toLowerCase() !== expectedHead) {
     fail(10, "worktree_identity_changed", "the worktree branch or HEAD changed after its close event", {

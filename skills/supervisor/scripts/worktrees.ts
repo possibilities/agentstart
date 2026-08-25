@@ -5,6 +5,7 @@ import {
   type WorktreeIdentity,
   inspectCandidate,
   inspectSettled,
+  isPrimaryWorktree,
   listLiveWorktrees,
   normalizePath,
   pathIsWithin,
@@ -94,7 +95,41 @@ export interface DiscoveryOptions {
 export function findRepositories(roots: readonly string[]): string[] {
   const found = new Set<string>();
   for (const root of roots) descend(normalizePath(root), 0, found);
-  return [...found].sort();
+  return oneEntryPointPerRepository(found);
+}
+
+/**
+ * One entry point per repository, not one per checkout.
+ *
+ * Two checkouts of the same repository can both sit directly under a project
+ * root — a primary checkout beside a dedicated `main` worktree is the ordinary
+ * reason — and they share a common directory, so surveying both lists and
+ * counts every worktree of that repository twice. The common directory is what
+ * identifies a repository; a path only identifies a window onto one.
+ *
+ * The primary checkout wins the tie where there is one, because it is the path
+ * that names the repository itself. Nothing downstream depends on the choice:
+ * every question the survey asks — which worktrees are registered, where `main`
+ * is checked out, what it points at — is answered for the whole repository from
+ * any of its worktrees.
+ */
+function oneEntryPointPerRepository(found: Set<string>): string[] {
+  const byRepository = new Map<string, string>();
+  const unresolved: string[] = [];
+
+  for (const path of [...found].sort()) {
+    const commonDir = resolveCommonDir(path);
+    // A directory holding `.git` that Git will not answer for is not a
+    // repository at all. Keep it rather than guess which repository it belongs
+    // to: it costs one survey that finds nothing.
+    if (!commonDir) {
+      unresolved.push(path);
+      continue;
+    }
+    const chosen = byRepository.get(commonDir);
+    if (chosen === undefined || isPrimaryWorktree(path, commonDir)) byRepository.set(commonDir, path);
+  }
+  return [...byRepository.values(), ...unresolved].sort();
 }
 
 function descend(directory: string, depth: number, found: Set<string>): void {
@@ -137,6 +172,9 @@ export function surveyRepository(
 
   // One resolution for the whole repository: with no local `main` there is
   // nothing to integrate into, and inspecting each of its worktrees is waste.
+  // An empty survey is not the same as a clean one, which is why the roster
+  // asks `repositoryContext` itself rather than reading silence here as
+  // "nothing to report" — see `unsupervisable` in roster.ts.
   const context = repositoryContext(repository, roots);
   if (!context) return surveyed;
   const home = normalizePath(repository);
