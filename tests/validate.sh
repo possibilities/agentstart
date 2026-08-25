@@ -1113,8 +1113,8 @@ if grep -E 'key = "prefix\+[\[\]]"' config/herdr/config.toml >/dev/null; then
     fail "Herdr config still contains theme-cycling bindings"
 fi
 sidebar_settings=$(grep -E '^sidebar_[[:alnum:]_]* = ' config/herdr/config.toml || true)
-[ "$sidebar_settings" = 'sidebar_max_width = 64' ] \
-    || fail "Herdr sidebar does not keep only its 30%-of-screen width allowance"
+[ "$sidebar_settings" = 'sidebar_max_width = 106' ] \
+    || fail "Herdr sidebar does not keep only its 50%-of-screen width allowance"
 if grep -E '^((agent_panel_sort|status_indicators) = |\[ui\.sidebar\.)' \
     config/herdr/config.toml >/dev/null; then
     fail "Herdr config still customizes the left sidebar beyond its width allowance"
