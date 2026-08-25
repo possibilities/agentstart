@@ -10,6 +10,10 @@ if [ -n "${AGENTSTART_TEST_NPX_LOG:-}" ]; then
     } >>"$AGENTSTART_TEST_NPX_LOG"
 fi
 
+if [ -n "${AGENTSTART_TEST_NPX_OUTPUT:-}" ]; then
+    printf '%s\n' "$AGENTSTART_TEST_NPX_OUTPUT"
+fi
+
 # A local-path `skills add` is the per-checkout scan; a URL add is an external
 # pack. Failing only the local form lets a test assert that scan failures name
 # the project to fix without making external skill packs part of the fixture.

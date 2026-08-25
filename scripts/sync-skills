@@ -159,7 +159,7 @@ for project in "$code_root"/agent*/; do
         "$project_name" "${skill_names[*]}"
     mkdir -p "$pack_root" "$skills_state_root"
     CLAUDE_CONFIG_DIR="$pack_root" XDG_STATE_HOME="$skills_state_root" \
-        "$npx_bin" --yes skills add "$project" \
+        "$script_dir/run-skills-cli" "$npx_bin" --yes skills add "$project" \
         --agent claude-code \
         --skill "${skill_names[@]}" \
         --global --copy --yes \

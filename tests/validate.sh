@@ -13,6 +13,7 @@ fail() {
 shell_files="
 scripts/install.sh
 scripts/sync-skills
+scripts/run-skills-cli
 scripts/render-capabilities
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
@@ -37,6 +38,7 @@ if command -v shellcheck >/dev/null 2>&1; then
 fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis \
+    scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
@@ -696,13 +698,19 @@ printf -- '---\nname: pi-subagents\ndescription: fixture\n---\n' \
 printf -- '---\ndescription: fixture workflow\n---\n' \
     >"$fixture_pi_subagents_root/pi-subagents/prompts/parallel-review.md"
 
-HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
-    AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
-    AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
-    AGENTSTART_CLAUDE_BIN=/usr/bin/true \
-    AGENTSTART_CODEX_BIN=/usr/bin/true \
-    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
-    "$root/scripts/sync-skills" >/dev/null
+sync_output=$(
+    HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
+        AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
+        AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
+        AGENTSTART_TEST_NPX_OUTPUT=skills-cli-success-noise \
+        AGENTSTART_CLAUDE_BIN=/usr/bin/true \
+        AGENTSTART_CODEX_BIN=/usr/bin/true \
+        AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
+        "$root/scripts/sync-skills"
+)
+if printf '%s\n' "$sync_output" | grep -F skills-cli-success-noise >/dev/null; then
+    fail "successful skill sync leaked the skills CLI's animated output"
+fi
 grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentdemo> <--agent> <claude-code> <--skill> <demo> <second> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
     || fail "skill sync did not ship both discovered skills in one invocation"
@@ -847,6 +855,7 @@ set +e
 scan_failure=$(
     HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
         AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
+        AGENTSTART_TEST_NPX_OUTPUT=skills-cli-failure-detail \
         AGENTSTART_TEST_NPX_LOCAL_EXIT=9 \
         "$root/scripts/sync-skills" 2>&1
 )
@@ -857,6 +866,15 @@ set -e
 # The scan walks the root in order, so agentbus is the participant that fails.
 printf '%s\n' "$scan_failure" | grep -F 'agentbus' >/dev/null \
     || fail "skill sync failure does not name the project to fix"
+printf '%s\n' "$scan_failure" | grep -F 'skills-cli-failure-detail' >/dev/null \
+    || fail "skill sync hid the skills CLI's captured failure output"
+
+# shellcheck disable=SC2016 # Match the literal internal wrapper invocation.
+grep -F '"$script_dir/run-skills-cli" npx --yes skills add' scripts/install.sh >/dev/null \
+    || fail "the full installer does not quiet successful external skill installs"
+# shellcheck disable=SC2016 # Match the literal internal wrapper invocation.
+grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.sh >/dev/null \
+    || fail "the full installer does not quiet successful legacy skill removal"
 
 # shellcheck disable=SC2016 # Match the exclusion guard the scan must not have.
 if grep -F '[ "$project_name" != agentvoice ] || continue' scripts/sync-skills >/dev/null; then

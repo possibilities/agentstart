@@ -72,10 +72,11 @@ install_private_skill_pack() {
 
     mkdir -p "$common_pack_root" "$capabilities_skills_state_root"
     CLAUDE_CONFIG_DIR="$common_pack_root" XDG_STATE_HOME="$capabilities_skills_state_root" \
-        npx --yes skills add "$source" \
+        "$script_dir/run-skills-cli" npx --yes skills add "$source" \
         --agent claude-code \
         --skill "$@" \
-        --global --copy --yes
+        --global --copy --yes \
+        || die "installing agent skills failed: $source ($*)"
 }
 
 remove_legacy_global_skills() {
@@ -129,7 +130,8 @@ remove_legacy_global_skills() {
         esac
     done
 
-    npx --yes skills remove --global --yes "${names[@]}"
+    "$script_dir/run-skills-cli" npx --yes skills remove --global --yes "${names[@]}" \
+        || die "removing retired AgentStart-managed skills failed"
 }
 
 remove_retired_core_plugin() {
