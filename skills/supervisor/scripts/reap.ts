@@ -47,6 +47,11 @@ function usage(): string {
     "Usage: reap.ts --worktree <path> --expected-branch <branch> --expected-head <full-sha>",
     "               --workspace-id <id> --agent-json <json> [--agent-json <json>]...",
     "               [--project-root <path>]... [--log <jsonl-path>]",
+    "       reap.ts --worktree <path> --expected-branch <branch> --expected-head <full-sha>",
+    "               --unowned [--project-root <path>]... [--log <jsonl-path>]",
+    "",
+    "--unowned reaps a worktree no session is in and no workspace holds: there is no",
+    "lifecycle identity to record, so the receipt says so instead of inventing one.",
   ].join("\n");
 }
 
@@ -76,6 +81,7 @@ if (import.meta.main) {
       "expected-head": { type: "string" },
       "workspace-id": { type: "string" },
       "agent-json": { type: "string", multiple: true },
+      unowned: { type: "boolean", default: false },
       "project-root": { type: "string", multiple: true },
       log: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -92,7 +98,15 @@ if (import.meta.main) {
   const expectedArg = parsed.values["expected-head"];
   const workspaceId = parsed.values["workspace-id"];
   const agentValues = parsed.values["agent-json"] ?? [];
-  if (!worktreeArg || !expectedBranch || !expectedArg || !workspaceId || agentValues.length === 0) {
+  const unowned = parsed.values.unowned === true;
+  if (!worktreeArg || !expectedBranch || !expectedArg) {
+    fail(64, "usage", usage());
+  }
+  if (unowned) {
+    if (workspaceId || agentValues.length > 0) {
+      fail(64, "usage", "--unowned describes a worktree with no session and no workspace; drop --workspace-id and --agent-json");
+    }
+  } else if (!workspaceId || agentValues.length === 0) {
     fail(64, "usage", usage());
   }
   if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(expectedArg)) {
@@ -160,7 +174,8 @@ if (import.meta.main) {
   const receipt = {
     schema_version: 1,
     recorded_at: new Date().toISOString(),
-    workspace_id: workspaceId,
+    authorization: unowned ? "unowned" : "lifecycle",
+    workspace_id: workspaceId ?? null,
     agents,
     worktree,
     common_dir: identity.common_dir,

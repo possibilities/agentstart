@@ -579,15 +579,21 @@ export async function candidateFromWorktree(
   // The integration target is not a candidate for anything.
   if (state === "main") return null;
 
+  // A checkout somebody opened is not work. No commit was ever made here and
+  // nothing is uncommitted, so there is nothing to integrate and nothing to
+  // lose with the directory. Its first change of either kind makes it a
+  // candidate like any other.
+  if (!worktree.worked) return null;
+
   // Landed work has nothing left to integrate, which is precisely when a
   // worktree stops being work and starts being a directory. Say so — including
   // the moment the supervisor's own fast-forward puts it in this state — rather
   // than waiting for an ADE to notice its workspace close.
   if (state === "landed") {
     const placed = place(worktree, owner);
-    // A quiet worktree is not news: either no work was ever done in it, or the
-    // agent that did the work is still sitting there. Nothing is at stake in
-    // either, and reporting them buries the worktrees that need a human.
+    // A quiet worktree is not news: the agent that did the work is still
+    // sitting there. Nothing is at stake, and reporting it buries the
+    // worktrees that need a human.
     if (placed.category === "quiet") return null;
     // Uncommitted work under a live session is the one landed state not worth
     // announcing: it changes with every file the agent saves. Left behind by a

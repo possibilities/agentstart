@@ -1,6 +1,6 @@
 ---
 name: supervisor
-description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into local main, push origin/main, tell the human whenever a worktree becomes clean and removable, and reap it after its agent and workspace close. Use when an agent should supervise peer commits and cleanup continuously.
+description: Run a persistent lifecycle loop for peer worktrees—discover every worktree from Git itself, report a roster of what is watching, landed, and removable at start and stop, obtain exact-commit readiness, fast-forward work into local main, push origin/main, and reap each worktree once it is clean, landed, and nobody is in it. Use when an agent should supervise peer commits and cleanup continuously.
 ---
 
 # Supervisor
@@ -11,7 +11,8 @@ integration, publication, communication, and the final guarded worktree reap.
 Never close a session or workspace yourself, and never delete a branch.
 
 Report standing, not just change. A run opens and closes with the full roster,
-and no worktree becomes removable without the human hearing it.
+and no worktree becomes removable without the human hearing it — including the
+ones you clear yourself.
 
 ## Name agents by their session
 
@@ -43,10 +44,16 @@ how many are watching, quiet, landed, and removable — and say when
 environment means no session is knowable and a worktree that looks unowned
 may not be.
 
-A **quiet** worktree is a count and nothing more. It holds no unmerged commits
-and nothing uncommitted, and either no work was ever done in it or the agent
-that did the work is still sitting there. Spending a line on each of them is
-how the worktrees that need a human get buried.
+A **quiet** worktree is a count and nothing more: it holds no unmerged commits
+and nothing uncommitted, and the agent that did the work is still sitting
+there. Spending a line on each of them is how the worktrees that need a human
+get buried.
+
+A worktree where no work was ever done is absent from the roster entirely, not
+counted as quiet — the same rule the event stream applies, for the same reason:
+a checkout somebody opened is not work. Its first commit, or any uncommitted
+change, brings it into the roster like any other. So the counts describe
+supervised work, not every directory on disk.
 
 Report the roster again whenever the operator stops the supervisor, and
 whenever they ask what you are watching. A run that ends without one has left
@@ -204,39 +211,55 @@ Collaborate with the peer when reconciliation is ordinary and bounded. Ask the
 human only for genuine repository ownership, divergence, or intent decisions.
 Continue supervising other repositories while one is waiting.
 
-## Report a removable worktree
+## Clear a removable worktree
 
 A `removable_worktree` says a worktree that was worked in has nothing left to
 integrate. It carries `removable`, `blockers`, and `owner` alongside the usual
 identity.
 
-Tell the human every time one arrives, and say which of the two it is:
-
 - `removable: true` with empty `blockers` — its commits are in `main`, nothing
   uncommitted is left in it, it is a branch and not `main`, and no session is
-  in it. The directory is now the only thing left. Name the path, the branch,
-  and the head.
-- `removable: false` — say the blocker in the event's own words. Uncommitted
-  changes in a worktree nobody is sitting in means real work is about to be
-  lost with the directory, and that is the one to raise loudest.
+  in it. The directory is the only thing left, and it is yours to remove.
+  Reap it immediately with the unowned form below, then report the removed
+  path, the preserved branch and head, and the log path.
+- `removable: false` — remove nothing and say the blocker in the event's own
+  words. Uncommitted changes in a worktree nobody is sitting in means real work
+  is about to be lost with the directory, and that is the one to raise loudest.
 
 Nothing arrives while an agent is still sitting in a clean worktree whose work
 has landed: that is quiet, and the event comes when the session is gone and the
 directory is genuinely all that is left.
 
-Reporting is the whole of this. A `removable_worktree` is never authority to
-remove anything: it observes Git, and Git cannot see whether a human still has
-that directory open. Cleanup happens only on a `reap_candidate`, whose two
-lifecycle facts are the authorization, or when the human tells you to reap a
-specific worktree by name.
+An empty `blockers` array is the whole authorization, and the reaper revalidates
+every fact in it before touching disk. Nothing else is: a `removable: false`
+event, a worktree you noticed yourself, or a path the roster listed but no event
+covered all still need the human, and a branch is never deleted either way.
 
-## Reap a closed worktree
+## Reap a worktree
+
+Two events authorize a reap, and they differ only in what identity the receipt
+can record.
+
+A `removable_worktree` with `removable: true` and empty `blockers` has no
+session and no workspace left to name, so pass `--unowned` in place of
+`--workspace-id` and `--agent-json`; the receipt records
+`authorization: "unowned"` rather than inventing a session that has already
+quit:
+
+```sh
+scripts/reap.ts \
+  --worktree <candidate-worktree> \
+  --expected-branch <candidate-branch> \
+  --expected-head <candidate-full-sha> \
+  --unowned
+```
 
 A `reap_candidate` means Herdr observed the agent session end and the worktree
 workspace close. It carries every recorded `{harness, session_id, pane_id}`
 association plus the exact worktree, branch, HEAD, workspace, and repository.
 It authorizes cleanup of that worktree only; it does not authorize deleting its
-branch.
+branch. Because it names the session and workspace that ended, its receipt
+records them and `authorization: "lifecycle"`.
 
 Finish any already-approved integration for the same repository first. Then
 run the guarded reaper, repeating `--agent-json` for every entry in the event's

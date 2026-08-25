@@ -54,10 +54,16 @@ export interface Roster {
  * name, because a human reading the roster deserves the reason and not just
  * the verdict.
  *
- * Quiet is the absence of all of it: a landed, clean worktree where no work
- * was ever done, or where the agent that did it has not left yet. Neither
- * holds anything for the supervisor, and a roster that spends a line on each
- * of them buries the ones that do.
+ * Quiet is the absence of all of it: a landed, clean worktree whose agent has
+ * not left yet. It holds nothing for the supervisor, and a roster that spends
+ * a line on each of them buries the ones that do.
+ *
+ * A worktree where no work was ever done is not placed at all. Discovery
+ * already refuses to raise an event for one, on the reasoning that a checkout
+ * somebody opened is not work; counting it here would contradict that and
+ * would inflate quiet with directories the supervisor has no business in. Its
+ * first commit — or any uncommitted change, which discovery already treats as
+ * work — brings it into the picture like any other.
  */
 export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null): RosterWorktree {
   const blockers: string[] = [];
@@ -72,8 +78,7 @@ export function place(worktree: DiscoveredWorktree, owner: WorktreeOwner | null)
   if (owner) blockers.push(`session live (${describeSession(owner)})`);
 
   const removable = worktree.state === "landed" && worktree.worked && blockers.length === 0;
-  const quiet =
-    worktree.state === "landed" && worktree.clean && (!worktree.worked || owner !== null);
+  const quiet = worktree.state === "landed" && worktree.clean && owner !== null;
   const category: RosterCategory = quiet
     ? "quiet"
     : worktree.state === "unmerged" || owner
@@ -102,6 +107,7 @@ export async function buildRoster(
     if (surveyed.length === 0) continue;
     const worktrees: RosterWorktree[] = [];
     for (const worktree of surveyed) {
+      if (worktree.state !== "main" && !worktree.worked) continue;
       const owner = ownership ? await ownership.owner(worktree.worktree) : null;
       const placed = place(worktree, owner);
       if (placed.category !== "main") counts[placed.category] += 1;

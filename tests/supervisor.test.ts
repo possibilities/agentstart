@@ -583,6 +583,63 @@ test("the reaper removes a closed clean worktree, preserves its branch, and writ
   });
 });
 
+test("the reaper removes an unowned worktree and records that no session was left to name", async () => {
+  const fixture = createFixture();
+  const log = join(fixture.root, "state", "reaped.jsonl");
+  const result = await run([
+    process.execPath,
+    reapScript,
+    "--worktree",
+    fixture.worktree,
+    "--expected-branch",
+    "worktree/peer",
+    "--expected-head",
+    fixture.workerHead,
+    "--unowned",
+    "--project-root",
+    fixture.projectsRoot,
+    "--log",
+    log,
+  ]);
+
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout)).toMatchObject({ ok: true, code: "worktree_reaped" });
+  expect(existsSync(fixture.worktree)).toBe(false);
+  expect(git(fixture.main, "rev-parse", "refs/heads/worktree/peer")).toBe(fixture.workerHead);
+  const records = readFileSync(log, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(records.map((record) => record.event)).toEqual(["reap_started", "reaped"]);
+  expect(records[1]).toMatchObject({ authorization: "unowned", workspace_id: null, agents: [] });
+});
+
+test("the reaper refuses an unowned reap that also claims a lifecycle identity", async () => {
+  const fixture = createFixture();
+  const log = join(fixture.root, "state", "reaped.jsonl");
+  const result = await run([
+    process.execPath,
+    reapScript,
+    "--worktree",
+    fixture.worktree,
+    "--expected-branch",
+    "worktree/peer",
+    "--expected-head",
+    fixture.workerHead,
+    "--unowned",
+    "--workspace-id",
+    "w4",
+    "--project-root",
+    fixture.projectsRoot,
+    "--log",
+    log,
+  ]);
+
+  expect(result.exitCode).toBe(64);
+  expect(JSON.parse(result.stdout)).toMatchObject({ ok: false, code: "usage" });
+  expect(existsSync(fixture.worktree)).toBe(true);
+});
+
 test("the reaper preserves a dirty closed worktree", async () => {
   const fixture = createFixture();
   const log = join(fixture.root, "state", "reaped.jsonl");
@@ -885,7 +942,7 @@ describe("The roster", () => {
     });
   });
 
-  test("ignores a worktree where no work has ever been done", async () => {
+  test("keeps a worktree where no work has ever been done out of the picture", async () => {
     const fixture = createFixture();
     const fresh = join(fixture.root, "worktrees", "fresh");
     git(fixture.main, "worktree", "add", "-b", "worktree/fresh", fresh, "main");
@@ -894,14 +951,13 @@ describe("The roster", () => {
     const untouched = surveyed.find((row) => row.worktree === normalizePath(fresh));
     expect(untouched).toMatchObject({ state: "landed", clean: true, worked: false });
 
-    // Nobody is in it and nothing is at stake, but it is not finished work
-    // either: no commit was ever made here, so it is quiet rather than
-    // removable, and the stream says nothing about it.
+    // No commit was ever made here, so it is not the supervisor's business at
+    // all: the stream says nothing about it and the roster does not count it,
+    // not even as quiet.
     const roster = await buildRoster([fixture.projectsRoot], null, "test");
-    const row = roster.repositories
-      .flatMap((repository) => repository.worktrees)
-      .find((entry) => entry.worktree === normalizePath(fresh));
-    expect(row).toMatchObject({ category: "quiet", removable: false, blockers: [] });
+    const rows = roster.repositories.flatMap((repository) => repository.worktrees);
+    expect(rows.find((entry) => entry.worktree === normalizePath(fresh))).toBeUndefined();
+    expect(roster.counts.quiet).toBe(0);
     if (!untouched) throw new Error("the untouched worktree was not surveyed");
     expect(await candidateFromWorktree(untouched, null)).toBeNull();
 
@@ -913,6 +969,12 @@ describe("The roster", () => {
       (entry) => entry.worktree === normalizePath(fresh),
     );
     expect(working).toMatchObject({ state: "unmerged", worked: true });
+    const after = await buildRoster([fixture.projectsRoot], null, "test");
+    expect(
+      after.repositories
+        .flatMap((repository) => repository.worktrees)
+        .find((entry) => entry.worktree === normalizePath(fresh)),
+    ).toMatchObject({ category: "watching" });
   });
 
   test("status.ts prints the same roster on demand", async () => {
