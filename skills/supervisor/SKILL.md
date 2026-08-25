@@ -130,9 +130,20 @@ knows, and `SUPERVISE.md` is where it says it.
 A repository may use it to tell you which branches are never candidates, who
 owns integration when you do not, what a landing there requires, or what to
 raise with the human instead of handling yourself. Where it contradicts this
-skill about that repository, it wins; where it is silent, this skill stands. It
-never authorizes skipping a guard — no file makes a dirty worktree reapable or
-an unapproved commit integrable.
+skill about that repository, it wins; where it is silent, this skill stands.
+
+It moves in one direction only. It may **add** conditions — a repository whose
+publication requires a green gate on the exact commit makes `READY <sha>`
+necessary but not sufficient, and you ask for the gate too. It may never
+**remove** one: no file makes a dirty worktree reapable, an unapproved commit
+integrable, or a force-push acceptable.
+
+Two repositories that look alike can differ here, and that is the reason the
+file is per-repository rather than a rule in this skill. One fork may cut
+feature branches from its trunk's exact tip, which fast-forward by
+construction and land the ordinary way; another may declare its trunk is never
+a development branch and take work only through a rebuilt candidate. Read each
+one; generalizing from the last fork you saw is how this goes wrong.
 
 It is found in the trunk worktree first and the repository's primary checkout
 second, which is what lets an operator leave instructions without committing
@@ -290,8 +301,11 @@ authoritative, and it names the `trunk_branch` and `trunk_remote` it used.
   internal commit is allowed to be described as exactly that.
 - `source_head_changed` or `source_not_clean`: ask the peer to finish and
   approve its new exact HEAD.
-- `source_needs_reconciliation`: send the peer the reported `trunk_head` and
-  explicitly assign reconciliation in its worktree. It may rebase or otherwise
+- `source_needs_reconciliation`: check `guidance` first — in a repository whose
+  branches are cut from an upstream head on purpose, rebasing onto the trunk is
+  the wrong instruction and composition belongs to its owner. Otherwise send the
+  peer the reported `trunk_head` and explicitly assign reconciliation in its
+  worktree. It may rebase or otherwise
   resolve there because you have now tasked it with that topology work. Require
   fresh verification, a clean worktree, and a new `READY <sha>` afterward.
 - `trunk_remote_diverged`: stop that repository and bring the divergence to the
