@@ -28,9 +28,10 @@
   owned by agentusage's `scripts/install-providers.sh`; it is not in the
   `install-agent-clis` loop, which is why that loop runs agentusage before
   agentlaunch. Fx's fork lifecycle and integration installer are owned by
-  `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install` as the
-  harness installation contract instead of reaching into `~/src/fx`. fxnk
-  installs the source build to `~/.local/bin/fx` and disables Fx's independent
+  `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
+  with its tracked, ship-gate-approved Integration pin as the harness
+  installation contract instead of reaching into `~/src/fx`. fxnk installs
+  that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. The `fork-rebase-policy` wiki page is the contract.
   `codex-multi-auth` is no longer a managed fork

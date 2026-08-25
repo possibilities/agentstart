@@ -872,7 +872,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'brew install or upgrade zig  # AgentVoice'"'"'s native duplex audio path builds against it' \
-    '~/code/fxnk/scripts/install.sh --install  # fxnk owns the published fork/integration build and disables auto-upgrade' \
+    '~/code/fxnk/scripts/install.sh --install --sha 0deb9806b7c968bd97ae1c068720778306b5a9c3  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
@@ -926,12 +926,14 @@ done
 
 # Fx remains a required harness, but fxnk owns its fork and installer. This
 # repository invokes the public contract and carries no second implementation.
+grep -Eq '^fx_integration_sha=[0-9a-f]{40}$' scripts/install.sh \
+    || fail "installer does not carry one full lowercase Fx Integration consumer pin"
 # shellcheck disable=SC2016 # Match the literal configurable code-root contract.
 grep -F 'fxnk_installer="$code_root/fxnk/scripts/install.sh"' scripts/install.sh >/dev/null \
     || fail "installer does not resolve fxnk's Fx installation contract"
 # shellcheck disable=SC2016 # Match the literal installer variable invocation.
-grep -F '"$fxnk_installer" --install' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke fxnk's Fx installation contract"
+grep -F '"$fxnk_installer" --install --sha "$fx_integration_sha"' scripts/install.sh >/dev/null \
+    || fail "installer does not invoke fxnk's exact-SHA Fx installation contract"
 [ ! -e scripts/install-fx ] \
     || fail "AgentStart retains a second Fx installer"
 if grep -F 'https://fx.sh/setup.sh' scripts/install.sh >/dev/null; then
@@ -1319,6 +1321,9 @@ fi
 if grep -Eq 'rm -- .*herdr-agent-state|unlink .*herdr-agent-state' scripts/render-capabilities; then
     fail "render-capabilities removes Pi resources on the unattended path"
 fi
+# shellcheck disable=SC2016 # Match literal generated-manifest variables.
+grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/dev/null \
+    || fail "render-capabilities may prompt before replacing an immutable generated manifest"
 grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
     || fail "full installer does not retire Pi resources after packing them"
 # The list spans two lines, so the order is checked on the joined text rather

@@ -20,6 +20,13 @@ extension prompts, and every resource in the common capability pack. The AI *des
 applications* are not toolchain; they are Homebrew casks, and the machine's.
 _Avoid_: stack, setup.
 
+**Fx Integration consumer pin** — The exact published Fx commit AgentStart
+passes to fxnk's installer after that commit has passed fxnk's Local
+development gate and ship gate. Ordinary convergence reuses the pin; only an
+Fx maintenance cycle advances it, so a moving remote branch is never treated
+as approval.
+_Avoid_: latest Fx, Fx version, integration tip.
+
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Pi, Fx.
 Skills install into harnesses; AgentLaunch shims balance their bare
 launches. _Avoid_: agent (ambiguous with the fleet apps), IDE.

@@ -181,7 +181,10 @@ for skill_dir in "$next_codex/skills"/*/; do
         }
         { print }
     ' "$manifest" >"$manifest.next"
-    mv "$manifest.next" "$manifest"
+    # The skills synchronizer deliberately installs immutable source files.
+    # This compatibility copy is disposable generated output, so replace its
+    # manifest without letting BSD mv ask a foreground installer for approval.
+    mv -f -- "$manifest.next" "$manifest"
 done
 
 rm -rf -- "$claude_plugin_root" "$marketplace_root"
