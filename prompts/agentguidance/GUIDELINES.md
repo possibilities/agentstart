@@ -31,6 +31,12 @@
 - Cap searches at the source, not the reader: `grep -m N`, not `| head`,
   and `< /dev/null` on a grep inside a `while read` loop — some harness
   grep engines outlive the pipe and eat the loop's stdin.
+- Never use raw shell backgrounding (`command &`, `nohup`, `disown`) to keep
+  agent-launched work alive. Use the harness's managed long-lived process
+  facility; for a TUI, REPL, interactive CLI, shell process, or anything that
+  needs a PTY, load `terminal-control`, use a named session, and stop it in
+  cleanup unless the human explicitly asked to retain it. An unmanaged child
+  can outlive its shell with revoked terminal descriptors and spin forever.
 - A clipboard copy leaves nothing on screen, so notify what landed there.
 - Mint a new project with `ghinit`: run it bare from inside the new
   directory directly under `~/code`, or pass a name and it creates
