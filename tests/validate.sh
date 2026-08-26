@@ -163,8 +163,6 @@ grep -q '^name: fleet$' skills/fleet/SKILL.md \
     || fail "the fleet skill frontmatter does not name itself"
 [ -f skills/fleet/agents/openai.yaml ] \
     || fail "the fleet skill is missing its agents/openai.yaml manifest"
-grep -q 'allow_implicit_invocation: true' skills/fleet/agents/openai.yaml \
-    || fail "the fleet skill manifest does not allow implicit invocation"
 [ -s skills/fleet/MAP.md ] \
     || fail "the fleet dependency map is missing: skills/fleet/MAP.md"
 grep -q '```mermaid' skills/fleet/MAP.md \
@@ -184,8 +182,23 @@ grep -q '^name: supervise$' skills/supervise/SKILL.md \
     || fail "the supervise skill frontmatter does not name /supervise"
 [ -f skills/supervise/agents/openai.yaml ] \
     || fail "the supervise skill is missing its agents/openai.yaml manifest"
-grep -q 'allow_implicit_invocation: true' skills/supervise/agents/openai.yaml \
-    || fail "the supervise skill manifest does not allow implicit invocation"
+grep -q '^disable-model-invocation: true$' skills/supervise/SKILL.md \
+    || fail "the supervise skill is not restricted to explicit invocation"
+# Model invocability is one portable fact in SKILL.md. The common-pack render
+# derives Codex's inverse product field; source manifests must not become a
+# second, independently maintained policy.
+if grep -H '^  allow_implicit_invocation:' skills/*/agents/openai.yaml; then
+    fail "source OpenAI manifests contain rendered invocation policy"
+fi
+explicit_model_skills=$(
+    for skill_file in skills/*/SKILL.md; do
+        grep -q '^disable-model-invocation: true$' "$skill_file" || continue
+        skill_dir=${skill_file%/SKILL.md}
+        printf '%s\n' "${skill_dir##*/}"
+    done | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//'
+)
+[ "$explicit_model_skills" = "supervise" ] \
+    || fail "explicit-only skill policy drifted: $explicit_model_skills"
 command -v bun >/dev/null 2>&1 \
     || fail "bun is required to test the supervise skill's TypeScript helpers"
 bun test tests/supervise.test.ts
@@ -783,7 +796,16 @@ grep -F 'allow_implicit_invocation: true' \
     || fail "the invocation-policy renderer changed a read-only manifest's mode"
 grep -F 'allow_implicit_invocation: false' \
     "$fixture_common_root/skills/second/agents/openai.yaml" >/dev/null \
-    || fail "the renderer did not create Codex policy for an explicit-only skill"
+    || fail "the managed Codex projection did not restrict an explicit-only skill"
+grep -F 'allow_implicit_invocation: false' \
+    "$fixture_codex_root/skills/second/agents/openai.yaml" >/dev/null \
+    || fail "the Codex compatibility projection did not restrict an explicit-only skill"
+grep -F 'disable-model-invocation: true' \
+    "$fixture_common_root/skills/second/SKILL.md" >/dev/null \
+    || fail "the portable common pack lost explicit-only skill frontmatter"
+grep -F 'disable-model-invocation: true' \
+    "$fixture_claude_root/skills/second/SKILL.md" >/dev/null \
+    || fail "the Claude projection lost explicit-only skill frontmatter"
 "$root/scripts/render-skill-invocation-policy" --check \
     "$fixture_common_root/skills" >/dev/null \
     || fail "the rendered common pack does not pass its invocation-policy audit"
