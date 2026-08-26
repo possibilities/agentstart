@@ -27,7 +27,12 @@
   successor-session context is a dated `~/handoffs/` file, deleted by its
   consumer. The `document-placement-policy` wiki page is the contract.
 - Publish an artifact only when asked for one, and always through `wiki`,
-  never a harness's own artifact publisher.
+  never a harness's own artifact publisher. For a requested GitHub Gist,
+  create it from the wiki file and open it with
+  `gh gist create FILE --desc "…" --web`; Gists are secret/unlisted by
+  default, so use `--public` only when public indexing was explicitly
+  requested. If the Gist already exists, do not create a duplicate: open it
+  with `gh gist view GIST_ID --web`.
 - Cap searches at the source, not the reader: `grep -m N`, not `| head`,
   and `< /dev/null` on a grep inside a `while read` loop — some harness
   grep engines outlive the pipe and eat the loop's stdin.

@@ -96,6 +96,15 @@ for prompt in SYSTEM.md GUIDELINES.md TOOLS.md; do
     [ -s "prompts/agentguidance/$prompt" ] \
         || fail "extension prompt is missing or empty: prompts/agentguidance/$prompt"
 done
+# Gist publication is a GitHub CLI operation over the durable wiki file. Pin
+# both the create-and-open route and the existing-Gist route so agents do not
+# fall back to a browser app or create a duplicate merely to open it.
+grep -F 'gh gist create FILE --desc "…" --web' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not create and open a requested Gist with gh"
+grep -F 'gh gist view GIST_ID --web' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not open an existing Gist with gh"
+grep -F 'public indexing was explicitly' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not preserve secret/unlisted Gists by default"
 
 # The voice server configuration is linked into ~/.config/agentvoice and
 # read once at server boot; a missing or empty file primes nothing, silently.
