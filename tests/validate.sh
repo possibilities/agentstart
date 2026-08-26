@@ -96,6 +96,12 @@ for prompt in SYSTEM.md GUIDELINES.md TOOLS.md; do
     [ -s "prompts/agentguidance/$prompt" ] \
         || fail "extension prompt is missing or empty: prompts/agentguidance/$prompt"
 done
+# Persistent guidance is file-backed rather than delegated to harness memory,
+# and fleet-specific personal guidance stays in AgentStart's extension layer.
+grep -F 'Do not use harness-provided agent memory' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not reject harness-provided agent memory"
+grep -F 'Place global personal guidance tied to the' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not keep fleet-specific personal guidance in AgentStart"
 # Gist publication is a GitHub CLI operation over the durable wiki file. Pin
 # both the create-and-open route and the existing-Gist route so agents do not
 # fall back to a browser app or create a duplicate merely to open it.
