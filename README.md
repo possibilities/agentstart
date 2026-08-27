@@ -63,6 +63,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     generated live Herdr config and linked fmx key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked default Artbird provider config backed by `agentbrowse provider`;
+  - the pinned Vercel CLI's file-backed release-publisher login, reusing a
+    valid session or starting its device flow when a terminal is present;
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
@@ -86,6 +88,10 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`/`pi`; the machine's wrapper of the same name delegates
   here.
+- `scripts/install-vercel-login --install` — the standalone release-publisher
+  authentication contract used by the full installer. It never asks again
+  while `whoami` succeeds, and refuses a missing login without a terminal
+  instead of hanging. `--check` prints the pinned file-backed probe.
 AI desktop applications are not here by design: the claude and chatgpt casks
 belong to the machine layer, as does the `gh` credential migration.
 

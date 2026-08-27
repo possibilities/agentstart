@@ -540,6 +540,7 @@ Command-line tools:
   npm install --global agent-browser@0.33.2  # Agentweb's config.json digest-locks this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agent-browser-config install  # select agentbrowse's short-lived Artbird provider by default; no provider server or static URL
+  VERCEL_TOKEN_STORAGE=file npx --yes vercel@59.9.1 whoami  # reuse a file-backed login; run the matching login command interactively only when missing
 
 Agent documentation:
   codex mcp add shadcn -- npx shadcn@latest mcp
@@ -1101,6 +1102,13 @@ printf 'Linking the stable agent-browser candidate into ~/.local/bin.\n'
 link_agent_browser
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
+
+# Local Fx and fmx release fallbacks publish through Vercel Blob. Keep the
+# account login file-backed so it survives shells and machine moves, while the
+# publisher itself still exchanges it for one short-lived, store-scoped OIDC
+# credential per run. Existing authentication is a no-op; only a full,
+# terminal-attached install may open Vercel's device flow.
+"$script_dir/install-vercel-login" --install
 
 configure_shadcn_mcp
 

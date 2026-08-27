@@ -63,8 +63,8 @@ in `~/code/agentguidance`.
 
 The external interface is exactly `scripts/install.sh` (`--install`,
 `--check`), `scripts/sync-skills` (`--check`),
-`scripts/update-herdr`, and
-`scripts/install-agentlaunch-shims`. The machine's installer and scheduled
+`scripts/update-herdr`, `scripts/install-vercel-login` (`--install`,
+`--check`), and `scripts/install-agentlaunch-shims`. The machine's installer and scheduled
 updater call these by path with fixed semantics: a missing optional fleet
 checkout is a skip inside the script, a present-but-broken one fails, and
 the updater path (`sync-skills`, `update-herdr`) must stay unattended-safe
@@ -77,6 +77,14 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
+- A fleet release-publisher login: `scripts/install-vercel-login`, invoked by
+  the full installer after `npx` exists. It pins the Vercel CLI, reuses a valid
+  login without prompting, and makes a missing login file-backed through the
+  CLI's own device flow. Never put an access token on a command line or retain
+  a Blob read-write token; fxnk exchanges this account login for short-lived,
+  store-scoped publication credentials. A non-terminal install fails with the
+  exact recovery command instead of hanging, and `--content` never touches
+  authentication.
 - A new fleet tool: add the checkout to the `install-agent-clis` loop if it
   has a CLI installer, and note the ordering constraint in the comment there
   if it has one. The `agent*` skills scan needs nothing. A loop member's

@@ -1,0 +1,72 @@
+#!/bin/bash
+
+set -euo pipefail
+
+vercel_version=59.9.1
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/install-vercel-login [--install|--check]
+
+Converge the file-backed Vercel CLI login used by local fleet release
+publishers. An existing login is a no-op; a missing login requires a terminal
+for Vercel's device authorization flow.
+EOF
+}
+
+die() {
+    printf 'AgentStart Vercel login: %s\n' "$*" >&2
+    exit 1
+}
+
+case "${1:-}" in
+    --install)
+        ;;
+    --check)
+        printf '%s\n' \
+            "VERCEL_TOKEN_STORAGE=file npx --yes vercel@$vercel_version whoami  # reuse a file-backed login; run the matching login command interactively only when missing"
+        exit 0
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac
+[ "$#" -eq 1 ] || {
+    usage >&2
+    exit 64
+}
+
+npx_bin="${AGENTSTART_NPX_BIN:-}"
+if [ -z "$npx_bin" ]; then
+    npx_bin=$(command -v npx) \
+        || die "npx is required; install Node.js before rerunning AgentStart"
+fi
+[ -x "$npx_bin" ] \
+    || die "npx is not executable: $npx_bin"
+
+vercel() {
+    env VERCEL_TOKEN_STORAGE=file \
+        "$npx_bin" --yes "vercel@$vercel_version" "$@"
+}
+
+if vercel whoami >/dev/null 2>&1; then
+    printf 'Vercel CLI file-backed login is already valid.\n'
+    exit 0
+fi
+
+login_command="VERCEL_TOKEN_STORAGE=file npx --yes vercel@$vercel_version login"
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+    die "login is missing and device authorization needs a terminal; run: $login_command"
+fi
+
+printf 'Starting Vercel CLI device authorization with file-backed credential storage.\n'
+vercel login \
+    || die "device authorization failed; retry with: $login_command"
+vercel whoami >/dev/null 2>&1 \
+    || die "device authorization completed without a usable login; retry with: $login_command"
+printf 'Vercel CLI file-backed login is valid.\n'

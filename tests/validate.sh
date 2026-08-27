@@ -18,6 +18,7 @@ scripts/render-capabilities
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
+scripts/install-vercel-login
 scripts/remove-retired-integrations
 scripts/install-launchagents
 scripts/agent-browser-config
@@ -27,6 +28,7 @@ tests/validate.sh
 tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
+tests/vercel-login.sh
 tests/fixtures/npx
 "
 
@@ -44,7 +46,8 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
-    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
+    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
+    scripts/install-vercel-login; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agent-browser-config.sh ] \
@@ -53,6 +56,8 @@ done
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
+[ -x tests/vercel-login.sh ] \
+    || fail "Vercel login test is not executable: tests/vercel-login.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -71,6 +76,7 @@ done
 ' config/agent-browser/config.json >/dev/null \
     || fail "default agent-browser config does not select the agentbrowse Artbird provider"
 tests/agent-browser-config.sh
+tests/vercel-login.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1043,6 +1049,7 @@ for required_install in \
     'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
+    'VERCEL_TOKEN_STORAGE=file npx --yes vercel@59.9.1 whoami  # reuse a file-backed login; run the matching login command interactively only when missing' \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
     'native skills list' \
@@ -1074,6 +1081,10 @@ for required_install in \
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
         || fail "installation plan is missing: $required_install"
 done
+
+# shellcheck disable=SC2016 # Match the literal installer-relative invocation.
+grep -F '"$script_dir/install-vercel-login" --install' scripts/install.sh >/dev/null \
+    || fail "the full installer does not converge the Vercel CLI login"
 
 # shellcheck disable=SC2016 # Match the literal per-user cache root.
 grep -F 'XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code"' \

@@ -20,6 +20,13 @@ extension prompts, and every resource in the common capability pack. The AI *des
 applications* are not toolchain; they are Homebrew casks, and the machine's.
 _Avoid_: stack, setup.
 
+**Release publisher login** — the file-backed Vercel CLI account session that
+the full AgentStart installer verifies and, when missing at a terminal,
+creates through Vercel's own device flow. It is durable account authentication,
+not a Blob credential: fxnk exchanges it for one short-lived, store-scoped OIDC
+token per publication. The unattended content sync never reads or changes it.
+_Avoid_: Blob token, release secret, browser automation.
+
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart
 passes to fxnk's installer after that commit has passed fxnk's Local
 development gate and ship gate. Ordinary convergence reuses the pin; only an
