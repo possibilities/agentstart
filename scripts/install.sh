@@ -515,8 +515,7 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Command-line tools:
-  mkdir -p ~/.cache/claude  # Claude's native installer creates staging below an existing cache root
-  curl -fsSL https://claude.ai/install.sh | bash
+  curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   brew install or upgrade zig  # AgentVoice's native duplex audio path builds against it
@@ -620,11 +619,10 @@ install_or_upgrade_formula() {
 
 export HOMEBREW_NO_ASK=1
 
-# Claude's native installer creates ~/.cache/claude/staging without creating
-# its parent first. Keep that ephemeral cache root convergent so a cleared
-# cache cannot make the harness installation fail before it begins.
-mkdir -p "$HOME/.cache/claude"
-install_official "Claude Code" \
+# Keep Claude's vendor staging under macOS's stable cache root. This machine's
+# ~/.cache may be a machine-managed link to removable scratch storage, while
+# the native installer needs its cache path available during every converge.
+XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code" \
     https://claude.ai/install.sh \
     /bin/bash
 
