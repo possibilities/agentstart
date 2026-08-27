@@ -515,6 +515,7 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Command-line tools:
+  mkdir -p ~/.cache/claude  # Claude's native installer creates staging below an existing cache root
   curl -fsSL https://claude.ai/install.sh | bash
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
@@ -619,6 +620,10 @@ install_or_upgrade_formula() {
 
 export HOMEBREW_NO_ASK=1
 
+# Claude's native installer creates ~/.cache/claude/staging without creating
+# its parent first. Keep that ephemeral cache root convergent so a cleared
+# cache cannot make the harness installation fail before it begins.
+mkdir -p "$HOME/.cache/claude"
 install_official "Claude Code" \
     https://claude.ai/install.sh \
     /bin/bash
