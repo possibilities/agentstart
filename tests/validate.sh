@@ -1237,8 +1237,9 @@ if grep -E 'key = "prefix\+[\[\]]"' config/herdr/config.toml >/dev/null; then
     fail "Herdr config still contains theme-cycling bindings"
 fi
 sidebar_settings=$(grep -E '^sidebar_[[:alnum:]_]* = ' config/herdr/config.toml || true)
-[ "$sidebar_settings" = 'sidebar_max_width = 106' ] \
-    || fail "Herdr sidebar does not keep only its 50%-of-screen width allowance"
+[ "$sidebar_settings" = 'sidebar_max_width = 106
+sidebar_collapsed_mode = "hidden"' ] \
+    || fail "Herdr sidebar does not keep its 50%-of-screen width allowance and hidden collapsed mode"
 if grep -E '^status_indicators = ' config/herdr/config.toml >/dev/null; then
     fail "Herdr config still customizes the left sidebar beyond its width, sort, and agent rows"
 fi
@@ -1258,8 +1259,8 @@ grep -F "[\"state_icon\", { token = \"\$project\", bold = true, dim = false }],"
     || fail "Herdr agent sidebar does not lead with AgentSurface's \$project token"
 grep -F "[\"\$conversation\"]," config/herdr/config.toml >/dev/null \
     || fail "Herdr agent sidebar does not show AgentSurface's \$conversation slug"
-grep -F 'delivery = "system"' config/herdr/config.toml >/dev/null \
-    || fail "Herdr notifications do not use the terminal-notifier-backed system delivery"
+grep -F 'delivery = "off"' config/herdr/config.toml >/dev/null \
+    || fail "Herdr native notifications are not disabled"
 for sound in "done" request; do
     [ -s "assets/herdr-sounds/${sound}.mp3" ] \
         || fail "Herdr ${sound} sound is missing from AgentStart"

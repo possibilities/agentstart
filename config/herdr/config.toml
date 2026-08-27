@@ -168,6 +168,8 @@ agent_panel_sort = "priority"
 # surface is 213 columns here, so 106 columns is the widest whole-cell value
 # that does not exceed 50%.
 sidebar_max_width = 106
+# Collapse completely rather than leaving the compact status rail visible.
+sidebar_collapsed_mode = "hidden"
 # Agent memory per kind ("cc 3.4 / co 2.1"), summed over each agent pane's
 # process tree by Funk's machine-config script. The status area ends flush
 # against the terminal edge, and command output is trimmed before it is drawn,
@@ -195,9 +197,8 @@ rows = [
 ]
 
 [ui.toast]
-# Avoid the single in-app toast slot used by config reloads. On macOS Herdr's
-# system backend prefers terminal-notifier and falls back to AppleScript.
-delivery = "system"
+# Agent state remains visible in the surface; do not deliver native alerts.
+delivery = "off"
 
 [ui.sound]
 # Paths are relative to ~/.config/herdr.
