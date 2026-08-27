@@ -62,7 +62,7 @@ flowchart LR
     launch -->|managed launch| pi
     swap --> codex
     swap --> pi
-    usage -->|snapshot --json| swap
+    usage -->|snapshot --json / select --json [--account]| swap
     usage -->|list --json / recover| claudeSwap
     voice -->|app-server children, login| codex
     voice -->|balance codex| usage
@@ -187,7 +187,7 @@ sentence around the match, never from the name alone.
 | agentlaunch | claude / codex / pi | launches the resolved native harness and sets `AGENTLAUNCH_LAUNCH=1`; AgentStart's bare-command shims route to `agentlaunch --x-harness <harness>` and use that sentinel to exec the real binary on descendant launches | `agentlaunch/src/launch.ts`; `agentstart/scripts/install-agentlaunch-shims`; `agentlaunch/docs/adr/0004-shims-route-bare-calls-the-sentinel-breaks-recursion.md` |
 | codex-swap | codex-multi-auth | exact npm pin, currently 2.8.7. Codex-swap invokes the package-local forced-account wrapper for native Codex runs, resumes, and caller-owned foreground App Servers; its installer no longer binds the fleet to the patched fork | `codex-swap/package.json`; `codex-swap/src/ndy/bin-resolver.ts`; `codex-swap/scripts/install.sh` |
 | agentusage | claude-swap | `cswap list --json` observes Claude accounts; `cswap recover <slot> --json` repairs due expired tokens; its installer converges the public fork's `main` | `agentusage/src/claude/observe.ts:235`; `src/daemon.ts:78`; `scripts/install-providers.sh` |
-| agentusage | codex-swap | `codex-swap snapshot --json` observes codex accounts; paced polling | `agentusage/src/codex/observe.ts:221`, `daemon.ts:19` |
+| agentusage | codex-swap | `codex-swap snapshot --json` observes Codex accounts with paced polling; `codex-swap select --json [--account <focused-key>] [--claim]` performs ordinary or focus-pinned main-lane selection, with the provider retaining eligibility and atomic lease ownership | `agentusage/src/codex/observe.ts` (`observeCodex`); `agentusage/src/daemon.ts`; `agentusage/src/balance/codex.ts` (`delegateCodexSelect`) |
 | agentvoice | codex | runs the resident `codex app-server` under launchd via a rendered wrapper, and `codex login --device-auth` for profile onboarding | `agentvoice/src/resident/contract.ts` (`residentArgv`), `src/resident/install.ts` (`renderWrapper`), `src/main.ts` (`accounts add`) |
 | agentvoice | agentusage → codex-swap | `agentusage balance codex`, falling back to `codex-swap select`, consulted by the resident wrapper at every spawn (`pick-home`) and by the console's rotation check | `agentvoice/src/core/accounts.ts` (`selectAccount`), `src/resident/install.ts` (`runPickHome`), `src/core/runtime.ts` (`maybeRotate`) |
 | agentvoice | herdr | unix-socket IPC, not a spawn: with `surface.events` on, the console holds an `events.subscribe` NDJSON stream on herdr's socket and reconciles via one-shot `agent.list` calls; pane lifecycle events for token-tagged placed workers become `<surface_report>` turns at the orchestrator | `agentvoice/src/core/surface.ts` (`HerdrSurface`), `src/core/runtime.ts` (surface wiring); enabled by `agentstart/prompts/agentvoice/server.json` |
