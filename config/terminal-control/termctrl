@@ -1,0 +1,73 @@
+#!/usr/bin/python3
+# AgentStart-managed Terminal Control shim.
+"""Detach named Terminal Control sessions from the invoking process group."""
+
+from __future__ import annotations
+
+import os
+import signal
+import sys
+
+
+REAL_TERMCTRL = os.path.join(
+    os.environ.get("HOME", ""),
+    ".local",
+    "libexec",
+    "agentstart",
+    "terminal-control",
+    "termctrl",
+)
+
+
+def exec_real() -> None:
+    try:
+        os.execv(REAL_TERMCTRL, [REAL_TERMCTRL, *sys.argv[1:]])
+    except OSError as error:
+        print(
+            f"termctrl shim: cannot execute {REAL_TERMCTRL}: {error}",
+            file=sys.stderr,
+        )
+        raise SystemExit(127) from error
+
+
+def wait_for_launcher(pid: int) -> None:
+    while True:
+        try:
+            _, status = os.waitpid(pid, 0)
+            break
+        except InterruptedError:
+            continue
+
+    if os.WIFEXITED(status):
+        raise SystemExit(os.WEXITSTATUS(status))
+
+    terminating_signal = os.WTERMSIG(status)
+    if terminating_signal not in (signal.SIGKILL, signal.SIGSTOP):
+        signal.signal(terminating_signal, signal.SIG_DFL)
+    os.kill(os.getpid(), terminating_signal)
+    raise SystemExit(128 + terminating_signal)
+
+
+def main() -> None:
+    if len(sys.argv) < 2 or sys.argv[1] != "start":
+        exec_real()
+
+    try:
+        pid = os.fork()
+    except OSError as error:
+        print(f"termctrl shim: cannot fork detached launcher: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+
+    if pid != 0:
+        wait_for_launcher(pid)
+
+    try:
+        os.setsid()
+    except OSError as error:
+        print(f"termctrl shim: cannot create detached session: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    exec_real()
+
+
+if __name__ == "__main__":
+    main()

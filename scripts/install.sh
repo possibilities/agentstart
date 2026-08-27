@@ -526,6 +526,7 @@ Command-line tools:
   brew install or upgrade zig@0.15  # herdr's vendored libghostty-vt pins the 0.15 line; keg-only beside the tracked zig
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
+  install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
   scripts/update-herdr  # herdr from the bound ~/src/herdr checkout: fast-forward clean master, build, install to ~/.local/bin; blocked checkouts notify instead of forcing
   brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
@@ -673,8 +674,10 @@ install_or_upgrade_formula hunk
 # CLI install builds the crates.io release. Rustup gives that build a current
 # stable compiler without changing the operator's default toolchain, and the
 # exact Zig 0.15 line below is shared with herdr because libghostty-vt requires
-# it. Cargo's install root is explicit so the binary lands on the toolchain's
-# already-managed ~/.local/bin path rather than depending on ~/.cargo/bin.
+# it. Cargo's install root remains ~/.local so its release bookkeeping and
+# upgrades stay native. AgentStart temporarily restores the upstream binary to
+# Cargo's expected path before an upgrade, then retains it under libexec and
+# puts the detached-start shim back at the public path.
 printf 'Installing or upgrading Rustup for the Terminal Control build.\n'
 install_or_upgrade_formula rustup
 rustup_bin="$brew_prefix/opt/rustup/bin/rustup"
@@ -692,15 +695,39 @@ install_or_upgrade_formula zig@0.15
 printf 'Installing the stable Rust toolchain for Terminal Control.\n'
 "$rustup_bin" toolchain install stable --profile minimal
 
+termctrl_bin="$HOME/.local/bin/termctrl"
+termctrl_real_dir="$HOME/.local/libexec/agentstart/terminal-control"
+termctrl_real="$termctrl_real_dir/termctrl"
+termctrl_shim="$repo_root/config/terminal-control/termctrl"
+
+# Cargo records the public bin path in its install metadata. Restore the real
+# executable before asking Cargo to converge the crate so a same-version run
+# remains cheap and an available upgrade can replace the binary normally.
+if [ -f "$termctrl_bin" ] &&
+    grep -F -m 1 '# AgentStart-managed Terminal Control shim.' \
+        "$termctrl_bin" >/dev/null 2>&1; then
+    [ -x "$termctrl_real" ] \
+        || die "Terminal Control shim is installed but its upstream executable is missing: $termctrl_real"
+    install -m 0755 "$termctrl_real" "$termctrl_bin"
+fi
+
 printf 'Building and installing Terminal Control from its locked crates.io release.\n'
 PATH="$brew_prefix/opt/zig@0.15/bin:$PATH" \
     "$rustup_bin" run stable cargo install --locked --root "$HOME/.local" terminal-control
-[ -x "$HOME/.local/bin/termctrl" ] \
-    || die "Terminal Control did not install an executable at $HOME/.local/bin/termctrl"
-terminal_control_version=$("$HOME/.local/bin/termctrl" --version)
+[ -x "$termctrl_bin" ] \
+    || die "Terminal Control did not install an executable at $termctrl_bin"
+terminal_control_version_output=$("$termctrl_bin" --version)
+terminal_control_version=$terminal_control_version_output
 terminal_control_version=${terminal_control_version##* }
 [[ "$terminal_control_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] \
     || die "could not resolve the installed Terminal Control version"
+
+printf 'Installing AgentStart detached-start shim for Terminal Control.\n'
+mkdir -p "$termctrl_real_dir"
+install -m 0755 "$termctrl_bin" "$termctrl_real"
+install -m 0755 "$termctrl_shim" "$termctrl_bin"
+[ "$("$termctrl_bin" --version)" = "$terminal_control_version_output" ] \
+    || die "Terminal Control shim does not reach the installed upstream release"
 
 # herdr is the terminal multiplexer agent sessions run inside — an AI tool by
 # the boundary rubric, so AgentStart's, not the machine's. It is bound to the
