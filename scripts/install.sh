@@ -17,7 +17,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # gate approve the published Integration commit. Ordinary convergence reuses
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
-fx_integration_sha=c0f3ec0efd79ff8c4ff897fdc072a9f0ce3d508a
+fx_integration_sha=c8c928a6bd795f583745b79d31db60e55d445f7f
 capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
 common_pack_root="$capabilities_root/packs/common"
 capabilities_skills_state_root="$capabilities_root/skills-state"
@@ -519,7 +519,7 @@ Command-line tools:
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   brew install or upgrade zig  # AgentVoice's native duplex audio path builds against it
-  ~/code/fxnk/scripts/install.sh --install --sha c0f3ec0efd79ff8c4ff897fdc072a9f0ce3d508a  # exact ship-gate-approved Fx Integration consumer pin
+  ~/code/fxnk/scripts/install.sh --install --sha c8c928a6bd795f583745b79d31db60e55d445f7f  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
@@ -531,6 +531,7 @@ Command-line tools:
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout's src/index.ts, so edits are live
+  copy the source-built ~/.local/bin/fx atomically to ~/.local/bin/fmx-fx  # a distinct development install matching fmx's Fx pin, without a second compile
   ~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
@@ -965,15 +966,51 @@ install_herdr_plugins
 fmx_root="$code_root/fmx"
 if [ -f "$fmx_root/package.json" ]; then
     command -v bun >/dev/null 2>&1 || die "bun is required to install fmx"
+    [ -f "$fmx_root/fx.json" ] \
+        || die "fmx checkout has no fx.json; update $fmx_root"
+    fmx_fx_sha=$(jq -r '.commit' "$fmx_root/fx.json") \
+        || die "fmx's fx.json is not valid JSON"
+    [ "$fmx_fx_sha" = "$fx_integration_sha" ] \
+        || die "fmx pins Fx $fmx_fx_sha, but AgentStart pins $fx_integration_sha"
     printf 'Linking fmx editable from %s.\n' "$fmx_root"
     bun install --cwd "$fmx_root" --frozen-lockfile \
         || die "installing fmx dependencies failed"
     (cd "$fmx_root" && bun link) || die "bun link failed for fmx"
+
+    # Fx is native, so it cannot be editable like the TypeScript fmx command.
+    # Reuse the exact ReleaseSafe source build fxnk just installed, but keep a
+    # distinct regular file so fmx owns its private command name and a public
+    # release installer can replace it independently later.
+    development_fx="$HOME/.local/bin/fx"
+    fmx_fx="$HOME/.local/bin/fmx-fx"
+    [ -x "$development_fx" ] \
+        || die "fxnk did not install an executable $development_fx"
+    mkdir -p "$(dirname "$fmx_fx")"
+    fmx_fx_temp=$(mktemp "$fmx_fx.new.XXXXXX") \
+        || die "could not stage the development fmx-fx"
+    if ! cp "$development_fx" "$fmx_fx_temp" \
+        || ! chmod 0755 "$fmx_fx_temp"; then
+        rm -f -- "$fmx_fx_temp"
+        die "could not stage the development fmx-fx"
+    fi
+    fmx_fx_probe=$("$fmx_fx_temp" --fxnk-version 2>/dev/null || true)
+    case "$fmx_fx_probe" in
+        'fxnk 0.5.0 (fx '*) ;;
+        *)
+            rm -f -- "$fmx_fx_temp"
+            die "the development fmx-fx has an incompatible probe: $fmx_fx_probe"
+            ;;
+    esac
+    mv -f "$fmx_fx_temp" "$fmx_fx" \
+        || die "could not install the development fmx-fx"
+
     [ -x "$fmx_root/scripts/install-companion.sh" ] \
         || die "fmx checkout has no scripts/install-companion.sh; update $fmx_root"
     printf 'Installing the Companion fmx is pinned to.\n'
     "$fmx_root/scripts/install-companion.sh" \
         || die "installing fmx's pinned Companion failed"
+    PATH="$HOME/.local/bin:$PATH" bun "$fmx_root/src/index.ts" doctor \
+        || die "the editable fmx installation did not pass doctor"
 else
     printf 'AgentStart installer: no fmx checkout at %s; skipping fmx.\n' \
         "$fmx_root"

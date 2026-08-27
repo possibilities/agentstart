@@ -952,7 +952,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'brew install or upgrade zig  # AgentVoice'"'"'s native duplex audio path builds against it' \
-    '~/code/fxnk/scripts/install.sh --install --sha c0f3ec0efd79ff8c4ff897fdc072a9f0ce3d508a  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/code/fxnk/scripts/install.sh --install --sha c8c928a6bd795f583745b79d31db60e55d445f7f  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
@@ -963,6 +963,7 @@ for required_install in \
     'brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     'bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout'"'"'s src/index.ts, so edits are live' \
+    'copy the source-built ~/.local/bin/fx atomically to ~/.local/bin/fmx-fx  # a distinct development install matching fmx'"'"'s Fx pin, without a second compile' \
     '~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
@@ -1298,6 +1299,25 @@ grep -F 'bun install --cwd "$fmx_root" --frozen-lockfile' scripts/install.sh >/d
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '(cd "$fmx_root" && bun link)' scripts/install.sh >/dev/null \
     || fail "installer does not bun-link fmx editable"
+# The native Fx fork cannot be live-linked. AgentStart reuses fxnk's exact
+# source build as a distinct regular fmx-fx file and refuses pin drift before
+# it does so; it never invokes the public release-artifact installer here.
+# shellcheck disable=SC2016 # Match literal installer variables.
+grep -F '[ "$fmx_fx_sha" = "$fx_integration_sha" ]' scripts/install.sh >/dev/null \
+    || fail "installer does not bind editable fmx to its exact Fx pin"
+# shellcheck disable=SC2016 # Match literal installer variables.
+grep -F 'fmx_fx_temp=$(mktemp "$fmx_fx.new.XXXXXX")' scripts/install.sh >/dev/null \
+    || fail "installer does not stage fmx-fx atomically"
+# shellcheck disable=SC2016 # Match literal installer variables.
+grep -F 'cp "$development_fx" "$fmx_fx_temp"' scripts/install.sh >/dev/null \
+    || fail "installer does not reuse fxnk's source-built Fx for fmx-fx"
+# shellcheck disable=SC2016 # Match literal installer variables.
+grep -F 'PATH="$HOME/.local/bin:$PATH" bun "$fmx_root/src/index.ts" doctor' \
+    scripts/install.sh >/dev/null \
+    || fail "installer does not doctor the editable fmx installation"
+if grep -F 'FMX_FX_SETUP_URL' scripts/install.sh >/dev/null; then
+    fail "AgentStart uses fmx's public release installer instead of its source build"
+fi
 # An editable fmx needs the Companion its companion.json pins on PATH; fmx's
 # own script builds and places it, and the installer never builds it by hand.
 # shellcheck disable=SC2016 # Match the literal installer variables.

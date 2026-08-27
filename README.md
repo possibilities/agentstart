@@ -58,8 +58,9 @@ flags, and skip-versus-fail semantics are load-bearing:
   - Claude Code, Codex, and Pi, by their official installers;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, and the
     Homebrew-installed Hunk review TUI with its version-matched bundled skill;
-  - the editable `bun link` install of the fmx checkout, plus the generated
-    live Herdr config and linked fmx key config;
+  - the editable `bun link` install of the fmx checkout, its private
+    `fmx-fx` copied atomically from fxnk's exact source build, plus the
+    generated live Herdr config and linked fmx key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals;
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
@@ -102,7 +103,11 @@ file, and neither checkout may become program-written state.
 
 fmx installs editable from `~/code/fmx`: a frozen `bun install` plus
 `bun link`, so `~/.bun/bin/fmx` runs the checkout's `src/index.ts` and edits
-there are live without a reinstall. A machine without the checkout skips.
+there are live without a reinstall. Fx is native rather than editable, so the
+installer compiles the gated Integration commit once through fxnk, installs it
+for direct use as `fx`, and atomically copies that same build to the distinct
+`fmx-fx` file after proving it matches fmx's pin. A machine without the fmx
+checkout skips its editable command and private copy.
 
 `scripts/fmx-config install` links `config/fmx/config.toml` into
 `~/.config/fmx/config.toml`. fmx does not write that file, and its `[keys]`
