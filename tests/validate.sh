@@ -20,9 +20,11 @@ scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
 scripts/remove-retired-integrations
 scripts/install-launchagents
+scripts/agent-browser-config
 scripts/fmx-config
 scripts/herdr-config
 tests/validate.sh
+tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
 tests/fixtures/npx
@@ -42,13 +44,29 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
-    scripts/fmx-config scripts/herdr-config; do
+    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
+[ -x tests/agent-browser-config.sh ] \
+    || fail "agent-browser config test is not executable: tests/agent-browser-config.sh"
 [ -x tests/fmx-config.sh ] \
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
+
+[ -s config/agent-browser/config.json ] \
+    || fail "default agent-browser config is missing or empty"
+/usr/bin/jq -e '
+    .provider == "artbird" and
+    (.plugins == [{
+        "name": "artbird",
+        "command": "agentbrowse",
+        "args": ["provider"],
+        "capabilities": ["browser.provider"]
+    }])
+' config/agent-browser/config.json >/dev/null \
+    || fail "default agent-browser config does not select the agentbrowse Artbird provider"
+tests/agent-browser-config.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -974,6 +992,7 @@ for required_install in \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
+    'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
     'native skills list' \
@@ -1423,6 +1442,15 @@ grep -F '"$script_dir/install-agent-clis"' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal status variable in the script.
 grep -F 'exit "$agent_clis_status"' scripts/install.sh >/dev/null \
     || fail "installer does not propagate an agent CLI installation failure"
+# The provider default must land only after the checkout-owned installer has
+# succeeded, so a full converge cannot select a command it failed to install.
+# shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
+agent_clis_line=$(grep -n '^"$script_dir/install-agent-clis"' scripts/install.sh | cut -d: -f1)
+# shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
+agent_browser_config_line=$(grep -n '^"$script_dir/agent-browser-config" install$' scripts/install.sh | cut -d: -f1)
+[ -n "$agent_clis_line" ] && [ -n "$agent_browser_config_line" ] \
+    && [ "$agent_browser_config_line" -gt "$agent_clis_line" ] \
+    || fail "agent-browser config must be linked after agentbrowse installs"
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/remove-retired-integrations"' scripts/install.sh >/dev/null \
     || fail "installer does not run retired integration cleanup"
@@ -1455,12 +1483,12 @@ grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
 # codex-swap itself installed.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agenteditor agentsearch agentkeys agentsource agentweb \
+for expected_tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb \
     agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;

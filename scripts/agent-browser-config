@@ -1,0 +1,79 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'agent-browser-config: %s\n' "$*" >&2
+    exit 1
+}
+
+# Resolve through any command link so the checkout that performed the install
+# remains the source of truth.
+script_path="$0"
+while [ -L "$script_path" ]; do
+    link_target=$(readlink "$script_path")
+    case "$link_target" in
+        /*) script_path="$link_target" ;;
+        *) script_path="$(dirname -- "$script_path")/$link_target" ;;
+    esac
+done
+script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
+repo_root=$(cd -P -- "$script_dir/.." && pwd)
+
+config_source="${AGENTSTART_AGENT_BROWSER_CONFIG_SOURCE:-$repo_root/config/agent-browser/config.json}"
+config_target="${AGENTSTART_AGENT_BROWSER_CONFIG_TARGET:-$HOME/.agent-browser/config.json}"
+jq_bin="${AGENTSTART_JQ_BIN:-/usr/bin/jq}"
+
+validate_config() {
+    [ -x "$jq_bin" ] || die "jq is required to validate the agent-browser config: $jq_bin"
+    [ -s "$config_source" ] \
+        || die "agent-browser config is missing or empty: $config_source"
+    "$jq_bin" -e '
+        .provider == "artbird" and
+        (.plugins | type == "array") and
+        ([.plugins[] | select(
+            .name == "artbird" and
+            .command == "agentbrowse" and
+            .args == ["provider"] and
+            .capabilities == ["browser.provider"]
+        )] | length == 1)
+    ' "$config_source" >/dev/null \
+        || die "agent-browser config does not declare Artbird as the default agentbrowse provider: $config_source"
+}
+
+install_config() {
+    validate_config
+    if [ ! -L "$config_target" ] && [ -e "$config_target" ]; then
+        die "refusing to replace independent agent-browser config: $config_target"
+    fi
+
+    mkdir -p -- "$(dirname -- "$config_target")"
+    ln -sfn -- "$config_source" "$config_target"
+    [ -L "$config_target" ] \
+        || die "agent-browser config target is not a link: $config_target"
+    cmp -s -- "$config_source" "$config_target" \
+        || die "linked agent-browser config does not resolve to $config_source: $config_target"
+}
+
+usage() {
+    cat <<'EOF'
+Usage: agent-browser-config <command>
+
+Commands:
+  install   Link AgentStart's default Artbird provider config into agent-browser
+EOF
+}
+
+case "${1:-}" in
+    install)
+        [ "$#" -eq 1 ] || die "install takes no arguments"
+        install_config
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac

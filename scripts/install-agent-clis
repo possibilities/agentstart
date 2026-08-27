@@ -52,9 +52,13 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # integration; the services moved here and the commands followed, so that no
 # checkout is installed from two places.
 #
+# agentbrowse supplies agent-browser's default Artbird provider. The provider
+# process is short-lived and resolves the Browser target's CDP URL dynamically;
+# there is no provider service to install or configure with a static URL.
+#
 # agentsurface follows agentlaunch: its launcher and its conversation slugs
 # both consume the resolved catalog over `agentlaunch x-catalog`.
-for tool in agentwiki agentboard agenteditor agentsearch agentkeys agentsource agentweb agentscrape \
+for tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb agentscrape \
     agentbrain codex-swap agentusage agentlaunch agentsurface; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then

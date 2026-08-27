@@ -538,6 +538,7 @@ Command-line tools:
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
   npm install --global agent-browser@0.33.2  # Agentweb's config.json digest-locks this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
+  scripts/agent-browser-config install  # select agentbrowse's short-lived Artbird provider by default; no provider server or static URL
 
 Agent documentation:
   codex mcp add shadcn -- npx shadcn@latest mcp
@@ -1199,6 +1200,13 @@ if [ "$agent_clis_status" -ne 0 ]; then
         "$agent_clis_status" >&2
     exit "$agent_clis_status"
 fi
+
+# agent-browser does not write its config during normal browsing, so the
+# operator default can stay linked directly to AgentStart's tracked source.
+# Run this after the fleet CLI loop: a successful full converge must not leave
+# the provider selected without first proving agentbrowse is installed.
+printf "Linking AgentStart's default Artbird provider configuration.\n"
+"$script_dir/agent-browser-config" install
 
 # cass — the coding-agent session search CLI — installs by the agentchats
 # checkout's own contract: the upstream checksummed release plus the index

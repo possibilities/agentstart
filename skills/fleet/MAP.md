@@ -35,6 +35,7 @@ flowchart LR
         scrape[agentscrape]
         web[agentweb]
         browser[agent-browser]
+        browse[agentbrowse]
     end
 
     voice[agentvoice]
@@ -74,6 +75,7 @@ flowchart LR
     scrape -->|drives| browser
     scrape -->|sessions/resolve, unix-socket IPC| web
     web -->|digest-locked launch| browser
+    browser -->|default provider: launch + close over stdio| browse
     board -->|publish --kind render| wiki
     chats -.->|indexes session stores| harnesses
 ```
@@ -92,7 +94,7 @@ flowchart LR
     start ==>|brew formula + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into common| piSubagents[pi-subagents]
-    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agenteditor / agentsearch / agentkeys / agentsource / agentweb / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
+    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse / agenteditor / agentsearch / agentkeys / agentsource / agentweb / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[default common capability pack, agentguidance rendered]
     skills ==>|session composition| launch
     launch ==>|synthetic agent plugin| claude
@@ -172,6 +174,8 @@ sentence around the match, never from the name alone.
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex`/`pi` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit; the command therefore stays editable in place | `agentstart/scripts/install-agent-clis`; `agentsource/scripts/install.sh` |
 | agentstart | agenteditor | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agenteditor` to the checkout's TypeScript entrypoint, and records the deployed commit; the editor therefore follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agenteditor/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agenteditor/test/install.test.ts` |
+| agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After that succeeds, AgentStart links its tracked global agent-browser config with Artbird selected by default | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
+| agent-browser | agentbrowse | the global `browser.provider` plugin config starts `agentbrowse provider` as a short-lived process for manifest, launch, and close requests. The provider provisions or destroys the Artbird Browser target and returns its Tailnet CDP URL dynamically; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` (Use Artbird as an agent-browser provider) |
 | agentstart | agentlaunch / Codex desktop | builds the default `common` capability pack, renders the session-only Claude `agent` plugin input and Codex desktop compatibility plugin, and leaves portable skill manifests bare. AgentLaunch composes per-session projections for all three harnesses and enumerates the compatibility copy's qualified skill names for managed-session suppression; the full installer removes only AgentStart-managed entries from retired compatibility roots, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/config/capabilities/common/*`; `agentstart/docs/adr/0002-compose-capabilities-without-moving-native-stores.md`; `agentlaunch/src/capabilities.ts` |
 | agentlaunch | Claude Code / Codex / Pi | resolves `common` plus repeatable session packs, rejects resource conflicts, and content-addresses immutable projections. Claude receives a synthetic plugin named `agent`; Codex is launched as a remote TUI against a caller-owned foreground App Server after `skills/extraRoots/set` plus session-flag `skills.config` that name-disables every compatibility `$agent:<skill>` alias and path-enables the exact selected bare manifests (with a client-only no-auth provider preventing false onboarding); every `-c` it emits follows the subcommand, because codex-swap appends its own after them and a subcommand's flags discard the global ones; Pi receives explicit skill, extension, and prompt-template paths with ambient discovery disabled. Native stores remain in place, and a receipt keyed by native session id restores non-default packs on resume | `agentlaunch/src/capabilities.ts`; `agentlaunch/src/codex-app-server.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-compose-capabilities-around-native-stores.md` |
 | agentvoice | agentstart / codex | registers `packs/common/skills` through `skills/extraRoots/set` after every attachment and before thread start/resume, and enumerates the compatibility projection's `agent:<skill>` names into a `skills.config` carried by every thread's own params — orchestrator and worker, start and resume. Its resident spawn carries no skill policy: a session flag cannot disable a plugin, which Codex resolves only from persistent layers. It stores no skill copy and keeps the shared native Codex rollout/session store intact across resident and account rotation | `agentvoice/src/capabilities.ts`; `agentvoice/src/core/params.ts`; `agentvoice/src/resident/contract.ts`; `agentvoice/src/core/runtime.ts`; `agentvoice/docs/adr/0006-compose-agentstart-common-before-opening-threads.md` |
@@ -403,3 +407,8 @@ editable fleet CLI installation through its checkout-owned installer.
 Updated again 2026-08-26 for agenteditor: the chromeless human-and-agent text
 editor joins the same editable fleet CLI installation through its
 checkout-owned installer.
+Updated 2026-08-27 for agentbrowse: agent-browser now starts its short-lived
+Artbird provider over standard I/O by default, while AgentStart installs the
+editable provider command and owns the linked global provider configuration.
+The provider returns the Browser target's CDP URL dynamically; no service or
+static provider-instance URL is part of this edge.

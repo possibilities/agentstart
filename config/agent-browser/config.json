@@ -1,0 +1,11 @@
+{
+  "provider": "artbird",
+  "plugins": [
+    {
+      "name": "artbird",
+      "command": "agentbrowse",
+      "args": ["provider"],
+      "capabilities": ["browser.provider"]
+    }
+  ]
+}

@@ -38,8 +38,8 @@ believing any of this.
     the common capability pack and linked from there into the Claude Code,
     Codex, and Pi global slots. Advice belongs in the extension prompts.
 - `config/` — harness configuration, common capability-pack manifests, the
-  Herdr and fmx operator configs, and the launchd templates for fleet services
-  AgentStart owns.
+  agent-browser, Herdr, and fmx operator configs, and the launchd templates for
+  fleet services AgentStart owns.
 - `skills/` — skills this checkout exports through the agent* scan, like any
   other fleet repo. `fleet/` is the dependency map of the whole ecosystem.
 - `tests/validate.sh` — the assertions; run it before committing.
@@ -61,13 +61,14 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the editable `bun link` install of the fmx checkout, its private
     `fmx-fx` copied atomically from fxnk's exact source build, plus the
     generated live Herdr config and linked fmx key config;
-  - the pinned `@native-sdk/cli` and `agent-browser` npm globals;
+  - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
+    linked default Artbird provider config backed by `agentbrowse provider`;
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fleet resources inside the default `common`
     capability pack;
-  - the AgentVoice CLI, and the agentwiki, agentboard, agentsearch,
+  - the AgentVoice CLI, and the agentwiki, agentboard, agentbrowse, agentsearch,
     agentkeys, codex-swap, agentusage, and agentlaunch CLIs;
   - the public `possibilities/claude-swap` fork and the codex-swap provider
     shim, through agentusage's installer;
@@ -113,6 +114,12 @@ checkout skips its editable command and private copy.
 `~/.config/fmx/config.toml`. fmx does not write that file, and its `[keys]`
 schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
 their prefix.
+
+`scripts/agent-browser-config install` links
+`config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
+selects Artbird by default and registers `agentbrowse provider` as the
+short-lived `browser.provider` plugin. The plugin returns each Browser target's
+CDP URL dynamically; no provider server or static instance URL is configured.
 
 ## Working on it
 
