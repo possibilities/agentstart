@@ -1434,12 +1434,12 @@ grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
 # codex-swap itself installed.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentsearch agentkeys agentsource agentweb \
+for expected_tool in agentwiki agentboard agenteditor agentsearch agentkeys agentsource agentweb \
     agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
