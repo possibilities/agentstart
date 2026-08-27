@@ -28,13 +28,14 @@ validate_config() {
     [ -x "$jq_bin" ] || die "jq is required to validate the agent-browser config: $jq_bin"
     [ -s "$config_source" ] \
         || die "agent-browser config is missing or empty: $config_source"
+    # shellcheck disable=SC2016 # Match the literal $HOME expanded by the plugin shell.
     "$jq_bin" -e '
         .provider == "artbird" and
         (.plugins | type == "array") and
         ([.plugins[] | select(
             .name == "artbird" and
-            .command == "agentbrowse" and
-            .args == ["provider"] and
+            .command == "/bin/sh" and
+            .args == ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"] and
             .capabilities == ["browser.provider"]
         )] | length == 1)
     ' "$config_source" >/dev/null \

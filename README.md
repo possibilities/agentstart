@@ -117,9 +117,12 @@ their prefix.
 
 `scripts/agent-browser-config install` links
 `config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
-selects Artbird by default and registers `agentbrowse provider` as the
-short-lived `browser.provider` plugin. The plugin returns each Browser target's
-CDP URL dynamically; no provider server or static instance URL is configured.
+selects Artbird by default and registers the managed
+`~/.local/bin/agentbrowse provider` command as the short-lived
+`browser.provider` plugin. It resolves that link through `$HOME`, not `PATH`,
+so an older Bun-global command cannot shadow it. The plugin returns each
+Browser target's CDP URL dynamically; no provider server or static instance
+URL is configured.
 
 ## Working on it
 

@@ -60,8 +60,8 @@ done
     .provider == "artbird" and
     (.plugins == [{
         "name": "artbird",
-        "command": "agentbrowse",
-        "args": ["provider"],
+        "command": "/bin/sh",
+        "args": ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"],
         "capabilities": ["browser.provider"]
     }])
 ' config/agent-browser/config.json >/dev/null \
