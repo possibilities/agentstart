@@ -60,9 +60,10 @@
   change is clear, and the recap comment once those commits are pushed.
   Anything offered upstream is adversarially reviewed by subagents before
   it is pushed, with the model and effort named.
-- A fleet full-screen TUI follows the Signal Room design language. Before
-  building or reshaping one, read the `fleet-tui-design` wiki page — the
-  shell contract: chromeless, with no header, footer, identity row, or
-  help line; status inside the instrument's panels; every action in the
-  ctrl+k command palette — and the design-language page it opens with,
-  for the tokens and their law. The contracts live there, not here.
+- A fleet full-screen TUI uses exactly one complete design language: fxnk or
+  Signal Room. Never combine their tokens, components, borders, layout
+  vocabulary, or interaction shell. An explicit user or project choice wins;
+  otherwise infer from established repository precedent, and ask the human
+  when that evidence is not reliable. For Signal Room, read the
+  `fleet-tui-design` wiki page and the design-language page it opens with. For
+  fxnk, read `~/code/fxnk/style/STYLE.md`. The contracts live there, not here.
