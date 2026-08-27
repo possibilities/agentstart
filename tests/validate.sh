@@ -53,6 +53,10 @@ done
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
+[ -x config/terminal-control/termctrl ] \
+    || fail "Terminal Control shim is missing or not executable"
+/usr/bin/python3 -c \
+    'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 
 [ -s config/agent-browser/config.json ] \
     || fail "default agent-browser config is missing or empty"
@@ -340,6 +344,51 @@ shim_bypass_output=$(
 )
 [ "$shim_bypass_output" = 'real claude <--version>' ] \
     || fail "AgentLaunch shim did not bypass itself under the recursion sentinel: $shim_bypass_output"
+
+# Terminal Control's named-session daemon must leave the invoking harness's
+# process group, while every other command remains a direct pass-through. The
+# fake payload reports its process identity and arguments so this test proves
+# both properties without starting a persistent daemon.
+termctrl_shim_home="$skip_test_dir/termctrl-shim-home"
+termctrl_fake="$termctrl_shim_home/.local/libexec/agentstart/terminal-control/termctrl"
+mkdir -p "$(dirname "$termctrl_fake")"
+cat >"$termctrl_fake" <<'PYTHON'
+#!/usr/bin/python3
+import json
+import os
+import sys
+
+print(json.dumps({
+    "pid": os.getpid(),
+    "pgid": os.getpgrp(),
+    "sid": os.getsid(0),
+    "args": sys.argv[1:],
+}))
+raise SystemExit(int(os.environ.get("TERMCTRL_FAKE_EXIT", "0")))
+PYTHON
+chmod 0755 "$termctrl_fake"
+termctrl_direct=$(
+    HOME="$termctrl_shim_home" \
+        "$root/config/terminal-control/termctrl" --version
+)
+printf '%s\n' "$termctrl_direct" | /usr/bin/jq -e \
+    '.args == ["--version"]' >/dev/null \
+    || fail "Terminal Control shim changed pass-through arguments"
+termctrl_detached=$(
+    HOME="$termctrl_shim_home" \
+        "$root/config/terminal-control/termctrl" start proof -- /bin/true
+)
+printf '%s\n' "$termctrl_detached" | /usr/bin/jq -e \
+    '.pid == .pgid and .pid == .sid and
+     .args == ["start", "proof", "--", "/bin/true"]' >/dev/null \
+    || fail "Terminal Control start did not execute in a detached session"
+set +e
+HOME="$termctrl_shim_home" TERMCTRL_FAKE_EXIT=23 \
+    "$root/config/terminal-control/termctrl" start exit-proof >/dev/null
+termctrl_exit_status=$?
+set -e
+[ "$termctrl_exit_status" -eq 23 ] \
+    || fail "Terminal Control shim did not preserve the launcher exit status"
 
 # Retired integrations are removed only when they carry exact AgentStart or
 # predecessor-owned markers. Independent files that merely live at old paths
@@ -977,6 +1026,7 @@ for required_install in \
     'brew install or upgrade zig@0.15  # herdr'"'"'s vendored libghostty-vt pins the 0.15 line; keg-only beside the tracked zig' \
     '"$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal' \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
+    'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'scripts/update-herdr  # herdr from the bound ~/src/herdr checkout: fast-forward clean master, build, install to ~/.local/bin; blocked checkouts notify instead of forcing' \
     'brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
@@ -1176,7 +1226,21 @@ grep -F 'PATH="$brew_prefix/opt/zig@0.15/bin:$PATH"' scripts/install.sh >/dev/nu
     || fail "Terminal Control is not built with the required Zig 0.15 line"
 # shellcheck disable=SC2016 # Match the literal cargo install root.
 grep -F 'cargo install --locked --root "$HOME/.local" terminal-control' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the locked Terminal Control crate into ~/.local/bin"
+    || fail "installer does not converge the locked Terminal Control crate"
+grep -F '# AgentStart-managed Terminal Control shim.' \
+    config/terminal-control/termctrl >/dev/null \
+    || fail "Terminal Control shim is missing its ownership marker"
+# shellcheck disable=SC2016 # Match the literal private upstream payload path.
+grep -F 'termctrl_real_dir="$HOME/.local/libexec/agentstart/terminal-control"' \
+    scripts/install.sh >/dev/null \
+    || fail "installer does not retain the upstream Terminal Control executable under libexec"
+grep -F "grep -F -m 1 '# AgentStart-managed Terminal Control shim.'" \
+    scripts/install.sh >/dev/null \
+    || fail "installer cannot recognize and restore its Terminal Control shim before Cargo runs"
+# shellcheck disable=SC2016 # Match the literal shim and public binary variables.
+grep -F 'install -m 0755 "$termctrl_shim" "$termctrl_bin"' \
+    scripts/install.sh >/dev/null \
+    || fail "installer does not put the Terminal Control shim at the public command path"
 # shellcheck disable=SC2016 # Match the literal version variable in the skill source.
 grep -F '"anomalyco/terminal-control@v$terminal_control_version" terminal-control' \
     scripts/install.sh >/dev/null \
