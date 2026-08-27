@@ -54,7 +54,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 #
 # agentsurface follows agentlaunch: its launcher and its conversation slugs
 # both consume the resolved catalog over `agentlaunch x-catalog`.
-for tool in agentwiki agentboard agentsearch agentkeys agentweb agentscrape \
+for tool in agentwiki agentboard agentsearch agentkeys agentsource agentweb agentscrape \
     agentbrain codex-swap agentusage agentlaunch agentsurface; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then
