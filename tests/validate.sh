@@ -1015,6 +1015,7 @@ fi
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
+    'mkdir -p ~/.cache/claude  # Claude'"'"'s native installer creates staging below an existing cache root' \
     'curl -fsSL https://claude.ai/install.sh | bash' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
@@ -1074,6 +1075,10 @@ for required_install in \
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
         || fail "installation plan is missing: $required_install"
 done
+
+# shellcheck disable=SC2016 # Match the literal per-user cache root.
+grep -F 'mkdir -p "$HOME/.cache/claude"' scripts/install.sh >/dev/null \
+    || fail "installer does not create the cache root required by Claude's native installer"
 
 # Fx remains a required harness, but fxnk owns its fork and installer. This
 # repository invokes the public contract and carries no second implementation.
