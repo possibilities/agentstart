@@ -4,7 +4,10 @@ set -euo pipefail
 
 root=$(cd -P -- "$(dirname -- "$0")/.." && pwd)
 helper="$root/scripts/herdr-config"
-test_root=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-herdr-config.XXXXXX")
+# A named-session fixture needs Unix-domain sockets below this directory.
+# macOS's per-user TMPDIR can exceed the socket-path limit once the simulated
+# Herdr config hierarchy is appended, so keep this test-only root short.
+test_root=$(mktemp -d /tmp/agentstart-herdr-config.XXXXXX)
 trap 'rm -rf "$test_root"' EXIT
 
 fail() {
@@ -42,6 +45,12 @@ cat >"$test_bin/herdr" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
+session_name=default
+if [ "${1:-}" = --session ]; then
+    session_name="${2:?missing Herdr session name}"
+    shift 2
+fi
+
 case "${1:-}:${2:-}" in
     config:check)
         printf 'check %s\n' "${HERDR_CONFIG_PATH:?}" >>"${TEST_HERDR_LOG:?}"
@@ -63,7 +72,7 @@ case "${1:-}:${2:-}" in
         fi
         ;;
     server:reload-config)
-        printf 'reload\n' >>"${TEST_HERDR_LOG:?}"
+        printf 'reload %s\n' "$session_name" >>"${TEST_HERDR_LOG:?}"
         if [ "${TEST_HERDR_RELOAD_FAIL:-0}" = 1 ]; then
             printf 'server is not running\n' >&2
             exit 1
@@ -98,6 +107,29 @@ grep -Fqx 'prefix = "ctrl+space"' "$config_target" \
     || fail "generated Herdr config does not carry the tracked base"
 grep -Fqx 'name = "terminal"' "$config_target" \
     || fail "generated Herdr config does not keep the terminal theme"
+
+# A config render reloads the default server and every live named session.
+# Bind then close Unix sockets: the fixture only needs a socket path for the
+# renderer to discover, while the fake Herdr CLI records the reload target.
+session_root="$(dirname -- "$config_target")/sessions"
+mkdir -p "$session_root/jobs" "$session_root/review"
+python3 - "$session_root/jobs/herdr.sock" "$session_root/review/herdr.sock" <<'PY'
+import socket
+import sys
+
+for path in sys.argv[1:]:
+    sock = socket.socket(socket.AF_UNIX)
+    sock.bind(path)
+    sock.close()
+PY
+: >"$test_log"
+"$helper" install >/dev/null
+grep -Fqx 'reload default' "$test_log" \
+    || fail "default Herdr server was not reloaded"
+grep -Fqx 'reload jobs' "$test_log" \
+    || fail "jobs Herdr session was not reloaded"
+grep -Fqx 'reload review' "$test_log" \
+    || fail "review Herdr session was not reloaded"
 
 # The render carries no palette: a color is the one thing it must never add.
 if grep -Eq '^\[theme\.custom\]' "$config_target"; then
@@ -156,7 +188,7 @@ TEST_HERDR_RELOAD_FAIL=1 "$helper" install >/dev/null 2>&1 \
 partial_stderr="$test_root/reload-partial.stderr"
 TEST_HERDR_RELOAD_PARTIAL=1 "$helper" install >/dev/null 2>"$partial_stderr" \
     || fail "a partial Herdr reload made a valid render fail"
-grep -F 'live reload was partial' "$partial_stderr" >/dev/null \
+grep -F 'default server reload was partial' "$partial_stderr" >/dev/null \
     || fail "partial Herdr reload status was hidden"
 grep -F 'unknown config key ui.sidebar_max_width' "$partial_stderr" >/dev/null \
     || fail "partial Herdr reload diagnostic was hidden"
