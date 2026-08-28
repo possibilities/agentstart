@@ -39,6 +39,7 @@ flowchart LR
     end
 
     voice[agentvoice]
+    source[agentsource]
     supervise[agentstart / supervise skill]
     board[agentboard]
     wiki[agentwiki]
@@ -69,6 +70,7 @@ flowchart LR
     voice -->|balance codex| usage
     voice -.->|fallback: select| swap
     voice -->|surface wakes: events.subscribe, unix socket| herdr
+    source -->|read-only agent.list + workspace.list snapshots| herdr
     supervise -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
     supervise -->|readiness, optional self-wake, completion messages| surface
     brain -->|extraction and discovery| scrape
@@ -173,6 +175,7 @@ sentence around the match, never from the name alone.
 | agentstart | codex-swap | `install-agent-clis` invokes `scripts/install.sh --install`, which writes the `codex-swap` command as a source shim into the checkout and installs the exact stock codex-multi-auth npm pin | `agentstart/scripts/install-agent-clis`; `codex-swap/scripts/install.sh` |
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex`/`pi` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, securely creates or preserves the private webhook secret, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit. The explicit `configure-agentsource-webhooks --apply` path discovers this node's Funnel origin and calls `agentsource webhook-configure` to reconcile signed hooks; ordinary install only runs its non-mutating, agent-oriented diagnostic | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/configure-agentsource-webhooks`; `agentsource/scripts/install.sh`; `agentsource/src/cli.ts` |
+| agentsource | herdr | each observation scan invokes `herdr agent list` and `herdr workspace list` exactly once, concurrently. Workspace checkout metadata associates agents first, with the agent cwd as a deterministic fallback; unavailable or malformed Herdr output degrades only agent presence and never makes the Git scan fail | `agentsource/src/herdr.ts` (`readHerdrSnapshot`, `attachAgentPresence`); `agentsource/src/git.ts` (`scanProjects`) |
 | agentstart | agenteditor | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agenteditor` to the checkout's TypeScript entrypoint, and records the deployed commit; the editor therefore follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agenteditor/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agenteditor/test/install.test.ts` |
 | agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After that succeeds, AgentStart links its tracked global agent-browser config with Artbird selected by default | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
 | agent-browser | agentbrowse | the global `browser.provider` plugin config starts the AgentStart-managed `~/.local/bin/agentbrowse provider` through `$HOME` as a short-lived process for manifest, launch, and close requests, bypassing any older same-named command earlier on `PATH`. The provider provisions or destroys the Artbird Browser target and returns its Tailnet CDP URL dynamically; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` (Use Artbird as an agent-browser provider) |
@@ -426,3 +429,6 @@ while ordinary installation performs only a silent-on-health diagnostic that
 hands incomplete authorization back to an agent with human-only steps clearly
 separated. Agentsource owns stable-secret creation, HMAC verification, and the
 installed repository-hook reconciliation subcommand.
+Updated 2026-08-28 for Agentsource agent presence: each observation takes one
+read-only agent and workspace snapshot from Herdr, then associates agents with
+known primary checkouts and linked worktrees without guessing provenance.
