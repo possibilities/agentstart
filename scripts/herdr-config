@@ -134,18 +134,55 @@ render_candidate() {
     mv -f -- "$candidate" "$config_target"
     temporary_file=''
 
+    reload_live_servers
+}
+
+reload_server() {
+    local label="$1"
+    local reload_output
+
+    shift
     reload_output=''
-    if ! reload_output=$("$herdr_bin" server reload-config 2>&1); then
-        printf 'herdr-config: config updated; live reload was skipped: %s\n' \
-            "$reload_output" >&2
-    else
-        case "$reload_output" in
-            *'"status":"partial"'*)
-                printf 'herdr-config: config updated; live reload was partial: %s\n' \
-                    "$reload_output" >&2
+    if ! reload_output=$("$@" server reload-config 2>&1); then
+        printf 'herdr-config: config updated; %s reload was skipped: %s\n' \
+            "$label" "$reload_output" >&2
+        return 0
+    fi
+
+    case "$reload_output" in
+        *'"status":"partial"'*)
+            printf 'herdr-config: config updated; %s reload was partial: %s\n' \
+                "$label" "$reload_output" >&2
+            ;;
+    esac
+}
+
+reload_live_servers() {
+    local session_root
+    local session_dir
+    local session_name
+
+    reload_server 'default server' "$herdr_bin"
+
+    # Named Herdr sessions have independent server processes, each with its
+    # own socket. Reload every reachable one so a config render converges the
+    # live policy everywhere, not only for the default surface.
+    session_root="$(dirname -- "$config_target")/sessions"
+    for session_dir in "$session_root"/*; do
+        [ -d "$session_dir" ] || continue
+        [ -S "$session_dir/herdr.sock" ] || continue
+
+        session_name=$(basename -- "$session_dir")
+        case "$session_name" in
+            ''|*[!A-Za-z0-9_-]*)
+                printf 'herdr-config: ignoring unsafe session directory: %s\n' \
+                    "$session_dir" >&2
+                continue
                 ;;
         esac
-    fi
+
+        reload_server "session $session_name" "$herdr_bin" --session "$session_name"
+    done
 }
 
 install_config() {
