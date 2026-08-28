@@ -18,8 +18,6 @@ scripts/render-capabilities
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
-scripts/install-vercel-login
-scripts/fmx-release-local
 scripts/remove-retired-integrations
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
@@ -30,9 +28,7 @@ tests/validate.sh
 tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
-tests/vercel-login.sh
 tests/agentsource-webhooks.sh
-tests/fmx-release-local.sh
 tests/fixtures/npx
 "
 
@@ -51,8 +47,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/configure-agentsource-webhooks \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
-    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
-    scripts/install-vercel-login scripts/fmx-release-local; do
+    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agent-browser-config.sh ] \
@@ -61,12 +56,8 @@ done
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
-[ -x tests/vercel-login.sh ] \
-    || fail "Vercel login test is not executable: tests/vercel-login.sh"
 [ -x tests/agentsource-webhooks.sh ] \
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
-[ -x tests/fmx-release-local.sh ] \
-    || fail "local Fmx release test is not executable: tests/fmx-release-local.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -85,9 +76,7 @@ done
 ' config/agent-browser/config.json >/dev/null \
     || fail "default agent-browser config does not select the agentbrowse Artbird provider"
 tests/agent-browser-config.sh
-tests/vercel-login.sh
 tests/agentsource-webhooks.sh
-tests/fmx-release-local.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1047,9 +1036,7 @@ for required_install in \
     'scripts/update-herdr  # herdr from the bound ~/src/herdr checkout: fast-forward clean master, build, install to ~/.local/bin; blocked checkouts notify instead of forcing' \
     'brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
-    'bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout'"'"'s src/index.ts, so edits are live' \
-    'copy the source-built ~/.local/bin/fx atomically to ~/.local/bin/fmx-fx  # a distinct development install matching fmx'"'"'s Fx pin, without a second compile' \
-    '~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin' \
+    '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
@@ -1060,8 +1047,7 @@ for required_install in \
     'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
-    'install scripts/fmx-release-local as ~/.local/bin/fmx-release-local  # serialized native arm64 + Rosetta x86_64 Fmx release builder and explicit local publisher' \
-    'VERCEL_TOKEN_STORAGE=file npx --yes vercel@59.9.1 whoami  # reuse a file-backed login; run the matching login command interactively only when missing' \
+    'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
     'native skills list' \
@@ -1094,9 +1080,14 @@ for required_install in \
         || fail "installation plan is missing: $required_install"
 done
 
-# shellcheck disable=SC2016 # Match the literal installer-relative invocation.
-grep -F '"$script_dir/install-vercel-login" --install' scripts/install.sh >/dev/null \
-    || fail "the full installer does not converge the Vercel CLI login"
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F '"$fmx_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
+    || fail "the full installer does not delegate to Fmx's source installer"
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F 'FMX_FX_COMMIT="$fx_integration_sha"' scripts/install.sh >/dev/null \
+    || fail "the Fmx source install is not bound to AgentStart's Fx pin"
+grep -F 'Preserving independent occupant at retired Fmx release path' scripts/install.sh >/dev/null \
+    || fail "the installer does not preserve an independent retired-path occupant"
 
 # shellcheck disable=SC2016 # Match the literal per-user cache root.
 grep -F 'XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code"' \
@@ -1403,38 +1394,18 @@ theme_manager_refs=$(grep -R -Eih 'tinty|tinted-theming|base16|base24|chalk' \
     || fail "the retired Tinty configuration is still in the checkout"
 [ ! -e scripts/herdr-tinty ] \
     || fail "the retired herdr-tinty helper is still in the checkout"
-# fmx installs editable: a frozen dependency install plus bun link, so the
-# global command runs the checkout source directly.
-# shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F 'bun install --cwd "$fmx_root" --frozen-lockfile' scripts/install.sh >/dev/null \
-    || fail "installer does not install fmx dependencies frozen"
-# shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F '(cd "$fmx_root" && bun link)' scripts/install.sh >/dev/null \
-    || fail "installer does not bun-link fmx editable"
-# The native Fx fork cannot be live-linked. AgentStart reuses fxnk's exact
-# source build as a distinct regular fmx-fx file and refuses pin drift before
-# it does so; it never invokes the public release-artifact installer here.
+# Fmx owns the editable link, both native pins, and doctor verification in its
+# canonical source installer. AgentStart proves the pin and passes fxnk's exact
+# source build instead of reproducing those steps.
 # shellcheck disable=SC2016 # Match literal installer variables.
 grep -F '[ "$fmx_fx_sha" = "$fx_integration_sha" ]' scripts/install.sh >/dev/null \
     || fail "installer does not bind editable fmx to its exact Fx pin"
 # shellcheck disable=SC2016 # Match literal installer variables.
-grep -F 'fmx_fx_temp=$(mktemp "$fmx_fx.new.XXXXXX")' scripts/install.sh >/dev/null \
-    || fail "installer does not stage fmx-fx atomically"
-# shellcheck disable=SC2016 # Match literal installer variables.
-grep -F 'cp "$development_fx" "$fmx_fx_temp"' scripts/install.sh >/dev/null \
+grep -F 'FMX_FX_BINARY="$development_fx"' scripts/install.sh >/dev/null \
     || fail "installer does not reuse fxnk's source-built Fx for fmx-fx"
 # shellcheck disable=SC2016 # Match literal installer variables.
-grep -F 'PATH="$HOME/.local/bin:$PATH" bun "$fmx_root/src/index.ts" doctor' \
-    scripts/install.sh >/dev/null \
-    || fail "installer does not doctor the editable fmx installation"
-if grep -F 'FMX_FX_SETUP_URL' scripts/install.sh >/dev/null; then
-    fail "AgentStart uses fmx's public release installer instead of its source build"
-fi
-# An editable fmx needs the Companion its companion.json pins on PATH; fmx's
-# own script builds and places it, and the installer never builds it by hand.
-# shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F '"$fmx_root/scripts/install-companion.sh"' scripts/install.sh >/dev/null \
-    || fail "installer does not install fmx's pinned Companion"
+grep -F '"$fmx_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
+    || fail "installer does not invoke fmx's canonical source installer"
 if grep -F 'Dcompanion' scripts/install.sh >/dev/null; then
     fail "installer builds the Companion by hand instead of through fmx's script"
 fi

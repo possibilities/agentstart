@@ -531,17 +531,14 @@ Command-line tools:
   brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
-  bun install --frozen-lockfile and bun link in ~/code/fmx  # global editable fmx: ~/.bun/bin/fmx runs the checkout's src/index.ts, so edits are live
-  copy the source-built ~/.local/bin/fx atomically to ~/.local/bin/fmx-fx  # a distinct development install matching fmx's Fx pin, without a second compile
-  ~/code/fmx/scripts/install-companion.sh  # the pinned fmx-zmx Companion into ~/.local/bin, built from ~/src/zmx; a no-op while it already reports the pin
+  ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
   npm install --global agent-browser@0.33.2  # Agentweb's config.json digest-locks this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agent-browser-config install  # select agentbrowse's short-lived Artbird provider by default; no provider server or static URL
-  install scripts/fmx-release-local as ~/.local/bin/fmx-release-local  # serialized native arm64 + Rosetta x86_64 Fmx release builder and explicit local publisher
-  VERCEL_TOKEN_STORAGE=file npx --yes vercel@59.9.1 whoami  # reuse a file-backed login; run the matching login command interactively only when missing
+  remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
 
 Agent documentation:
   codex mcp add shadcn -- npx shadcn@latest mcp
@@ -987,64 +984,32 @@ install_herdr_plugins() {
 
 install_herdr_plugins
 
-# fmx — the fx-session terminal multiplexer — is a bun checkout with no
-# installer of its own, so AgentStart owns the editable install: a frozen
-# dependency install plus bun link, which serves ~/.bun/bin/fmx straight from
-# the checkout's src/index.ts, so edits in the checkout are live without a
-# reinstall. An editable fmx has no fmx-zmx beside it the way a release
-# does, so fmx's own script builds the Companion its companion.json pins
-# (from the ~/src/zmx fork checkout when it has the commit) into
-# ~/.local/bin/fmx-zmx — a no-op while the installed one reports the pin.
-# A machine without the checkout skips; a present checkout that fails to
-# install is a real error.
+# fmx owns its consumer and operator source installation. AgentStart delegates
+# the editable link and both exact native pins to that entrypoint, passing the
+# Fx binary fxnk just built only after proving fmx names the same Integration
+# commit. A machine without the checkout skips; a present checkout that fails
+# to install is a real error.
 fmx_root="$code_root/fmx"
 if [ -f "$fmx_root/package.json" ]; then
-    command -v bun >/dev/null 2>&1 || die "bun is required to install fmx"
     [ -f "$fmx_root/fx.json" ] \
         || die "fmx checkout has no fx.json; update $fmx_root"
     fmx_fx_sha=$(jq -r '.commit' "$fmx_root/fx.json") \
         || die "fmx's fx.json is not valid JSON"
     [ "$fmx_fx_sha" = "$fx_integration_sha" ] \
         || die "fmx pins Fx $fmx_fx_sha, but AgentStart pins $fx_integration_sha"
-    printf 'Linking fmx editable from %s.\n' "$fmx_root"
-    bun install --cwd "$fmx_root" --frozen-lockfile \
-        || die "installing fmx dependencies failed"
-    (cd "$fmx_root" && bun link) || die "bun link failed for fmx"
-
-    # Fx is native, so it cannot be editable like the TypeScript fmx command.
-    # Reuse the exact ReleaseSafe source build fxnk just installed, but keep a
-    # distinct regular file so fmx owns its private command name and a public
-    # release installer can replace it independently later.
     development_fx="$HOME/.local/bin/fx"
-    fmx_fx="$HOME/.local/bin/fmx-fx"
     [ -x "$development_fx" ] \
         || die "fxnk did not install an executable $development_fx"
-    mkdir -p "$(dirname "$fmx_fx")"
-    fmx_fx_temp=$(mktemp "$fmx_fx.new.XXXXXX") \
-        || die "could not stage the development fmx-fx"
-    if ! cp "$development_fx" "$fmx_fx_temp" \
-        || ! chmod 0755 "$fmx_fx_temp"; then
-        rm -f -- "$fmx_fx_temp"
-        die "could not stage the development fmx-fx"
-    fi
-    fmx_fx_probe=$("$fmx_fx_temp" --fxnk-version 2>/dev/null || true)
-    case "$fmx_fx_probe" in
-        'fxnk 0.5.0 (fx '*) ;;
-        *)
-            rm -f -- "$fmx_fx_temp"
-            die "the development fmx-fx has an incompatible probe: $fmx_fx_probe"
-            ;;
-    esac
-    mv -f "$fmx_fx_temp" "$fmx_fx" \
-        || die "could not install the development fmx-fx"
-
-    [ -x "$fmx_root/scripts/install-companion.sh" ] \
-        || die "fmx checkout has no scripts/install-companion.sh; update $fmx_root"
-    printf 'Installing the Companion fmx is pinned to.\n'
-    "$fmx_root/scripts/install-companion.sh" \
-        || die "installing fmx's pinned Companion failed"
-    PATH="$HOME/.local/bin:$PATH" bun "$fmx_root/src/index.ts" doctor \
-        || die "the editable fmx installation did not pass doctor"
+    [ -x "$fmx_root/scripts/install.sh" ] \
+        || die "fmx checkout has no executable scripts/install.sh; update $fmx_root"
+    printf 'Installing fmx through its canonical source installer.\n'
+    FMX_FX_BINARY="$development_fx" \
+    FMX_FX_COMMIT="$fx_integration_sha" \
+    FMX_FX_CHECKOUT="$HOME/src/fx" \
+    FMX_COMPANION_CHECKOUT="$HOME/src/zmx" \
+    FMX_INSTALL_BIN_DIR="$HOME/.local/bin" \
+        "$fmx_root/scripts/install.sh" --install \
+        || die "fmx source installation failed"
 else
     printf 'AgentStart installer: no fmx checkout at %s; skipping fmx.\n' \
         "$fmx_root"
@@ -1105,18 +1070,17 @@ link_agent_browser
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
-printf 'Installing the serialized local Fmx release builder.\n'
-mkdir -p "$HOME/.local/bin"
-install -m 0755 "$script_dir/fmx-release-local" "$HOME/.local/bin/fmx-release-local"
-cmp -s "$script_dir/fmx-release-local" "$HOME/.local/bin/fmx-release-local" \
-    || die "local Fmx release builder did not install byte-identically"
-
-# Local Fx and fmx release fallbacks publish through Vercel Blob. Keep the
-# account login file-backed so it survives shells and machine moves, while the
-# publisher itself still exchanges it for one short-lived, store-scoped OIDC
-# credential per run. Existing authentication is a no-op; only a full,
-# terminal-attached install may open Vercel's device flow.
-"$script_dir/install-vercel-login" --install
+# Remove only the helper shape AgentStart installed. The operator's general
+# file-backed Vercel login is independent account state and is left untouched.
+retired_fmx_release="$HOME/.local/bin/fmx-release-local"
+if [ -f "$retired_fmx_release" ] \
+    && grep -F 'repo=possibilities/fmx' "$retired_fmx_release" >/dev/null \
+    && grep -F 'fmx-release-local build --run-id' "$retired_fmx_release" >/dev/null; then
+    rm -f "$retired_fmx_release"
+    printf 'Removed retired AgentStart Fmx release helper: %s.\n' "$retired_fmx_release"
+elif [ -e "$retired_fmx_release" ]; then
+    printf 'Preserving independent occupant at retired Fmx release path: %s.\n' "$retired_fmx_release"
+fi
 
 configure_shadcn_mcp
 

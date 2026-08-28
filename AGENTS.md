@@ -63,8 +63,7 @@ in `~/code/agentguidance`.
 
 The external interface is exactly `scripts/install.sh` (`--install`,
 `--check`), `scripts/sync-skills` (`--check`),
-`scripts/update-herdr`, `scripts/install-vercel-login` (`--install`,
-`--check`), `scripts/fmx-release-local` (`build`, `verify`, `publish`), and
+`scripts/update-herdr` and
 `scripts/install-agentlaunch-shims`. The machine's installer and scheduled
 updater call these by path with fixed semantics: a missing optional fleet
 checkout is a skip inside the script, a present-but-broken one fails, and
@@ -78,23 +77,11 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
-- A fleet release-publisher login: `scripts/install-vercel-login`, invoked by
-  the full installer after `npx` exists. It pins the Vercel CLI, reuses a valid
-  login without prompting, and makes a missing login file-backed through the
-  CLI's own device flow. Never put an access token on a command line or retain
-  a Blob read-write token; fxnk exchanges this account login for short-lived,
-  store-scoped publication credentials. A non-terminal install fails with the
-  exact recovery command instead of hanging, and `--content` never touches
-  authentication.
-- A local Fmx release: `scripts/fmx-release-local`. `build` runs the two Mac
-  builders serially on one Apple-silicon host — arm64 natively, then x86_64
-  through Rosetta with pinned toolchains — and combines them with the named
-  workflow run's already-green Linux artifacts. `publish` is separate and
-  explicit: it requires permission to cancel an active hosted run, exchanges
-  the file-backed login for short-lived store credentials, publicly verifies
-  the complete replacement before latest-only pruning, and tags that exact
-  Fmx commit. Keep release construction in Fmx's own scripts; this wrapper
-  owns only the local orchestration and machine-portable tool cache.
+- Fmx installation: invoke `~/code/fmx/scripts/install.sh --install`, passing
+  the exact Fx binary the fxnk installer just built together with its proved
+  Integration SHA. Fmx owns the consumer path, editable Bun link, private
+  `fmx-fx`, pinned Companion, and doctor verification. AgentStart owns only
+  fleet ordering and the exact-pin equality check.
 - A new fleet tool: add the checkout to the `install-agent-clis` loop if it
   has a CLI installer, and note the ordering constraint in the comment there
   if it has one. The `agent*` skills scan needs nothing. A loop member's

@@ -58,13 +58,10 @@ flags, and skip-versus-fail semantics are load-bearing:
   - Claude Code, Codex, and Pi, by their official installers;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, and the
     Homebrew-installed Hunk review TUI with its version-matched bundled skill;
-  - the editable `bun link` install of the fmx checkout, its private
-    `fmx-fx` copied atomically from fxnk's exact source build, plus the
-    generated live Herdr config and linked fmx key config;
+  - fmx's repository-owned source installer, given fxnk's exact gated Fx
+    build, plus the generated live Herdr config and linked fmx key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked default Artbird provider config backed by `agentbrowse provider`;
-  - the pinned Vercel CLI's file-backed release-publisher login, reusing a
-    valid session or starting its device flow when a terminal is present;
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
@@ -88,19 +85,6 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`/`pi`; the machine's wrapper of the same name delegates
   here.
-- `scripts/install-vercel-login --install` — the standalone release-publisher
-  authentication contract used by the full installer. It never asks again
-  while `whoami` succeeds, and refuses a missing login without a terminal
-  instead of hanging. `--check` prints the pinned file-backed probe.
-- `scripts/fmx-release-local build --run-id ID` — the queue-independent Mac
-  half of an Fmx release. It serializes native arm64 and Rosetta x86_64 builds,
-  runs Fmx's repository-owned package and compiled-pair PTY gates for each,
-  and combines them with the named run's green Linux artifacts. `verify`
-  checks an existing 16-file set. `publish --cancel-run` is deliberately
-  separate: it stops the competing hosted run only after the complete set is
-  proven, publishes with short-lived Vercel credentials, publicly byte-checks
-  it, prunes older Fmx versions, and tags the exact commit. The full installer
-  copies this helper to `~/.local/bin/fmx-release-local`.
 AI desktop applications are not here by design: the claude and chatgpt casks
 belong to the machine layer, as does the `gh` credential migration.
 
@@ -117,13 +101,10 @@ check`, atomically replaces the live file, and asks a running server to reload.
 It is rendered rather than linked because Herdr writes its own keys into that
 file, and neither checkout may become program-written state.
 
-fmx installs editable from `~/code/fmx`: a frozen `bun install` plus
-`bun link`, so `~/.bun/bin/fmx` runs the checkout's `src/index.ts` and edits
-there are live without a reinstall. Fx is native rather than editable, so the
-installer compiles the gated Integration commit once through fxnk, installs it
-for direct use as `fx`, and atomically copies that same build to the distinct
-`fmx-fx` file after proving it matches fmx's pin. A machine without the fmx
-checkout skips its editable command and private copy.
+Fmx installs through `~/code/fmx/scripts/install.sh`, its canonical consumer
+path. AgentStart passes the Fx binary fxnk built from its gated Integration pin
+and the exact SHA; Fmx owns the editable link, private `fmx-fx`, pinned
+Companion, and doctor check. A machine without the fmx checkout skips it.
 
 `scripts/fmx-config install` links `config/fmx/config.toml` into
 `~/.config/fmx/config.toml`. fmx does not write that file, and its `[keys]`

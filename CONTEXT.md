@@ -20,20 +20,10 @@ extension prompts, and every resource in the common capability pack. The AI *des
 applications* are not toolchain; they are Homebrew casks, and the machine's.
 _Avoid_: stack, setup.
 
-**Release publisher login** — the file-backed Vercel CLI account session that
-the full AgentStart installer verifies and, when missing at a terminal,
-creates through Vercel's own device flow. It is durable account authentication,
-not a Blob credential: fxnk exchanges it for one short-lived, store-scoped OIDC
-token per publication. The unattended content sync never reads or changes it.
-_Avoid_: Blob token, release secret, browser automation.
-
-**Local Fmx release path** — AgentStart's serialized fallback for Fmx's hosted
-Mac builders: one Apple-silicon machine builds arm64 natively and x86_64 under
-Rosetta with pinned toolchains, combines those results with completed Linux
-artifacts, and only on a separate explicit publish command cancels the hosted
-run, verifies public bytes, applies latest-only retention, and tags the exact
-commit. _Avoid_: local Actions runner (no runner service is registered),
-manual archive, queue bypass (the repository-owned gates still run).
+**Fmx source installation** — Fmx's repository-owned `scripts/install.sh`,
+which AgentStart invokes with fxnk's exact already-gated Fx source build. It is
+the same path consumers use and publishes no binary artifacts.
+_Avoid_: release path, bucket installer, AgentStart-owned Fmx installer.
 
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart
 passes to fxnk's installer after that commit has passed fxnk's Local
