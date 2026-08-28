@@ -1044,7 +1044,7 @@ for required_install in \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
     'remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
-    'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
+    'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
     'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
@@ -1461,7 +1461,7 @@ if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.s
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi
 grep -F 'agent_browser_version=0.33.2' scripts/install.sh >/dev/null \
-    || fail "installer does not pin agent-browser to the Agentweb-locked build"
+    || fail "installer does not pin the Agentbrowse- and Agentweb-bound agent-browser build"
 grep -F 'refusing to replace independent file' scripts/install.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
 

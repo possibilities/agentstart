@@ -535,7 +535,7 @@ Command-line tools:
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
-  npm install --global agent-browser@0.33.2  # Agentweb's config.json digest-locks this exact build
+  npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agent-browser-config install  # select agentbrowse's short-lived Artbird provider by default; no provider server or static URL
   remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
@@ -1037,13 +1037,13 @@ printf 'Installing the Native SDK CLI %s and its version-matched agent helpers.\
     "$native_sdk_version"
 npm install --global "@native-sdk/cli@$native_sdk_version"
 
-# agent-browser is the browser Agentscrape and Agentweb both drive, and it is
-# pinned rather than tracked: Agentweb records a SHA-256 digest and version lock
-# in its config.json and refuses to launch a browser whose binary does not match,
-# so an unannounced upgrade here would take Agentweb's browser offline until an
-# operator re-locked it. Raising this version means re-locking that config too.
+# agent-browser is the driver shared by Agentbrowse, Agentscrape, and Agentweb.
+# It is pinned rather than tracked: Agentbrowse implements this release's
+# provider protocol, while Agentweb records a SHA-256 digest and version lock in
+# its config.json and refuses to launch a browser whose binary does not match.
+# Raising this version means verifying the provider and re-locking Agentweb.
 agent_browser_version=0.33.2
-printf 'Installing agent-browser %s for Agentscrape and Agentweb.\n' \
+printf 'Installing agent-browser %s for Agentbrowse, Agentscrape, and Agentweb.\n' \
     "$agent_browser_version"
 npm install --global "agent-browser@$agent_browser_version"
 

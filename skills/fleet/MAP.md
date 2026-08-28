@@ -123,7 +123,7 @@ flowchart LR
         brain -.-> chats & scrape & search & wiki
         scrape -.-> brain & browser & search
         search -.-> brain & chats & scrape
-        browser -.-> scrape & search
+        browser -.-> attention & scrape & search
         attention
         wiki -.-> board & brain & chats
         desktop -.-> browser & bus
@@ -240,7 +240,7 @@ sentence around the match, never from the name alone.
 
 | Binary | Version | Why | Evidence |
 | --- | --- | --- | --- |
-| agent-browser | 0.33.2 | one pin, two independent path contracts: Agentweb digest-locks the exact build and launches its configured absolute path (default `~/Library/pnpm/bin/agent-browser`, never PATH), while Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH — relocating one path fixes only that consumer's half | `agentstart/scripts/install.sh` (`agent_browser_version`), `agentweb/src/config-schema.ts:51,83`, `agentweb/src/paths.ts:268`, `agentscrape/src/browser.ts:386` |
+| agent-browser | 0.33.2 | one pin, three contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide, Agentweb digest-locks the exact build at its configured absolute path, and Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH. An upgrade verifies Agentbrowse and re-locks Agentweb; relocating one path still fixes only its consumer | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentweb/src/config-schema.ts:51,83`; `agentweb/src/paths.ts:268`; `agentscrape/src/browser.ts:386` |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
 | zig | Brewfile-tracked, duplicated in the installer | AgentVoice's native duplex audio path and Native SDK packaging build against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | herdr's vendored libghostty-vt pins 0.15 and herdr's release CI builds with this same formula; the official 0.15 tarball cannot link against current macOS SDKs. update-herdr refuses with a notification when the vendored pin drifts off 0.15 | `agentstart/scripts/install.sh`, `agentstart/scripts/update-herdr` (drift gate) |
@@ -286,7 +286,7 @@ independent app-server children do not use codex-swap's removed sidecars.
 | brain | chats, scrape, search, wiki | checked before any web search — search is paid per call; ingestion is scrape-fed. Brain also has an own-`search` subcommand; the skill edge is genuine independently (`agentbrain/skills/brain/SKILL.md:32,172-173,382,415`) |
 | scrape | brain, browser, search | scrape wants a URL in hand; finding URLs is search; interaction is browser |
 | search | brain, chats, scrape | check brain first — the answer is often already local |
-| browser | scrape, search | fetching content is scrape; finding pages is search |
+| browser | attention, scrape, search | human-only interaction with the prepared live target is attention; fetching public content is scrape; finding pages is search (`agentbrowse/skills/browser/SKILL.md`) |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
 | GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
@@ -446,3 +446,8 @@ immediately after Agentbrowse and exclusively owns its resident server; the
 browser processor consumes Agentbrowse's supported OpenTUI library surface
 without changing the pinned external agent-browser dependency. Its tool-owned
 `attention` skill also joins the common TOOLS.md advertisements.
+Updated again 2026-08-28 for browser skill ownership: Agentbrowse now owns the
+fleet's `browser` runbook, resolves each stable agent-browser session to its
+current exact Browser target for Agentattention handoff, and defers changing
+agent-browser command syntax to the binary's version-matched core guide.
+Agentweb keeps its legacy runtime for unmigrated callers but exports no skill.
