@@ -21,6 +21,7 @@ scripts/install-agentvoice-cli
 scripts/install-vercel-login
 scripts/remove-retired-integrations
 scripts/install-launchagents
+scripts/configure-agentsource-webhooks
 scripts/agent-browser-config
 scripts/fmx-config
 scripts/herdr-config
@@ -29,6 +30,7 @@ tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
 tests/vercel-login.sh
+tests/agentsource-webhooks.sh
 tests/fixtures/npx
 "
 
@@ -44,6 +46,7 @@ fi
 for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis \
     scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
+    scripts/configure-agentsource-webhooks \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
@@ -58,6 +61,8 @@ done
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
 [ -x tests/vercel-login.sh ] \
     || fail "Vercel login test is not executable: tests/vercel-login.sh"
+[ -x tests/agentsource-webhooks.sh ] \
+    || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -77,6 +82,7 @@ done
     || fail "default agent-browser config does not select the agentbrowse Artbird provider"
 tests/agent-browser-config.sh
 tests/vercel-login.sh
+tests/agentsource-webhooks.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1637,6 +1643,9 @@ grep -F '"$script_dir/install-launchagents" --install' scripts/install.sh >/dev/
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/install-launchagents" --check' scripts/install.sh >/dev/null \
     || fail "installation plan omits the fleet launch agents"
+# shellcheck disable=SC2016 # Match the literal non-mutating diagnostic invocation.
+grep -F '"$script_dir/configure-agentsource-webhooks" --check || true' scripts/install.sh >/dev/null \
+    || fail "ordinary install does not emit agent guidance for incomplete webhook wiring"
 if rg -n 'agentbus\.(daemon|codex-appserver)' scripts/install-launchagents \
     config/launchd tests/validate.sh >/dev/null; then
     fail "retired AgentBus launch agents remain in the fleet service contract"
@@ -1648,6 +1657,7 @@ agentbrain.doctor|agentbrain|doctor.log|periodic
 agentusage.observer|agentusage|observer.log|resident
 agentweb.broker|agentweb|broker.log|resident
 agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered
+agentsource.receiver|agentsource|receiver.log|resident
 agentwiki.server|agentwiki|server.log|resident'
 for entry in $expected_services; do
     grep -Fq "\"$entry\"" scripts/install-launchagents \
@@ -1704,5 +1714,16 @@ while IFS= read -r label; do
     [ -f "config/launchd/$label.plist" ] \
         || fail "manifest names a service with no template: $label"
 done < <(sed -n 's/^ *"\([a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagents)
+
+grep -Fq '<string>webhook-daemon</string>' config/launchd/agentsource.receiver.plist \
+    || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
+grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/agentsource.receiver.plist \
+    || fail "Agentsource receiver does not name the private secret by path"
+grep -A1 -F '<string>--port</string>' config/launchd/agentsource.receiver.plist \
+    | grep -Fq '<string>8787</string>' \
+    || fail "Agentsource receiver does not pin its Funnel-coupled HTTP port"
+if grep -Eq '<key>[^<]*SECRET[^<]*</key>' config/launchd/agentsource.receiver.plist; then
+    fail "Agentsource receiver rendered a credential-shaped environment variable"
+fi
 
 printf 'ok\n'

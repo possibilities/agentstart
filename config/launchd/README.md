@@ -15,7 +15,7 @@ The frame is identical for every service, and deviating from it is a bug:
 
 - **Label** — `<tool>.<service>`, matching the file name exactly.
 - **Service names are noun roles** — `worker`, `share`, `doctor`, `observer`,
-  `broker`, `queue-processor`, and `server`. A label says what responsibility
+  `broker`, `queue-processor`, `receiver`, and `server`. A label says what responsibility
   the process owns; `daemon`, `serve`, and command spellings do not leak into
   the label.
 - **Ownership marker** — the second line is

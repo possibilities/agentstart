@@ -43,6 +43,7 @@ SERVICES=(
     "agentusage.observer|agentusage|observer.log|resident"
     "agentweb.broker|agentweb|broker.log|resident"
     "agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered"
+    "agentsource.receiver|agentsource|receiver.log|resident"
     "agentwiki.server|agentwiki|server.log|resident"
 )
 
@@ -216,6 +217,10 @@ service_tokens() {
             # derives it.
             printf 'QUEUE=%s\n' \
                 "${XDG_DATA_HOME:-$HOME/.local/share}/agentscrape/queue"
+            ;;
+        agentsource.receiver)
+            printf 'SECRET_FILE=%s\n' \
+                "${AGENTSTART_AGENTSOURCE_SECRET_FILE:-$HOME/.config/agentsource/github-webhook-secret}"
             ;;
         agentwiki.server)
             printf 'PORT=%s\n' "$AGENTWIKI_PORT"

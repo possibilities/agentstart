@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- agentstart-installer-owned: agentsource.receiver.v1 -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>agentsource.receiver</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__PROGRAM__</string>
+		<string>webhook-daemon</string>
+		<string>--port</string>
+		<string>8787</string>
+		<string>--secret-file</string>
+		<string>__SECRET_FILE__</string>
+	</array>
+	<!-- The credential stays in its private file. launchctl print may expose
+	     every argument and environment value, so the plist names only its path. -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>__PATH__</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>Umask</key>
+	<integer>63</integer>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>__LOG__</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG__</string>
+</dict>
+</plist>

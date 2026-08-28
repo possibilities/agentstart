@@ -581,6 +581,7 @@ EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-pi-subagents" --check
     "$script_dir/install-launchagents" --check
+    printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
         "$code_root/agentchats/scripts/install.sh" --check
@@ -1293,6 +1294,12 @@ fi
 # layer keeps its own services, which are the reverse-DNS labels.
 printf 'Installing the fleet launch agents.\n'
 "$script_dir/install-launchagents" --install
+
+# Authorization is never implicit in ordinary convergence. Diagnose the
+# receiver and inspectable webhook path after its CLI and resident service
+# exist; incomplete state prints an agent-ready handoff while a healthy machine
+# remains quiet.
+"$script_dir/configure-agentsource-webhooks" --check || true
 
 # Everything this repository owns as content — skills, prompts, guidance, the
 # statusline, and the rendered capability pack — converges last, on top of the

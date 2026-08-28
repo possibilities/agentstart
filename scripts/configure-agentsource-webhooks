@@ -1,0 +1,313 @@
+#!/bin/bash
+
+set -euo pipefail
+
+mode=check
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+launch_agents_dir="${AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
+state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
+agentsource_bin="$bin_dir/agentsource"
+secret_file="${AGENTSTART_AGENTSOURCE_SECRET_FILE:-$HOME/.config/agentsource/github-webhook-secret}"
+origin_receipt="${AGENTSTART_AGENTSOURCE_ORIGIN_RECEIPT:-$state_root/agentstart/agentsource-webhook-origin}"
+receiver_plist="$launch_agents_dir/agentsource.receiver.plist"
+receiver_proxy=http://127.0.0.1:8787
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/configure-agentsource-webhooks [--check|--apply]
+
+Check or explicitly converge the Tailscale Funnel and GitHub repository hooks
+used by the Agentsource webhook receiver. A healthy check is silent.
+EOF
+}
+
+die() {
+    printf 'AgentStart Agentsource webhooks: %s\n' "$*" >&2
+    exit 1
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --check) mode=check ;;
+        --apply) mode=apply ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+tailscale_bin=$(command -v tailscale 2>/dev/null || true)
+gh_bin=$(command -v gh 2>/dev/null || true)
+jq_bin=$(command -v jq 2>/dev/null || true)
+shasum_bin=$(command -v shasum 2>/dev/null || true)
+curl_bin=$(command -v curl 2>/dev/null || true)
+launchctl_bin="${AGENTSTART_INSTALL_LAUNCHCTL:-$(command -v launchctl 2>/dev/null || true)}"
+
+tailscale_origin() {
+    [ -n "$tailscale_bin" ] && [ -n "$jq_bin" ] || return 1
+    local status hostname
+    status=$("$tailscale_bin" status --json 2>/dev/null) || return 1
+    [ "$(printf '%s' "$status" | "$jq_bin" -r '.BackendState // empty')" = Running ] || return 1
+    hostname=$(printf '%s' "$status" | "$jq_bin" -er '.Self.DNSName // empty' 2>/dev/null) || return 1
+    hostname=${hostname%.}
+    case "$hostname" in
+        *.ts.net) printf 'https://%s\n' "$hostname" ;;
+        *) return 1 ;;
+    esac
+}
+
+funnel_is_ready() {
+    local origin=$1 hostname funnel
+    hostname=${origin#https://}
+    funnel=$("$tailscale_bin" funnel status --json 2>/dev/null) || return 1
+    # shellcheck disable=SC2016 # jq expands its own $endpoint and $proxy variables.
+    printf '%s' "$funnel" | "$jq_bin" -e \
+        --arg endpoint "$hostname:443" --arg proxy "$receiver_proxy" \
+        '.AllowFunnel[$endpoint] == true and
+         .TCP["443"].HTTPS == true and
+         .Web[$endpoint].Handlers["/"].Proxy == $proxy' \
+        >/dev/null 2>&1
+}
+
+funnel_can_converge() {
+    local origin=$1 hostname funnel
+    hostname=${origin#https://}
+    funnel=$("$tailscale_bin" funnel status --json 2>/dev/null) || return 1
+    # Refuse to replace a root handler or raw TCP listener belonging to another
+    # service. The HTTPS terminator Tailscale itself creates for Funnel is safe.
+    # shellcheck disable=SC2016 # jq expands its own $endpoint and $proxy variables.
+    printf '%s' "$funnel" | "$jq_bin" -e \
+        --arg endpoint "$hostname:443" --arg proxy "$receiver_proxy" '
+        (.Web[$endpoint].Handlers // {}) as $handlers |
+        (.TCP["443"] // null) as $tcp |
+        (
+            ($handlers | length) == 0 or
+            (($handlers | length) == 1 and $handlers["/"].Proxy == $proxy)
+        ) and ($tcp == null or $tcp == {"HTTPS": true})
+        ' >/dev/null 2>&1
+}
+
+receiver_is_installed() {
+    [ -f "$receiver_plist" ] && [ ! -L "$receiver_plist" ] &&
+        grep -Fq 'agentstart-installer-owned: agentsource.receiver.v1' "$receiver_plist"
+}
+
+receiver_is_running() {
+    [ -n "$launchctl_bin" ] && [ -n "$curl_bin" ] || return 1
+    local service response
+    service=$("$launchctl_bin" print "gui/$(id -u)/agentsource.receiver" 2>/dev/null) || return 1
+    printf '%s\n' "$service" | grep -Eq '^[[:space:]]*state = running$' || return 1
+    response=$("$curl_bin" --disable --noproxy '*' --silent --show-error --max-time 2 \
+        http://127.0.0.1:8787/ 2>/dev/null) || return 1
+    [ "$response" = '{"error":"method must be POST"}' ]
+}
+
+hooks_are_ready() {
+    local origin=$1 output
+    output=$("$agentsource_bin" webhook-configure \
+        --url "$origin" \
+        --secret-file "$secret_file" \
+        --root "$code_root" 2>&1) || return 1
+    printf '%s\n' "$output" | grep -Eq '^unchanged ' || return 1
+    ! printf '%s\n' "$output" | grep -Eq '^would-(create|update) '
+}
+
+secret_fingerprint() {
+    [ -n "$shasum_bin" ] || return 1
+    "$shasum_bin" -a 256 "$secret_file" 2>/dev/null | awk '{print $1}'
+}
+
+receipt_is_current() {
+    local origin=$1 recorded_origin recorded_fingerprint fingerprint extra
+    [ -f "$origin_receipt" ] && [ ! -L "$origin_receipt" ] || return 1
+    {
+        IFS= read -r recorded_origin
+        IFS= read -r recorded_fingerprint
+        IFS= read -r extra || true
+    } <"$origin_receipt"
+    [ -z "${extra:-}" ] || return 1
+    fingerprint=$(secret_fingerprint) || return 1
+    [ "$recorded_origin" = "$origin" ] && [ "$recorded_fingerprint" = "$fingerprint" ]
+}
+
+print_agent_handoff() {
+    local findings=$1
+    cat >&2 <<EOF
+AgentStart: Agentsource GitHub webhook wiring is incomplete.
+
+Agent handoff
+Detected:
+$findings
+
+Operator approval required:
+  --apply publishes this node through Tailscale Funnel and creates or PATCHes a
+  wildcard webhook on every discovered GitHub project. Do not run it until the
+  operator explicitly approves those external changes.
+
+Agent action after that approval:
+  Run: $script_dir/configure-agentsource-webhooks --apply
+  Verify: $script_dir/configure-agentsource-webhooks --check
+  A healthy verification prints nothing and exits 0.
+
+Human-only authorization, if the apply command requests it:
+  1. Run: tailscale funnel --bg 8787
+  2. Open the authorization URL Tailscale prints and approve Funnel for this node.
+  3. If GitHub CLI authentication is missing, run: gh auth login --hostname github.com --web
+  4. Tell the agent authorization is complete; the agent reruns --apply, then --check.
+
+Security constraint:
+  Never print, replace, copy, or pass the webhook secret value on a command line.
+  Private file: $secret_file
+  Agentsource reads it locally; webhook-configure sends the value only in an
+  authenticated GitHub API request body.
+EOF
+}
+
+check_configuration() {
+    local findings="" origin=""
+    if [ ! -x "$agentsource_bin" ]; then
+        findings="${findings}  - Agentsource is not installed at $agentsource_bin.\n"
+    fi
+    if [ ! -f "$secret_file" ] || [ -L "$secret_file" ]; then
+        findings="${findings}  - The private webhook secret file is missing or unsafe.\n"
+    fi
+    if ! receiver_is_installed; then
+        findings="${findings}  - The agentsource.receiver fleet service is not installed.\n"
+    elif ! receiver_is_running; then
+        findings="${findings}  - The agentsource.receiver service or its loopback listener is not running.\n"
+    fi
+    if origin=$(tailscale_origin); then
+        if ! funnel_is_ready "$origin"; then
+            findings="${findings}  - Tailscale Funnel is not proxying HTTPS to $receiver_proxy.\n"
+        fi
+        if [ -f "$secret_file" ] && [ ! -L "$secret_file" ] && ! receipt_is_current "$origin"; then
+            findings="${findings}  - No successful hook reconciliation is recorded for this Funnel origin and secret.\n"
+        fi
+    else
+        findings="${findings}  - Tailscale is unavailable, signed out, or has no .ts.net hostname.\n"
+    fi
+    if [ -z "$gh_bin" ] || ! "$gh_bin" auth status --hostname github.com >/dev/null 2>&1; then
+        findings="${findings}  - GitHub CLI is not authenticated for github.com.\n"
+    fi
+    if [ -x "$agentsource_bin" ] && [ -f "$secret_file" ] && [ ! -L "$secret_file" ] &&
+        [ -n "$origin" ] && [ -n "$gh_bin" ]; then
+        if ! hooks_are_ready "$origin"; then
+            findings="${findings}  - Inspectable GitHub hook configuration is missing, drifted, or could not be read for one or more local projects.\n"
+        fi
+    fi
+    if [ -z "$findings" ]; then
+        return 0
+    fi
+    print_agent_handoff "$(printf '%b' "$findings")"
+    return 1
+}
+
+write_origin_receipt() {
+    local origin=$1 directory fingerprint
+    fingerprint=$(secret_fingerprint) || die "could not fingerprint the private webhook secret"
+    directory=$(dirname -- "$origin_receipt")
+    if [ -e "$directory" ]; then
+        [ -d "$directory" ] && [ ! -L "$directory" ] || die "unsafe receipt directory: $directory"
+    else
+        mkdir -p -- "$directory"
+    fi
+    chmod 700 "$directory"
+    /usr/bin/python3 - "$origin_receipt" "$origin" "$fingerprint" <<'PYTHON' ||
+import os
+import sys
+import tempfile
+
+destination, origin, fingerprint = sys.argv[1:]
+directory = os.path.dirname(destination)
+descriptor, temporary = tempfile.mkstemp(
+    dir=directory,
+    prefix=".agentsource-webhook-origin.",
+)
+try:
+    os.fchmod(descriptor, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8", closefd=True) as handle:
+        descriptor = -1
+        handle.write(f"{origin}\n{fingerprint}\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, destination)
+    temporary = ""
+    directory_fd = os.open(
+        directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+finally:
+    if descriptor >= 0:
+        os.close(descriptor)
+    if temporary:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+PYTHON
+        die "could not durably record the reconciled Funnel origin"
+}
+
+apply_configuration() {
+    [ -x "$agentsource_bin" ] || die "Agentsource is not installed; run $script_dir/install-agent-clis first"
+    [ -f "$secret_file" ] && [ ! -L "$secret_file" ] ||
+        die "the private webhook secret is missing; run $script_dir/install-agent-clis first"
+    [ -n "$tailscale_bin" ] || die "Tailscale is not installed"
+    [ -n "$jq_bin" ] || die "jq is not installed"
+    [ -n "$shasum_bin" ] || die "shasum is not installed"
+    local origin previous="" funnel_output preflight_output
+    local -a configure_args
+    origin=$(tailscale_origin) || die "Tailscale is signed out or has no .ts.net hostname"
+    funnel_can_converge "$origin" ||
+        die "refusing to replace conflicting Funnel routing; inspect tailscale funnel status and ask the operator how to resolve it"
+    if [ -z "$gh_bin" ] || ! "$gh_bin" auth status --hostname github.com >/dev/null 2>&1; then
+        die "GitHub CLI needs human authentication; run gh auth login --hostname github.com --web"
+    fi
+    if [ -f "$origin_receipt" ] && [ ! -L "$origin_receipt" ]; then
+        IFS= read -r previous <"$origin_receipt" || previous=""
+        [ "$previous" = "$origin" ] && previous=""
+        case "$previous" in
+            "" | https://*.ts.net) ;;
+            *) die "refusing malformed previous Funnel origin receipt: $origin_receipt" ;;
+        esac
+    fi
+    configure_args=(
+        webhook-configure
+        --url "$origin"
+        --secret-file "$secret_file"
+        --root "$code_root"
+    )
+    if [ -n "$previous" ]; then
+        configure_args+=(--previous-url "$previous")
+    fi
+    preflight_output=$("$agentsource_bin" "${configure_args[@]}" 2>&1) ||
+        die "GitHub hook preflight failed: $preflight_output"
+    printf '%s\n' "$preflight_output" | grep -Eq '^(unchanged|would-create|would-update) ' ||
+        die "GitHub hook preflight found no projects to configure"
+    if ! funnel_output=$("$tailscale_bin" funnel --bg 8787 2>&1); then
+        printf '%s\n' "$funnel_output" >&2
+        die "Funnel needs human authorization; follow the human-only steps from --check"
+    fi
+    funnel_is_ready "$origin" || die "Funnel did not converge to $receiver_proxy"
+    "$agentsource_bin" "${configure_args[@]}" --apply
+    write_origin_receipt "$origin"
+    check_configuration
+}
+
+if [ "$mode" = apply ]; then
+    apply_configuration
+else
+    check_configuration
+fi
