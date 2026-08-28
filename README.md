@@ -92,6 +92,15 @@ flags, and skip-versus-fail semantics are load-bearing:
   authentication contract used by the full installer. It never asks again
   while `whoami` succeeds, and refuses a missing login without a terminal
   instead of hanging. `--check` prints the pinned file-backed probe.
+- `scripts/fmx-release-local build --run-id ID` — the queue-independent Mac
+  half of an Fmx release. It serializes native arm64 and Rosetta x86_64 builds,
+  runs Fmx's repository-owned package and compiled-pair PTY gates for each,
+  and combines them with the named run's green Linux artifacts. `verify`
+  checks an existing 16-file set. `publish --cancel-run` is deliberately
+  separate: it stops the competing hosted run only after the complete set is
+  proven, publishes with short-lived Vercel credentials, publicly byte-checks
+  it, prunes older Fmx versions, and tags the exact commit. The full installer
+  copies this helper to `~/.local/bin/fmx-release-local`.
 AI desktop applications are not here by design: the claude and chatgpt casks
 belong to the machine layer, as does the `gh` credential migration.
 

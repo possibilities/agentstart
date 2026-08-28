@@ -27,6 +27,14 @@ not a Blob credential: fxnk exchanges it for one short-lived, store-scoped OIDC
 token per publication. The unattended content sync never reads or changes it.
 _Avoid_: Blob token, release secret, browser automation.
 
+**Local Fmx release path** — AgentStart's serialized fallback for Fmx's hosted
+Mac builders: one Apple-silicon machine builds arm64 natively and x86_64 under
+Rosetta with pinned toolchains, combines those results with completed Linux
+artifacts, and only on a separate explicit publish command cancels the hosted
+run, verifies public bytes, applies latest-only retention, and tags the exact
+commit. _Avoid_: local Actions runner (no runner service is registered),
+manual archive, queue bypass (the repository-owned gates still run).
+
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart
 passes to fxnk's installer after that commit has passed fxnk's Local
 development gate and ship gate. Ordinary convergence reuses the pin; only an

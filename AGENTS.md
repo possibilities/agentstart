@@ -64,7 +64,8 @@ in `~/code/agentguidance`.
 The external interface is exactly `scripts/install.sh` (`--install`,
 `--check`), `scripts/sync-skills` (`--check`),
 `scripts/update-herdr`, `scripts/install-vercel-login` (`--install`,
-`--check`), and `scripts/install-agentlaunch-shims`. The machine's installer and scheduled
+`--check`), `scripts/fmx-release-local` (`build`, `verify`, `publish`), and
+`scripts/install-agentlaunch-shims`. The machine's installer and scheduled
 updater call these by path with fixed semantics: a missing optional fleet
 checkout is a skip inside the script, a present-but-broken one fails, and
 the updater path (`sync-skills`, `update-herdr`) must stay unattended-safe
@@ -85,6 +86,15 @@ Where things go:
   store-scoped publication credentials. A non-terminal install fails with the
   exact recovery command instead of hanging, and `--content` never touches
   authentication.
+- A local Fmx release: `scripts/fmx-release-local`. `build` runs the two Mac
+  builders serially on one Apple-silicon host — arm64 natively, then x86_64
+  through Rosetta with pinned toolchains — and combines them with the named
+  workflow run's already-green Linux artifacts. `publish` is separate and
+  explicit: it requires permission to cancel an active hosted run, exchanges
+  the file-backed login for short-lived store credentials, publicly verifies
+  the complete replacement before latest-only pruning, and tags that exact
+  Fmx commit. Keep release construction in Fmx's own scripts; this wrapper
+  owns only the local orchestration and machine-portable tool cache.
 - A new fleet tool: add the checkout to the `install-agent-clis` loop if it
   has a CLI installer, and note the ordering constraint in the comment there
   if it has one. The `agent*` skills scan needs nothing. A loop member's

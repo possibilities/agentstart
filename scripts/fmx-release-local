@@ -1,0 +1,453 @@
+#!/bin/bash
+
+set -euo pipefail
+
+vercel_version=59.9.1
+bun_version=1.4.0
+bun_x86_archive_sha256=1d0211b8f1dc991182344687ad15e72ee86f154845a5f7fa477994cd341dd9b0
+repo=possibilities/fmx
+fmx_root="${FMX_RELEASE_LOCAL_FMX_ROOT:-$HOME/code/fmx}"
+output="${FMX_RELEASE_LOCAL_OUTPUT:-}"
+run_id=""
+cancel_run=0
+cleanup_root=""
+temp_base="${TMPDIR:-/tmp}"
+temp_base="${temp_base%/}"
+command_name="${1:-}"
+[ "$#" -gt 0 ] && shift
+
+usage() {
+    cat <<'EOF'
+Usage:
+  fmx-release-local build --run-id ID [--fmx-root PATH] [--output PATH]
+  fmx-release-local verify --output PATH
+  fmx-release-local publish --run-id ID --output PATH [--cancel-run]
+
+Build both macOS release jobs serially on one Apple-silicon Mac: arm64
+natively, then x86_64 under Rosetta with pinned x86_64 Bun and Zig. The build
+downloads the two already-green Linux artifact sets from the named Fmx Actions
+run and writes one complete, checksum-verified 16-file release directory.
+
+Publish is a separate, explicit act. It refuses an active Actions run unless
+--cancel-run is present, exchanges AgentStart's file-backed Vercel login for
+short-lived store credentials, publishes and publicly verifies every byte,
+prunes older Fmx release objects, and pushes the exact version tag. It never
+retains a Blob read-write token.
+EOF
+}
+
+fail() {
+    printf 'fmx-release-local: %s\n' "$*" >&2
+    exit 1
+}
+
+cleanup() {
+    [ -n "$cleanup_root" ] || return 0
+    case "$cleanup_root" in
+        "$temp_base"/agentstart-fmx-release.*|"$temp_base"/agentstart-fmx-publish.*)
+            rm -rf -- "$cleanup_root"
+            cleanup_root=""
+            ;;
+        *)
+            printf 'fmx-release-local: refusing to clean unexpected path: %s\n' "$cleanup_root" >&2
+            ;;
+    esac
+}
+trap cleanup EXIT
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --run-id)
+            [ "$#" -ge 2 ] || fail "--run-id needs a value"
+            run_id="$2"
+            shift 2
+            ;;
+        --fmx-root)
+            [ "$#" -ge 2 ] || fail "--fmx-root needs a value"
+            fmx_root="$2"
+            shift 2
+            ;;
+        --output)
+            [ "$#" -ge 2 ] || fail "--output needs a value"
+            output="$2"
+            shift 2
+            ;;
+        --cancel-run)
+            cancel_run=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 64
+            ;;
+    esac
+done
+
+case "$command_name" in
+    build|verify|publish) ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac
+
+[ -n "$output" ] || output="$HOME/.local/state/agentstart/fmx-release/output"
+
+sha256_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        shasum -a 256 "$1" | awk '{print $1}'
+    fi
+}
+
+verify_release_set() {
+    local platform extension archive expected actual count
+    [ -d "$output" ] || fail "release directory is missing: $output"
+    for platform in linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64; do
+        for extension in tar.xz tar.gz; do
+            archive="fmx-$platform.$extension"
+            [ -f "$output/$archive" ] || fail "missing release archive: $archive"
+            [ -f "$output/$archive.sha256" ] || fail "missing release checksum: $archive.sha256"
+            expected=$(awk 'NR == 1 {print $1}' "$output/$archive.sha256")
+            actual=$(sha256_file "$output/$archive")
+            [ "$expected" = "$actual" ] || fail "checksum mismatch: $archive"
+        done
+    done
+    count=$(find "$output" -maxdepth 1 -type f | wc -l | tr -d ' ')
+    [ "$count" = 16 ] || fail "release directory has $count files, expected exactly 16"
+}
+
+verify_run() {
+    local run_json workflow head_sha local_sha
+    [ -n "$run_id" ] || fail "--run-id is required"
+    [[ "$run_id" =~ ^[0-9]+$ ]] || fail "run id must be numeric"
+    run_json=$(gh run view "$run_id" --repo "$repo" --json workflowName,headSha,status,conclusion)
+    workflow=$(jq -r .workflowName <<<"$run_json")
+    [ "$workflow" = "Release native binaries" ] || fail "run $run_id is not the Fmx release workflow"
+    head_sha=$(jq -r .headSha <<<"$run_json")
+    local_sha=$(git -C "$fmx_root" rev-parse HEAD)
+    [ "$head_sha" = "$local_sha" ] || fail "run $run_id is for $head_sha, but Fmx is $local_sha"
+    printf '%s\n' "$run_json"
+}
+
+run_pty_gate() {
+    local bun_bin="$1"
+    (
+        cd "$fmx_root"
+        FMX_BINARY_PATH="$fmx_root/dist/fmx" \
+            FMX_ZMX_PATH="$fmx_root/dist/fmx-zmx" \
+            FMX_RUN_PTY_TESTS=1 \
+            "$bun_bin" test tests/multiplexer.e2e.test.ts
+    )
+}
+
+build_release_set() {
+    local work_root tools_root x86_bun x86_zig x86_path native_bun
+    local run_json run_status hosted_dir bun_archive
+    [ "$(uname -s)" = Darwin ] || fail "local macOS release builds require macOS"
+    [ "$(uname -m)" = arm64 ] || fail "the serialized dual-architecture builder requires Apple silicon"
+    command -v gh >/dev/null 2>&1 || fail "gh is required"
+    command -v jq >/dev/null 2>&1 || fail "jq is required"
+    command -v bun >/dev/null 2>&1 || fail "Bun is required"
+    command -v xz >/dev/null 2>&1 || fail "xz is required"
+    [ -x "$fmx_root/scripts/build-release.sh" ] || fail "Fmx release builder is unavailable: $fmx_root"
+    [ -x "$fmx_root/scripts/ci-install-zig.sh" ] || fail "Fmx Zig installer is unavailable: $fmx_root"
+    [ -z "$(git -C "$fmx_root" status --porcelain)" ] || fail "Fmx checkout is not clean"
+    run_json=$(verify_run)
+    run_status=$(jq -r .status <<<"$run_json")
+    case "$run_status" in queued|in_progress|completed) ;; *) fail "run $run_id has unexpected state: $run_status" ;; esac
+
+    mkdir -p "$output"
+    work_root=$(mktemp -d "$temp_base/agentstart-fmx-release.XXXXXX")
+    cleanup_root="$work_root"
+    tools_root="$HOME/.local/share/agentstart/fmx-release"
+    mkdir -p "$tools_root" "$work_root/hosted"
+
+    native_bun=$(command -v bun)
+    [ "$("$native_bun" --version)" = "$bun_version" ] \
+        || fail "native Bun must be $bun_version"
+    printf 'Building macos-aarch64 locally.\n'
+    (cd "$fmx_root" && "$native_bun" install --frozen-lockfile)
+    FMX_RELEASE_DIR="$output" "$fmx_root/scripts/build-release.sh" macos-aarch64
+    run_pty_gate "$native_bun"
+
+    /usr/bin/arch -x86_64 /usr/bin/uname -m 2>/dev/null | grep -qx x86_64 \
+        || fail "Rosetta x86_64 execution is unavailable"
+    bun_archive="$tools_root/bun-v$bun_version-darwin-x64.zip"
+    if [ ! -f "$bun_archive" ] || [ "$(sha256_file "$bun_archive")" != "$bun_x86_archive_sha256" ]; then
+        curl --fail --silent --show-error --location --retry 3 \
+            -o "$bun_archive.part" \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$bun_version/bun-darwin-x64.zip"
+        [ "$(sha256_file "$bun_archive.part")" = "$bun_x86_archive_sha256" ] \
+            || fail "x86_64 Bun archive checksum mismatch"
+        mv "$bun_archive.part" "$bun_archive"
+    fi
+    /usr/bin/unzip -q "$bun_archive" -d "$work_root"
+    x86_bun="$work_root/bun-darwin-x64/bun"
+    [ "$(/usr/bin/arch -x86_64 "$x86_bun" --version)" = "$bun_version" ] \
+        || fail "x86_64 Bun did not report $bun_version"
+    ZIG_INSTALL_ROOT="$tools_root/zig" \
+        /usr/bin/arch -x86_64 /bin/bash "$fmx_root/scripts/ci-install-zig.sh"
+    x86_zig="$tools_root/zig/zig-x86_64-macos-0.16.0"
+    x86_path="$work_root/bun-darwin-x64:$x86_zig:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    printf 'Building macos-x86_64 locally under Rosetta.\n'
+    (cd "$fmx_root" && PATH="$x86_path" /usr/bin/arch -x86_64 "$x86_bun" install --frozen-lockfile)
+    PATH="$x86_path" FMX_RELEASE_DIR="$output" \
+        /usr/bin/arch -x86_64 /bin/bash "$fmx_root/scripts/build-release.sh" macos-x86_64
+    PATH="$x86_path" /usr/bin/arch -x86_64 /usr/bin/env \
+        FMX_BINARY_PATH="$fmx_root/dist/fmx" \
+        FMX_ZMX_PATH="$fmx_root/dist/fmx-zmx" \
+        FMX_RUN_PTY_TESTS=1 \
+        "$x86_bun" test "$fmx_root/tests/multiplexer.e2e.test.ts"
+
+    # Restore the checkout's native optional dependency set after the Rosetta
+    # build. The release outputs are already outside node_modules.
+    (cd "$fmx_root" && "$native_bun" install --frozen-lockfile)
+
+    printf 'Downloading verified Linux artifacts from run %s.\n' "$run_id"
+    gh run download "$run_id" --repo "$repo" \
+        --name fmx-linux-aarch64 --name fmx-linux-x86_64 \
+        --dir "$work_root/hosted"
+    for hosted_dir in "$work_root"/hosted/fmx-linux-*; do
+        cp "$hosted_dir"/* "$output/"
+    done
+    verify_release_set
+    printf 'Built and verified the complete Fmx release set in %s.\n' "$output"
+    cleanup
+}
+
+cancel_active_run() {
+    local run_json run_status
+    run_json=$(verify_run)
+    run_status=$(jq -r .status <<<"$run_json")
+    case "$run_status" in
+        completed) return 0 ;;
+        queued|in_progress)
+            [ "$cancel_run" -eq 1 ] \
+                || fail "run $run_id is active; pass --cancel-run before publication"
+            gh run cancel "$run_id" --repo "$repo"
+            for _ in $(seq 1 60); do
+                run_status=$(gh run view "$run_id" --repo "$repo" --json status --jq .status)
+                [ "$run_status" = completed ] && return 0
+                sleep 2
+            done
+            fail "run $run_id did not stop within 120 seconds"
+            ;;
+        *) fail "run $run_id has unexpected state: $run_status" ;;
+    esac
+}
+
+publish_release_set() {
+    local work_root credentials release_base_url release_scope release_store
+    local stores_json store_count store_id project_count project_id pulled_store oidc_token
+    local version head_sha tag archive platform extension content_type existing pathname
+    local historical_count all_count latest_setup receipt_dir receipt_temp artifact_json
+    local -a historical_paths=()
+    verify_release_set
+    [ -z "$(git -C "$fmx_root" status --porcelain)" ] || fail "Fmx checkout is not clean"
+    cancel_active_run
+    head_sha=$(git -C "$fmx_root" rev-parse HEAD)
+    version=$(jq -r .version "$fmx_root/package.json")
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]] \
+        || fail "Fmx package version is not SemVer"
+    tag="v$version"
+    release_base_url=$(gh variable get FMX_RELEASE_BASE_URL --repo "$repo")
+    release_scope=$(gh variable get FMX_RELEASE_SCOPE --repo "$repo")
+    release_store=$(gh variable get FMX_RELEASE_STORE --repo "$repo")
+    [[ "$release_base_url" =~ ^https://[A-Za-z0-9][A-Za-z0-9.-]*\.public\.blob\.vercel-storage\.com$ ]] \
+        || fail "FMX_RELEASE_BASE_URL is not a root public Vercel Blob URL"
+
+    git -C "$fmx_root" fetch origin main --tags
+    [ "$(git -C "$fmx_root" rev-parse refs/heads/main)" = "$head_sha" ] \
+        || fail "local Fmx main does not match release commit $head_sha"
+    [ "$(git -C "$fmx_root" rev-parse refs/remotes/origin/main)" = "$head_sha" ] \
+        || fail "origin/main does not match release commit $head_sha"
+    work_root=$(mktemp -d "$temp_base/agentstart-fmx-publish.XXXXXX")
+    cleanup_root="$work_root"
+    credentials="$work_root/vercel"
+    mkdir -p "$credentials"
+    chmod 0700 "$credentials"
+    stores_json="$credentials/stores.json"
+    export VERCEL_TOKEN_STORAGE=file
+    (
+        cd "$credentials"
+        npx --yes "vercel@$vercel_version" \
+            blob list-stores --all --json --scope "$release_scope" > "$stores_json"
+    )
+    store_count=$(jq --arg store "$release_store" \
+        '[.stores[] | select(.id == $store or (.id | sub("^store_"; "")) == $store or .name == $store)] | length' \
+        "$stores_json")
+    [ "$store_count" = 1 ] || fail "FMX_RELEASE_STORE does not identify exactly one store"
+    store_id=$(jq -r --arg store "$release_store" \
+        '.stores[] | select(.id == $store or (.id | sub("^store_"; "")) == $store or .name == $store) | .id' \
+        "$stores_json")
+    project_count=$(jq --arg store "$release_store" \
+        '[.stores[] | select(.id == $store or (.id | sub("^store_"; "")) == $store or .name == $store) | .projects[]] | length' \
+        "$stores_json")
+    project_id=$(jq -r --arg store "$release_store" \
+        '.stores[] | select(.id == $store or (.id | sub("^store_"; "")) == $store or .name == $store) | .projects[].id' \
+        "$stores_json")
+    [ "$project_count" = 1 ] || fail "release store does not identify exactly one connected project"
+    (
+        cd "$credentials"
+        npx --yes "vercel@$vercel_version" env pull .env.local \
+            --yes --environment=development --project "$project_id" --scope "$release_scope" >/dev/null
+    )
+    chmod 0600 "$credentials/.env.local"
+    pulled_store=$(sed -n 's/^BLOB_STORE_ID=//p' "$credentials/.env.local" | tail -n 1 | tr -d '"')
+    [ "${pulled_store#store_}" = "${store_id#store_}" ] \
+        || fail "short-lived credentials identify another Blob store"
+    oidc_token=$(sed -n 's/^VERCEL_OIDC_TOKEN=//p' "$credentials/.env.local" | tail -n 1 | tr -d '"')
+    [[ "$oidc_token" =~ ^[A-Za-z0-9_.-]+$ ]] || fail "Vercel did not issue an OIDC token"
+    export VERCEL_OIDC_TOKEN="$oidc_token"
+    export BLOB_STORE_ID="$pulled_store"
+    export VERCEL_PROJECT_ID="$project_id"
+    export VERCEL_ENV=development
+
+    for platform in linux-x86_64 linux-aarch64 macos-x86_64 macos-aarch64; do
+        for extension in tar.xz tar.gz; do
+            archive="fmx-$platform.$extension"
+            content_type=application/gzip
+            [ "$extension" = tar.xz ] && content_type=application/x-xz
+            for pathname in "$archive" "$archive.sha256"; do
+                existing="$work_root/existing-$pathname"
+                if curl --fail --silent --location \
+                    "$release_base_url/releases/$tag/$pathname" -o "$existing"; then
+                    cmp -s "$output/$pathname" "$existing" \
+                        || fail "immutable path has different content: releases/$tag/$pathname"
+                    printf 'Already published: releases/%s/%s\n' "$tag" "$pathname"
+                    continue
+                fi
+                [ "$pathname" = "$archive.sha256" ] && content_type=text/plain
+                (
+                    cd "$credentials"
+                    npx --yes "vercel@$vercel_version" blob put "$output/$pathname" \
+                        --access public --pathname "releases/$tag/$pathname" \
+                        --content-type "$content_type" --cache-control-max-age=31536000 >/dev/null
+                )
+                printf 'Published: releases/%s/%s\n' "$tag" "$pathname"
+            done
+        done
+    done
+    latest_setup="$work_root/setup.sh"
+    sed -e "s|__FMX_RELEASE_BASE_URL__|$release_base_url|g" \
+        -e "s|__FMX_FX_SETUP_URL__|$release_base_url/fx/setup.sh|g" \
+        "$fmx_root/setup.sh" > "$latest_setup"
+    bash -n "$latest_setup"
+    printf '%s' "$tag" > "$work_root/latest.txt"
+    (
+        cd "$credentials"
+        npx --yes "vercel@$vercel_version" blob put "$latest_setup" --access public \
+            --pathname setup.sh --content-type text/x-shellscript \
+            --allow-overwrite=true --cache-control-max-age=300 >/dev/null
+        npx --yes "vercel@$vercel_version" blob put "$work_root/latest.txt" --access public \
+            --pathname latest.txt --content-type text/plain \
+            --allow-overwrite=true --cache-control-max-age=60 >/dev/null
+    )
+
+    public_get() {
+        local url="$1" destination="$2"
+        for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error --location \
+                "$url" -o "$destination" 2>/dev/null; then
+                return 0
+            fi
+            sleep 2
+        done
+        return 1
+    }
+    for pathname in "$output"/*; do
+        archive=${pathname##*/}
+        public_get \
+            "$release_base_url/releases/$tag/$archive?verify=$head_sha" \
+            "$work_root/public-$archive"
+        cmp -s "$pathname" "$work_root/public-$archive" \
+            || fail "public artifact differs: $archive"
+    done
+    public_get "$release_base_url/setup.sh?verify=$head_sha" "$work_root/public-setup.sh"
+    cmp -s "$latest_setup" "$work_root/public-setup.sh" || fail "public setup.sh differs"
+    public_get "$release_base_url/latest.txt?verify=$head_sha" "$work_root/public-latest.txt"
+    cmp -s "$work_root/latest.txt" "$work_root/public-latest.txt" || fail "public latest.txt differs"
+
+    (
+        cd "$credentials"
+        npx --yes "vercel@$vercel_version" blob list --limit 1000 --mode expanded
+    ) > "$work_root/blob-list.txt" 2>&1
+    all_count=0
+    while IFS= read -r pathname; do
+        [ -n "$pathname" ] || continue
+        all_count=$((all_count + 1))
+        case "$pathname" in
+            releases/*)
+                case "$pathname" in releases/"$tag"/*) ;; *) historical_paths+=("$pathname") ;; esac
+                ;;
+        esac
+    done < <(awk 'NF >= 4 && $3 ~ /\// && $4 ~ /^https:\/\// {print $3}' "$work_root/blob-list.txt")
+    [ "$all_count" -lt 1000 ] || fail "Blob retention discovery reached its bound"
+    historical_count=${#historical_paths[@]}
+    if [ "$historical_count" -gt 0 ]; then
+        for pathname in "${historical_paths[@]}"; do
+            case "$pathname" in releases/*) ;; *) fail "retention selected unrelated path: $pathname" ;; esac
+            case "$pathname" in releases/"$tag"/*) fail "retention selected current release: $pathname" ;; esac
+        done
+        (cd "$credentials" && npx --yes "vercel@$vercel_version" blob del "${historical_paths[@]}" >/dev/null)
+    fi
+    (
+        cd "$credentials"
+        npx --yes "vercel@$vercel_version" blob list --limit 1000 --mode expanded
+    ) > "$work_root/blob-list-after-prune.txt" 2>&1
+    while IFS= read -r pathname; do
+        case "$pathname" in
+            releases/*)
+                case "$pathname" in
+                    releases/"$tag"/*) ;;
+                    *) fail "historical Blob path remains after pruning: $pathname" ;;
+                esac
+                ;;
+        esac
+    done < <(awk 'NF >= 4 && $3 ~ /\// && $4 ~ /^https:\/\// {print $3}' "$work_root/blob-list-after-prune.txt")
+
+    if git -C "$fmx_root" rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+        [ "$(git -C "$fmx_root" rev-parse "refs/tags/$tag^{commit}")" = "$head_sha" ] \
+            || fail "local tag $tag points to another commit"
+    else
+        git -C "$fmx_root" tag "$tag" "$head_sha"
+    fi
+    remote_tag=$(git -C "$fmx_root" ls-remote origin "refs/tags/$tag" | awk '{print $1}')
+    if [ -n "$remote_tag" ]; then
+        [ "$remote_tag" = "$head_sha" ] || fail "remote tag $tag points to another commit"
+    else
+        git -C "$fmx_root" push origin "refs/tags/$tag"
+    fi
+
+    receipt_dir="$HOME/.local/state/agentstart/fmx-releases"
+    mkdir -p "$receipt_dir"
+    artifact_json=$(for pathname in "$output"/*; do
+        printf '%s  %s\n' "$(sha256_file "$pathname")" "${pathname##*/}"
+    done | jq -Rn '[inputs | capture("^(?<sha256>[0-9a-f]{64})  (?<name>.+)$")]')
+    receipt_temp=$(mktemp "$receipt_dir/.receipt.XXXXXX")
+    jq -n --arg version "$version" --arg sha "$head_sha" --arg run_id "$run_id" \
+        --arg release_base_url "$release_base_url" --arg published_at "$(date -u +%FT%TZ)" \
+        --argjson artifacts "$artifact_json" \
+        '{schema:1,version:$version,sha:$sha,source_run_id:$run_id,release_base_url:$release_base_url,published_at:$published_at,artifacts:$artifacts}' \
+        > "$receipt_temp"
+    chmod 0600 "$receipt_temp"
+    mv "$receipt_temp" "$receipt_dir/$tag.json"
+    printf 'Published and verified Fmx %s; pruned %s historical objects.\n' "$tag" "$historical_count"
+    cleanup
+}
+
+case "$command_name" in
+    build) build_release_set ;;
+    verify) verify_release_set; printf 'Verified Fmx release set in %s.\n' "$output" ;;
+    publish) publish_release_set ;;
+esac

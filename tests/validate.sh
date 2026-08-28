@@ -19,6 +19,7 @@ scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
 scripts/install-vercel-login
+scripts/fmx-release-local
 scripts/remove-retired-integrations
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
@@ -31,6 +32,7 @@ tests/fmx-config.sh
 tests/herdr-config.sh
 tests/vercel-login.sh
 tests/agentsource-webhooks.sh
+tests/fmx-release-local.sh
 tests/fixtures/npx
 "
 
@@ -50,7 +52,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
-    scripts/install-vercel-login; do
+    scripts/install-vercel-login scripts/fmx-release-local; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agent-browser-config.sh ] \
@@ -63,6 +65,8 @@ done
     || fail "Vercel login test is not executable: tests/vercel-login.sh"
 [ -x tests/agentsource-webhooks.sh ] \
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
+[ -x tests/fmx-release-local.sh ] \
+    || fail "local Fmx release test is not executable: tests/fmx-release-local.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -83,6 +87,7 @@ done
 tests/agent-browser-config.sh
 tests/vercel-login.sh
 tests/agentsource-webhooks.sh
+tests/fmx-release-local.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1055,6 +1060,7 @@ for required_install in \
     'npm install --global agent-browser@0.33.2  # Agentweb'"'"'s config.json digest-locks this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
+    'install scripts/fmx-release-local as ~/.local/bin/fmx-release-local  # serialized native arm64 + Rosetta x86_64 Fmx release builder and explicit local publisher' \
     'VERCEL_TOKEN_STORAGE=file npx --yes vercel@59.9.1 whoami  # reuse a file-backed login; run the matching login command interactively only when missing' \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
