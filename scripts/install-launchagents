@@ -41,6 +41,7 @@ SERVICES=(
     "agentbrain.share|agentbrain|share.log|resident"
     "agentbrain.doctor|agentbrain|doctor.log|periodic"
     "agentusage.observer|agentusage|observer.log|resident"
+    "agentattention.server|agentattention|server.log|resident"
     "agentweb.broker|agentweb|broker.log|resident"
     "agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered"
     "agentsource.receiver|agentsource|receiver.log|resident"

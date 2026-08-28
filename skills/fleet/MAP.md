@@ -7,9 +7,10 @@ Four kinds of edge:
   Breaking the callee's flags or output breaks the caller.
 - **routes** (dashed): a skill deliberately handing work to another skill.
   Breaking the target skill strands the routing.
-- **serves** (dotted): a launchd service running fleet code, or a tool
-  reading another's data on disk. Every fleet service is agentstart's; the
-  machine's own reverse-DNS services are outside the fleet.
+- **serves** (dotted): a launchd service running fleet code, a tool reading
+  another's data on disk, or a tool loading another fleet project's supported
+  library surface. Every fleet service is agentstart's; the machine's own
+  reverse-DNS services are outside the fleet.
 - **pins**: a binary installed at an exact version because a consumer locks
   or resolves it by contract.
 
@@ -36,6 +37,7 @@ flowchart LR
         web[agentweb]
         browser[agent-browser]
         browse[agentbrowse]
+        attention[agentattention]
     end
 
     voice[agentvoice]
@@ -78,6 +80,7 @@ flowchart LR
     scrape -->|sessions/resolve, unix-socket IPC| web
     web -->|digest-locked launch| browser
     browser -->|default provider: launch + close over stdio| browse
+    attention -.->|browser processor: agentbrowse/opentui live surface| browse
     board -->|publish --kind render| wiki
     chats -.->|indexes session stores| harnesses
 ```
@@ -96,7 +99,7 @@ flowchart LR
     start ==>|brew formula + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into common| piSubagents[pi-subagents]
-    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse / agenteditor / agentsearch / agentkeys / agentsource / agentweb / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
+    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentweb / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[default common capability pack, agentguidance rendered]
     skills ==>|session composition| launch
     launch ==>|synthetic agent plugin| claude
@@ -104,7 +107,7 @@ flowchart LR
     launch ==>|explicit resource paths| pi
     skills ==>|compatibility agent plugin| codexDesktop[Codex desktop]
     start ==>|per-file links, after the scan| voiceDoctrine[agentvoice doctrine: server.json from start, orchestrator prompts agentguidance-rendered]
-    start -.->|config/launchd + install-launchagents| services[agentbrain worker + share + doctor / agentusage observer / agentweb broker / agentscrape queue-processor / agentsource receiver / agentwiki server]
+    start -.->|config/launchd + install-launchagents| services[agentbrain worker + share + doctor / agentusage observer / agentattention server / agentweb broker / agentscrape queue-processor / agentsource receiver / agentwiki server]
 ```
 
 ## Skill routing
@@ -121,6 +124,7 @@ flowchart LR
         scrape -.-> brain & browser & search
         search -.-> brain & chats & scrape
         browser -.-> scrape & search
+        attention
         wiki -.-> board & brain & chats
         desktop -.-> browser & bus
         chats
@@ -140,7 +144,7 @@ flowchart LR
     bus -.-> notify
     desktop -.-> notify
 
-    tools[TOOLS.md — agentstart prompts, spliced into collab, build, and orchestrate at render] -.-> search & scrape & brain & browser & wiki & board & groom & chats & notify & bus & desktop
+    tools[TOOLS.md — agentstart prompts, spliced into collab, build, and orchestrate at render] -.-> search & scrape & brain & browser & attention & wiki & board & groom & chats & notify & bus & desktop
 ```
 
 The TOOLS.md node is the widest fan-out in the fleet and this repository is
@@ -178,6 +182,7 @@ sentence around the match, never from the name alone.
 | agentsource | herdr | each observation scan invokes `herdr agent list` and `herdr workspace list` exactly once, concurrently. Workspace checkout metadata associates agents first, with the agent cwd as a deterministic fallback; unavailable or malformed Herdr output degrades only agent presence and never makes the Git scan fail | `agentsource/src/herdr.ts` (`readHerdrSnapshot`, `attachAgentPresence`); `agentsource/src/git.ts` (`scanProjects`) |
 | agentstart | agenteditor | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agenteditor` to the checkout's TypeScript entrypoint, and records the deployed commit; the editor therefore follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agenteditor/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agenteditor/test/install.test.ts` |
 | agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After that succeeds, AgentStart links its tracked global agent-browser config with Artbird selected by default | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
+| agentstart | agentattention | immediately after Agentbrowse, `install-agent-clis` invokes Agentattention's hardened installer: frozen dependencies, an atomic editable command link and receipt, plus first-run mode-0600 server/local-client bootstrap. The order satisfies Agentattention's linked `agentbrowse/opentui` browser processor dependency before its resident service can be loaded | `agentstart/scripts/install-agent-clis`; `agentattention/scripts/install.sh`; asserted by both repositories' validation suites |
 | agent-browser | agentbrowse | the global `browser.provider` plugin config starts the AgentStart-managed `~/.local/bin/agentbrowse provider` through `$HOME` as a short-lived process for manifest, launch, and close requests, bypassing any older same-named command earlier on `PATH`. The provider provisions or destroys the Artbird Browser target and returns its Tailnet CDP URL dynamically; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` (Use Artbird as an agent-browser provider) |
 | agentstart | agentlaunch / Codex desktop | builds the default `common` capability pack, renders the session-only Claude `agent` plugin input and Codex desktop compatibility plugin, and leaves portable skill manifests bare. AgentLaunch composes per-session projections for all three harnesses and enumerates the compatibility copy's qualified skill names for managed-session suppression; the full installer removes only AgentStart-managed entries from retired compatibility roots, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/config/capabilities/common/*`; `agentstart/docs/adr/0002-compose-capabilities-without-moving-native-stores.md`; `agentlaunch/src/capabilities.ts` |
 | agentlaunch | Claude Code / Codex / Pi | resolves `common` plus repeatable session packs, rejects resource conflicts, and content-addresses immutable projections. Claude receives a synthetic plugin named `agent`; Codex is launched as a remote TUI against a caller-owned foreground App Server after `skills/extraRoots/set` plus session-flag `skills.config` that name-disables every compatibility `$agent:<skill>` alias and path-enables the exact selected bare manifests (with a client-only no-auth provider preventing false onboarding); every `-c` it emits follows the subcommand, because codex-swap appends its own after them and a subcommand's flags discard the global ones; Pi receives explicit skill, extension, and prompt-template paths with ambient discovery disabled. Native stores remain in place, and a receipt keyed by native session id restores non-default packs on resume | `agentlaunch/src/capabilities.ts`; `agentlaunch/src/codex-app-server.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-compose-capabilities-around-native-stores.md` |
@@ -214,7 +219,8 @@ sentence around the match, never from the name alone.
 
 | From | To | What | Evidence |
 | --- | --- | --- | --- |
-| agentstart | agentbrain, agentscrape, agentsource, agentusage, agentweb, agentwiki | installs their commands too, and owns these fleet launch agents outright: agentbrain worker/share/doctor, agentusage observer, agentweb broker, agentscrape queue processor, agentsource webhook receiver, and agentwiki server. Labels name noun roles while the manifest records resident, periodic, or queue-triggered lifecycle; every plist enters through the tool's one public binary. The receiver plist names only the private secret's path, never its value. Templates, manifest, rendering, label replacement, and load live here so a service never has two owners racing to render it | `agentstart/config/launchd/*.plist`, `agentstart/scripts/install-launchagents`, asserted by `agentstart/tests/validate.sh` |
+| agentstart | agentattention, agentbrain, agentscrape, agentsource, agentusage, agentweb, agentwiki | installs their commands too, and owns these fleet launch agents outright: agentattention server, agentbrain worker/share/doctor, agentusage observer, agentweb broker, agentscrape queue processor, agentsource webhook receiver, and agentwiki server. Labels name noun roles while the manifest records resident, periodic, or queue-triggered lifecycle; every plist enters through the tool's one public binary. The receiver plist names only the private secret's path, never its value. Templates, manifest, rendering, label replacement, and load live here so a service never has two owners racing to render it | `agentstart/config/launchd/*.plist`, `agentstart/scripts/install-launchagents`, asserted by `agentstart/tests/validate.sh` |
+| agentattention | agentbrowse | the first-party browser-interaction processor loads Agentbrowse's supported `agentbrowse/opentui` package surface, discovers the attention item's exact Browser target name, embeds `LiveViewRenderable`, and requests/releases control around the human interaction. It never modifies or imports the pinned external agent-browser project | `agentattention/package.json`; `agentattention/src/tui/processors/browser.ts`; `agentbrowse/package.json` (`./opentui` export); `agentbrowse/src/opentui/core.ts` |
 | machine installer + updater | agentstart | the only inbound edges from outside the fleet: the installer calls `scripts/install.sh --install` and nothing else about the fleet, because agentstart installs every fleet command and every fleet service, and discovers the tailnet bind address and agentweb's conduit paths itself; the machine's scheduled updater calls `scripts/sync-skills` and `scripts/update-herdr` by path — the convergence steps that stay safe with no terminal | `agentstart/scripts/install.sh` (the documented external interface), `agentstart/scripts/install-agent-clis`, `agentstart/scripts/install-launchagents`, `funk/libexec/funk-update` |
 | agentstart | agentscrape ↔ agentweb conduit | brokers the session conduit, because it is the only thing that installs both: it renders agentweb's socket and token paths into the agentbrain.worker service, and the worker passes them uninterpreted into the agentscrape children it spawns | `agentstart/scripts/install-launchagents` (agentbrain.worker tokens), asserted by the machine's local-service verification |
 | agentboard | agentwiki | stored data, distinct from the publish call: board items hold agentwiki slugs (`link <ref> --wiki <slug>` / `unlink`), so changing wiki's slug scheme breaks stored links even where publishing never runs | `agentboard/skills/board/SKILL.md:228-232`, reciprocated `agentwiki/skills/wiki/SKILL.md:133-134` |
@@ -283,7 +289,7 @@ independent app-server children do not use codex-swap's removed sidecars.
 | browser | scrape, search | fetching content is scrape; finding pages is search |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
-| GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
+| GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
 | bus | notify | a blocked bus target is waiting on the operator, so a message that matters escalates to a human notification instead of more retries (`agentsurface/skills/bus/SKILL.md`) |
 | orchestrate (agentguidance) | collab, build, herdr | the wielder: collab's contract holds on the conversation thread, and execution leaves as standalone briefs run under build's contract by dispatched workers (`agentguidance/skills/orchestrate/SKILL.md`, `fragments/orchestrator-conduct.md`). Dispatch runs on two lanes: the native facility for work in the orchestrator's own service, and the surface — herdr — for the work itself; both orchestrator renditions bind herdr by name and load its skill for placement mechanics |
 | resource-create / resource-update (agentguidance) | brain | resources are built from and refreshed against the agentbrain index |
@@ -435,3 +441,8 @@ installed repository-hook reconciliation subcommand.
 Updated 2026-08-28 for Agentsource agent presence: each observation takes one
 read-only agent and workspace snapshot from Herdr, then associates agents with
 known primary checkouts and linked worktrees without guessing provenance.
+Updated 2026-08-28 for the Agentattention foundation: AgentStart installs it
+immediately after Agentbrowse and exclusively owns its resident server; the
+browser processor consumes Agentbrowse's supported OpenTUI library surface
+without changing the pinned external agent-browser dependency. Its tool-owned
+`attention` skill also joins the common TOOLS.md advertisements.

@@ -17,6 +17,10 @@ say when.
 - `browser` — a real, signed-in browser for interaction: clicking, forms,
   anything behind a login, handing control to a human. Fetching content is
   `scrape`; finding pages is `search`.
+- `attention` — durable human handoff for questions, document approval, and
+  interaction with an exact Agentbrowse Browser target. Load when work needs a
+  human, when several handoffs should be queued before one wait, or when a
+  stale handoff must be rebuilt and submitted again.
 - `desktop` — the Mac's screen and native apps: capturing what is visible,
   verifying GUI state, clicking, typing, menus, windows — GUI work outside
   a web page. Inside a web page is `browser`.

@@ -55,10 +55,12 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # agentbrowse supplies agent-browser's default Artbird provider. The provider
 # process is short-lived and resolves the Browser target's CDP URL dynamically;
 # there is no provider service to install or configure with a static URL.
+# agentattention follows it because its browser-interaction processor imports
+# agentbrowse's supported OpenTUI surface from the adjacent installed checkout.
 #
 # agentsurface follows agentlaunch: its launcher and its conversation slugs
 # both consume the resolved catalog over `agentlaunch x-catalog`.
-for tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb agentscrape \
+for tool in agentwiki agentboard agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \
     agentbrain codex-swap agentusage agentlaunch agentsurface; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then

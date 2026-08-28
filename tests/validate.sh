@@ -1279,6 +1279,10 @@ grep -F '`terminal-control` — real terminal applications:' \
     || fail "TOOLS.md does not advertise the Terminal Control skill"
 grep -F 'desktop, terminal-control' skills/fleet/MAP.md >/dev/null \
     || fail "the fleet skill route map omits the Terminal Control advertisement"
+# shellcheck disable=SC2016 # Backticks name the advertised skill literally.
+grep -F '`attention` — durable human handoff' \
+    prompts/agentguidance/TOOLS.md >/dev/null \
+    || fail "TOOLS.md does not advertise the Attention skill"
 
 # herdr is bound to the ~/src/herdr checkout at upstream master and
 # update-herdr is its one update path — fast-forward a clean checkout, build
@@ -1575,12 +1579,12 @@ grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
 # codex-swap itself installed.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentbrowse agenteditor agentsearch agentkeys agentsource agentweb \
+for expected_tool in agentwiki agentboard agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb \
     agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
@@ -1661,6 +1665,7 @@ expected_services='agentbrain.worker|agentbrain|worker.log|resident
 agentbrain.share|agentbrain|share.log|resident
 agentbrain.doctor|agentbrain|doctor.log|periodic
 agentusage.observer|agentusage|observer.log|resident
+agentattention.server|agentattention|server.log|resident
 agentweb.broker|agentweb|broker.log|resident
 agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered
 agentsource.receiver|agentsource|receiver.log|resident
@@ -1723,6 +1728,11 @@ done < <(sed -n 's/^ *"\([a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagent
 
 grep -Fq '<string>webhook-daemon</string>' config/launchd/agentsource.receiver.plist \
     || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
+grep -Fq '<string>serve</string>' config/launchd/agentattention.server.plist \
+    || fail "Agentattention server does not enter through the installed serve subcommand"
+if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/agentattention.server.plist; then
+    fail "Agentattention server rendered a credential-shaped environment variable"
+fi
 grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/agentsource.receiver.plist \
     || fail "Agentsource receiver does not name the private secret by path"
 grep -A1 -F '<string>--port</string>' config/launchd/agentsource.receiver.plist \
