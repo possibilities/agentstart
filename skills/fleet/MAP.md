@@ -92,7 +92,7 @@ flowchart LR
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into fixed Pi resources| piSubagents[pi-subagents]
-    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     skills ==>|fixed session resources| launch
     launch ==>|synthetic agent plugin| claude
@@ -174,7 +174,7 @@ sentence around the match, never from the name alone.
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex`/`pi` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, securely creates or preserves the private webhook secret, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit. The explicit `configure-agentsource-webhooks --apply` path discovers this node's Funnel origin and calls `agentsource webhook-configure` to reconcile signed hooks; ordinary install only runs its non-mutating, agent-oriented diagnostic | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/configure-agentsource-webhooks`; `agentsource/scripts/install.sh`; `agentsource/src/cli.ts` |
 | agentsource | herdr | each observation scan invokes `herdr agent list` and `herdr workspace list` exactly once, concurrently. Workspace checkout metadata associates agents first, with the agent cwd as a deterministic fallback; unavailable or malformed Herdr output degrades only agent presence and never makes the Git scan fail | `agentsource/src/herdr.ts` (`readHerdrSnapshot`, `attachAgentPresence`); `agentsource/src/git.ts` (`scanProjects`) |
-| agentstart | agenteditor | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agenteditor` to the checkout's TypeScript entrypoint, and records the deployed commit; the editor therefore follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agenteditor/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agenteditor/test/install.test.ts` |
+| agentstart | agentutils | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentutils` to the checkout's TypeScript entrypoint, and records the deployed commit; the Editor utility lives at the required `agentutils editor` subcommand and follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agentutils/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agentutils/test/install.test.ts` |
 | agentstart | agentbrowse-infra | `install-agent-clis` invokes the checkout's hardened command-only installer before Agentbrowse. It links `~/.local/bin/agentbrowse-infra` and records the deployed commit, but never enables Apple services or acquires an image | `agentstart/scripts/install-agent-clis`; `agentbrowse-infra/scripts/install.sh`; asserted by both repositories' installer tests |
 | agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After both Browser commands install, AgentStart links its tracked version-2 deployment config with Artbird first and an already-enabled Apple session second, then links the global agent-browser provider config | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agentbrowse-config`; `agentstart/config/agentbrowse/config.json`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
 | agentstart | agentattention | immediately after Agentbrowse, `install-agent-clis` invokes Agentattention's hardened installer: frozen dependencies, an atomic editable command link and receipt, plus first-run mode-0600 server/local-client bootstrap. The order satisfies Agentattention's linked `agentbrowse/opentui` browser processor dependency before its resident service can be loaded | `agentstart/scripts/install-agent-clis`; `agentattention/scripts/install.sh`; asserted by both repositories' validation suites |
@@ -395,9 +395,11 @@ convergence, and never mistakes the current remote tip for an approval. Also
 consumes it and no unattended converge can rewrite or publish a fork.
 Updated 2026-08-26 for agentsource: the read-only Git attention TUI joins the
 editable fleet CLI installation through its checkout-owned installer.
-Updated again 2026-08-26 for agenteditor: the chromeless human-and-agent text
-editor joins the same editable fleet CLI installation through its
-checkout-owned installer.
+Updated again 2026-08-26 for AgentUtils Editor: the chromeless human-and-agent
+text editor joins the same editable fleet CLI installation through its
+checkout-owned installer. Updated 2026-08-29 for the AgentUtils clean-break
+rename: AgentStart installs the `agentutils` checkout and command, while the
+existing Surface is the required `editor` subcommand.
 Updated 2026-08-27 for agentbrowse: agent-browser now starts its short-lived
 Artbird provider over standard I/O by default, while AgentStart installs the
 editable provider command and owns the linked global provider configuration.
