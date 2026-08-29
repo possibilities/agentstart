@@ -1029,12 +1029,12 @@ for required_install in \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
-    'brew install or upgrade zig@0.15  # herdr'"'"'s vendored libghostty-vt pins the 0.15 line; keg-only beside the tracked zig' \
+    'brew install or upgrade zig@0.15  # Terminal Control'"'"'s libghostty-vt build requires the keg-only 0.15 line' \
     '"$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal' \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
-    'scripts/update-herdr  # herdr from the bound ~/src/herdr checkout: fast-forward clean master, build, install to ~/.local/bin; blocked checkouts notify instead of forcing' \
-    'brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH' \
+    'brew install or upgrade herdr  # official stable formula; package-manager updates remain deliberate' \
+    'remove AgentStart'"'"'s legacy source-built ~/.local/bin/herdr and build state when its receipt proves ownership  # preserve an independent occupant' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
@@ -1275,32 +1275,50 @@ grep -F '`attention` — durable human handoff' \
     prompts/agentguidance/TOOLS.md >/dev/null \
     || fail "TOOLS.md does not advertise the Attention skill"
 
-# herdr is bound to the ~/src/herdr checkout at upstream master and
-# update-herdr is its one update path — fast-forward a clean checkout, build
-# with the pinned Zig, install to ~/.local/bin — so the retired formula and
-# the direct installer must both stay out. Its integrations reinstall
-# unconditionally because a herdr upgrade can stale them, and they cover
-# exactly the three harnesses the fleet runs.
-# shellcheck disable=SC2016 # Match the literal invocation in the installer.
-grep -F '"$script_dir/update-herdr"' scripts/install.sh >/dev/null \
-    || fail "installer does not converge herdr from the bound checkout"
-[ -x scripts/update-herdr ] \
-    || fail "update-herdr is missing or not executable"
-grep -F -- '--ff-only' scripts/update-herdr >/dev/null \
-    || fail "update-herdr does not restrict itself to fast-forwarding the checkout"
+# Herdr follows the official stable Homebrew formula. The retired source
+# updater is absent, and full-install cleanup removes its binary only when the
+# 40-hex receipt, regular-file shape, owner, and write-time all agree. Its
+# integrations reinstall unconditionally because an upgrade can stale them,
+# and they cover exactly the three harnesses the fleet runs.
 grep -F 'install_or_upgrade_formula zig@0.15' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the Zig 0.15 line herdr builds against"
-if grep -F 'install_or_upgrade_formula herdr' scripts/install.sh >/dev/null; then
-    fail "installer resurrects the retired herdr formula beside the checkout build"
+    || fail "installer does not converge the Zig 0.15 line Terminal Control builds against"
+grep -F 'install_or_upgrade_formula herdr' scripts/install.sh >/dev/null \
+    || fail "installer does not converge the official stable Herdr formula"
+[ ! -e scripts/update-herdr ] \
+    || fail "retired source updater still exists"
+# shellcheck disable=SC2016 # Match the literal checkout path.
+if grep -F '$HOME/src/herdr' scripts/install.sh >/dev/null; then
+    fail "installer still binds the Herdr source checkout"
 fi
-# Anchored to an invocation, not any mention: comments may name `herdr update`
-# to explain why it stays unused.
+# Anchored to an invocation: normal stable updates belong to Homebrew.
 if grep -E '^[[:space:]]*herdr update' scripts/install.sh >/dev/null; then
-    fail "installer grows a second herdr update path beside update-herdr"
+    fail "installer grows a second Herdr update path beside Homebrew"
 fi
 if grep -F 'herdr.dev/install.sh' scripts/install.sh >/dev/null; then
-    fail "installer uses the direct herdr installer instead of the checkout build"
+    fail "installer uses Herdr's direct installer instead of Homebrew"
 fi
+# shellcheck disable=SC2016 # Match literal legacy cleanup variables and predicates.
+grep -F 'legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"' scripts/install.sh >/dev/null \
+    || fail "installer does not recognize the retired source-build receipt"
+# shellcheck disable=SC2016 # Match the literal legacy receipt variable.
+grep -F '[[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]]' scripts/install.sh >/dev/null \
+    || fail "legacy Herdr cleanup does not validate the receipt"
+# shellcheck disable=SC2016 # Match the literal legacy binary variable.
+grep -F '[ ! -L "$legacy_herdr_bin" ]' scripts/install.sh >/dev/null \
+    || fail "legacy Herdr cleanup could remove an independent symlink"
+grep -F "stat -f '%Su' \"\$legacy_herdr_bin\"" scripts/install.sh >/dev/null \
+    || fail "legacy Herdr cleanup does not prove the binary owner"
+grep -F "stat -f '%m' \"\$legacy_herdr_bin\"" scripts/install.sh >/dev/null \
+    || fail "legacy Herdr cleanup does not match the updater write time"
+# shellcheck disable=SC2016 # Match the literal legacy binary variable.
+grep -F 'rm -- "$legacy_herdr_bin"' scripts/install.sh >/dev/null \
+    || fail "installer does not remove its proved legacy Herdr binary"
+# shellcheck disable=SC2016 # Match the literal legacy state variables.
+grep -F 'rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"' scripts/install.sh >/dev/null \
+    || fail "installer does not retire its Herdr build state"
+# shellcheck disable=SC2016 # Match the literal Homebrew resolution assertion.
+grep -F '[ "$(command -v herdr)" = "$brew_prefix/bin/herdr" ]' scripts/install.sh >/dev/null \
+    || fail "installer does not verify that Homebrew Herdr wins resolution"
 grep -F 'install_herdr_integrations' scripts/install.sh >/dev/null \
     || fail "installer does not converge the herdr harness integrations"
 grep -F 'for harness in claude codex pi' scripts/install.sh >/dev/null \
@@ -1367,6 +1385,8 @@ grep -F "[\"\$conversation\"]," config/herdr/config.toml >/dev/null \
     || fail "Herdr agent sidebar does not show AgentSurface's \$conversation slug"
 grep -F 'delivery = "off"' config/herdr/config.toml >/dev/null \
     || fail "Herdr native notifications are not disabled"
+grep -Fqx 'version_check = true' config/herdr/config.toml \
+    || fail "Herdr stable version checking is not enabled"
 for sound in "done" request; do
     [ -s "assets/herdr-sounds/${sound}.mp3" ] \
         || fail "Herdr ${sound} sound is missing from AgentStart"
@@ -1435,6 +1455,10 @@ grep -F 'install_herdr_plugins' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal link invocation, $-sign and all.
 grep -F 'herdr plugin link "$plugin_root"' scripts/install.sh >/dev/null \
     || fail "the agentsurface plugin is not registered by checkout path"
+grep -F 'protocol_mismatch' scripts/install.sh >/dev/null \
+    || fail "plugin convergence cannot preserve a newer resident server"
+grep -F 'relink deferred until the natural Herdr server restart' scripts/install.sh >/dev/null \
+    || fail "deferred plugin convergence does not report the client/server skew"
 # The surface skill ships inside the binary (`herdr --skill`) and converges
 # with the installed build; a GitHub-sourced copy would track a different
 # head than the installed herdr and grow a second update path.

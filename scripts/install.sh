@@ -523,12 +523,12 @@ Command-line tools:
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
-  brew install or upgrade zig@0.15  # herdr's vendored libghostty-vt pins the 0.15 line; keg-only beside the tracked zig
+  brew install or upgrade zig@0.15  # Terminal Control's libghostty-vt build requires the keg-only 0.15 line
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
-  scripts/update-herdr  # herdr from the bound ~/src/herdr checkout: fast-forward clean master, build, install to ~/.local/bin; blocked checkouts notify instead of forcing
-  brew uninstall herdr if the formula lingers  # retired: it would shadow the checkout build on PATH
+  brew install or upgrade herdr  # official stable formula; package-manager updates remain deliberate
+  remove AgentStart's legacy source-built ~/.local/bin/herdr and build state when its receipt proves ownership  # preserve an independent occupant
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
@@ -675,9 +675,9 @@ install_or_upgrade_formula hunk
 
 # Terminal Control has no Homebrew formula or release binaries: its supported
 # CLI install builds the crates.io release. Rustup gives that build a current
-# stable compiler without changing the operator's default toolchain, and the
-# exact Zig 0.15 line below is shared with herdr because libghostty-vt requires
-# it. Cargo's install root remains ~/.local so its release bookkeeping and
+# stable compiler without changing the operator's default toolchain, and its
+# libghostty-vt dependency requires the exact Zig 0.15 line below. Cargo's
+# install root remains ~/.local so its release bookkeeping and
 # upgrades stay native. AgentStart temporarily restores the upstream binary to
 # Cargo's expected path before an upgrade, then retains it under libexec and
 # puts the detached-start shim back at the public path.
@@ -687,12 +687,10 @@ rustup_bin="$brew_prefix/opt/rustup/bin/rustup"
 [ -x "$rustup_bin" ] \
     || die "Homebrew's keg-only Rustup executable is missing: $rustup_bin"
 
-# herdr's vendored libghostty-vt pins the Zig 0.15 line, which the tracked
-# `zig` formula above has moved past, and the official 0.15 tarball cannot
-# link against current macOS SDKs — herdr's own release CI builds with this
-# same keg-only formula, so it is the one Zig 0.15 that works here.
-# update-herdr refuses with a notification if the vendored pin drifts.
-printf 'Installing or upgrading Zig 0.15 for the herdr build (keg-only, beside the tracked zig).\n'
+# Terminal Control's libghostty-vt dependency pins the Zig 0.15 line, while
+# the tracked `zig` formula above has moved past it. Keep the keg-only line
+# beside current Zig for that source build.
+printf 'Installing or upgrading Zig 0.15 for the Terminal Control build (keg-only, beside the tracked zig).\n'
 install_or_upgrade_formula zig@0.15
 
 printf 'Installing the stable Rust toolchain for Terminal Control.\n'
@@ -732,26 +730,40 @@ install -m 0755 "$termctrl_shim" "$termctrl_bin"
 [ "$("$termctrl_bin" --version)" = "$terminal_control_version_output" ] \
     || die "Terminal Control shim does not reach the installed upstream release"
 
-# herdr is the terminal multiplexer agent sessions run inside — an AI tool by
-# the boundary rubric, so AgentStart's, not the machine's. It is bound to the
-# ~/src/herdr checkout at upstream master, because releases trail master by
-# weeks and the operator runs the head. update-herdr is the one update path —
-# it fast-forwards a clean checkout, builds with the pinned Zig, installs to
-# ~/.local/bin, and notifies instead of forcing when the checkout cannot
-# converge. The AgentStart-rendered Herdr config disables the binary's own
-# update check for the same one-updater reason. The formula and the direct
-# installer both stay retired.
-printf 'Building and installing herdr from the bound checkout.\n'
-"$script_dir/update-herdr"
+# Herdr is the terminal multiplexer agent sessions run inside — an AI tool by
+# the boundary rubric, so AgentStart's, not the machine's. Homebrew's stable
+# formula owns its binary and normal update path; AgentStart still converges
+# the fleet integrations, plugin, behavior config, and bundled skill below.
+printf 'Installing or upgrading Herdr from the official stable formula.\n'
+install_or_upgrade_formula herdr
 
-# Retired: the homebrew-core herdr formula, the previous update path. PATH
-# prefers the formula's bin over ~/.local/bin, so a lingering keg would
-# shadow the checkout build with a stale, protocol-incompatible binary.
-# Removal is full-install cleanup; the scheduled path never uninstalls.
-if "$brew_bin" list --formula --versions herdr >/dev/null 2>&1; then
-    printf 'Removing the retired herdr formula.\n'
-    "$brew_bin" uninstall --formula herdr
+# Retire the former source-build installation without mistaking an unrelated
+# ~/.local/bin/herdr for ours. The old updater atomically installed a regular
+# executable and immediately wrote a 40-hex receipt; those two writes share a
+# whole-second mtime on macOS. A changed occupant has a different mtime and is
+# preserved. AgentStart owns the receipt and build log themselves regardless.
+legacy_herdr_bin="$HOME/.local/bin/herdr"
+legacy_herdr_state="$HOME/.local/state/agentstart"
+legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"
+legacy_herdr_build_log="$legacy_herdr_state/herdr-build.log"
+if [ -f "$legacy_herdr_receipt" ]; then
+    legacy_herdr_commit=$(tr -d '\n' <"$legacy_herdr_receipt")
+    if [[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]] &&
+        [ -f "$legacy_herdr_bin" ] && [ ! -L "$legacy_herdr_bin" ] &&
+        [ "$(stat -f '%Su' "$legacy_herdr_bin")" = "$(id -un)" ] &&
+        [ "$(stat -f '%m' "$legacy_herdr_bin")" = "$(stat -f '%m' "$legacy_herdr_receipt")" ]; then
+        printf 'Removing AgentStart legacy source-built Herdr binary.\n'
+        rm -- "$legacy_herdr_bin"
+    elif [ -e "$legacy_herdr_bin" ] || [ -L "$legacy_herdr_bin" ]; then
+        printf 'Preserving independent occupant at %s; legacy receipt does not prove ownership.\n' \
+            "$legacy_herdr_bin"
+    fi
+    rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"
 fi
+
+hash -r
+[ "$(command -v herdr)" = "$brew_prefix/bin/herdr" ] \
+    || die "Herdr does not resolve to Homebrew after legacy cleanup: $(command -v herdr || printf missing)"
 
 # The harness integrations wire each agent into herdr — pi's is a lifecycle
 # authority, while claude's and codex's report session identity (for native
@@ -966,20 +978,34 @@ install_herdr_integrations
 # AgentSurface's herdr plugin (the titled fleet TUI popups plus tab naming from
 # a conversation's first prompt) registers by link, not copy: herdr records the
 # checkout path, so a changed checkout needs no relink and relinking the same
-# path is a safe converge. Linking works with or without a running server.
+# path is a safe converge. During the one-time move from a newer source build
+# to stable, the resident server may speak a newer protocol than the installed
+# client. Preserve its existing link and defer the idempotent relink until the
+# operator's natural server restart rather than stopping panes to force it.
 # The registered plugin belongs to herdr; the plugin directory belongs to the
 # agentsurface checkout, whose absence is a skip exactly as in
 # install-agent-clis.
 install_herdr_plugins() {
     local plugin_root="$code_root/agentsurface/plugin"
+    local link_output=''
 
     if [ ! -f "$plugin_root/herdr-plugin.toml" ]; then
         printf 'AgentStart installer: no agentsurface plugin at %s; skipping.\n' "$plugin_root"
         return 0
     fi
     printf 'Linking the agentsurface herdr plugin.\n'
-    herdr plugin link "$plugin_root" \
-        || die "herdr plugin link failed: $plugin_root"
+    if ! link_output=$(herdr plugin link "$plugin_root" 2>&1); then
+        case "$link_output" in
+            *'"code":"protocol_mismatch"'*)
+                printf 'AgentStart installer: preserving the existing agentsurface plugin link; relink deferred until the natural Herdr server restart: %s\n' \
+                    "$link_output" >&2
+                return 0
+                ;;
+        esac
+        printf '%s\n' "$link_output" >&2
+        die "herdr plugin link failed: $plugin_root"
+    fi
+    [ -z "$link_output" ] || printf '%s\n' "$link_output"
 }
 
 install_herdr_plugins
@@ -1162,8 +1188,8 @@ install_hunk_skill
 # The surface skill — herdr is the orchestrator doctrine's reference launch
 # surface — ships inside the herdr binary (`herdr --skill`), so the installed
 # skill converges with the installed build on every run, exactly like the
-# harness integrations above, and never tracks a different head: update-herdr
-# is herdr's one update path, and the skill follows it. The rendered pack lives
+# harness integrations above, and never tracks a different release than the
+# stable formula. The rendered pack lives
 # in a managed state root shaped like a checkout (skills/herdr/) so the same
 # `skills add` mechanism ships it into the common capability pack. Deliberately
 # not advertised in TOOLS.md: a role skill is named by the orchestrator

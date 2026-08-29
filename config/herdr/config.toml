@@ -206,10 +206,8 @@ enabled = true
 done_path = "../../code/agentstart/assets/herdr-sounds/done.mp3"
 request_path = "../../code/agentstart/assets/herdr-sounds/request.mp3"
 
-# The binary is built from ~/src/herdr by AgentStart's update-herdr, so herdr's
-# own update check would only offer a crossgrade back to the stable channel.
 [update]
-version_check = false
+version_check = true
 
 [experimental]
 kitty_graphics = true
