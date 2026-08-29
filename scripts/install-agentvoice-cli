@@ -47,10 +47,23 @@ find_bun() {
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 agentvoice_root="$code_root/agentvoice"
+agentvoice2_root="$code_root/agentvoice2"
+
+# The archive-bound checkout is currently parked at agentvoice2 while keeping
+# its public project and command name AgentVoice. Recognize that one explicit
+# transitional spelling, but refuse an ambiguous machine instead of guessing
+# which of two live checkouts should own the editable global link.
+if [ -f "$agentvoice_root/package.json" ] && [ -f "$agentvoice2_root/package.json" ]; then
+    die "both $agentvoice_root and $agentvoice2_root are present; refusing an ambiguous AgentVoice checkout"
+fi
 if [ ! -f "$agentvoice_root/package.json" ]; then
-    printf 'AgentStart AgentVoice CLI installer: no checkout at %s; skipping.\n' \
-        "$agentvoice_root"
-    exit 0
+    if [ -f "$agentvoice2_root/package.json" ]; then
+        agentvoice_root="$agentvoice2_root"
+    else
+        printf 'AgentStart AgentVoice CLI installer: no checkout at %s or %s; skipping.\n' \
+            "$agentvoice_root" "$agentvoice2_root"
+        exit 0
+    fi
 fi
 
 bun_bin=$(find_bun) || die "bun is not installed"

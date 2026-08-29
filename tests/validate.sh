@@ -328,9 +328,49 @@ set -e
     || fail "AgentVoice CLI installer did not skip a machine without a checkout"
 printf '%s\n' "$agentvoice_missing_output" \
     | grep -F \
-        "no checkout at $agentvoice_missing_home/code/agentvoice; skipping." \
+        "no checkout at $agentvoice_missing_home/code/agentvoice or $agentvoice_missing_home/code/agentvoice2; skipping." \
         >/dev/null \
     || fail "AgentVoice CLI installer did not report the skipped checkout clearly"
+
+# This machine's archive-bound checkout retains its public AgentVoice identity
+# while living at agentvoice2. The installer must converge that explicit
+# transitional spelling, and must refuse rather than choose if both spellings
+# are present.
+agentvoice2_code_root="$skip_test_dir/agentvoice2-code"
+agentvoice2_stub_bin="$skip_test_dir/agentvoice2-bun"
+agentvoice2_stub_log="$skip_test_dir/agentvoice2-bun.log"
+mkdir -p "$agentvoice2_code_root/agentvoice2"
+printf '{}\n' >"$agentvoice2_code_root/agentvoice2/package.json"
+cat >"$agentvoice2_stub_bin" <<'EOF'
+#!/bin/bash
+printf '<%s>' "$@" >"$AGENTVOICE2_STUB_LOG"
+printf '\n' >>"$AGENTVOICE2_STUB_LOG"
+EOF
+chmod +x "$agentvoice2_stub_bin"
+AGENTSTART_CODE_ROOT="$agentvoice2_code_root" \
+    AGENTSTART_BUN_BIN="$agentvoice2_stub_bin" \
+    AGENTVOICE2_STUB_LOG="$agentvoice2_stub_log" \
+    "$root/scripts/install-agentvoice-cli" >/dev/null
+grep -Fx \
+    "<run><--cwd><$agentvoice2_code_root/agentvoice2><cli:install>" \
+    "$agentvoice2_stub_log" >/dev/null \
+    || fail "AgentVoice CLI installer did not invoke the agentvoice2 checkout contract"
+
+mkdir -p "$agentvoice2_code_root/agentvoice"
+printf '{}\n' >"$agentvoice2_code_root/agentvoice/package.json"
+set +e
+agentvoice_ambiguous_output=$( \
+    AGENTSTART_CODE_ROOT="$agentvoice2_code_root" \
+        AGENTSTART_BUN_BIN="$agentvoice2_stub_bin" \
+        "$root/scripts/install-agentvoice-cli" 2>&1 \
+)
+agentvoice_ambiguous_status=$?
+set -e
+[ "$agentvoice_ambiguous_status" -ne 0 ] \
+    || fail "AgentVoice CLI installer accepted two competing checkouts"
+printf '%s\n' "$agentvoice_ambiguous_output" \
+    | grep -F 'refusing an ambiguous AgentVoice checkout' >/dev/null \
+    || fail "AgentVoice CLI installer did not explain its ambiguous-checkout refusal"
 
 # Bare harness shims route through AgentLaunch, and the recursion sentinel
 # keeps AgentLaunch-managed child processes from entering the shim again.
