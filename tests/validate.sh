@@ -29,6 +29,7 @@ tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
 tests/agentsource-webhooks.sh
+tests/install-launchagents.sh
 tests/fixtures/npx
 "
 
@@ -58,6 +59,8 @@ done
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
 [ -x tests/agentsource-webhooks.sh ] \
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
+[ -x tests/install-launchagents.sh ] \
+    || fail "launch agent installer test is not executable: tests/install-launchagents.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -77,6 +80,7 @@ done
     || fail "default agent-browser config does not select the agentbrowse Artbird provider"
 tests/agent-browser-config.sh
 tests/agentsource-webhooks.sh
+tests/install-launchagents.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \

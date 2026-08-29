@@ -52,8 +52,10 @@ SERVICES=(
 # old names for services still present, not a graveyard for retired tools: once
 # the fleet has converged and the migration is deliberately removed, nothing
 # here should remember the previous spelling.
+legacy_agentattention_label="com.$(id -un).agentattention"
 LABEL_REPLACEMENTS=(
     "agentusage.observer|agentusage.daemon"
+    "agentattention.server|$legacy_agentattention_label"
     "agentweb.broker|agentweb.daemon"
     "agentscrape.queue-processor|agentscrape.process-queue"
     "agentwiki.server|agentwiki.serve"
@@ -254,6 +256,62 @@ plist_ownership() {
     printf 'foreign'
 }
 
+# Agentattention briefly predated centralized fleet service ownership. Its one
+# live predecessor had no ownership marker, so it cannot use the ordinary
+# adoption path above. Recognize only that exact, inert plist shape: changing
+# any key, argument, path, or owner leaves it foreign and therefore refused.
+# This migration entry can disappear after every machine has converged.
+legacy_replacement_ownership() {
+    local new_label="$1" old_label="$2" plist owner
+    plist="$launch_agents_dir/$old_label.plist"
+
+    if [ "$new_label" != agentattention.server ] ||
+        [ "$old_label" != "$legacy_agentattention_label" ]; then
+        printf 'foreign'
+        return 0
+    fi
+    [ -f "$plist" ] && [ ! -L "$plist" ] || {
+        printf 'foreign'
+        return 0
+    }
+    owner="$(stat -f %u "$plist" 2>/dev/null || stat -c %u "$plist" 2>/dev/null || true)"
+    [ "$owner" = "$(id -u)" ] || {
+        printf 'foreign'
+        return 0
+    }
+
+    if /usr/bin/python3 - "$plist" "$HOME" "$old_label" <<'PYTHON'
+import plistlib
+import sys
+
+path, home, label = sys.argv[1:]
+with open(path, "rb") as handle:
+    actual = plistlib.load(handle)
+
+expected = {
+    "Label": label,
+    "ProgramArguments": [
+        "/opt/homebrew/bin/bun",
+        f"{home}/code/agentattention/src/cli.ts",
+        "serve",
+        "--config",
+        f"{home}/.config/agentattention/config.json",
+    ],
+    "RunAtLoad": True,
+    "KeepAlive": True,
+    "ThrottleInterval": 5,
+    "StandardOutPath": f"{home}/.local/state/agentattention/daemon.log",
+    "StandardErrorPath": f"{home}/.local/state/agentattention/daemon.error.log",
+}
+raise SystemExit(0 if actual == expected else 1)
+PYTHON
+    then
+        printf 'adopt'
+    else
+        printf 'foreign'
+    fi
+}
+
 replacement_label() {
     local new_label="$1" replacement
     for replacement in "${LABEL_REPLACEMENTS[@]}"; do
@@ -391,6 +449,9 @@ install_service() {
     old_label="$(replacement_label "$label")"
     if [ -n "$old_label" ]; then
         old_ownership="$(plist_ownership "$old_label")"
+        if [ "$old_ownership" = foreign ]; then
+            old_ownership="$(legacy_replacement_ownership "$label" "$old_label")"
+        fi
         [ "$old_ownership" != foreign ] ||
             die "refusing to replace a legacy service this installer does not own: $launch_agents_dir/$old_label.plist"
     fi
