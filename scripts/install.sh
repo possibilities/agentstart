@@ -537,7 +537,8 @@ Command-line tools:
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
   npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
-  scripts/agent-browser-config install  # select agentbrowse's short-lived Artbird provider by default; no provider server or static URL
+  scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
+  scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
   remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
 
 Agent documentation:
@@ -1211,11 +1212,14 @@ if [ "$agent_clis_status" -ne 0 ]; then
     exit "$agent_clis_status"
 fi
 
-# agent-browser does not write its config during normal browsing, so the
-# operator default can stay linked directly to AgentStart's tracked source.
-# Run this after the fleet CLI loop: a successful full converge must not leave
-# the provider selected without first proving agentbrowse is installed.
-printf "Linking AgentStart's default Artbird provider configuration.\n"
+# Agentbrowse and agent-browser do not write these configs during normal
+# browsing, so the operator defaults can stay linked directly to AgentStart's
+# tracked sources. Run both after the fleet CLI loop: a successful full
+# converge must not select the provider before its command and manual recovery
+# helper install successfully.
+printf "Linking AgentStart's ordered agentbrowse deployment configuration.\n"
+"$script_dir/agentbrowse-config" install
+printf "Linking AgentStart's default agentbrowse provider configuration.\n"
 "$script_dir/agent-browser-config" install
 
 # cass — the coding-agent session search CLI — installs by the agentchats

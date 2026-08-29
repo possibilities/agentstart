@@ -25,15 +25,15 @@ export AGENTSTART_AGENT_BROWSER_CONFIG_TARGET="$target_config"
 cmp -s "$source_config" "$target_config" \
     || fail "linked agent-browser config does not resolve to the tracked source"
 /usr/bin/jq -e '
-    .provider == "artbird" and
+    .provider == "agentbrowse" and
     (.plugins == [{
-        "name": "artbird",
+        "name": "agentbrowse",
         "command": "/bin/sh",
         "args": ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"],
         "capabilities": ["browser.provider"]
     }])
 ' "$target_config" >/dev/null \
-    || fail "installed config does not select the agentbrowse Artbird provider"
+    || fail "installed config does not select the agentbrowse provider"
 
 # The plugin command addresses the managed link through HOME instead of PATH.
 # A stale Bun-global command earlier on PATH must therefore be irrelevant.
@@ -41,7 +41,7 @@ mkdir -p "$HOME/.local/bin" "$test_root/shadow-bin"
 cat >"$HOME/.local/bin/agentbrowse" <<'EOF'
 #!/bin/sh
 cat >/dev/null
-printf '%s\n' '{"protocol":"agent-browser.plugin.v1","success":true,"manifest":{"name":"artbird","capabilities":["browser.provider"]}}'
+printf '%s\n' '{"protocol":"agent-browser.plugin.v1","success":true,"manifest":{"name":"agentbrowse","capabilities":["browser.provider"]}}'
 EOF
 chmod +x "$HOME/.local/bin/agentbrowse"
 cat >"$test_root/shadow-bin/agentbrowse" <<'EOF'
@@ -55,7 +55,7 @@ plugin_response=$(
             'exec "$HOME/.local/bin/agentbrowse" provider'
 )
 printf '%s\n' "$plugin_response" \
-    | /usr/bin/jq -e '.success == true and .manifest.name == "artbird"' >/dev/null \
+    | /usr/bin/jq -e '.success == true and .manifest.name == "agentbrowse"' >/dev/null \
     || fail "provider command was shadowed by an earlier PATH entry"
 
 # The converge is rerunnable.

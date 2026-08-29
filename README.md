@@ -61,14 +61,16 @@ flags, and skip-versus-fail semantics are load-bearing:
   - fmx's repository-owned source installer, given fxnk's exact gated Fx
     build, plus the generated live Herdr config and linked fmx key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
-    linked default Artbird provider config backed by `agentbrowse provider`;
+    linked ordered agentbrowse deployment and provider configs backed by
+    `agentbrowse provider`;
   - the shadcn MCP registration for Codex and Claude Code;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fleet resources inside the default `common`
     capability pack;
-  - the AgentVoice CLI, and the agentwiki, agentboard, agentbrowse, agentsearch,
-    agentkeys, codex-swap, agentusage, and agentlaunch CLIs;
+  - the AgentVoice CLI, and the agentwiki, agentboard, agentbrowse-infra,
+    agentbrowse, agentsearch, agentkeys, codex-swap, agentusage, and agentlaunch
+    CLIs;
   - the public `possibilities/claude-swap` fork and the codex-swap provider
     shim, through agentusage's installer;
   - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
@@ -111,9 +113,15 @@ Companion, and doctor check. A machine without the fmx checkout skips it.
 schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
 their prefix.
 
+`scripts/agentbrowse-config install` links the locked version-2 deployment into
+`~/.config/agentbrowse/config.json`: Artbird first, then an already-enabled
+Apple container session with one 2-CPU, 6-GiB target. The provider never starts
+Apple services or acquires an image; recovery remains the explicit
+`agentbrowse-infra enable` plus pull/load lifecycle.
+
 `scripts/agent-browser-config install` links
 `config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
-selects Artbird by default and registers the managed
+selects agentbrowse and registers the managed
 `~/.local/bin/agentbrowse provider` command as the short-lived
 `browser.provider` plugin. It resolves that link through `$HOME`, not `PATH`,
 so an older Bun-global command cannot shadow it. The plugin returns each

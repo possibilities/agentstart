@@ -21,10 +21,12 @@ scripts/install-agentvoice-cli
 scripts/remove-retired-integrations
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
+scripts/agentbrowse-config
 scripts/agent-browser-config
 scripts/fmx-config
 scripts/herdr-config
 tests/validate.sh
+tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
@@ -48,9 +50,11 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/configure-agentsource-webhooks \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
-    scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
+[ -x tests/agentbrowse-config.sh ] \
+    || fail "agentbrowse config test is not executable: tests/agentbrowse-config.sh"
 [ -x tests/agent-browser-config.sh ] \
     || fail "agent-browser config test is not executable: tests/agent-browser-config.sh"
 [ -x tests/fmx-config.sh ] \
@@ -66,18 +70,31 @@ done
 /usr/bin/python3 -c \
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 
+[ -s config/agentbrowse/config.json ] \
+    || fail "default agentbrowse config is missing or empty"
+/usr/bin/jq -e '
+    .version == 2 and
+    (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+    .backends[1].maxTargets == 1 and
+    .backends[1].cpus == 2 and
+    .backends[1].memory == "6G" and
+    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3"
+' config/agentbrowse/config.json >/dev/null \
+    || fail "default agentbrowse config does not declare the locked ordered fallback"
+tests/agentbrowse-config.sh
+
 [ -s config/agent-browser/config.json ] \
     || fail "default agent-browser config is missing or empty"
 /usr/bin/jq -e '
-    .provider == "artbird" and
+    .provider == "agentbrowse" and
     (.plugins == [{
-        "name": "artbird",
+        "name": "agentbrowse",
         "command": "/bin/sh",
         "args": ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"],
         "capabilities": ["browser.provider"]
     }])
 ' config/agent-browser/config.json >/dev/null \
-    || fail "default agent-browser config does not select the agentbrowse Artbird provider"
+    || fail "default agent-browser config does not select the agentbrowse provider"
 tests/agent-browser-config.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
@@ -1050,7 +1067,8 @@ for required_install in \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
-    'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived Artbird provider by default; no provider server or static URL' \
+    'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
+    'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
     'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
@@ -1518,10 +1536,13 @@ grep -F 'exit "$agent_clis_status"' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
 agent_clis_line=$(grep -n '^"$script_dir/install-agent-clis"' scripts/install.sh | cut -d: -f1)
 # shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
+agentbrowse_config_line=$(grep -n '^"$script_dir/agentbrowse-config" install$' scripts/install.sh | cut -d: -f1)
+# shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
 agent_browser_config_line=$(grep -n '^"$script_dir/agent-browser-config" install$' scripts/install.sh | cut -d: -f1)
-[ -n "$agent_clis_line" ] && [ -n "$agent_browser_config_line" ] \
-    && [ "$agent_browser_config_line" -gt "$agent_clis_line" ] \
-    || fail "agent-browser config must be linked after agentbrowse installs"
+[ -n "$agent_clis_line" ] && [ -n "$agentbrowse_config_line" ] && [ -n "$agent_browser_config_line" ] \
+    && [ "$agentbrowse_config_line" -gt "$agent_clis_line" ] \
+    && [ "$agent_browser_config_line" -gt "$agentbrowse_config_line" ] \
+    || fail "agentbrowse and agent-browser configs must be linked in order after the CLIs install"
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/remove-retired-integrations"' scripts/install.sh >/dev/null \
     || fail "installer does not run retired integration cleanup"
@@ -1554,12 +1575,12 @@ grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
 # codex-swap itself installed.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb \
+for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb \
     agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;

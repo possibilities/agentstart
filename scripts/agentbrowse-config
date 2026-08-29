@@ -1,0 +1,128 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'agentbrowse-config: %s\n' "$*" >&2
+    exit 1
+}
+
+# Resolve through any command link so the checkout that performed the install
+# remains the source of truth.
+script_path="$0"
+while [ -L "$script_path" ]; do
+    link_target=$(readlink "$script_path")
+    case "$link_target" in
+        /*) script_path="$link_target" ;;
+        *) script_path="$(dirname -- "$script_path")/$link_target" ;;
+    esac
+done
+script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
+repo_root=$(cd -P -- "$script_dir/.." && pwd)
+
+config_source="${AGENTSTART_AGENTBROWSE_CONFIG_SOURCE:-$repo_root/config/agentbrowse/config.json}"
+config_target="${AGENTSTART_AGENTBROWSE_CONFIG_TARGET:-$HOME/.config/agentbrowse/config.json}"
+jq_bin="${AGENTSTART_JQ_BIN:-/usr/bin/jq}"
+
+validate_config() {
+    [ -x "$jq_bin" ] || die "jq is required to validate the agentbrowse config: $jq_bin"
+    [ -s "$config_source" ] || die "agentbrowse config is missing or empty: $config_source"
+    "$jq_bin" -e '
+        .version == 2 and
+        (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+        .backends[0] == {
+            "id": "artbird",
+            "type": "docker",
+            "context": "artbird",
+            "expectedEndpoint": "ssh://artbird",
+            "expectedEngine": "artbird",
+            "remoteHost": "artbird",
+            "networkAddressCommand": "tailscale ip -4"
+        } and
+        .backends[1] == {
+            "id": "apple-container-local",
+            "type": "apple-container",
+            "command": "/usr/local/bin/container",
+            "maxTargets": 1,
+            "cpus": 2,
+            "memory": "6G"
+        } and
+        .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
+        .provider.name == "agentbrowse" and
+        .discovery.commandTimeoutMs == 2000
+    ' "$config_source" >/dev/null \
+        || die "agentbrowse config does not declare the locked ordered backends: $config_source"
+}
+
+is_known_version_one_config() {
+    # shellcheck disable=SC2016 # $home is a jq variable, not shell expansion.
+    "$jq_bin" -e --arg home "$HOME" '
+        . == {
+            "version": 1,
+            "docker": {
+                "context": "artbird",
+                "expectedEndpoint": "ssh://artbird",
+                "expectedEngine": "artbird"
+            },
+            "remote": {
+                "host": "artbird",
+                "networkAddressCommand": "tailscale ip -4"
+            },
+            "images": {"sourceDirectory": ($home + "/src/kernel-images")},
+            "browser": {"timezone": "America/New_York"},
+            "provider": {
+                "name": "artbird",
+                "description": "Manage Kernel browser targets on Artbird"
+            },
+            "liveView": {
+                "labelPrefix": "artbird",
+                "username": "kernel",
+                "password": "admin",
+                "readOnly": false
+            },
+            "discovery": {"commandTimeoutMs": 2000}
+        }
+    ' "$config_target" >/dev/null 2>&1
+}
+
+install_config() {
+    validate_config
+    if [ -L "$config_target" ]; then
+        [ -e "$config_target" ] || die "refusing to replace broken agentbrowse config link: $config_target"
+        cmp -s -- "$config_source" "$config_target" \
+            || die "refusing to replace independent agentbrowse config link: $config_target"
+    elif [ -e "$config_target" ]; then
+        is_known_version_one_config \
+            || die "refusing to replace independent agentbrowse config: $config_target"
+        rm -- "$config_target"
+    fi
+
+    mkdir -p -- "$(dirname -- "$config_target")"
+    ln -sfn -- "$config_source" "$config_target"
+    [ -L "$config_target" ] || die "agentbrowse config target is not a link: $config_target"
+    cmp -s -- "$config_source" "$config_target" \
+        || die "linked agentbrowse config does not resolve to $config_source: $config_target"
+}
+
+usage() {
+    cat <<'EOF'
+Usage: agentbrowse-config <command>
+
+Commands:
+  install   Link AgentStart's ordered Artbird/Apple agentbrowse configuration
+EOF
+}
+
+case "${1:-}" in
+    install)
+        [ "$#" -eq 1 ] || die "install takes no arguments"
+        install_config
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac

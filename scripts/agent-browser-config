@@ -30,16 +30,16 @@ validate_config() {
         || die "agent-browser config is missing or empty: $config_source"
     # shellcheck disable=SC2016 # Match the literal $HOME expanded by the plugin shell.
     "$jq_bin" -e '
-        .provider == "artbird" and
+        .provider == "agentbrowse" and
         (.plugins | type == "array") and
         ([.plugins[] | select(
-            .name == "artbird" and
+            .name == "agentbrowse" and
             .command == "/bin/sh" and
             .args == ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"] and
             .capabilities == ["browser.provider"]
         )] | length == 1)
     ' "$config_source" >/dev/null \
-        || die "agent-browser config does not declare Artbird as the default agentbrowse provider: $config_source"
+        || die "agent-browser config does not declare agentbrowse as the default provider: $config_source"
 }
 
 install_config() {
@@ -61,7 +61,7 @@ usage() {
 Usage: agent-browser-config <command>
 
 Commands:
-  install   Link AgentStart's default Artbird provider config into agent-browser
+  install   Link AgentStart's default agentbrowse provider config into agent-browser
 EOF
 }
 
