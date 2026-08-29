@@ -95,7 +95,7 @@ flowchart LR
     start ==>|official installers| harnesses[Claude Code / Codex / Pi]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
-    start ==>|brew formula + harness integrations + binary-rendered skill| herdrInstall[herdr]
+    start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into fixed Pi resources| piSubagents[pi-subagents]
     start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
@@ -245,7 +245,7 @@ sentence around the match, never from the name alone.
 | zig | Brewfile-tracked, duplicated in the installer | AgentVoice's native duplex audio path and Native SDK packaging build against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
 | Fx | `d5e5da7aad0bbfa9b0792a02f72e802e8606b20c` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable fmx install requires the same pin and receives a byte-identical `fmx-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
-| herdr | official stable Homebrew formula | Homebrew owns the binary and its deliberate package-manager update path; AgentStart converges the formula during a full install and does not upgrade it from the scheduled path, avoiding unattended client/server skew | `agentstart/scripts/install.sh`, asserted by `agentstart/tests/validate.sh` |
+| herdr | official stable Homebrew formula, fleet protocol 21 minimum | AgentStart stages the formula during a full install but preserves the compatible source-built client and its build evidence while stable is too old or any default/named Herdr server socket exists. Only an inactive protocol-compatible run performs the receipt-proved cleanup and makes Homebrew authoritative; the scheduled path never upgrades Herdr | `agentstart/scripts/install.sh`; `agentstart/scripts/select-herdr-runtime`; behavioral coverage in `agentstart/tests/herdr-homebrew-cutover.sh` |
 
 The managed claude-swap fork rebases its **`integration` branch** onto upstream on every
 install — every patch we carry, merged, and the only ref the installer builds

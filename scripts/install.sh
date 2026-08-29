@@ -549,8 +549,8 @@ Command-line tools:
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
-  brew install or upgrade herdr  # official stable formula; package-manager updates remain deliberate
-  remove AgentStart's legacy source-built ~/.local/bin/herdr and build state when its receipt proves ownership  # preserve an independent occupant
+  brew install or upgrade herdr  # stage the official stable formula; retain the compatible client while the formula is too old or any Herdr server is live
+  select Homebrew Herdr only at protocol 21+ with no live server sockets, then remove the legacy source build when its receipt proves ownership  # ambiguous occupants and evidence are preserved
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
@@ -761,33 +761,17 @@ install -m 0755 "$termctrl_shim" "$termctrl_bin"
 printf 'Installing or upgrading Herdr from the official stable formula.\n'
 install_or_upgrade_formula herdr
 
-# Retire the former source-build installation without mistaking an unrelated
-# ~/.local/bin/herdr for ours. The old updater atomically installed a regular
-# executable and immediately wrote a 40-hex receipt; those two writes share a
-# whole-second mtime on macOS. A changed occupant has a different mtime and is
-# preserved. AgentStart owns the receipt and build log themselves regardless.
-legacy_herdr_bin="$HOME/.local/bin/herdr"
-legacy_herdr_state="$HOME/.local/state/agentstart"
-legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"
-legacy_herdr_build_log="$legacy_herdr_state/herdr-build.log"
-if [ -f "$legacy_herdr_receipt" ]; then
-    legacy_herdr_commit=$(tr -d '\n' <"$legacy_herdr_receipt")
-    if [[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]] &&
-        [ -f "$legacy_herdr_bin" ] && [ ! -L "$legacy_herdr_bin" ] &&
-        [ "$(stat -f '%Su' "$legacy_herdr_bin")" = "$(id -un)" ] &&
-        [ "$(stat -f '%m' "$legacy_herdr_bin")" = "$(stat -f '%m' "$legacy_herdr_receipt")" ]; then
-        printf 'Removing AgentStart legacy source-built Herdr binary.\n'
-        rm -- "$legacy_herdr_bin"
-    elif [ -e "$legacy_herdr_bin" ] || [ -L "$legacy_herdr_bin" ]; then
-        printf 'Preserving independent occupant at %s; legacy receipt does not prove ownership.\n' \
-            "$legacy_herdr_bin"
-    fi
-    rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"
+# Homebrew updates cannot use Herdr's live-handoff API. Stage the formula, but
+# keep using the source-built protocol-21 client while stable is older or any
+# default/named server socket exists. Only a fully compatible, inactive
+# cutover removes the old binary, and only with exact ownership evidence.
+herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr") \
+    || die "selecting the safe Herdr runtime failed"
+if [ "$herdr_bin" = "$brew_prefix/bin/herdr" ]; then
+    hash -r
+    [ "$(command -v herdr)" = "$herdr_bin" ] \
+        || die "Homebrew Herdr does not win PATH after legacy cleanup: $(command -v herdr || printf missing)"
 fi
-
-hash -r
-[ "$(command -v herdr)" = "$brew_prefix/bin/herdr" ] \
-    || die "Herdr does not resolve to Homebrew after legacy cleanup: $(command -v herdr || printf missing)"
 
 # The harness integrations wire each agent into herdr — pi's is a lifecycle
 # authority, while claude's and codex's report session identity (for native
@@ -981,17 +965,17 @@ install_herdr_integrations() {
             # second hook — same script, session-local path — to the one shared
             # file. Pin the canonical home and prune any that already landed.
             prune_swap_claude_herdr_hooks
-            CLAUDE_CONFIG_DIR="$HOME/.claude" herdr integration install "$harness" \
+            CLAUDE_CONFIG_DIR="$HOME/.claude" "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         elif [ "$harness" = codex ]; then
             # A Codex-swap launch runs with a disposable CODEX_HOME. Never let
             # that session-local path enter the canonical hook definition:
             # Codex trusts the definition hash, so every new path asks again.
             prune_shadow_codex_herdr_hooks
-            CODEX_HOME="$HOME/.codex" herdr integration install "$harness" \
+            CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         else
-            herdr integration install "$harness" \
+            "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         fi
     done
@@ -1018,7 +1002,7 @@ install_herdr_plugins() {
         return 0
     fi
     printf 'Linking the agentsurface herdr plugin.\n'
-    if ! link_output=$(herdr plugin link "$plugin_root" 2>&1); then
+    if ! link_output=$("$herdr_bin" plugin link "$plugin_root" 2>&1); then
         case "$link_output" in
             *'"code":"protocol_mismatch"'*)
                 printf 'AgentStart installer: preserving the existing agentsurface plugin link; relink deferred until the natural Herdr server restart: %s\n' \
@@ -1076,7 +1060,7 @@ printf "Linking AgentStart's fmx configuration.\n"
 # reloads a running server. It carries no palette: Herdr's `terminal` theme
 # follows the terminal, which runs its own default colors.
 printf "Rendering AgentStart's Herdr configuration.\n"
-"$script_dir/herdr-config" install
+AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install
 
 command -v npm >/dev/null 2>&1 || die "npm is required to install the Native SDK CLI"
 
@@ -1223,7 +1207,7 @@ install_herdr_skill() {
     local skill_dir="$pack_root/skills/herdr"
 
     mkdir -p "$skill_dir"
-    herdr --skill >"$skill_dir/SKILL.md" \
+    "$herdr_bin" --skill >"$skill_dir/SKILL.md" \
         || die "rendering the herdr skill from the installed binary failed"
     [ -s "$skill_dir/SKILL.md" ] \
         || die "the installed herdr rendered an empty skill"

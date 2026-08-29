@@ -1,0 +1,105 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'select-herdr-runtime: %s\n' "$*" >&2
+    exit 1
+}
+
+client_protocol() {
+    local binary="$1"
+    local output
+    local protocol
+
+    output=$("$binary" status client 2>/dev/null) || return 1
+    protocol=$(printf '%s\n' "$output" | awk '$1 == "protocol:" { print $2; exit }')
+    case "$protocol" in
+        ''|*[!0-9]*) return 1 ;;
+    esac
+    printf '%s\n' "$protocol"
+}
+
+has_live_server_socket() {
+    local herdr_config_root="$1"
+
+    [ -d "$herdr_config_root" ] || return 1
+    find "$herdr_config_root" -type s -name herdr.sock -print -quit 2>/dev/null |
+        grep -q .
+}
+
+brew_herdr_bin="${1:-}"
+minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-21}"
+legacy_herdr_bin="${AGENTSTART_LEGACY_HERDR_BIN:-$HOME/.local/bin/herdr}"
+legacy_herdr_state="${AGENTSTART_STATE_ROOT:-$HOME/.local/state/agentstart}"
+legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"
+legacy_herdr_build_log="$legacy_herdr_state/herdr-build.log"
+herdr_config_root="${AGENTSTART_HERDR_CONFIG_ROOT:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr}"
+
+[ -x "$brew_herdr_bin" ] \
+    || die "Homebrew Herdr is not executable: $brew_herdr_bin"
+case "$minimum_protocol" in
+    ''|*[!0-9]*) die "minimum protocol is not numeric: $minimum_protocol" ;;
+esac
+
+brew_protocol=$(client_protocol "$brew_herdr_bin") \
+    || die "could not read the Homebrew Herdr client protocol: $brew_herdr_bin"
+
+legacy_protocol=''
+if [ -x "$legacy_herdr_bin" ] && [ ! -L "$legacy_herdr_bin" ]; then
+    legacy_protocol=$(client_protocol "$legacy_herdr_bin" || true)
+fi
+
+select_legacy() {
+    local reason="$1"
+
+    case "$legacy_protocol" in
+        ''|*[!0-9]*)
+            die "$reason; no compatible legacy Herdr client is available"
+            ;;
+    esac
+    [ "$legacy_protocol" -ge "$minimum_protocol" ] \
+        || die "$reason; legacy Herdr protocol $legacy_protocol is also below required protocol $minimum_protocol"
+    printf 'Deferring Homebrew Herdr cutover: %s. Preserving %s and its build evidence.\n' \
+        "$reason" "$legacy_herdr_bin" >&2
+    printf '%s\n' "$legacy_herdr_bin"
+    exit 0
+}
+
+if [ "$brew_protocol" -lt "$minimum_protocol" ]; then
+    select_legacy "official formula protocol $brew_protocol is below required protocol $minimum_protocol"
+fi
+
+# Package-manager updates cannot use Herdr's live-handoff path. A socket may
+# be active or stale; either way, treating it as live is the conservative
+# choice. Keep the client that can control the resident server and defer the
+# destructive half of the cutover until no default or named-session socket
+# remains.
+if has_live_server_socket "$herdr_config_root"; then
+    select_legacy "a default or named Herdr server socket is present"
+fi
+
+# The retired updater wrote the binary and its 40-hex receipt in the same
+# whole second. Remove the old binary only when regular-file shape, owner, and
+# write time all prove it is the updater's occupant. Ambiguous evidence is a
+# refusal, never a best-effort cleanup.
+if [ -f "$legacy_herdr_receipt" ]; then
+    legacy_herdr_commit=$(tr -d '\n' <"$legacy_herdr_receipt")
+    if [[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]] &&
+        [ -f "$legacy_herdr_bin" ] && [ ! -L "$legacy_herdr_bin" ] &&
+        [ "$(stat -f '%Su' "$legacy_herdr_bin")" = "$(id -un)" ] &&
+        [ "$(stat -f '%m' "$legacy_herdr_bin")" = "$(stat -f '%m' "$legacy_herdr_receipt")" ]; then
+        printf 'Removing AgentStart legacy source-built Herdr binary.\n' >&2
+        rm -- "$legacy_herdr_bin"
+        rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"
+    elif [ -e "$legacy_herdr_bin" ] || [ -L "$legacy_herdr_bin" ]; then
+        die "preserving independent occupant at $legacy_herdr_bin; legacy receipt does not prove ownership"
+    else
+        printf 'Removing orphaned AgentStart legacy Herdr build evidence.\n' >&2
+        rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"
+    fi
+elif [ -e "$legacy_herdr_bin" ] || [ -L "$legacy_herdr_bin" ]; then
+    die "preserving unreceipted occupant at $legacy_herdr_bin"
+fi
+
+printf '%s\n' "$brew_herdr_bin"

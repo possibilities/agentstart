@@ -27,15 +27,18 @@ scripts/agentbrowse-config
 scripts/agent-browser-config
 scripts/fmx-config
 scripts/herdr-config
+scripts/select-herdr-runtime
 tests/validate.sh
 tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
+tests/herdr-homebrew-cutover.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
 tests/remove-retired-agentweb.sh
 tests/fixtures/npx
+tests/fixtures/herdr-protocol
 "
 
 for file in $shell_files; do
@@ -55,7 +58,8 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/remove-retired-agentweb \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
+    scripts/select-herdr-runtime; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agentbrowse-config.sh ] \
@@ -66,6 +70,8 @@ done
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
+[ -x tests/herdr-homebrew-cutover.sh ] \
+    || fail "Herdr Homebrew cutover test is not executable: tests/herdr-homebrew-cutover.sh"
 [ -x tests/agentsource-webhooks.sh ] \
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
 [ -x tests/install-launchagents.sh ] \
@@ -1187,8 +1193,8 @@ for required_install in \
     '"$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal' \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
-    'brew install or upgrade herdr  # official stable formula; package-manager updates remain deliberate' \
-    'remove AgentStart'"'"'s legacy source-built ~/.local/bin/herdr and build state when its receipt proves ownership  # preserve an independent occupant' \
+    'brew install or upgrade herdr  # stage the official stable formula; retain the compatible client while the formula is too old or any Herdr server is live' \
+    'select Homebrew Herdr only at protocol 21+ with no live server sockets, then remove the legacy source build when its receipt proves ownership  # ambiguous occupants and evidence are preserved' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
@@ -1269,14 +1275,14 @@ if grep -F 'upgrade --channel dev' scripts/install.sh >/dev/null; then
     fail "installer retains the Fx dev channel beside the integration build"
 fi
 # shellcheck disable=SC2016 # Assert the literal environment pin in the installer.
-grep -F 'CODEX_HOME="$HOME/.codex" herdr integration install "$harness"' \
+grep -F 'CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness"' \
     scripts/install.sh >/dev/null \
     || fail "Herdr's Codex integration can inherit a disposable multi-auth CODEX_HOME"
 grep -F "codex-multi-auth-runtime-home-[^/']+/herdr-agent-state\\.sh" \
     scripts/install.sh >/dev/null \
     || fail "installer does not prune stale Codex multi-auth Herdr hook definitions"
 # shellcheck disable=SC2016 # Assert the literal environment pin in the installer.
-grep -F 'CLAUDE_CONFIG_DIR="$HOME/.claude" herdr integration install "$harness"' \
+grep -F 'CLAUDE_CONFIG_DIR="$HOME/.claude" "$herdr_bin" integration install "$harness"' \
     scripts/install.sh >/dev/null \
     || fail "Herdr's Claude integration can inherit a claude-swap session CLAUDE_CONFIG_DIR"
 grep -F "/\\.claude-swap-backup/sessions/" \
@@ -1432,11 +1438,11 @@ grep -F '`attention` — durable human handoff' \
     prompts/agentguidance/TOOLS.md >/dev/null \
     || fail "TOOLS.md does not advertise the Attention skill"
 
-# Herdr follows the official stable Homebrew formula. The retired source
-# updater is absent, and full-install cleanup removes its binary only when the
-# 40-hex receipt, regular-file shape, owner, and write-time all agree. Its
-# integrations reinstall unconditionally because an upgrade can stale them,
-# and they cover exactly the three harnesses the fleet runs.
+# Herdr stages the official stable Homebrew formula but must retain the
+# compatible source-built client while the formula is below fleet protocol 21
+# or any default/named server socket exists. The retired updater is absent,
+# and inactive cutover removes its binary only when the 40-hex receipt,
+# regular-file shape, owner, and write-time all agree.
 grep -F 'install_or_upgrade_formula zig@0.15' scripts/install.sh >/dev/null \
     || fail "installer does not converge the Zig 0.15 line Terminal Control builds against"
 grep -F 'install_or_upgrade_formula herdr' scripts/install.sh >/dev/null \
@@ -1454,27 +1460,36 @@ fi
 if grep -F 'herdr.dev/install.sh' scripts/install.sh >/dev/null; then
     fail "installer uses Herdr's direct installer instead of Homebrew"
 fi
+# shellcheck disable=SC2016 # Match the exact selector invocation.
+grep -F 'herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr")' scripts/install.sh >/dev/null \
+    || fail "installer does not select a safe Herdr runtime after staging Homebrew"
+# shellcheck disable=SC2016 # Match the literal configurable protocol expression.
+grep -F 'minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-21}"' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover does not enforce fleet protocol 21"
+# shellcheck disable=SC2016 # Match the literal socket-root variable.
+grep -F 'find "$herdr_config_root" -type s -name herdr.sock' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover does not conservatively detect default and named server sockets"
 # shellcheck disable=SC2016 # Match literal legacy cleanup variables and predicates.
-grep -F 'legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"' scripts/install.sh >/dev/null \
+grep -F 'legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"' scripts/select-herdr-runtime >/dev/null \
     || fail "installer does not recognize the retired source-build receipt"
 # shellcheck disable=SC2016 # Match the literal legacy receipt variable.
-grep -F '[[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]]' scripts/install.sh >/dev/null \
+grep -F '[[ "$legacy_herdr_commit" =~ ^[0-9a-f]{40}$ ]]' scripts/select-herdr-runtime >/dev/null \
     || fail "legacy Herdr cleanup does not validate the receipt"
 # shellcheck disable=SC2016 # Match the literal legacy binary variable.
-grep -F '[ ! -L "$legacy_herdr_bin" ]' scripts/install.sh >/dev/null \
+grep -F '[ ! -L "$legacy_herdr_bin" ]' scripts/select-herdr-runtime >/dev/null \
     || fail "legacy Herdr cleanup could remove an independent symlink"
-grep -F "stat -f '%Su' \"\$legacy_herdr_bin\"" scripts/install.sh >/dev/null \
+grep -F "stat -f '%Su' \"\$legacy_herdr_bin\"" scripts/select-herdr-runtime >/dev/null \
     || fail "legacy Herdr cleanup does not prove the binary owner"
-grep -F "stat -f '%m' \"\$legacy_herdr_bin\"" scripts/install.sh >/dev/null \
+grep -F "stat -f '%m' \"\$legacy_herdr_bin\"" scripts/select-herdr-runtime >/dev/null \
     || fail "legacy Herdr cleanup does not match the updater write time"
 # shellcheck disable=SC2016 # Match the literal legacy binary variable.
-grep -F 'rm -- "$legacy_herdr_bin"' scripts/install.sh >/dev/null \
+grep -F 'rm -- "$legacy_herdr_bin"' scripts/select-herdr-runtime >/dev/null \
     || fail "installer does not remove its proved legacy Herdr binary"
 # shellcheck disable=SC2016 # Match the literal legacy state variables.
-grep -F 'rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"' scripts/install.sh >/dev/null \
+grep -F 'rm -f -- "$legacy_herdr_receipt" "$legacy_herdr_build_log"' scripts/select-herdr-runtime >/dev/null \
     || fail "installer does not retire its Herdr build state"
 # shellcheck disable=SC2016 # Match the literal Homebrew resolution assertion.
-grep -F '[ "$(command -v herdr)" = "$brew_prefix/bin/herdr" ]' scripts/install.sh >/dev/null \
+grep -F '[ "$(command -v herdr)" = "$herdr_bin" ]' scripts/install.sh >/dev/null \
     || fail "installer does not verify that Homebrew Herdr wins resolution"
 grep -F 'install_herdr_integrations' scripts/install.sh >/dev/null \
     || fail "installer does not converge the herdr harness integrations"
@@ -1599,9 +1614,10 @@ grep -F '"$script_dir/fmx-config" install' scripts/install.sh >/dev/null \
     || fail "installer does not link the fmx config"
 tests/fmx-config.sh
 
-# shellcheck disable=SC2016 # Match the literal installer variable.
-grep -F '"$script_dir/herdr-config" install' scripts/install.sh >/dev/null \
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F 'AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install' scripts/install.sh >/dev/null \
     || fail "installer does not render the Herdr config"
+tests/herdr-homebrew-cutover.sh
 tests/herdr-config.sh
 
 # The AgentSurface popup-pane and tab-naming plugin registers by checkout path;
@@ -1610,7 +1626,7 @@ tests/herdr-config.sh
 grep -F 'install_herdr_plugins' scripts/install.sh >/dev/null \
     || fail "installer does not link the agentsurface herdr plugin"
 # shellcheck disable=SC2016 # Match the literal link invocation, $-sign and all.
-grep -F 'herdr plugin link "$plugin_root"' scripts/install.sh >/dev/null \
+grep -F '"$herdr_bin" plugin link "$plugin_root"' scripts/install.sh >/dev/null \
     || fail "the agentsurface plugin is not registered by checkout path"
 grep -F 'protocol_mismatch' scripts/install.sh >/dev/null \
     || fail "plugin convergence cannot preserve a newer resident server"
@@ -1621,7 +1637,8 @@ grep -F 'relink deferred until the natural Herdr server restart' scripts/install
 # head than the installed herdr and grow a second update path.
 grep -F 'install_herdr_skill' scripts/install.sh >/dev/null \
     || fail "installer does not converge the herdr surface skill"
-grep -F 'herdr --skill' scripts/install.sh >/dev/null \
+# shellcheck disable=SC2016 # Match the literal selected runtime variable.
+grep -F '"$herdr_bin" --skill' scripts/install.sh >/dev/null \
     || fail "the herdr skill is not rendered from the installed binary"
 if grep -E 'skills add https://github.com/[^ ]*herdr' scripts/install.sh >/dev/null; then
     fail "the herdr skill tracks the GitHub head instead of the installed binary"

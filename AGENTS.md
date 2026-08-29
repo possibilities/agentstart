@@ -39,6 +39,14 @@
   exact stock npm pin instead. Its installer keeps the fork behind
   `NDY_FORK_ACTIVE=0` — dormant rather than deleted, which is what makes
   reviving it an edit rather than a rewrite.
+- Herdr is moving from AgentStart's retired `~/src/herdr` updater to the
+  official stable Homebrew formula. `scripts/select-herdr-runtime` is the
+  cutover guard: stable must speak fleet protocol 21 or newer and every
+  default/named server socket must be absent before the receipt-proved source
+  binary is removed. Until both are true, full convergence stages Homebrew but
+  keeps the compatible client and its build evidence. Package-manager updates
+  cannot use Herdr's live handoff, so never weaken the socket gate to force a
+  cutover around resident agents.
 - Every fleet repo's `AGENTS.md` ends with the same "The fleet" section
   pointing back here: the skills scan and its cadence, the fleet-map rule,
   and agentguidance as the home of general doctrine. Changing any of those

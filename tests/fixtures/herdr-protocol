@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -euo pipefail
+
+[ "${1:-}" = status ] && [ "${2:-}" = client ] || exit 64
+case "$0" in
+    */brew/*) protocol="${FAKE_BREW_HERDR_PROTOCOL:?}" ;;
+    *) protocol="${FAKE_LEGACY_HERDR_PROTOCOL:?}" ;;
+esac
+printf 'version: fixture\n'
+printf 'channel: stable\n'
+printf 'protocol: %s\n' "$protocol"
+printf 'binary: %s\n' "$0"
