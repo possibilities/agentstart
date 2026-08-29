@@ -101,7 +101,7 @@ Where things go:
   geometry so the dialog is also exposed through Herdr's plugin surface.
 - A third-party harness capability the fleet decides every session gets:
   its own pinned installer script invoked by `scripts/install.sh`, with
-  `scripts/render-capabilities` carrying the result into the common pack.
+  `scripts/render-capabilities` carrying the result into the fixed resources.
   `install-pi-subagents` is the standing example — Pi ships no subagents by
   design and points at third-party packages, so the fleet picks one and pins
   it. Install it self-contained and let the renderer carry it; never register
@@ -138,10 +138,10 @@ Where things go:
 ## Skills
 
 This checkout participates in the same convention it administers: skills
-under `skills/<name>/SKILL.md` ship into the default `common` capability pack
-via `scripts/sync-skills`. AgentLaunch composes the pack into each managed
-session: Claude Code exposes `/agent:<name>`, while Codex uses `$<name>` and
-Pi uses `/<name>`. The `fleet` skill is the dependency map of the ecosystem;
+under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
+`scripts/sync-skills`. AgentLaunch loads them into each managed session:
+Claude Code exposes `/agent:<name>`, Codex uses `$agent:<name>`, and Pi uses
+`/<name>`. The `fleet` skill is the dependency map of the ecosystem;
 its `MAP.md` claims to be current, so a stale edge there is a bug, not a doc
 nit.
 

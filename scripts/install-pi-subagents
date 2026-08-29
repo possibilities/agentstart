@@ -4,7 +4,7 @@ set -euo pipefail
 
 # The Pi subagent capability. Pi ships no subagents by design — its own README
 # says so and points at third-party packages — so the fleet installs one, and
-# managed Pi sessions receive it through the common capability pack rather than
+# managed Pi sessions receive it through the fixed private resources rather than
 # Pi's ambient discovery directories.
 #
 # The package is installed here, not with `pi install`. A package registered in
@@ -49,7 +49,7 @@ case "$1" in
         cat <<EOF
   npm pack $package_name@$pinned_version, extracted with its runtime dependencies to $package_root
   # pinned: Pi skips versioned specs when it updates extensions, so the pin is also the upgrade gate
-  # the common capability pack carries this directory; AgentLaunch names it with --extension
+  # the fixed resources carry this directory; AgentLaunch names it with --extension
 EOF
         exit 0
         ;;

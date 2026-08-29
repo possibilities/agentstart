@@ -1,0 +1,6 @@
+{
+  "name": "agent",
+  "version": "1.0.0",
+  "description": "Private fleet skills rendered by AgentStart.",
+  "author": { "name": "AgentStart" }
+}

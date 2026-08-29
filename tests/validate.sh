@@ -15,6 +15,7 @@ scripts/install.sh
 scripts/sync-skills
 scripts/run-skills-cli
 scripts/render-capabilities
+scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
@@ -48,6 +49,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
+    scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
     scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
@@ -122,17 +124,23 @@ done
 [ ! -e scripts/install-agentsurface-shims ] \
     || fail "retired AgentSurface shim installer returned"
 
-for manifest in config/capabilities/common/*.json; do
+for manifest in config/resources/*.json; do
     /usr/bin/jq -e . "$manifest" >/dev/null \
-        || fail "capability manifest is not valid JSON: $manifest"
+        || fail "resource manifest is not valid JSON: $manifest"
 done
-/usr/bin/jq -e '.schema_version == 1 and .id == "common" and .default == true' \
-    config/capabilities/common/capability.json >/dev/null \
-    || fail "common capability manifest has the wrong identity or default"
-/usr/bin/jq -e '.name == "agent"' config/capabilities/common/claude-plugin.json >/dev/null \
-    || fail "Claude session projection has the wrong plugin name"
-/usr/bin/jq -e '.name == "agent"' config/capabilities/common/codex-plugin.json >/dev/null \
-    || fail "Codex compatibility projection has the wrong plugin name"
+/usr/bin/jq -e '.name == "agent"' config/resources/claude-plugin.json >/dev/null \
+    || fail "Claude fleet plugin has the wrong name"
+/usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
+    config/resources/codex-plugin.json >/dev/null \
+    || fail "Codex fleet plugin is not strictly skills-only"
+if grep -Ei '"(hooks|mcpServers|apps)"[[:space:]]*:' config/resources/codex-plugin.json >/dev/null; then
+    fail "Codex fleet plugin declares a globally active non-skill surface"
+fi
+[ -z "$(find config/capabilities -type f -print 2>/dev/null)" ] \
+    || fail "retired capability-pack templates returned"
+if grep -RFq 'AGENTSTART_CAPABILITIES_ROOT' scripts config README.md docs 2>/dev/null; then
+    fail "retired AGENTSTART_CAPABILITIES_ROOT remains in active repository surfaces"
+fi
 [ ! -e scripts/install-core-plugin ] \
     || fail "retired core-plugin installer returned"
 [ ! -e config/core-plugin ] \
@@ -761,7 +769,7 @@ export {};
 EOF
 # OpenAI manifests are portable source: their default prompt starts with the
 # plain skill name. Compatibility packaging must qualify only its generated
-# copy without changing the canonical common pack.
+# copy without changing the canonical fixed resources.
 mkdir -p "$code_skills_root/agentdemo/skills/demo/agents"
 cat >"$code_skills_root/agentdemo/skills/demo/agents/openai.yaml" <<'EOF'
 interface:
@@ -845,8 +853,25 @@ printf -- '---\nname: pi-subagents\ndescription: fixture\n---\n' \
 printf -- '---\ndescription: fixture workflow\n---\n' \
     >"$fixture_pi_subagents_root/pi-subagents/prompts/parallel-review.md"
 
+mkdir -p "$code_skills_home/.codex"
+cat >"$code_skills_home/.codex/config.toml" <<'EOF'
+model = "fixture-model"
+
+[[skills.config]]
+name = "unrelated"
+enabled = true
+
+# BEGIN AgentStart managed fleet skills (do not edit)
+[[skills.config]]
+name = "agent:retired"
+enabled = false
+
+# END AgentStart managed fleet skills
+EOF
+
 sync_output=$(
-    HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
+    HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+        AGENTSTART_CODE_ROOT="$code_skills_root" \
         AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
         AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
         AGENTSTART_TEST_NPX_OUTPUT=skills-cli-success-noise \
@@ -878,84 +903,146 @@ fi
     || fail "skill sync did not invoke the skills tool exactly once per source"
 [ -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync did not run a participant's post-sync hook after its skills landed"
-fixture_capabilities_root="$code_skills_home/.local/share/agentstart/capabilities"
-fixture_common_root="$fixture_capabilities_root/packs/common"
-fixture_claude_root="$fixture_capabilities_root/projections/common/claude/agent"
-fixture_codex_root="$fixture_capabilities_root/compatibility/codex-marketplace/plugins/agent"
-[ -f "$fixture_common_root/skills/demo/SKILL.md" ] \
-    || fail "skill sync did not copy a participant into the common capability pack"
-[ -f "$fixture_common_root/capability.json" ] \
-    || fail "skill sync did not render the common capability manifest"
+fixture_resources_root="$code_skills_home/.local/share/agentstart/resources"
+fixture_claude_root="$fixture_resources_root/claude/agent"
+fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
+[ -f "$fixture_resources_root/skills/demo/SKILL.md" ] \
+    || fail "skill sync did not copy a participant into the fixed resources"
 [ -f "$fixture_claude_root/.claude-plugin/plugin.json" ] \
-    || fail "skill sync did not render the Claude session projection"
+    || fail "skill sync did not render the Claude fleet plugin"
 [ -f "$fixture_codex_root/.codex-plugin/plugin.json" ] \
-    || fail "skill sync did not render the Codex compatibility projection"
+    || fail "skill sync did not render the Codex fleet plugin"
 # shellcheck disable=SC2016 # Match the literal Codex plugin-qualified skill reference.
 grep -F 'default_prompt: "Use $agent:demo with this fixture."' \
     "$fixture_codex_root/skills/demo/agents/openai.yaml" >/dev/null \
-    || fail "the compatibility projection did not qualify demo's Codex default prompt"
+    || fail "the Codex plugin did not qualify demo's default prompt"
 # shellcheck disable=SC2016 # Match the literal portable source skill reference.
 grep -F 'default_prompt: "Use $demo with this fixture."' \
-    "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
-    || fail "Codex prompt qualification changed the canonical pack manifest"
+    "$fixture_resources_root/skills/demo/agents/openai.yaml" >/dev/null \
+    || fail "Codex prompt qualification changed the canonical resource manifest"
 grep -F 'allow_implicit_invocation: true' \
-    "$fixture_common_root/skills/demo/agents/openai.yaml" >/dev/null \
+    "$fixture_resources_root/skills/demo/agents/openai.yaml" >/dev/null \
     || fail "the renderer did not replace stale Codex policy from canonical frontmatter"
-[ ! -w "$fixture_common_root/skills/demo/agents/openai.yaml" ] \
+[ ! -w "$fixture_resources_root/skills/demo/agents/openai.yaml" ] \
     || fail "the invocation-policy renderer changed a read-only manifest's mode"
 grep -F 'allow_implicit_invocation: false' \
-    "$fixture_common_root/skills/second/agents/openai.yaml" >/dev/null \
-    || fail "the managed Codex projection did not restrict an explicit-only skill"
+    "$fixture_resources_root/skills/second/agents/openai.yaml" >/dev/null \
+    || fail "the managed Codex resources did not restrict an explicit-only skill"
 grep -F 'allow_implicit_invocation: false' \
     "$fixture_codex_root/skills/second/agents/openai.yaml" >/dev/null \
-    || fail "the Codex compatibility projection did not restrict an explicit-only skill"
+    || fail "the Codex plugin copy did not restrict an explicit-only skill"
 grep -F 'disable-model-invocation: true' \
-    "$fixture_common_root/skills/second/SKILL.md" >/dev/null \
-    || fail "the portable common pack lost explicit-only skill frontmatter"
+    "$fixture_resources_root/skills/second/SKILL.md" >/dev/null \
+    || fail "the private resources lost explicit-only skill frontmatter"
 grep -F 'disable-model-invocation: true' \
     "$fixture_claude_root/skills/second/SKILL.md" >/dev/null \
-    || fail "the Claude projection lost explicit-only skill frontmatter"
+    || fail "the Claude plugin lost explicit-only skill frontmatter"
 "$root/scripts/render-skill-invocation-policy" --check \
-    "$fixture_common_root/skills" >/dev/null \
-    || fail "the rendered common pack does not pass its invocation-policy audit"
+    "$fixture_resources_root/skills" >/dev/null \
+    || fail "the rendered resources do not pass their invocation-policy audit"
 # The audit is independently useful: prove it rejects drift instead of merely
 # agreeing with the renderer that just ran.
 sed -i '' 's/allow_implicit_invocation: true/allow_implicit_invocation: false/' \
-    "$fixture_common_root/skills/demo/agents/openai.yaml"
+    "$fixture_resources_root/skills/demo/agents/openai.yaml"
 if "$root/scripts/render-skill-invocation-policy" --check \
-    "$fixture_common_root/skills" >/dev/null 2>&1; then
+    "$fixture_resources_root/skills" >/dev/null 2>&1; then
     fail "the invocation-policy audit accepted drift from canonical frontmatter"
 fi
 "$root/scripts/render-skill-invocation-policy" --install \
-    "$fixture_common_root/skills" >/dev/null
-chmod 644 "$fixture_common_root/skills/demo/agents/openai.yaml"
+    "$fixture_resources_root/skills" >/dev/null
+chmod 644 "$fixture_resources_root/skills/demo/agents/openai.yaml"
 [ ! -e "$code_skills_home/.pi/agent/skills/demo" ] \
     || fail "skill sync leaked a common skill into Pi's ambient global root"
-[ -f "$fixture_common_root/pi/extensions/herdr-agent-state.ts" ] \
-    || fail "skill sync did not collect Pi's generated Herdr extension into common"
+[ -f "$fixture_resources_root/pi/extensions/herdr-agent-state.ts" ] \
+    || fail "skill sync did not collect Pi's generated Herdr extension privately"
 [ -f "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" ] \
     || fail "unattended skill sync removed Pi's ambient Herdr extension"
 cmp -s \
     "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" \
-    "$fixture_common_root/pi/extensions/herdr-agent-state.ts" \
-    || fail "skill sync did not copy Pi's Herdr extension exactly into common"
+    "$fixture_resources_root/pi/extensions/herdr-agent-state.ts" \
+    || fail "skill sync did not copy Pi's Herdr extension exactly into private resources"
 
-# The subagent package rides the pack as a directory, because AgentLaunch names
-# a directory with --extension and Pi reads the manifest inside it to register
+# The subagent package rides the fixed resources as a directory, because
+# AgentLaunch names a directory with --extension and Pi reads the manifest inside it to register
 # the extension, its skills, and its workflow templates from that one path.
-fixture_pi_subagents_packed="$fixture_common_root/pi/extensions/pi-subagents"
+fixture_pi_subagents_packed="$fixture_resources_root/pi/extensions/pi-subagents"
 [ -f "$fixture_pi_subagents_packed/package.json" ] \
-    || fail "skill sync did not carry the Pi subagent package into common"
+    || fail "skill sync did not carry the Pi subagent package into the fixed resources"
 grep -F '"pi":' "$fixture_pi_subagents_packed/package.json" >/dev/null \
     || fail "the packed Pi subagent package lost the manifest Pi resolves it by"
-# Pi never installs dependencies for a local path, and AgentLaunch projects an
-# entry by copying its own subtree, so the dependencies must ride inside it.
+# Pi never installs dependencies for a local path, so the dependencies must
+# ride inside the explicitly named package directory.
 [ -f "$fixture_pi_subagents_packed/node_modules/yaml/package.json" ] \
     || fail "the packed Pi subagent package lost its runtime dependencies"
 [ -f "$fixture_pi_subagents_packed/prompts/parallel-review.md" ] \
     || fail "the packed Pi subagent package lost its workflow prompt templates"
 [ -f "$fixture_pi_subagents_packed/skills/pi-subagents/SKILL.md" ] \
     || fail "the packed Pi subagent package lost its own skills"
+
+# The plugin is installed globally, so every managed name must be disabled in
+# persistent Codex config before a managed session selectively enables it.
+fixture_codex_config="$code_skills_home/.codex/config.toml"
+grep -F 'model = "fixture-model"' "$fixture_codex_config" >/dev/null \
+    || fail "Codex skill policy replaced unrelated configuration"
+grep -F 'name = "unrelated"' "$fixture_codex_config" >/dev/null \
+    || fail "Codex skill policy replaced an unrelated skill entry"
+for fixture_skill in bus demo second story; do
+    grep -F "name = \"agent:$fixture_skill\"" "$fixture_codex_config" >/dev/null \
+        || fail "Codex skill policy omitted the managed $fixture_skill skill"
+done
+[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 4 ] \
+    || fail "Codex skill policy did not disable exactly the managed fixture skills"
+
+# A plugin refresh can fail after persistent policy is written. Keep a retired
+# name disabled until a later successful refresh proves the old plugin content
+# is gone; pruning it first would make that stale installed skill ambient.
+fixture_codex_config_next="$fixture_codex_config.next"
+/usr/bin/awk '
+    $0 == "# END AgentStart managed fleet skills" {
+        print "[[skills.config]]"
+        print "name = \"agent:retired\""
+        print "enabled = false"
+        print ""
+    }
+    { print }
+' "$fixture_codex_config" >"$fixture_codex_config_next"
+mv "$fixture_codex_config_next" "$fixture_codex_config"
+if HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+    AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
+    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
+    AGENTSTART_CODEX_BIN=/usr/bin/false \
+    "$root/scripts/render-capabilities" --install >/dev/null 2>&1; then
+    fail "Codex resource rendering accepted a failed plugin refresh"
+fi
+grep -F 'name = "agent:retired"' "$fixture_codex_config" >/dev/null \
+    || fail "failed Codex plugin refresh pruned a stale skill disable"
+HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+    AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
+    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
+    AGENTSTART_CODEX_BIN=/usr/bin/true \
+    "$root/scripts/render-capabilities" --install >/dev/null
+if grep -F 'name = "agent:retired"' "$fixture_codex_config" >/dev/null; then
+    fail "successful Codex plugin refresh did not prune a retired skill disable"
+fi
+[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 4 ] \
+    || fail "successful Codex plugin refresh changed the managed disable set"
+
+fixture_policy_before=$(/usr/bin/shasum -a 256 "$fixture_codex_config" | awk '{print $1}')
+HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+    "$root/scripts/sync-codex-skill-policy" \
+    "$fixture_resources_root/managed-skills.txt"
+fixture_policy_after=$(/usr/bin/shasum -a 256 "$fixture_codex_config" | awk '{print $1}')
+[ "$fixture_policy_before" = "$fixture_policy_after" ] \
+    || fail "Codex skill policy is not idempotent"
+
+fixture_bad_codex_home="$code_skills_home/bad-codex-home"
+mkdir -p "$fixture_bad_codex_home"
+printf '%s\n' '# BEGIN AgentStart managed fleet skills (do not edit)' \
+    >"$fixture_bad_codex_home/config.toml"
+if CODEX_HOME="$fixture_bad_codex_home" "$root/scripts/sync-codex-skill-policy" \
+    "$fixture_resources_root/managed-skills.txt" >/dev/null 2>&1; then
+    fail "Codex skill policy accepted malformed ownership markers"
+fi
 [ ! -e "$code_skills_home/.pi/agent/extensions/pi-subagents" ] \
     || fail "skill sync installed the Pi subagent package into Pi's ambient root"
 
@@ -985,7 +1072,7 @@ HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
 [ ! -e "$fixture_pi_subagents_packed/render-sentinel" ] \
     || fail "the renderer kept a stale Pi subagent package across a version change"
 grep -F '"9.9.10"' "$fixture_pi_subagents_packed/package.json" >/dev/null \
-    || fail "the renderer did not carry the newer Pi subagent pin into common"
+    || fail "the renderer did not carry the newer Pi subagent pin into fixed Pi resources"
 [ ! -e "$code_skills_home/.agents/skills/demo" ] \
     || fail "skill sync leaked a managed skill into Fx's compatibility root"
 
@@ -1063,7 +1150,7 @@ for required_install in \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
-    'remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it' \
+    'remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
@@ -1073,14 +1160,14 @@ for required_install in \
     'codex mcp add shadcn -- npx shadcn@latest mcp' \
     'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
     'native skills list' \
-    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
-    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
-    'ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
+    'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
+    'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
+    'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot' \
     'ln -sfn ~/.agents/prompts/agentvoice/{ORCHESTRATOR.md,ORCHESTRATOR_SESSION_START.md} into ~/.config/agentvoice  # the voice orchestrator'"'"'s doctrine; agentguidance renders it, so this links after sync-skills' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
-    'install external skill packs with --copy into ~/.local/share/agentstart/capabilities/packs/common/skills' \
+    'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
@@ -1090,12 +1177,13 @@ for required_install in \
     'https://github.com/vercel-labs/native: native-sdk' \
     'anomalyco/terminal-control@v<installed termctrl version>: terminal-control' \
     'hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it' \
-    'install hunk-review with --copy into the common capability pack' \
+    'install hunk-review with --copy into the fixed resources' \
     'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
-    'install herdr with --copy into the common capability pack' \
+    'install herdr with --copy into the fixed resources' \
     'render one session-only Claude plugin named agent (/agent:<skill>)' \
-    'render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed' \
-    'leave retired-plugin and ambient-link cleanup to the explicit full installer' \
+    'render and refresh the skills-only Codex plugin agent@agentstart-managed' \
+    'persistently disable every agent:<skill> outside managed Codex sessions' \
+    'leave retired-path and ambient-link cleanup to the explicit full installer' \
     "npx --yes skills add \"$code_skills_root/agentdemo\" --agent claude-code --skill demo second --global --copy --yes" \
     "\"$code_skills_root/agentdemo/scripts/post-sync\""; do
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
@@ -1153,7 +1241,7 @@ printf '%s\n' "$install_plan" | grep -F 'retired livekit-simulations' >/dev/null
 # A rename leaves the previous skill directory in the pack, and the additive
 # scan never removes it, so both spellings would reach every session.
 grep -F 'remove_renamed_pack_skills' scripts/install.sh >/dev/null \
-    || fail "installer no longer prunes renamed skills left in the common pack"
+    || fail "installer no longer prunes renamed skills left in the fixed resources"
 # AgentVoice exports skills/ like the other agent tools and is scanned like
 # them; nothing about it is special to this plan.
 printf '%s\n' "$install_plan" \
@@ -1256,7 +1344,7 @@ grep -F 'install_or_upgrade_formula zig' scripts/install.sh >/dev/null \
 # Terminal Control is built from its locked crates.io release with the exact
 # Zig line libghostty-vt requires. Its upstream skill is selected from the
 # installed binary's matching release tag and then shipped through the common
-# common capability pack to Claude Code, Codex, and Pi.
+# fixed private resources to Claude Code, Codex, and Pi.
 grep -F 'install_or_upgrade_formula rustup' scripts/install.sh >/dev/null \
     || fail "installer does not converge Rustup for Terminal Control"
 # shellcheck disable=SC2016 # Match the literal formula-owned Rustup variable.
@@ -1478,7 +1566,7 @@ grep -F 'hunk skill path hunk-review' scripts/install.sh >/dev/null \
     || fail "installer does not resolve the review skill from the installed Hunk binary"
 # shellcheck disable=SC2016 # Match the literal pack-root variable in the installer.
 grep -F 'install_private_skill_pack "$pack_root" hunk-review' scripts/install.sh >/dev/null \
-    || fail "installer does not copy Hunk's bundled review skill into the common capability pack"
+    || fail "installer does not copy Hunk's bundled review skill into the fixed resources"
 if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.sh >/dev/null; then
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi

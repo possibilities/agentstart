@@ -6,10 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const siteRoot = fileURLToPath(new URL("..", import.meta.url));
 const dataHome = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share");
-const capabilitiesRoot =
-  process.env.AGENTSTART_CAPABILITIES_ROOT || join(dataHome, "agentstart", "capabilities");
-const packRoot = join(capabilitiesRoot, "packs", "common");
-const outputPath = join(siteRoot, "public", "common-pack.json");
+const resourcesRoot =
+  process.env.AGENTSTART_RESOURCES_ROOT || join(dataHome, "agentstart", "resources");
+const outputPath = join(siteRoot, "public", "fleet-resources.json");
 
 const categoryCatalog = [
   {
@@ -111,7 +110,7 @@ const utilityCatalog = [
     capabilities: [
       "Dispatches focused workers from the active session",
       "Carries its own workflow prompts and supporting skills",
-      "Loads only in the Pi session projection",
+      "Loads only through Pi's explicit managed resource paths",
     ],
   },
   {
@@ -244,18 +243,18 @@ function categoryFor(skillId) {
   return categoryCatalog.find((category) => category.skills.includes(skillId))?.id || "system";
 }
 
-if (!(await exists(packRoot))) {
+if (!(await exists(resourcesRoot))) {
   if (await exists(outputPath)) {
-    console.log(`Common pack unavailable at ${packRoot}; keeping the checked-in snapshot.`);
+    console.log(`Fleet resources unavailable at ${resourcesRoot}; keeping the checked-in snapshot.`);
     process.exit(0);
   }
-  throw new Error(`Common capability pack not found at ${packRoot}`);
+  throw new Error(`AgentStart fleet resources not found at ${resourcesRoot}`);
 }
 
-const absoluteFiles = await walk(packRoot);
+const absoluteFiles = await walk(resourcesRoot);
 const inventory = await Promise.all(
   absoluteFiles.map(async (absolutePath) => {
-    const path = relative(packRoot, absolutePath).split("\\").join("/");
+    const path = relative(resourcesRoot, absolutePath).split("\\").join("/");
     const content = await readFile(absolutePath);
     return { absolutePath, path, hash: sha256(content) };
   }),
@@ -268,7 +267,7 @@ const skillIds = inventory
 
 const skills = await Promise.all(
   skillIds.map(async (id) => {
-    const manifestPath = join(packRoot, "skills", id, "SKILL.md");
+    const manifestPath = join(resourcesRoot, "skills", id, "SKILL.md");
     const manifestSource = await readFile(manifestPath, "utf8");
     const parsed = frontmatter(manifestSource);
     const description = parsed.attributes.description || `Advice for using ${displayNames[id] || id}.`;
@@ -300,7 +299,7 @@ const skills = await Promise.all(
       references,
       dialects: {
         claude: `/agent:${id}`,
-        codex: `$${id}`,
+        codex: `$agent:${id}`,
         pi: `/${id}`,
       },
     };
@@ -331,16 +330,12 @@ const utilities = utilityCatalog.map((utility) => ({
   ).length,
 }));
 
-const manifestPath = join(packRoot, "capability.json");
-const manifest = (await exists(manifestPath))
-  ? JSON.parse(await readFile(manifestPath, "utf8"))
-  : {};
 const digest = sha256(inventory.map((file) => `${file.path}\0${file.hash}`).join("\n")).slice(0, 24);
 const referenceCount = skills.reduce((total, skill) => total + skill.references.length, 0);
 const snapshot = {
   schemaVersion: 2,
-  id: manifest.id || "common",
-  description: manifest.description || "AgentStart's default capability pack",
+  id: "fleet-resources",
+  description: "AgentStart's fixed private resources for every managed fleet session.",
   digest,
   categories: categoryCatalog.map((category) => ({
     id: category.id,
@@ -364,5 +359,5 @@ const snapshot = {
 await mkdir(join(siteRoot, "public"), { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(snapshot)}\n`);
 console.log(
-  `Snapshotted ${snapshot.stats.skills} skills, ${snapshot.stats.references} references, and ${snapshot.stats.utilities} utility summaries from common (${digest}).`,
+  `Snapshotted ${snapshot.stats.skills} skills, ${snapshot.stats.references} references, and ${snapshot.stats.utilities} utility summaries from the fixed fleet resources (${digest}).`,
 );

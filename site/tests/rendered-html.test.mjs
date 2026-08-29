@@ -23,30 +23,30 @@ async function render() {
   );
 }
 
-test("server-renders the Common Pack field guide", async () => {
+test("server-renders the Fleet Resources field guide", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Common Pack — AgentStart advice field guide<\/title>/i);
+  assert.match(html, /<title>Fleet Resources — AgentStart advice field guide<\/title>/i);
   assert.match(html, /Your agents arrive/);
   assert.match(html, /with a field guide\./);
   assert.match(html, /Find the right playbook/);
-  assert.match(html, /Opening the common pack field guide/);
+  assert.match(html, /Opening the fleet resource field guide/);
   assert.doesNotMatch(html, /<footer\b|Generated from the installed pack/i);
   assert.doesNotMatch(html, /Browse every file|codex-preview|Your site is taking shape|Building your site/i);
 });
 
-test("checks in a complete, advice-focused pack snapshot", async () => {
+test("checks in a complete, advice-focused resource snapshot", async () => {
   const source = await readFile(
-    new URL("../public/common-pack.json", import.meta.url),
+    new URL("../public/fleet-resources.json", import.meta.url),
     "utf8",
   );
   const snapshot = JSON.parse(source);
 
   assert.equal(snapshot.schemaVersion, 2);
-  assert.equal(snapshot.id, "common");
+  assert.equal(snapshot.id, "fleet-resources");
   assert.equal(snapshot.skills.length, snapshot.stats.skills);
   assert.equal(snapshot.utilities.length, snapshot.stats.utilities);
   assert.equal(snapshot.guidance.length, snapshot.stats.guidance);
@@ -64,13 +64,13 @@ test("checks in a complete, advice-focused pack snapshot", async () => {
   assert.ok(snapshot.skills.every((skill) => snapshot.categories.some((category) => category.id === skill.category)));
   assert.ok(snapshot.startingSkills.every((id) => snapshot.skills.some((skill) => skill.id === id)));
   assert.ok(snapshot.guidance.some((item) => item.id === "guidance/AGENTS.md"));
-  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.codex, "$collab");
+  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.codex, "$agent:collab");
   assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.claude, "/agent:collab");
   assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.pi, "/collab");
   assert.equal(snapshot.utilities.find((utility) => utility.id === "pi-subagents")?.fileCount, 1898);
   assert.equal(snapshot.files, undefined, "raw implementation inventory should not ship to the browser");
   assert.ok(snapshot.stats.implementationFiles > snapshot.stats.adviceDocuments);
-  assert.ok(Buffer.byteLength(source) < 2_000_000, "the advice guide should stay far smaller than the raw pack");
+  assert.ok(Buffer.byteLength(source) < 2_000_000, "the advice guide should stay far smaller than the raw resources");
 });
 
 test("keeps the advice guide reachable within the viewport", async () => {

@@ -1,12 +1,12 @@
-import { PackGuide } from "./PackGuide";
+import { FleetGuide } from "./FleetGuide";
 
 export default function Home() {
   return (
     <main>
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Common Pack home">
-          <span className="wordmark-mark" aria-hidden="true">C</span>
-          <span>Common Pack</span>
+        <a className="wordmark" href="#top" aria-label="Fleet Resources home">
+          <span className="wordmark-mark" aria-hidden="true">F</span>
+          <span>Fleet Resources</span>
         </a>
         <div className="header-meta">
           <span>AgentStart advice field guide</span>
@@ -22,7 +22,7 @@ export default function Home() {
             <span>with a field guide.</span>
           </h1>
           <p className="hero-deck">
-            Common teaches agents how to collaborate, research, operate tools,
+            The fleet resources teach agents how to collaborate, research, operate tools,
             build products, and preserve what they learn. Browse the advice by
             intent; leave the implementation backstage.
           </p>
@@ -31,12 +31,12 @@ export default function Home() {
           </a>
         </div>
 
-        <div className="transmission" aria-label="How common appears in each harness">
+        <div className="transmission" aria-label="How fleet resources appear in each harness">
           <div className="transmission-origin">
             <span className="signal-pulse" aria-hidden="true" />
             <div>
               <span className="micro-label">Source</span>
-              <strong>common</strong>
+              <strong>agent</strong>
               <small>shared advice</small>
             </div>
           </div>
@@ -53,8 +53,8 @@ export default function Home() {
             </article>
             <article>
               <span className="harness-index">B</span>
-              <div><strong>Codex</strong><small>standalone skill roots</small></div>
-              <code>$build</code>
+              <div><strong>Codex</strong><small>qualified skills-only plugin</small></div>
+              <code>$agent:build</code>
             </article>
             <article>
               <span className="harness-index">C</span>
@@ -65,13 +65,13 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="thesis-strip" aria-label="Common pack principles">
+      <section className="thesis-strip" aria-label="Fleet resource principles">
         <p><span>01</span> Start with what you want done</p>
         <p><span>02</span> A playbook teaches the method</p>
         <p><span>03</span> Each harness speaks natively</p>
       </section>
 
-      <PackGuide />
+      <FleetGuide />
     </main>
   );
 }

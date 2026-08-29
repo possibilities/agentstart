@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -euo pipefail
+die() { printf 'AgentStart Codex skill policy: %s\n' "$*" >&2; exit 1; }
+merge_previous=0
+if [ "${1:-}" = --merge-previous ]; then
+    merge_previous=1
+    shift
+fi
+[ "$#" -eq 1 ] || die "usage: sync-codex-skill-policy [--merge-previous] <managed-skills.txt>"
+managed_names="$1"
+[ -s "$managed_names" ] || die "managed skill list is missing or empty: $managed_names"
+
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+config="$codex_home/config.toml"
+begin='# BEGIN AgentStart managed fleet skills (do not edit)'
+end='# END AgentStart managed fleet skills'
+mkdir -p "$codex_home"
+next=$(mktemp "$codex_home/.config.toml.agentstart.XXXXXX")
+effective_names=$(mktemp "$codex_home/.managed-skills.agentstart.XXXXXX")
+trap 'rm -f -- "$next" "$effective_names"' EXIT
+
+cp "$managed_names" "$effective_names"
+if [ "$merge_previous" -eq 1 ] && [ -e "$config" ]; then
+    /usr/bin/awk -v begin="$begin" -v end="$end" '
+        $0 == begin { inside = 1; next }
+        $0 == end { inside = 0; next }
+        inside && /^[[:space:]]*name[[:space:]]*=[[:space:]]*"agent:[a-zA-Z0-9._-]+"[[:space:]]*$/ {
+            line = $0
+            sub(/^[[:space:]]*name[[:space:]]*=[[:space:]]*"agent:/, "", line)
+            sub(/"[[:space:]]*$/, "", line)
+            print line
+        }
+    ' "$config" >>"$effective_names"
+    LC_ALL=C sort -u "$effective_names" -o "$effective_names"
+fi
+
+if [ -e "$config" ]; then
+    [ -f "$config" ] || die "refusing non-file Codex config: $config"
+    /usr/bin/awk -v begin="$begin" -v end="$end" '
+        $0 == begin { if (inside) exit 42; inside = 1; next }
+        $0 == end { if (!inside) exit 43; inside = 0; next }
+        !inside { print }
+        END { if (inside) exit 44 }
+    ' "$config" >"$next" || die "managed policy markers are malformed in $config"
+fi
+if [ -s "$next" ] && [ "$(tail -c 1 "$next" | wc -l | tr -d ' ')" -eq 0 ]; then printf '\n' >>"$next"; fi
+printf '%s\n' "$begin" >>"$next"
+while IFS= read -r skill_name; do
+    [ -n "$skill_name" ] || continue
+    case "$skill_name" in *[!a-zA-Z0-9._-]*) die "unsafe managed skill name: $skill_name" ;; esac
+    printf '[[skills.config]]\nname = "agent:%s"\nenabled = false\n\n' "$skill_name" >>"$next"
+done <"$effective_names"
+printf '%s\n' "$end" >>"$next"
+chmod 600 "$next"
+mv -f -- "$next" "$config"
+trap - EXIT
+rm -f -- "$effective_names"

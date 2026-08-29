@@ -90,7 +90,7 @@ install_claude_statusline() {
     printf 'Installed the claude statusline: %s.\n' "$target"
 }
 
-# Pi receives the renderer from the common capability pack on each managed
+# Pi receives the renderer from the fixed private resources on each managed
 # launch. Remove only the old ambient link, because AgentLaunch disables
 # ambient discovery and passes the projected file explicitly.
 install_pi_statusline() {
@@ -104,7 +104,7 @@ install_pi_statusline() {
     elif [ -e "$target" ] || [ -L "$target" ]; then
         printf 'Leaving independent pi extension untouched: %s.\n' "$target"
     fi
-    printf 'Pi receives its statusline from the common capability pack.\n'
+    printf 'Pi receives its statusline from the fixed private resources.\n'
 }
 
 # Codex's config is TOML, and it has no `config set` subcommand. Rather than
@@ -189,7 +189,7 @@ if [ "$check_only" -eq 1 ]; then
 Fleet statusline:
   ln -sfn config/statusline/claude-statusline.sh ~/.claude/statusline.sh
   set .statusLine in ~/.claude/settings.json
-  copy config/statusline/pi-statusline.ts into the common capability pack  # AgentLaunch passes it per session; pi has a footer, not a status line
+  copy config/statusline/pi-statusline.ts into the fixed private resources  # AgentLaunch passes it per session; pi has a footer, not a status line
   set [tui] status_line in ~/.codex/config.toml  # codex renders its own bar; only the item list is ours
     $CODEX_STATUS_LINE_ITEMS
 EOF

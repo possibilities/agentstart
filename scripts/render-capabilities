@@ -2,41 +2,26 @@
 
 set -euo pipefail
 
-die() {
-    printf 'AgentStart capabilities: %s\n' "$*" >&2
-    exit 1
-}
+die() { printf 'AgentStart resources: %s\n' "$*" >&2; exit 1; }
+usage() { printf 'Usage: render-capabilities --install|--check\n'; }
 
-usage() {
-    printf 'Usage: render-capabilities --install|--check\n'
-}
-
-[ "$#" -eq 1 ] || {
-    usage >&2
-    exit 64
-}
-
+[ "$#" -eq 1 ] || { usage >&2; exit 64; }
 case "$1" in
     --install) ;;
     --check)
         cat <<'EOF'
-  render the default common capability pack under ~/.local/share/agentstart/capabilities
+  render the fixed private fleet resource set under ~/.local/share/agentstart/resources
   derive and audit Codex invocation policy from portable skill frontmatter
-  carry the pinned Pi subagent package into common when the full installer has installed it
+  carry the pinned Pi subagent package into the fixed Pi resource surface
   render one session-only Claude plugin named agent (/agent:<skill>)
-  render and refresh the temporary Codex desktop compatibility plugin agent@agentstart-managed
-  leave retired-plugin and ambient-link cleanup to the explicit full installer
+  render and refresh the skills-only Codex plugin agent@agentstart-managed
+  persistently disable every agent:<skill> outside managed Codex sessions
+  leave retired-path and ambient-link cleanup to the explicit full installer
 EOF
         exit 0
         ;;
-    -h|--help)
-        usage
-        exit 0
-        ;;
-    *)
-        usage >&2
-        exit 64
-        ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 64 ;;
 esac
 
 [ "$(uname -s)" = Darwin ] || die "macOS is required"
@@ -44,95 +29,60 @@ esac
 
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
-template_root="$repo_root/config/capabilities/common"
-capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
-pack_root="$capabilities_root/packs/common"
-skills_root="$pack_root/skills"
+template_root="$repo_root/config/resources"
+resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
+skills_root="$resources_root/skills"
 invocation_policy_renderer="$script_dir/render-skill-invocation-policy"
-projection_root="$capabilities_root/projections/common"
-claude_plugin_root="$projection_root/claude/agent"
-marketplace_root="$capabilities_root/compatibility/codex-marketplace"
-managed_names="$capabilities_root/managed-skills.txt"
+claude_plugin_root="$resources_root/claude/agent"
+marketplace_root="$resources_root/codex-marketplace"
+managed_names="$resources_root/managed-skills.txt"
 
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 command -v jq >/dev/null 2>&1 || die "jq is required"
-[ -x "$invocation_policy_renderer" ] \
-    || die "skill invocation policy renderer is unavailable: $invocation_policy_renderer"
+[ -x "$invocation_policy_renderer" ] || die "skill invocation policy renderer is unavailable"
 
-mkdir -p \
-    "$pack_root/guidance" \
-    "$pack_root/claude" \
-    "$pack_root/pi/extensions" \
-    "$pack_root/pi/prompt-templates" \
-    "$capabilities_root/projections" \
-    "$capabilities_root/compatibility"
-
-cp "$template_root/capability.json" "$pack_root/capability.json"
-cp "$repo_root/prompts/AGENTS.md" "$pack_root/guidance/AGENTS.md"
+mkdir -p "$resources_root/guidance" "$resources_root/claude" \
+    "$resources_root/pi/extensions" "$resources_root/pi/prompt-templates"
+cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
 cp "$repo_root/config/statusline/pi-statusline.ts" \
-    "$pack_root/pi/extensions/agentstart-statusline.ts"
+    "$resources_root/pi/extensions/agentstart-statusline.ts"
 
-# Herdr's installer has to write Pi's integration into Pi's ambient discovery
-# directory because that is the only surface it knows. Managed Pi sessions
-# disable ambient extensions, so copy the generated, ownership-marked file
-# into common. The explicit full installer retires the ambient copy after this
-# renderer; the six-hour sync remains additive and never removes it.
+# Herdr can only install its Pi integration into Pi's ambient root. Managed Pi
+# suppresses that root, so carry its ownership-marked output privately.
 pi_herdr_source="$HOME/.pi/agent/extensions/herdr-agent-state.ts"
-pi_herdr_target="$pack_root/pi/extensions/herdr-agent-state.ts"
+pi_herdr_target="$resources_root/pi/extensions/herdr-agent-state.ts"
 if [ -e "$pi_herdr_source" ] || [ -L "$pi_herdr_source" ]; then
-    [ -f "$pi_herdr_source" ] \
-        || die "refusing non-file Pi Herdr integration: $pi_herdr_source"
+    [ -f "$pi_herdr_source" ] || die "refusing non-file Pi Herdr integration: $pi_herdr_source"
     grep -F '// managed by herdr;' "$pi_herdr_source" >/dev/null \
         || die "refusing independent Pi extension at Herdr's managed path: $pi_herdr_source"
     grep -F '// HERDR_INTEGRATION_ID=pi' "$pi_herdr_source" >/dev/null \
         || die "Pi Herdr integration has the wrong identity: $pi_herdr_source"
     cp "$pi_herdr_source" "$pi_herdr_target"
-    printf 'Copied the Herdr Pi integration into common: %s.\n' "$pi_herdr_target"
 fi
 
-# The Pi subagent capability, installed and pinned by the explicit full
-# installer. Copy it whole: AgentLaunch names this directory with --extension,
-# and Pi reads the package.json "pi" manifest inside it to register the
-# extension, its skills, and its workflow prompt templates from the one path.
-# The copy carries node_modules because a projected entry is copied by subtree
-# and Pi never installs dependencies for a local path.
-#
-# Absence is not an error. The six-hour sync runs this renderer, and a machine
-# that has not yet run the full installer simply has no subagent capability
-# yet. A version match skips the copy, because this is the one pack resource
-# large enough for a needless re-copy to be felt.
+# Pi deliberately ships no subagents. Copy the pinned private package whole,
+# including node_modules, and pass its path explicitly at launch time.
 pi_subagents_source="${AGENTSTART_PI_SUBAGENTS_ROOT:-$HOME/.local/share/agentstart/pi-subagents}/pi-subagents"
-pi_subagents_target="$pack_root/pi/extensions/pi-subagents"
+pi_subagents_target="$resources_root/pi/extensions/pi-subagents"
 if [ -d "$pi_subagents_source" ]; then
     [ -f "$pi_subagents_source/package.json" ] \
         || die "refusing Pi subagents install without a package manifest: $pi_subagents_source"
-    source_version=$(/usr/bin/env node -e \
-        'process.stdout.write(require(process.argv[1]).version ?? "")' \
+    source_version=$(/usr/bin/env node -e 'process.stdout.write(require(process.argv[1]).version ?? "")' \
         "$pi_subagents_source/package.json" 2>/dev/null || true)
-    [ -n "$source_version" ] \
-        || die "Pi subagents install has no version: $pi_subagents_source"
+    [ -n "$source_version" ] || die "Pi subagents install has no version: $pi_subagents_source"
     target_version=''
     if [ -f "$pi_subagents_target/package.json" ]; then
-        target_version=$(/usr/bin/env node -e \
-            'process.stdout.write(require(process.argv[1]).version ?? "")' \
+        target_version=$(/usr/bin/env node -e 'process.stdout.write(require(process.argv[1]).version ?? "")' \
             "$pi_subagents_target/package.json" 2>/dev/null || true)
     fi
-    if [ "$source_version" != "$target_version" ] \
-        || [ ! -d "$pi_subagents_target/node_modules" ]; then
+    if [ "$source_version" != "$target_version" ] || [ ! -d "$pi_subagents_target/node_modules" ]; then
         rm -rf -- "$pi_subagents_target"
         cp -R "$pi_subagents_source" "$pi_subagents_target"
-        printf 'Copied Pi subagents %s into common: %s.\n' \
-            "$source_version" "$pi_subagents_target"
     fi
 fi
 
-# SKILL.md frontmatter is the portable source of truth for whether a model may
-# discover a skill. Claude and Pi consume disable-model-invocation directly;
-# Codex reads the inverse from agents/openai.yaml. Derive that product-specific
-# field in the copied common pack, then audit every skill before projecting it.
 "$invocation_policy_renderer" --install "$skills_root"
-
-next_managed_names="$capabilities_root/managed-skills.next"
+next_managed_names="$resources_root/managed-skills.next"
 : >"$next_managed_names"
 for skill_dir in "$skills_root"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
@@ -140,20 +90,15 @@ for skill_dir in "$skills_root"/*/; do
     printf '%s\n' "${skill_dir##*/}" >>"$next_managed_names"
 done
 LC_ALL=C sort -u "$next_managed_names" -o "$next_managed_names"
-[ -s "$next_managed_names" ] || die "the common capability pack contains no skills"
+[ -s "$next_managed_names" ] || die "the fixed resource set contains no skills"
 mv "$next_managed_names" "$managed_names"
 
-render_root=$(mktemp -d "$capabilities_root/.render.XXXXXX")
+render_root=$(mktemp -d "$resources_root/.render.XXXXXX")
 trap 'rm -rf -- "$render_root"' EXIT
-
 next_claude="$render_root/claude/agent"
 mkdir -p "$next_claude/.claude-plugin"
 cp "$template_root/claude-plugin.json" "$next_claude/.claude-plugin/plugin.json"
 cp -R "$skills_root" "$next_claude/skills"
-for resource in commands agents hooks .mcp.json settings.json; do
-    [ -e "$pack_root/claude/$resource" ] || continue
-    cp -R "$pack_root/claude/$resource" "$next_claude/$resource"
-done
 
 next_marketplace="$render_root/codex-marketplace"
 next_codex="$next_marketplace/plugins/agent"
@@ -162,28 +107,22 @@ cp "$template_root/codex-plugin.json" "$next_codex/.codex-plugin/plugin.json"
 cp "$template_root/codex-marketplace.json" "$next_marketplace/.agents/plugins/marketplace.json"
 cp -R "$skills_root" "$next_codex/skills"
 
-# The canonical pack remains portable and standalone, so its OpenAI manifests
-# keep $<skill>. Only the compatibility plugin copy needs Codex's plugin name.
+# Rewrite only the disposable Codex copy so generated prompts use qualified
+# plugin names. The private canonical skills stay portable.
 for skill_dir in "$next_codex/skills"/*/; do
     [ -f "$skill_dir/SKILL.md" ] || continue
-    skill_dir=${skill_dir%/}
-    skill_name=${skill_dir##*/}
+    skill_dir=${skill_dir%/}; skill_name=${skill_dir##*/}
     manifest="$skill_dir/agents/openai.yaml"
     [ -f "$manifest" ] || continue
-    bare="\$$skill_name"
-    qualified="\$agent:$skill_name"
+    bare="\$$skill_name"; qualified="\$agent:$skill_name"
     /usr/bin/awk -v bare="$bare" -v qualified="$qualified" '
         /^[[:space:]]*default_prompt:[[:space:]]*/ {
             while ((position = index($0, bare)) > 0) {
-                $0 = substr($0, 1, position - 1) qualified \
-                    substr($0, position + length(bare))
+                $0 = substr($0, 1, position - 1) qualified substr($0, position + length(bare))
             }
         }
         { print }
     ' "$manifest" >"$manifest.next"
-    # The skills synchronizer deliberately installs immutable source files.
-    # This compatibility copy is disposable generated output, so replace its
-    # manifest without letting BSD mv ask a foreground installer for approval.
     mv -f -- "$manifest.next" "$manifest"
 done
 
@@ -192,13 +131,18 @@ mkdir -p "$(dirname "$claude_plugin_root")" "$(dirname "$marketplace_root")"
 mv "$next_claude" "$claude_plugin_root"
 mv "$next_marketplace" "$marketplace_root"
 
+# Disable names before registering refreshed plugin content: a newly added
+# skill must never be ambiently visible for even one successful convergence.
+"$script_dir/sync-codex-skill-policy" --merge-previous "$managed_names"
 codex_bin="${AGENTSTART_CODEX_BIN:-$(command -v codex || true)}"
-[ -x "$codex_bin" ] || die "codex is required to install the compatibility projection"
-
+[ -x "$codex_bin" ] || die "codex is required to install the fleet skill plugin"
 "$codex_bin" plugin marketplace add "$marketplace_root" >/dev/null \
-    || die "registering the Codex compatibility marketplace failed"
+    || die "registering the Codex fleet marketplace failed"
 "$codex_bin" plugin add agent@agentstart-managed >/dev/null \
-    || die "installing the Codex compatibility projection failed"
+    || die "installing the Codex fleet skill plugin failed"
+# The refreshed plugin can no longer expose names absent from the new
+# inventory. Only now is it safe to prune their persistent disables.
+"$script_dir/sync-codex-skill-policy" "$managed_names"
 
-printf 'Rendered common with %s skills; installed Codex compatibility plugin agent@agentstart-managed.\n' \
+printf 'Rendered fixed fleet resources with %s skills; installed inert Codex plugin agent@agentstart-managed.\n' \
     "$(wc -l <"$managed_names" | tr -d ' ')"

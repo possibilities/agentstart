@@ -18,9 +18,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=c83be4d74f1ee78e92a45542062794f53c24773b
-capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
-common_pack_root="$capabilities_root/packs/common"
-capabilities_skills_state_root="$capabilities_root/skills-state"
+resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
+resources_skills_state_root="$resources_root/skills-state"
+retired_capabilities_root="$HOME/.local/share/agentstart/capabilities"
 legacy_core_marketplace_root="${AGENTSTART_CORE_MARKETPLACE_ROOT:-$HOME/.local/share/agentstart/core-marketplace}"
 legacy_core_plugin_root="$legacy_core_marketplace_root/plugins/agentstart-core"
 
@@ -36,7 +36,7 @@ Options:
   --install  Install or upgrade everything
   --check    Print the installation plan without changing the system
   --content  Converge only what this repository owns as content — skills,
-             prompts, guidance, the statusline, and the capability pack —
+             prompts, guidance, the statusline, and fixed fleet resources —
              installing and upgrading nothing. Cheap and safe to rerun on a
              machine a full install has already converged.
 EOF
@@ -75,8 +75,8 @@ install_private_skill_pack() {
     local source="$1"
     shift
 
-    mkdir -p "$common_pack_root" "$capabilities_skills_state_root"
-    CLAUDE_CONFIG_DIR="$common_pack_root" XDG_STATE_HOME="$capabilities_skills_state_root" \
+    mkdir -p "$resources_root" "$resources_skills_state_root"
+    CLAUDE_CONFIG_DIR="$resources_root" XDG_STATE_HOME="$resources_skills_state_root" \
         "$script_dir/run-skills-cli" npx --yes skills add "$source" \
         --agent claude-code \
         --skill "$@" \
@@ -114,7 +114,8 @@ remove_legacy_global_skills() {
     done
 
     for previous_names in \
-        "$capabilities_root/managed-skills.txt" \
+        "$resources_root/managed-skills.txt" \
+        "$retired_capabilities_root/managed-skills.txt" \
         "$legacy_core_marketplace_root/managed-skills.txt"; do
         if [ -f "$previous_names" ]; then
             while IFS= read -r skill_name; do
@@ -123,7 +124,7 @@ remove_legacy_global_skills() {
         fi
     done
 
-    # The common pack may already have been synchronized before the first
+    # The fixed resources may already have been synchronized before the first
     # full migration run. Detach only its Pi links before asking the generic
     # skills CLI to remove legacy installs, so that tool can never mistake a
     # link into the private canonical tree for content it owns.
@@ -132,7 +133,7 @@ remove_legacy_global_skills() {
         [ -L "$pi_target" ] || continue
         pi_link=$(readlink "$pi_target")
         case "$pi_link" in
-            "$common_pack_root"/skills/*|"$legacy_core_plugin_root"/skills/*) unlink "$pi_target" ;;
+            "$resources_root"/skills/*|"$retired_capabilities_root"/packs/common/skills/*|"$legacy_core_plugin_root"/skills/*) unlink "$pi_target" ;;
         esac
     done
 
@@ -144,7 +145,7 @@ remove_retired_core_plugin() {
     local legacy_owned=0 legacy_plugin manifest
 
     # This migration is intentionally a full-install operation. The six-hour
-    # sync only re-adds the Codex compatibility projection in place; it never
+    # sync only refreshes the Codex fleet plugin in place; it never
     # uninstalls plugins or ambient resources that a live session may use.
     claude plugin uninstall agentstart-core@agentstart-managed --scope user >/dev/null 2>&1 || true
     claude plugin uninstall agent@agentstart-managed --scope user >/dev/null 2>&1 || true
@@ -192,6 +193,21 @@ remove_packed_pi_ambient_resources() {
     printf 'Removed the ambient Pi Herdr integration after packing it: %s.\n' "$source"
 }
 
+remove_retired_capability_resources() {
+    local manifest="$retired_capabilities_root/packs/common/capability.json"
+
+    [ -e "$retired_capabilities_root" ] || [ -L "$retired_capabilities_root" ] || return 0
+    [ -d "$retired_capabilities_root" ] \
+        || die "refusing non-directory retired capability root: $retired_capabilities_root"
+    [ -f "$manifest" ] \
+        || die "refusing unrecognized retired capability root without $manifest"
+    /usr/bin/jq -e '.schema_version == 1 and .id == "common" and .default == true' \
+        "$manifest" >/dev/null \
+        || die "refusing unrecognized retired capability root: $retired_capabilities_root"
+    rm -rf -- "$retired_capabilities_root"
+    printf 'Removed the retired capability-pack tree: %s.\n' "$retired_capabilities_root"
+}
+
 # Pi's installer reads its prompts from /dev/tty instead of stdin, so redirecting
 # input does not make it unattended: run from a terminal it stops on its
 # install/reinstall menu and offers to append a PATH line to the shell profile
@@ -223,7 +239,7 @@ configure_shadcn_mcp() {
 }
 
 # AgentStart owns one guidance slot for each harness. Link all three to the
-# common pack's canonical AGENTS.md, which stays deliberately empty — global
+# fixed resource set's canonical AGENTS.md, which stays deliberately empty — global
 # advice belongs
 # in the extension prompts below, rendered into the collab and build skills,
 # not in a file loaded into every session. Claude Code reads only CLAUDE.md,
@@ -232,7 +248,7 @@ configure_shadcn_mcp() {
 # target is preserved and reported — the same conflict rule the guidance file
 # itself prescribes for repositories.
 link_agent_guidance() {
-    local source="$common_pack_root/guidance/AGENTS.md"
+    local source="$resources_root/guidance/AGENTS.md"
     local target
 
     [ -f "$source" ] \
@@ -255,7 +271,7 @@ link_agent_guidance() {
 # owner and is left alone.
 remove_retired_home_guidance() {
     local retired_source="$repo_root/prompts/AGENTS.md"
-    local current_source="$common_pack_root/guidance/AGENTS.md"
+    local current_source="$resources_root/guidance/AGENTS.md"
     local target="$HOME/AGENTS.md"
 
     if [ -L "$target" ] && { [ "$(readlink "$target")" = "$retired_source" ] || [ "$(readlink "$target")" = "$current_source" ]; }; then
@@ -266,7 +282,7 @@ remove_retired_home_guidance() {
     fi
 }
 
-# A renamed skill leaves its previous directory behind in the common pack: the
+# A renamed skill leaves its previous directory behind in the fixed resources: the
 # scan discovers the new name and the copy never removes the old one, so both
 # spellings would render into every session. Name each rename's previous
 # spelling here once. A name that any fleet checkout exports again is in
@@ -291,16 +307,16 @@ remove_renamed_pack_skills() {
             continue
         fi
 
-        target="$common_pack_root/skills/$name"
+        target="$resources_root/skills/$name"
         if [ -d "$target" ]; then
             rm -rf -- "$target"
-            printf 'Removed the renamed skill left in the common pack: %s.\n' "$target"
+            printf 'Removed the renamed skill left in the fixed resources: %s.\n' "$target"
         fi
 
         pi_target="$HOME/.pi/agent/skills/$name"
         if [ -L "$pi_target" ]; then
             case "$(readlink "$pi_target")" in
-                "$common_pack_root"/skills/*) unlink "$pi_target" ;;
+                "$resources_root"/skills/*) unlink "$pi_target" ;;
             esac
         fi
     done
@@ -440,10 +456,10 @@ converge_repo_content() {
     # full install has already been through.
     "$script_dir/install-statusline" --install
 
-    # A renamed skill leaves its previous directory behind in the common pack,
+    # A renamed skill leaves its previous directory behind in the fixed resources,
     # and the additive sync below would render both spellings into every
     # session. Remove before the sync, never after.
-    printf 'Removing renamed skills left behind in the common pack.\n'
+    printf 'Removing renamed skills left behind in the fixed resources.\n'
     remove_renamed_pack_skills
 
     # Every agent tool publishes its skills by convention — skills/<name>/
@@ -454,17 +470,23 @@ converge_repo_content() {
     # operator extension prompts linked above.
     "$script_dir/sync-skills"
 
-    # The renderer above copied Herdr's generated Pi extension into common.
+    # Both managed consumers are installed earlier in the full convergence and
+    # now read the fixed resources. The old projections and pack receipts are
+    # not a compatibility surface; remove only the ownership-proven tree.
+    printf 'Retiring the ownership-proven capability-pack tree.\n'
+    remove_retired_capability_resources
+
+    # The renderer above copied Herdr's generated Pi extension into the private resources.
     # Only the explicit full installer retires the ambient source; the
     # six-hour sync must remain additive and leave live-session resources in
     # place.
-    printf 'Retiring AgentStart-owned Pi resources now packed into common.\n'
+    printf 'Retiring AgentStart-owned ambient Pi resources after private rendering.\n'
     remove_packed_pi_ambient_resources
 
-    # The sync above renders the common pack's canonical guidance source. Link
+    # The sync above renders the canonical guidance source. Link
     # the three harness discovery slots only after that source is guaranteed
     # to exist.
-    printf 'Linking the common harness guidance for Claude Code, Codex, and pi.\n'
+    printf 'Linking the fleet harness guidance for Claude Code, Codex, and pi.\n'
     link_agent_guidance
 
     # The sync above is where agentguidance renders the orchestrator doctrine,
@@ -497,15 +519,15 @@ esac
 }
 
 # Content convergence is the tail of a full install run on its own. It refuses
-# to guess at a machine it has never seen: without the common pack there has
+# to guess at a machine it has never seen: without the fixed resources there has
 # been no full install, and rendering content into a machine whose harnesses
 # and binaries are absent would report success over a half-built system.
 if [ "$content_only" -eq 1 ]; then
     [ "$(uname -s)" = Darwin ] || die "macOS is required"
     [ "$(id -u)" -ne 0 ] || die "run as the target user, not root"
     command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
-    [ -d "$common_pack_root" ] \
-        || die "no common capability pack at $common_pack_root; run scripts/install.sh --install first"
+    [ -d "$resources_root" ] \
+        || die "no fixed fleet resources at $resources_root; run scripts/install.sh --install first"
     printf 'Converging AgentStart repository content only; installing nothing.\n'
     converge_repo_content
     printf 'AgentStart content convergence complete.\n'
@@ -547,9 +569,9 @@ Agent documentation:
   native skills list
 
 Agent guidance:
-  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
-  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
-  ln -sfn ~/.local/share/agentstart/capabilities/packs/common/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
+  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
+  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
+  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
   remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
   ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot
@@ -558,8 +580,8 @@ Agent guidance:
   remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
   remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved
 
-Common capability pack:
-  install external skill packs with --copy into ~/.local/share/agentstart/capabilities/packs/common/skills
+Fixed private fleet resources:
+  install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
@@ -569,10 +591,10 @@ Common capability pack:
   https://github.com/vercel-labs/native: native-sdk
   anomalyco/terminal-control@v<installed termctrl version>: terminal-control
   hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it
-  install hunk-review with --copy into the common capability pack
+  install hunk-review with --copy into the fixed resources
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
-  install herdr with --copy into the common capability pack
-  remove renamed skills left in the common pack: supervisor  # full install only; the renamed /supervise skill replaces it
+  install herdr with --copy into the fixed resources
+  remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it
 
 Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):
@@ -1096,7 +1118,7 @@ fi
 
 # Pi ships no subagents deliberately and points at third-party packages
 # instead, so the fleet installs one and pins it. This must precede the skill
-# sync below, because that is what renders the common capability pack, and the
+# sync below, because that is what renders the fixed private resources, and the
 # renderer carries whatever this step has installed.
 "$script_dir/install-pi-subagents" --install
 
@@ -1166,7 +1188,7 @@ install_hunk_skill
 # harness integrations above, and never tracks a different head: update-herdr
 # is herdr's one update path, and the skill follows it. The rendered pack lives
 # in a managed state root shaped like a checkout (skills/herdr/) so the same
-# `skills add` mechanism ships it into the common capability pack. Deliberately
+# `skills add` mechanism ships it into the fixed private resources. Deliberately
 # not advertised in TOOLS.md: a role skill is named by the orchestrator
 # doctrine, not by the always-on advertisement surface (the
 # tool-advertisement-policy wiki page).
@@ -1277,7 +1299,7 @@ printf 'Installing the fleet launch agents.\n'
 "$script_dir/configure-agentsource-webhooks" --check || true
 
 # Everything this repository owns as content — skills, prompts, guidance, the
-# statusline, and the rendered capability pack — converges last, on top of the
+# statusline, and the rendered private resources — converges last, on top of the
 # machine the steps above just built. `--content` runs exactly this and nothing
 # else, which is why it lives in one function rather than inline here.
 converge_repo_content

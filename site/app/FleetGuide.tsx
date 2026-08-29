@@ -46,7 +46,7 @@ type Utility = {
   fileCount: number;
 };
 
-type PackSnapshot = {
+type FleetSnapshot = {
   schemaVersion: 2;
   id: string;
   description: string;
@@ -93,8 +93,8 @@ function readerScrollToTop() {
   document.querySelector(".guide-reader")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-export function PackGuide() {
-  const [snapshot, setSnapshot] = useState<PackSnapshot | null>(null);
+export function FleetGuide() {
+  const [snapshot, setSnapshot] = useState<FleetSnapshot | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
@@ -108,10 +108,10 @@ export function PackGuide() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/common-pack.json", { signal: controller.signal })
+    fetch("/fleet-resources.json", { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error(`snapshot returned ${response.status}`);
-        return response.json() as Promise<PackSnapshot>;
+        return response.json() as Promise<FleetSnapshot>;
       })
       .then((next) => {
         setSnapshot(next);
@@ -227,7 +227,7 @@ export function PackGuide() {
     return (
       <section className="load-state" id="guide">
         <p className="eyebrow">Field guide unavailable</p>
-        <h2>The common pack advice could not be loaded.</h2>
+        <h2>The fleet resource guide could not be loaded.</h2>
         <p>Refresh the page to try the generated guide again.</p>
       </section>
     );
@@ -237,7 +237,7 @@ export function PackGuide() {
     return (
       <section className="load-state" id="guide" role="status" aria-live="polite">
         <span className="loading-rule" />
-        <p>Opening the common pack field guide…</p>
+        <p>Opening the fleet resource field guide…</p>
       </section>
     );
   }
@@ -249,7 +249,7 @@ export function PackGuide() {
           <p className="eyebrow">Advice, not inventory · {snapshot.digest.slice(0, 8)}</p>
           <h2>Find the method for the job in front of you.</h2>
           <p>
-            Common is the field guide every managed agent starts with. Search by what you
+            Fleet resources are the field guide every managed agent starts with. Search by what you
             want to accomplish; each result explains when the advice applies and carries the
             full playbook behind it.
           </p>
@@ -261,7 +261,7 @@ export function PackGuide() {
         </dl>
       </div>
 
-      <div className="orientation-grid" aria-label="How the common pack works">
+      <div className="orientation-grid" aria-label="How fleet resources work">
         <article>
           <span>Ask naturally</span>
           <strong>Start with the outcome.</strong>
@@ -275,7 +275,7 @@ export function PackGuide() {
         <article>
           <span>Keep tools backstage</span>
           <strong>Utilities support the session.</strong>
-          <p>Implementation travels with the pack, but only its purpose belongs in this guide.</p>
+          <p>Implementation travels with the resources, but only its purpose belongs in this guide.</p>
         </article>
       </div>
 
@@ -304,7 +304,7 @@ export function PackGuide() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Quiet machinery</p>
-            <h3 id="utility-title">What the pack supplies without asking you to read code.</h3>
+            <h3 id="utility-title">What the fleet supplies without asking you to read code.</h3>
           </div>
           <p>
             These are session capabilities, not advice documents. Their implementation stays
@@ -329,7 +329,7 @@ export function PackGuide() {
       </section>
 
       <div className="guide-shell">
-        <aside className="guide-nav" aria-label="Common pack advice">
+        <aside className="guide-nav" aria-label="Fleet resource advice">
           <div className="guide-nav-head">
             <label className="intent-search">
               <span aria-hidden="true">⌕</span>

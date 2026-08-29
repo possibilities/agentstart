@@ -16,7 +16,7 @@ the rule).
 
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
-extension prompts, and every resource in the common capability pack. The AI *desktop
+extension prompts, and every fixed private fleet resource. The AI *desktop
 applications* are not toolchain; they are Homebrew casks, and the machine's.
 _Avoid_: stack, setup.
 
@@ -52,42 +52,30 @@ skill).
 
 **The sync path** — `scripts/sync-skills`: the unattended-safe convergence
 the scheduled updater runs every six hours — the participant scan into the
-default `common` capability pack, projection refresh, no elevation, no
+fixed private resources, harness render refresh, no elevation, no
 compatibility-root cleanup, no restarts. _Avoid_: update, upgrade (binaries
 never move on this path).
 
-**Capability pack** — an AgentStart-installed bundle of session-visible
-resources: portable skills and guidance plus explicitly harness-specific
-commands, extensions, templates, and configuration. Packs live only under
-`~/.local/share/agentstart/capabilities/packs`; AgentLaunch composes them for a
-session. _Avoid_: skill pack (a pack contains more than skills), plugin (that
-is only one harness projection).
-
-**The common pack** — the default capability pack, named `common`, containing
-every fleet participant skill, external managed skill, the canonical global
-`AGENTS.md`, and AgentStart's session resources. Every managed launch includes
-it unless explicitly suppressed. _Avoid_: core plugin, agentstart-core.
+**Fleet resources** — the one fixed private set under
+`~/.local/share/agentstart/resources`: every fleet and external managed skill,
+canonical guidance, the session-only Claude plugin, the globally installed but
+inert Codex skills-only plugin, and explicit Pi extensions/templates. Every
+managed AgentLaunch and AgentVoice session receives the skills; there are no
+selectable packs. _Avoid_: capability pack, common pack, projection.
 
 **Subagent capability** — the fleet's answer to a harness that dispatches no
 workers of its own. Pi's is the pinned `pi-subagents` package, installed
-self-contained and carried in the common pack's `pi_extensions` resource,
+self-contained and carried in the fixed Pi extension resources,
 which registers a dispatch tool, its skills, and its workflow prompt
 templates from one directory. _Avoid_: subagent plugin (Pi calls the unit a
 package), worker (that is what a dispatched agent is, not the capability).
 
-**Session projection** — an immutable harness-native rendering of one resolved
-set of capability packs. Claude receives one plugin named `agent`, Codex
-receives standalone extra skill roots, and Pi receives explicit skill,
-extension, and template paths. _Avoid_: install (a projection is selected for
-one launch, not registered globally).
-
-**Compatibility projection** — the temporary Codex plugin named `agent` for
-desktop and other Codex clients that do not launch through AgentLaunch. It is
-rendered from `common`; portable manifests stay bare in the pack and only the
-plugin copy qualifies names as `$agent:<name>`. AgentLaunch enumerates this
-projection and name-disables those qualified aliases in managed sessions,
-because Codex does not apply session-flag plugin enablement to plugin loading.
-_Avoid_: canonical plugin.
+**Codex fleet plugin** — the globally installed, strictly skills-only plugin
+`agent@agentstart-managed`. AgentStart persistently name-disables every
+`agent:<skill>`; AgentLaunch and AgentVoice name-enable the fixed set in their
+session layer, exposing `$agent:<name>` without leaking fleet skills into
+unmanaged Codex or Fx-visible roots. _Avoid_: compatibility projection, extra
+root.
 
 **The Herdr config render** — the live `~/.config/herdr/config.toml` rendered
 by AgentStart from its tracked behavior config, which carries no palette.
@@ -105,7 +93,7 @@ interface).
 
 **Model invocation policy** — the portable fact recorded by
 `disable-model-invocation` in a skill's `SKILL.md` frontmatter; absent or false
-means model-invocable. The common-pack render derives Codex's inverse
+means model-invocable. The fixed-resource render derives Codex's inverse
 `allow_implicit_invocation` field from it, while Claude and Pi consume the fact
 directly. _Avoid_: OpenAI policy (that is one rendered representation).
 

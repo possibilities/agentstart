@@ -42,7 +42,7 @@ esac
     exit 64
 }
 
-# The cheap convergence path: refresh the default common capability pack
+# The cheap convergence path: refresh the fixed private fleet resource set
 # without touching any binary. scripts/install.sh ends with this, and the scheduled
 # updater calls it directly every six hours, because a stale runbook misleads
 # a session as badly as a stale binary does. Every agent* checkout under
@@ -57,9 +57,9 @@ esac
 # AGENTSTART_CODE_ROOT exists so the tests can point the scan at a fixture tree.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
-capabilities_root="${AGENTSTART_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
-pack_root="$capabilities_root/packs/common"
-skills_state_root="$capabilities_root/skills-state"
+resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
+skills_root="$resources_root/skills"
+skills_state_root="$resources_root/skills-state"
 
 # Skills retired by AgentStart but possibly still present in old local
 # checkouts. The unattended sync path is additive — it never uninstalls — so
@@ -143,7 +143,7 @@ for project in "$code_root"/agent*/; do
 
     if [ "$check_only" -eq 1 ]; then
         printf '  CLAUDE_CONFIG_DIR="%s" XDG_STATE_HOME="%s" npx --yes skills add "%s" --agent claude-code --skill %s --global --copy --yes\n' \
-            "$pack_root" "$skills_state_root" "$project" "${skill_names[*]}"
+            "$resources_root" "$skills_state_root" "$project" "${skill_names[*]}"
         if [ -x "$project/scripts/post-sync" ]; then
             printf '  "%s/scripts/post-sync"  # the participant'\''s post-sync hook, after its skills land\n' \
                 "$project"
@@ -157,8 +157,8 @@ for project in "$code_root"/agent*/; do
     # needs to load the runbook.
     printf 'Synchronizing the %s agent skills (%s).\n' \
         "$project_name" "${skill_names[*]}"
-    mkdir -p "$pack_root" "$skills_state_root"
-    CLAUDE_CONFIG_DIR="$pack_root" XDG_STATE_HOME="$skills_state_root" \
+    mkdir -p "$resources_root" "$skills_state_root"
+    CLAUDE_CONFIG_DIR="$resources_root" XDG_STATE_HOME="$skills_state_root" \
         "$script_dir/run-skills-cli" "$npx_bin" --yes skills add "$project" \
         --agent claude-code \
         --skill "${skill_names[@]}" \
@@ -173,7 +173,7 @@ for project in "$code_root"/agent*/; do
     # stay unattended-safe, because this is the six-hour path.
     if [ -x "$project/scripts/post-sync" ]; then
         printf 'Running the %s post-sync hook.\n' "$project_name"
-        AGENTGUIDANCE_SKILLS_ROOT="$pack_root/skills" \
+        AGENTGUIDANCE_SKILLS_ROOT="$skills_root" \
             "$project/scripts/post-sync" \
             || die "the $project_name post-sync hook failed: $project"
     fi
@@ -188,5 +188,5 @@ if [ "$check_only" -eq 1 ]; then
     "$script_dir/render-capabilities" --check
 elif [ "$synchronized" -gt 0 ]; then
     "$script_dir/render-capabilities" --install \
-        || die "rendering the refreshed common capability pack failed"
+        || die "rendering the refreshed fixed resource set failed"
 fi

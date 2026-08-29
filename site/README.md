@@ -1,7 +1,7 @@
-# Common Pack Advice Field Guide
+# Fleet Resources Advice Field Guide
 
 An interactive guide to the advice AgentStart makes available in every managed
-session. It organizes the `common` capability pack by intent, introduces useful
+session. It organizes the fixed private fleet resources by intent, introduces useful
 starting points, and makes each skill's playbook, supporting field notes, and
 harness invocation easy to browse.
 
@@ -19,9 +19,9 @@ npm install
 npm run dev
 ```
 
-The development server refreshes `public/common-pack.json` from the installed
-pack before it starts. Set `AGENTSTART_CAPABILITIES_ROOT` to snapshot a
-different capability root. If no installed pack is available, the generator
+The development server refreshes `public/fleet-resources.json` from the installed
+resources before it starts. Set `AGENTSTART_RESOURCES_ROOT` to snapshot a
+different resource root. If no installed resource set is available, the generator
 keeps the checked-in snapshot so clean checkouts and hosted builds remain
 reproducible.
 
@@ -39,4 +39,4 @@ snapshot's advice coverage, category structure, utility summaries, and size.
 ## Hosting
 
 The app is a vinext/Cloudflare Worker site configured for OpenAI Sites through
-`.openai/hosting.json`. The pack is read-only and needs no D1 or R2 binding.
+`.openai/hosting.json`. The resource guide is read-only and needs no D1 or R2 binding.
