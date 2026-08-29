@@ -29,7 +29,7 @@ goto = ["prefix+g", "alt+7"]
 # should not change grip between halves — and they are tmux's own | and _.
 # Herdr's names invert tmux's: split_vertical is tmux's `split-window -h`.
 # Pinned rather than left to herdr's defaults (prefix+v, prefix+minus) because
-# the binary is an untagged master build and a default can move under us.
+# a default can move between stable releases.
 # Taking split_vertical off prefix+v is what frees it for the voice console.
 split_vertical = "prefix+|"
 split_horizontal = "prefix+_"
@@ -206,10 +206,8 @@ enabled = true
 done_path = "../../code/agentstart/assets/herdr-sounds/done.mp3"
 request_path = "../../code/agentstart/assets/herdr-sounds/request.mp3"
 
-# The binary is built from ~/src/herdr by AgentStart's update-herdr, so herdr's
-# own update check would only offer a crossgrade back to the stable channel.
 [update]
-version_check = false
+version_check = true
 
 [experimental]
 kitty_graphics = true
