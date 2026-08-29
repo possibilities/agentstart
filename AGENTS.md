@@ -132,12 +132,6 @@ Where things go:
   — never the detail itself, which lives in the page and is read at the
   trigger. These lines render into every session, so each one is paid for
   in every conversation.
-- A voice orchestrator doctrine edit: `~/code/agentguidance`
-  (`prompts/agentvoice/`, spliced from the shared orchestrator fragments),
-  then the same render path. This repository keeps only
-  `prompts/agentvoice/server.json` and links the rendered doctrine from
-  `~/.agents/prompts/agentvoice/` into `~/.config/agentvoice` — after
-  sync-skills, so the rendered source exists.
 - A cross-project decision that belongs to no single repo: the wiki
   (`agentwiki new`), one page per subject, wikilinked to its neighbours
   and pointed at from wherever it constrains. `tool-advertisement-policy`

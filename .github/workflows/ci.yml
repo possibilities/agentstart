@@ -16,8 +16,7 @@ permissions:
 jobs:
   ci:
     # Every installer here refuses a non-Darwin machine, so a Linux runner
-    # tests a platform this repository declines to run on: the AgentVoice
-    # skip case died on the macOS guard before it could reach the skip.
+    # would test only platform guards rather than supported behavior.
     runs-on: macos-latest
     steps:
       - name: Check out repository

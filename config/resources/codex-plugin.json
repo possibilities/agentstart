@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "AgentStart Fleet Skills",
     "shortDescription": "Fleet skills, inert outside managed sessions.",
-    "longDescription": "Skills-only plugin for AgentLaunch and AgentVoice sessions.",
+    "longDescription": "Skills-only plugin for managed AgentLaunch sessions.",
     "developerName": "AgentStart",
     "category": "Developer Tools",
     "capabilities": ["Skills"]

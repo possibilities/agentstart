@@ -60,7 +60,7 @@ never move on this path).
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,
 canonical guidance, the session-only Claude plugin, the globally installed but
 inert Codex skills-only plugin, and explicit Pi extensions/templates. Every
-managed AgentLaunch and AgentVoice session receives the skills; there are no
+managed AgentLaunch session receives the skills; there are no
 selectable packs. _Avoid_: capability pack, common pack, projection.
 
 **Subagent capability** — the fleet's answer to a harness that dispatches no
@@ -72,8 +72,8 @@ package), worker (that is what a dispatched agent is, not the capability).
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every
-`agent:<skill>`; AgentLaunch and AgentVoice name-enable the fixed set in their
-session layer, exposing `$agent:<name>` without leaking fleet skills into
+`agent:<skill>`; AgentLaunch name-enables the fixed set in its session layer,
+exposing `$agent:<name>` without leaking fleet skills into
 unmanaged Codex or Fx-visible roots. _Avoid_: compatibility projection, extra
 root.
 

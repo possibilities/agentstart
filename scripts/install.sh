@@ -338,46 +338,6 @@ remove_retired_llm_config() {
 }
 
 
-# The voice server configuration is fleet wiring, so AgentStart owns it:
-# prompts/agentvoice/server.json is the source of truth. The orchestrator
-# doctrine is general agent doctrine: agentguidance renders it into
-# ~/.agents/prompts/agentvoice/ — shared orchestrator fragments spliced by
-# its post-sync hook — and this installer decides only that AgentVoice
-# discovers the result, which is why link_agentvoice_config runs after
-# sync-skills has rendered.
-# The filenames — ORCHESTRATOR.md, ORCHESTRATOR_SESSION_START.md,
-# server.json — are AgentVoice's discovery contract
-# (~/code/agentvoice/docs/field-guide.md documents every lever); a file it
-# does not recognize primes nothing. The AgentVoice server reads them once
-# at boot, so changes apply on its next start — the six-hourly sync may
-# re-render doctrine content unattended, and no restart is needed. Per-file
-# links, never the directory: the target also holds files this checkout
-# does not own.
-link_agentvoice_config() {
-    local config_dir="$HOME/.config/agentvoice"
-    local rendered_dir="$HOME/.agents/prompts/agentvoice"
-    local name
-    local source
-    local target
-
-    for name in ORCHESTRATOR.md ORCHESTRATOR_SESSION_START.md server.json; do
-        case "$name" in
-        server.json) source="$repo_root/prompts/agentvoice/$name" ;;
-        *) source="$rendered_dir/$name" ;;
-        esac
-        target="$config_dir/$name"
-        [ -s "$source" ] \
-            || die "AgentVoice doctrine source is missing or empty: $source"
-        if [ ! -L "$target" ] && [ -s "$target" ]; then
-            die "refusing to replace independent AgentVoice configuration: $target"
-        fi
-        mkdir -p "$config_dir"
-        ln -sfn "$source" "$target"
-        cmp -s "$source" "$target" \
-            || die "linked AgentVoice configuration does not resolve to $source: $target"
-    done
-}
-
 # The operator extension prompts are cross-project guidance, so AgentStart
 # owns them: prompts/agentguidance/ here is the source of truth, and
 # ~/.config/agentguidance is links into this checkout. Agentguidance's
@@ -489,10 +449,6 @@ converge_repo_content() {
     printf 'Linking the fleet harness guidance for Claude Code, Codex, and pi.\n'
     link_agent_guidance
 
-    # The sync above is where agentguidance renders the orchestrator doctrine,
-    # so only now can it be linked where the server discovers it.
-    printf 'Linking the AgentVoice doctrine into ~/.config/agentvoice.\n'
-    link_agentvoice_config
 }
 
 case "${1:-}" in
@@ -540,7 +496,7 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
-  brew install or upgrade zig  # AgentVoice's native duplex audio path builds against it
+  brew install or upgrade zig  # Native SDK packaging requires it
   ~/code/fxnk/scripts/install.sh --install --sha d5e5da7aad0bbfa9b0792a02f72e802e8606b20c  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
@@ -574,8 +530,6 @@ Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
   remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
-  ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot
-  ln -sfn ~/.agents/prompts/agentvoice/{ORCHESTRATOR.md,ORCHESTRATOR_SESSION_START.md} into ~/.config/agentvoice  # the voice orchestrator's doctrine; agentguidance renders it, so this links after sync-skills
   remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete
   remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
   remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved
@@ -671,10 +625,9 @@ printf 'Installing Pi with its official installer.\n'
 /usr/bin/curl -fsSL https://pi.dev/install.sh \
     | run_without_controlling_terminal /bin/sh
 
-# Zig builds Native SDK applications and AgentVoice's opt-in native duplex
-# audio device, and the machine's Brewfile alone cannot guarantee it is
-# present in a session that only runs this script (intentional duplicate of
-# that Brewfile).
+# Zig builds Native SDK applications, and the machine's Brewfile alone cannot
+# guarantee it is present in a session that only runs this script (intentional
+# duplicate of that Brewfile).
 printf 'Installing or upgrading Zig for Native SDK packaging (intentional duplicate of the machine'\''s Brewfile).\n'
 install_or_upgrade_formula zig
 
@@ -1253,18 +1206,6 @@ install_herdr_skill
 
 printf 'Verifying the installed Native SDK agent documentation helpers.\n'
 native skills list >/dev/null
-
-# The AgentVoice voice CLI is linked editable from its own checkout by its
-# cli:install contract (dependencies, sox, a global bun link). AgentStart only
-# invokes it; a machine without the checkout skips inside the script, so only
-# a present-but-broken checkout fails here.
-agentvoice_cli_status=0
-"$script_dir/install-agentvoice-cli" || agentvoice_cli_status=$?
-if [ "$agentvoice_cli_status" -ne 0 ]; then
-    printf 'AgentStart installer: AgentVoice CLI install failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or scripts/install-agentvoice-cli.\n' \
-        "$agentvoice_cli_status" >&2
-    exit "$agentvoice_cli_status"
-fi
 
 # The fleet CLIs install by their own hardened
 # contract (frozen deps, ~/.local/bin symlink, deployed-SHA receipt). AgentStart

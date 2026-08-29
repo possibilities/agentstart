@@ -18,7 +18,6 @@ scripts/render-capabilities
 scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
-scripts/install-agentvoice-cli
 scripts/remove-retired-integrations
 scripts/remove-retired-agentweb
 scripts/install-launchagents
@@ -56,7 +55,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/configure-agentsource-webhooks \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
-    scripts/install-agentvoice-cli scripts/remove-retired-integrations \
+    scripts/remove-retired-integrations \
     scripts/remove-retired-agentweb \
     scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
     scripts/select-herdr-runtime; do
@@ -181,31 +180,6 @@ grep -F 'gh gist view GIST_ID --web' prompts/agentguidance/GUIDELINES.md >/dev/n
 grep -F 'public indexing was explicitly' prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not preserve secret/unlisted Gists by default"
 
-# The voice server configuration is linked into ~/.config/agentvoice and
-# read once at server boot; a missing or empty file primes nothing, silently.
-# The orchestrator doctrine no longer lives here: agentguidance renders it
-# to ~/.agents/prompts/agentvoice, and the installer links that — after
-# sync-skills, so the rendered source exists before the link is checked.
-[ -s prompts/agentvoice/server.json ] \
-    || fail "AgentVoice server configuration is missing or empty: prompts/agentvoice/server.json"
-/usr/bin/jq -e . prompts/agentvoice/server.json >/dev/null \
-    || fail "AgentVoice server.json is not valid JSON"
-for doctrine in ORCHESTRATOR.md ORCHESTRATOR_SESSION_START.md; do
-    [ ! -e "prompts/agentvoice/$doctrine" ] \
-        || fail "AgentVoice orchestrator doctrine belongs to agentguidance now: prompts/agentvoice/$doctrine"
-done
-# shellcheck disable=SC2016 # Match the literal rendered-doctrine path in the script.
-grep -F 'rendered_dir="$HOME/.agents/prompts/agentvoice"' scripts/install.sh >/dev/null \
-    || fail "install.sh does not link the rendered AgentVoice doctrine"
-# Both calls now live inside converge_repo_content, so they are indented; the
-# ordering they encode is what matters and is still asserted by line number.
-voice_link_line=$(grep -n '^ *link_agentvoice_config$' scripts/install.sh | cut -d: -f1)
-# shellcheck disable=SC2016 # Match the literal sync-skills call, $-sign and all.
-sync_skills_line=$(grep -n '^ *"$script_dir/sync-skills"$' scripts/install.sh | cut -d: -f1)
-[ -n "$voice_link_line" ] && [ -n "$sync_skills_line" ] \
-    && [ "$voice_link_line" -gt "$sync_skills_line" ] \
-    || fail "link_agentvoice_config must run after sync-skills renders the doctrine"
-
 # Content convergence is one function with one call site, because two lists of
 # what "content" means would drift apart on the first step somebody adds to
 # only one of them. --content runs it alone; the full install ends with it.
@@ -218,7 +192,7 @@ grep -q -- '--content)' scripts/install.sh \
 for content_step in remove_retired_home_guidance link_extension_prompts \
     remove_retired_llm_config remove_legacy_global_skills \
     remove_retired_core_plugin remove_renamed_pack_skills \
-    remove_packed_pi_ambient_resources link_agent_guidance link_agentvoice_config; do
+    remove_packed_pi_ambient_resources link_agent_guidance; do
     [ "$(grep -c "^ *$content_step\$" scripts/install.sh)" -eq 1 ] \
         || fail "content step is called from more than one place: $content_step"
 done
@@ -321,69 +295,8 @@ grep -F '"$project/scripts/post-sync"' scripts/sync-skills >/dev/null \
 grep -F 'post-sync hook failed' scripts/sync-skills >/dev/null \
     || fail "sync-skills does not propagate a failing post-sync hook"
 
-# A machine that has not cloned AgentVoice is a skip, not a failure: the CLI is
-# one of several optional checkout-backed tools and an install must not stop
-# for a machine that simply does not have it.
 skip_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-validate.XXXXXX")
 trap 'rm -rf "$skip_test_dir"' EXIT
-agentvoice_missing_home="$skip_test_dir/agentvoice-missing-home"
-mkdir -p "$agentvoice_missing_home"
-set +e
-agentvoice_missing_output=$(
-    HOME="$agentvoice_missing_home" \
-        PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
-        "$root/scripts/install-agentvoice-cli" 2>&1
-)
-agentvoice_missing_status=$?
-set -e
-[ "$agentvoice_missing_status" -eq 0 ] \
-    || fail "AgentVoice CLI installer did not skip a machine without a checkout"
-printf '%s\n' "$agentvoice_missing_output" \
-    | grep -F \
-        "no checkout at $agentvoice_missing_home/code/agentvoice or $agentvoice_missing_home/code/agentvoice2; skipping." \
-        >/dev/null \
-    || fail "AgentVoice CLI installer did not report the skipped checkout clearly"
-
-# This machine's archive-bound checkout retains its public AgentVoice identity
-# while living at agentvoice2. The installer must converge that explicit
-# transitional spelling, and must refuse rather than choose if both spellings
-# are present.
-agentvoice2_code_root="$skip_test_dir/agentvoice2-code"
-agentvoice2_stub_bin="$skip_test_dir/agentvoice2-bun"
-agentvoice2_stub_log="$skip_test_dir/agentvoice2-bun.log"
-mkdir -p "$agentvoice2_code_root/agentvoice2"
-printf '{}\n' >"$agentvoice2_code_root/agentvoice2/package.json"
-cat >"$agentvoice2_stub_bin" <<'EOF'
-#!/bin/bash
-printf '<%s>' "$@" >"$AGENTVOICE2_STUB_LOG"
-printf '\n' >>"$AGENTVOICE2_STUB_LOG"
-EOF
-chmod +x "$agentvoice2_stub_bin"
-AGENTSTART_CODE_ROOT="$agentvoice2_code_root" \
-    AGENTSTART_BUN_BIN="$agentvoice2_stub_bin" \
-    AGENTVOICE2_STUB_LOG="$agentvoice2_stub_log" \
-    "$root/scripts/install-agentvoice-cli" >/dev/null
-grep -Fx \
-    "<run><--cwd><$agentvoice2_code_root/agentvoice2><cli:install>" \
-    "$agentvoice2_stub_log" >/dev/null \
-    || fail "AgentVoice CLI installer did not invoke the agentvoice2 checkout contract"
-
-mkdir -p "$agentvoice2_code_root/agentvoice"
-printf '{}\n' >"$agentvoice2_code_root/agentvoice/package.json"
-set +e
-agentvoice_ambiguous_output=$( \
-    AGENTSTART_CODE_ROOT="$agentvoice2_code_root" \
-        AGENTSTART_BUN_BIN="$agentvoice2_stub_bin" \
-        "$root/scripts/install-agentvoice-cli" 2>&1 \
-)
-agentvoice_ambiguous_status=$?
-set -e
-[ "$agentvoice_ambiguous_status" -ne 0 ] \
-    || fail "AgentVoice CLI installer accepted two competing checkouts"
-printf '%s\n' "$agentvoice_ambiguous_output" \
-    | grep -F 'refusing an ambiguous AgentVoice checkout' >/dev/null \
-    || fail "AgentVoice CLI installer did not explain its ambiguous-checkout refusal"
-
 # Bare harness shims route through AgentLaunch, and the recursion sentinel
 # keeps AgentLaunch-managed child processes from entering the shim again.
 shim_home="$skip_test_dir/shim-home"
@@ -793,16 +706,16 @@ mkdir -p \
     "$code_skills_root/agentbus/skills/bus" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
+    "$code_skills_root/agentexample/skills/story" \
     "$code_skills_root/agentquiet/src" \
     "$code_skills_root/agentretired/skills/orchestration" \
-    "$code_skills_root/agentvoice/skills/story" \
     "$code_skills_root/notagent/skills/x"
 for code_skills_fixture in \
     agentbus/skills/bus \
     agentdemo/skills/demo \
     agentdemo/skills/second \
+    agentexample/skills/story \
     agentretired/skills/orchestration \
-    agentvoice/skills/story \
     notagent/skills/x; do
     code_skills_name=${code_skills_fixture##*/}
     printf -- '---\nname: %s\ndescription: fixture skill\n---\n' "$code_skills_name" \
@@ -860,9 +773,9 @@ printf '%s\n' "$sync_plan" \
         >/dev/null \
     || fail "skill sync plan omits the skills discovered in a participating checkout"
 printf '%s\n' "$sync_plan" \
-    | grep -F "npx --yes skills add \"$code_skills_root/agentvoice\" --agent claude-code --skill story --global --copy --yes" \
+    | grep -F "npx --yes skills add \"$code_skills_root/agentexample\" --agent claude-code --skill story --global --copy --yes" \
         >/dev/null \
-    || fail "skill sync plan exempts AgentVoice instead of scanning it like any other participant"
+    || fail "skill sync plan omits a second neutral participant"
 if printf '%s\n' "$sync_plan" | grep -Eq 'agentquiet|notagent'; then
     fail "skill sync plan includes a checkout that is not a participant"
 fi
@@ -938,9 +851,9 @@ fi
 grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentdemo> <--agent> <claude-code> <--skill> <demo> <second> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
     || fail "skill sync did not ship both discovered skills in one invocation"
-grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentvoice> <--agent> <claude-code> <--skill> <story> <--global> <--copy> <--yes>" \
+grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentexample> <--agent> <claude-code> <--skill> <story> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
-    || fail "skill sync skipped AgentVoice instead of synchronizing it"
+    || fail "skill sync skipped a neutral participant"
 if grep -E 'agentquiet|notagent' "$code_skills_log" >/dev/null; then
     fail "skill sync synchronized a checkout that is not a participant"
 fi
@@ -950,7 +863,7 @@ grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentbus> <--agent> 
 if grep -E 'agentretired|orchestration' "$code_skills_log" >/dev/null; then
     fail "skill sync re-added a retired skill"
 fi
-# One invocation each for agentbus, agentdemo, and agentvoice.
+# One invocation each for agentbus, agentdemo, and agentexample.
 [ "$(grep -c 'skills> <add>' "$code_skills_log")" -eq 3 ] \
     || fail "skill sync did not invoke the skills tool exactly once per source"
 [ -e "$code_skills_root/agentdemo/post-sync-ran" ] \
@@ -1171,11 +1084,6 @@ grep -F '"$script_dir/run-skills-cli" npx --yes skills add' scripts/install.sh >
 grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.sh >/dev/null \
     || fail "the full installer does not quiet successful legacy skill removal"
 
-# shellcheck disable=SC2016 # Match the exclusion guard the scan must not have.
-if grep -F '[ "$project_name" != agentvoice ] || continue' scripts/sync-skills >/dev/null; then
-    fail "the skill scan exempts AgentVoice by name"
-fi
-
 # The installation plan embeds the skill sync's own plan, pointed at the
 # fixture tree so the asserted lines are the same on every machine.
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
@@ -1184,7 +1092,7 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
-    'brew install or upgrade zig  # AgentVoice'"'"'s native duplex audio path builds against it' \
+    'brew install or upgrade zig  # Native SDK packaging requires it' \
     '~/code/fxnk/scripts/install.sh --install --sha d5e5da7aad0bbfa9b0792a02f72e802e8606b20c  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
@@ -1216,8 +1124,6 @@ for required_install in \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
-    'ln -sfn prompts/agentvoice/server.json into ~/.config/agentvoice  # the voice server configuration, read at server boot' \
-    'ln -sfn ~/.agents/prompts/agentvoice/{ORCHESTRATOR.md,ORCHESTRATOR_SESSION_START.md} into ~/.config/agentvoice  # the voice orchestrator'"'"'s doctrine; agentguidance renders it, so this links after sync-skills' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
     'https://github.com/vercel-labs/skills: find-skills' \
@@ -1294,11 +1200,11 @@ printf '%s\n' "$install_plan" | grep -F 'retired livekit-simulations' >/dev/null
 # scan never removes it, so both spellings would reach every session.
 grep -F 'remove_renamed_pack_skills' scripts/install.sh >/dev/null \
     || fail "installer no longer prunes renamed skills left in the fixed resources"
-# AgentVoice exports skills/ like the other agent tools and is scanned like
-# them; nothing about it is special to this plan.
+# A second neutral participant proves the plan is convention-driven rather
+# than fitted to the first fixture.
 printf '%s\n' "$install_plan" \
-    | grep -F "skills add \"$code_skills_root/agentvoice\"" >/dev/null \
-    || fail "installation plan omits the skills AgentVoice exports by convention"
+    | grep -F "skills add \"$code_skills_root/agentexample\"" >/dev/null \
+    || fail "installation plan omits a convention-discovered participant"
 # The agentchats checkout ships its chats skill through the scan; an explicit
 # line would be the second synchronization path its guidance forbids.
 if printf '%s\n' "$install_plan" \
@@ -1359,14 +1265,6 @@ for prompt_name in SYSTEM.md GUIDELINES.md TOOLS.md; do
     grep -F "$prompt_name" scripts/install.sh >/dev/null \
         || fail "installer does not link the $prompt_name extension prompt"
 done
-grep -F 'link_agentvoice_config' scripts/install.sh >/dev/null \
-    || fail "installer does not link the AgentVoice doctrine"
-grep -F 'refusing to replace independent AgentVoice configuration' scripts/install.sh >/dev/null \
-    || fail "installer would replace independent AgentVoice configuration"
-for doctrine_name in ORCHESTRATOR.md ORCHESTRATOR_SESSION_START.md server.json; do
-    grep -F "$doctrine_name" scripts/install.sh >/dev/null \
-        || fail "installer does not link the AgentVoice $doctrine_name"
-done
 # shellcheck disable=SC2016 # Match the literal home-guidance source path.
 grep -F 'source="$repo_root/prompts/AGENTS.md"' scripts/install.sh >/dev/null \
     || fail "installer does not own the harness guidance source"
@@ -1381,9 +1279,8 @@ if grep -F 'link_llm_config' scripts/install.sh >/dev/null; then
     fail "installer still links the obsolete llm model configuration"
 fi
 
-# The native-sdk skill documents the 0.7 line and Zig builds both Native SDK
-# applications and AgentVoice's opt-in native duplex audio device, so both
-# stay pinned rather than tracking latest. agent-browser is pinned because
+# The native-sdk skill documents the 0.7 line and Zig builds Native SDK
+# applications, so both stay pinned rather than tracking latest. agent-browser is pinned because
 # Agentbrowse's provider protocol and Agentscrape's driver behavior are tested
 # against that exact build.
 grep -F 'native_sdk_version=0.7' scripts/install.sh >/dev/null \
@@ -1527,9 +1424,6 @@ grep -F 'plugin pane open --plugin agentsurface --entrypoint launch' \
 grep -F 'plugin pane open --plugin agentsurface --entrypoint usage' \
     config/herdr/config.toml >/dev/null \
     || fail "agentusage binding does not open its AgentSurface plugin pane"
-grep -F 'plugin pane open --plugin agentsurface --entrypoint voice' \
-    config/herdr/config.toml >/dev/null \
-    || fail "agentvoice binding does not open its AgentSurface plugin pane"
 grep -F 'HERDR_ACTIVE_PANE_CWD' config/herdr/config.toml >/dev/null \
     || fail "AgentSurface plugin popup does not preserve the active pane cwd"
 for action in pane tab workspace; do
@@ -1716,12 +1610,6 @@ if grep -F 'agent-hooks/claude-statusline.sh' config/statusline/claude-statuslin
     fail "the claude renderer still forwards statusline payloads to the retired Orca sink"
 fi
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
-grep -F '"$script_dir/install-agentvoice-cli"' scripts/install.sh >/dev/null \
-    || fail "installer does not install the AgentVoice voice CLI"
-# shellcheck disable=SC2016 # Match the literal status variable in the script.
-grep -F 'exit "$agentvoice_cli_status"' scripts/install.sh >/dev/null \
-    || fail "installer does not propagate an AgentVoice CLI installation failure"
-# shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/install-agent-clis"' scripts/install.sh >/dev/null \
     || fail "installer does not install the agent CLIs"
 # shellcheck disable=SC2016 # Match the literal status variable in the script.
@@ -1819,8 +1707,7 @@ grep -F 'agentdesk_root="$code_root/agentdesk"' scripts/install.sh >/dev/null \
 # relative to its own location would silently skip the whole fleet on a worktree
 # run — the checkouts are found where the machine keeps them, not beside $0.
 for fleet_walker in scripts/install.sh scripts/install-agent-clis \
-    scripts/install-agentvoice-cli scripts/remove-retired-integrations \
-    scripts/sync-skills; do
+    scripts/remove-retired-integrations scripts/sync-skills; do
     # shellcheck disable=SC2016 # Match the literal knob in each script.
     grep -F 'code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"' "$fleet_walker" >/dev/null \
         || fail "$fleet_walker does not resolve the fleet root through AGENTSTART_CODE_ROOT"

@@ -32,8 +32,6 @@ believing any of this.
   - `agentguidance/` — the extension prompts `SYSTEM.md`, `GUIDELINES.md`,
     and `TOOLS.md`, which agentguidance renders into the collab and build
     skills. Linked into `~/.config/agentguidance/`.
-  - `agentvoice/` — the voice orchestrator's doctrine and `server.json`,
-    linked into `~/.config/agentvoice/` and read at server boot.
   - `AGENTS.md` — the deliberately empty harness guidance source, copied into
     the fixed private resources and linked from there into the Claude Code,
     Codex, and Pi global slots. Advice belongs in the extension prompts.
@@ -67,9 +65,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
-  - the AgentVoice CLI, and the agentwiki, agentboard, agentbrowse-infra,
-    agentbrowse, agentattention, agentsearch, agentkeys, codex-swap, agentusage,
-    and agentlaunch CLIs;
+  - the agentwiki, agentboard, agentbrowse-infra, agentbrowse, agentattention,
+    agentsearch, agentkeys, codex-swap, agentusage, and agentlaunch CLIs;
   - the public `possibilities/claude-swap` fork and the codex-swap provider
     shim, through agentusage's installer;
   - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
@@ -142,7 +139,7 @@ A new fleet tool usually needs almost no edit here. Name the checkout
 fixed private resources. AgentLaunch loads those resources into every managed
 session: Claude Code exposes `/agent:<name>`, Codex `$agent:<name>`, and Pi
 `/<name>`. The globally installed Codex plugin is skills-only and every name is
-persistently disabled until AgentLaunch or AgentVoice enables it in a session;
+persistently disabled until AgentLaunch enables it in a session;
 Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
 skills. Participant source manifests remain portable and bare; only the Codex
 plugin copy qualifies default prompts. Only a tool with its own CLI installer joins the

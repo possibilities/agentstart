@@ -40,7 +40,6 @@ flowchart LR
         jobsearch[Jobsearch]
     end
 
-    voice[agentvoice]
     source[agentsource]
     supervise[agentstart / supervise skill]
     board[agentboard]
@@ -54,7 +53,6 @@ flowchart LR
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
     surface -->|x-catalog --x-json, slug completions| launch
     surface -->|plugin pane: escape-to-quit agentusage| usage
-    surface -->|plugin pane: agentvoice remote| voice
     surface -->|workspace/worktree create, agent start, tab rename, agent prompt; confirmed topology close| herdr
     herdr -.->|plugin: launch + confirmation popups; tab naming| surface
     herdrConfig -->|config check, default + named reload-config| herdr
@@ -68,10 +66,6 @@ flowchart LR
     swap --> pi
     usage -->|snapshot --json / select --json [--account]| swap
     usage -->|list --json / recover| claudeSwap
-    voice -->|app-server children, login| codex
-    voice -->|balance codex| usage
-    voice -.->|fallback: select| swap
-    voice -->|surface wakes: events.subscribe, unix socket| herdr
     source -->|read-only agent.list + workspace.list snapshots| herdr
     supervise -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
     supervise -->|readiness, optional self-wake, completion messages| surface
@@ -98,14 +92,13 @@ flowchart LR
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into fixed Pi resources| piSubagents[pi-subagents]
-    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     skills ==>|fixed session resources| launch
     launch ==>|synthetic agent plugin| claude
     launch ==>|native codex-swap run/resume + qualified skill enables| codex
     launch ==>|explicit resource paths| pi
     skills ==>|globally installed, persistently disabled skills-only agent plugin| codexDesktop[Codex desktop / unmanaged Codex]
-    start ==>|per-file links, after the scan| voiceDoctrine[agentvoice doctrine: server.json from start, orchestrator prompts agentguidance-rendered]
     start -.->|config/launchd + install-launchagents| services[agentbrain worker + share + doctor / agentusage observer / agentattention server / agentscrape queue-processor / agentsource receiver / agentwiki server]
 ```
 
@@ -187,26 +180,21 @@ sentence around the match, never from the name alone.
 | agentstart | agentattention | immediately after Agentbrowse, `install-agent-clis` invokes Agentattention's hardened installer: frozen dependencies, an atomic editable command link and receipt, plus first-run mode-0600 server/local-client bootstrap. The order satisfies Agentattention's linked `agentbrowse/opentui` browser processor dependency before its resident service can be loaded | `agentstart/scripts/install-agent-clis`; `agentattention/scripts/install.sh`; asserted by both repositories' validation suites |
 | agent-browser | agentbrowse | the global `browser.provider` plugin named `agentbrowse` starts the AgentStart-managed `~/.local/bin/agentbrowse provider` through `$HOME` as a short-lived process for manifest, launch, and close requests, bypassing any older same-named command earlier on `PATH`. The provider tries Artbird first and only falls through on classified availability failures to an already-enabled Apple runtime; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentstart/config/agentbrowse/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` |
 | Jobsearch | agentattention | `jobsearch attention create --file` validates one of the three bounded first-party payloads, invokes `agentattention --json create`, verifies the returned contract, title, and payload, then records only the producer-side continuation. The combined skill separately uses Agentattention's read/wait CLI surface to consume authoritative terminal outcomes | `jobsearch/cli/src/verbs/attention.ts` (`defaultAgentattentionRunner`, `commandFor`, `createAttentionRequest`); `jobsearch/.claude/skills/jobsearch/SKILL.md` |
-| agentstart | agentlaunch / agentvoice / Codex | builds one fixed private resource tree, renders Claude's session-only `agent` plugin and Codex's globally installed strictly skills-only `agent` plugin, and persistently name-disables every qualified Codex skill. Portable manifests stay bare; only the disposable Codex copy qualifies default prompts. The full installer removes AgentStart-managed entries from Fx-visible ambient roots and the ownership-proven retired capability tree, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/scripts/sync-codex-skill-policy`; `agentstart/config/resources/*`; `agentstart/docs/adr/0002-render-one-private-resource-set.md` |
+| agentstart | agentlaunch / Codex | builds one fixed private resource tree, renders Claude's session-only `agent` plugin and Codex's globally installed strictly skills-only `agent` plugin, and persistently name-disables every qualified Codex skill. Portable manifests stay bare; only the disposable Codex copy qualifies default prompts. The full installer removes AgentStart-managed entries from Fx-visible ambient roots and the ownership-proven retired capability tree, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/scripts/sync-codex-skill-policy`; `agentstart/config/resources/*`; `agentstart/docs/adr/0002-render-one-private-resource-set.md` |
 | agentlaunch | Claude Code / Codex / Pi | loads the one fixed resource set. Claude receives the synthetic `agent` plugin; native Codex `run`, `resume`, `exec`, and `review` name-enable every qualified `$agent:<skill>` through session config and remain inside codex-swap's ordinary account pin; Pi receives explicit skill, extension, and prompt-template paths with ambient discovery disabled. AgentLaunch owns no App Server, Unix socket, remote TUI, fake provider, projection, or receipt; native Codex therefore owns linked-worktree trust and the complete session lifecycle | `agentlaunch/src/resources.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-use-fixed-resources-with-native-codex.md` |
-| agentvoice | agentstart / codex | keeps its independent realtime resident App Server, but reads the fixed managed-skill inventory on every attachment and name-enables every qualified `agent:<skill>` in each orchestrator and worker thread's start/resume config. It registers no extra root or bare duplicate, stores no skill copy, and keeps the shared native Codex rollout/session store intact across resident and account rotation | `agentvoice/src/resources.ts`; `agentvoice/src/core/params.ts`; `agentvoice/src/resident/contract.ts`; `agentvoice/src/core/runtime.ts`; `agentvoice/docs/adr/0006-enable-fixed-agentstart-skills-per-thread.md` |
 | agentstart | fxnk | invokes `~/code/fxnk/scripts/install.sh --install --sha <pin>` as the required Fx harness installation contract. The tracked Fx Integration consumer pin is an exact commit already approved by fxnk's Local development gate and ship gate; ordinary AgentStart convergence reuses it and never promotes a moving remote tip | `agentstart/scripts/install.sh`, asserted by `agentstart/tests/validate.sh`; `fxnk/scripts/install.sh`; `fxnk/MAINTAIN.md` (Consumer) |
 | fxnk | Fx | binds `~/src/fx` to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. AgentStart reuses those exact bytes as fmx's separate development `fmx-fx`, without another compilation. Fx's repo-local `/maintain` skill separately rebases, gates, and publishes integration | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/skills/maintain/SKILL.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
 | agentstart | fmx | proves Fmx's Fx pin equals AgentStart's ship-gate-approved Integration pin, then delegates the entire consumer installation to Fmx's repository-owned `scripts/install.sh`: the editable Bun link, a distinct `fmx-fx` copied from fxnk's exact already-gated source build, the exact source-built `fmx-zmx` Companion pin, and `fmx doctor`. AgentStart then links the tracked operator config into `~/.config/fmx/config.toml`; fmx's key schema stays a strict subset of Herdr's and uses the same `ctrl+space` prefix. Fmx publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (fmx block); `fmx/scripts/install.sh`; `fmx/scripts/local-gate.sh`; `fmx/scripts/install-companion.sh`; `fmx/.github/workflows/ci.yml`; `agentstart/config/fmx/config.toml`; `agentstart/scripts/fmx-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/fmx-config.sh` |
 | agentstart | Hunk | installs or upgrades the Homebrew formula, resolves the version-matched `hunk-review` skill through `hunk skill path hunk-review`, and copies that bundled skill into the fixed resources. It deliberately never installs the skill from GitHub head, which could teach a newer session API than the local binary accepts | `agentstart/scripts/install.sh` (`install_hunk_skill`), asserted by `agentstart/tests/validate.sh`; `hunk/src/core/run/paths.ts` (`resolveBundledSkillPath`) |
 | agentstart | pi-subagents | installs the exact npm pin `pi-subagents@0.55.0` self-contained — extracted with its runtime dependencies inside the package directory — because Pi ships no subagents and points at third-party packages instead. The renderer carries that directory into the fixed Pi resources, where AgentLaunch names it with `--extension`; Pi reads the `pi` manifest inside it to register the extension, its skills, and its workflow prompt templates from the one path. Not `pi install`: a settings-registered package is exactly what a managed launch suppresses | `agentstart/scripts/install-pi-subagents`; `agentstart/scripts/render-capabilities`, asserted by `agentstart/tests/validate.sh` |
 | agentsurface plugin | agentusage | the shared Herdr plugin's `usage` pane entrypoint runs `escape-to-quit agentusage` in a titled 80% popup. AgentStart's `prefix+u` binding opens the entrypoint instead of duplicating an untitled generic popup | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml` |
-| agentsurface plugin | agentvoice | the same plugin's `voice` pane entrypoint runs `agentvoice remote` in a titled 80% popup, opened by AgentStart's `prefix+t` binding. Bare, with no escape-to-quit wrapper — that TUI spends esc on its own ctrl+k palette and quits on `q`. The remote attaches to the console already running on this machine over its own socket; the popup never starts a second audio session | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml`; `agentvoice/src/console/remote-ui.ts` |
 | agentlaunch | agentusage | `agentusage balance claude\|codex --json` chooses a balanced account. Real Codex/Pi launches add `--claim`; dry runs do not reserve capacity | `agentlaunch/src/balance.ts` (`balanceClaude`, `balanceCodexFamily`) |
 | agentlaunch | claude-swap | wraps balanced Claude launches as `cswap run <slot> --share-history -- <native argv>` | `agentlaunch/src/balance.ts` (`balanceClaude`); `agentlaunch/docs/adr/0003-balanced-launches-compose-a-prefix.md` |
 | agentlaunch | codex-swap | wraps native Codex opens as `codex-swap run`, native resumes as `codex-swap resume <id>`, and Pi as `codex-swap pi run`, with `--claim <lease>` for real Codex/Pi launches and `--account <key>` for dry runs or explicit pins. AgentLaunch adds only native harness arguments and session-scoped resource policy; codex-swap owns account selection and lease lifetime without changing the harness process shape | `agentlaunch/src/balance.ts` (`balanceCodexFamily`, `composeCodexFamily`); `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-use-fixed-resources-with-native-codex.md` |
 | agentlaunch | claude / codex / pi | launches the resolved native harness and sets `AGENTLAUNCH_LAUNCH=1`; AgentStart's bare-command shims route to `agentlaunch --x-harness <harness>` and use that sentinel to exec the real binary on descendant launches | `agentlaunch/src/launch.ts`; `agentstart/scripts/install-agentlaunch-shims`; `agentlaunch/docs/adr/0004-shims-route-bare-calls-the-sentinel-breaks-recursion.md` |
-| codex-swap | codex-multi-auth | exact npm pin, currently 2.8.7. Codex-swap invokes the package-local forced-account wrapper for native Codex runs and resumes; AgentVoice's independent resident App Server does not pass through this launcher. The installer no longer binds the fleet to the patched fork | `codex-swap/package.json`; `codex-swap/src/ndy/bin-resolver.ts`; `codex-swap/scripts/install.sh` |
+| codex-swap | codex-multi-auth | exact npm pin, currently 2.8.7. Codex-swap invokes the package-local forced-account wrapper for native Codex runs and resumes. The installer no longer binds the fleet to the patched fork | `codex-swap/package.json`; `codex-swap/src/ndy/bin-resolver.ts`; `codex-swap/scripts/install.sh` |
 | agentusage | claude-swap | `cswap list --json` observes Claude accounts; `cswap recover <slot> --json` repairs due expired tokens; its installer converges the public fork's `main` | `agentusage/src/claude/observe.ts:235`; `src/daemon.ts:78`; `scripts/install-providers.sh` |
 | agentusage | codex-swap | `codex-swap snapshot --json` observes Codex accounts with paced polling; `codex-swap select --json [--account <focused-key>] [--claim]` performs ordinary or focus-pinned main-lane selection, with the provider retaining eligibility and atomic lease ownership | `agentusage/src/codex/observe.ts` (`observeCodex`); `agentusage/src/daemon.ts`; `agentusage/src/balance/codex.ts` (`delegateCodexSelect`) |
-| agentvoice | codex | runs the resident `codex app-server` under launchd via a rendered wrapper, and `codex login --device-auth` for profile onboarding | `agentvoice/src/resident/contract.ts` (`residentArgv`), `src/resident/install.ts` (`renderWrapper`), `src/main.ts` (`accounts add`) |
-| agentvoice | agentusage → codex-swap | `agentusage balance codex`, falling back to `codex-swap select`, consulted by the resident wrapper at every spawn (`pick-home`) and by the console's rotation check | `agentvoice/src/core/accounts.ts` (`selectAccount`), `src/resident/install.ts` (`runPickHome`), `src/core/runtime.ts` (`maybeRotate`) |
-| agentvoice | herdr | unix-socket IPC, not a spawn: with `surface.events` on, the console holds an `events.subscribe` NDJSON stream on herdr's socket and reconciles via one-shot `agent.list` calls; pane lifecycle events for token-tagged placed workers become `<surface_report>` turns at the orchestrator | `agentvoice/src/core/surface.ts` (`HerdrSurface`), `src/core/runtime.ts` (surface wiring); enabled by `agentstart/prompts/agentvoice/server.json` |
 | agentstart `supervise` skill | herdr, agentsurface | its long-lived watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API and reconciles via `agent.list`; candidate readiness, the optional Codex self-wake, and pushed confirmations travel through `agentsurface message`. The guarded integrator mutates only the owning repository's local `main` and `origin/main`. After agent exit and `workspace.closed` correlate, the guarded reaper removes only the exact clean registered worktree, preserves its branch, and appends harness/session/worktree receipts under AgentStart's local state | `agentstart/skills/supervise/SKILL.md`; `agentstart/skills/supervise/scripts/watch.ts`; `agentstart/skills/supervise/scripts/integrate.ts`; `agentstart/skills/supervise/scripts/reap.ts` |
 | agentstart | herdr | installs or upgrades the official stable Homebrew formula, then runs `herdr integration install claude\|codex\|pi`, links agentsurface's launcher-pane and tab-naming plugin directory with `herdr plugin link`, and renders the version-matched surface skill from `herdr --skill` into the fixed resources. The full installer narrowly removes the retired AgentStart source binary and build state only when its receipt proves ownership; `~/src/herdr` remains research material and has no scheduled update edge. The Herdr-generated, ownership-marked Pi extension is copied from ambient discovery into the fixed Pi resources because managed Pi launches disable ambient extensions | `agentstart/scripts/install.sh` (`install_or_upgrade_formula herdr`, legacy cleanup, `install_herdr_integrations`, `install_herdr_skill`); `agentstart/scripts/render-capabilities`; asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then reloads the default server and every reachable named session; an unavailable server is nonfatal because its next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`, `reload_live_servers`) |
@@ -232,9 +220,8 @@ sentence around the match, never from the name alone.
 | agentkeys | stowed machine configs | audits the interception chain across Karabiner/skhd/Ghostty/tmux/Neovim — files the machine layer stows | `agentkeys` skill description; the machine's stow packages |
 | agentboard, agentchats | each other's CLIs | the shared "agent* state dump" bearings convention: one cross-tool contract for state dumps, with a common ~4-chars-per-token budget | `agentboard/src/help.ts:367`, `agentchats/bin/agentchats:13`, `agentboard/src/brief.ts:140` |
 | agentstart statusline | claude-swap | the claude renderer names the balanced account by reading `CLAUDE_CONFIG_DIR`, whose basename claude-swap spells `<n>-<slugified-email>`; renaming that profile directory silently drops the account segment. No counterpart for codex or pi — codex-swap pins an account by swapping auth in place and exports nothing naming it | `agentstart/config/statusline/claude-statusline.sh` (balanced-account segment); `claude-swap/src/claude_swap/session.py:161-167` |
-| agentguidance | agentvoice (via agentstart) | the voice orchestrator doctrine is rendered doctrine: `agentguidance/prompts/agentvoice/` templates splice the shared orchestrator fragments to `~/.agents/prompts/agentvoice/`, agentstart links the result into `~/.config/agentvoice` after sync-skills (keeping only `server.json` as its own source), and agentvoice discovers the files by name at console start | `agentguidance/scripts/render`; `agentstart/scripts/install.sh` (`link_agentvoice_config`); `agentvoice/src/core/config.ts` (`PROMPT_FILES`) |
-| agentstart | herdr, agentsurface, agentusage, agentvoice | owns Herdr's live `config.toml` as a render of its tracked behavior config, which carries no palette: Herdr's `terminal` theme follows the terminal. The behavior opens AgentSurface's titled `launch` plugin pane on `prefix+l` from the active pane's cwd, the plugin's titled `usage` pane on `prefix+u`, and its titled `voice` pane on `prefix+v`; Funk retains only the machine-owned `agent-mem.sh` referenced by the config. It also replaces Herdr's immediate `prefix+x`, `prefix+shift+x`, and `prefix+shift+d` close actions with the AgentSurface plugin's named confirmation panes; Herdr captures the active topology ids in popup context when each entrypoint opens | `agentstart/config/herdr/config.toml`; `agentstart/scripts/herdr-config`; `agentsurface/plugin/herdr-plugin.toml`; `funk/herdr/.config/herdr/agent-mem.sh` |
-| herdr | agentsurface, agentusage, agentvoice | the linked `agentsurface` plugin (registered by agentstart's installer via `herdr plugin link`, manifest in `agentsurface/plugin/`) exposes `agentsurface host -- agentlaunch --x-surface` as the titled 80% session-modal `launch` popup, `agentsurface host -- agentchats search` as the titled 80% `chats` resume-picker popup, `escape-to-quit agentusage` as the titled 80% `usage` popup, bare `agentvoice remote` as the titled 80% `voice` popup, and three compact `agentsurface confirm` panes for pane/tab/workspace closure. It runs `agentsurface name-tab` on every `pane.agent_detected` and `pane.agent_status_changed`. The launch (`prefix+l`) and chats (`prefix+h`) bindings pass the active pane's cwd to their popups; opening each close popup captures the active pane, tab, and workspace in `HERDR_PLUGIN_CONTEXT_JSON`, and session-modal input keeps the target stable while the dialog is open. The hook receives the event as `HERDR_PLUGIN_EVENT_JSON`, publishes the `$project` sidebar token on detection (root repository, branch badge, and checked-out branch, for a linked worktree and the repository's own checkout alike), keeps its state under `HERDR_PLUGIN_STATE_DIR`, and names the pane's tab after its conversation once per tab — each hook run one bounded attempt, re-armed by the next status transition when a stalled start (a trust dialog) outlives it | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml`; `agentstart/scripts/install.sh` (`install_herdr_plugins`) |
+| agentstart | herdr, agentsurface, agentusage | owns Herdr's live `config.toml` as a render of its tracked behavior config, which carries no palette: Herdr's `terminal` theme follows the terminal. The behavior opens AgentSurface's titled `launch` plugin pane on `prefix+l` from the active pane's cwd and the plugin's titled `usage` pane on `prefix+u`; Funk retains only the machine-owned `agent-mem.sh` referenced by the config. It also replaces Herdr's immediate `prefix+x`, `prefix+shift+x`, and `prefix+shift+d` close actions with the AgentSurface plugin's named confirmation panes; Herdr captures the active topology ids in popup context when each entrypoint opens | `agentstart/config/herdr/config.toml`; `agentstart/scripts/herdr-config`; `agentsurface/plugin/herdr-plugin.toml`; `funk/herdr/.config/herdr/agent-mem.sh` |
+| herdr | agentsurface, agentusage | the linked `agentsurface` plugin (registered by agentstart's installer via `herdr plugin link`, manifest in `agentsurface/plugin/`) exposes `agentsurface host -- agentlaunch --x-surface` as the titled 80% session-modal `launch` popup, `agentsurface host -- agentchats search` as the titled 80% `chats` resume-picker popup, `escape-to-quit agentusage` as the titled 80% `usage` popup, and three compact `agentsurface confirm` panes for pane/tab/workspace closure. It runs `agentsurface name-tab` on every `pane.agent_detected` and `pane.agent_status_changed`. The launch (`prefix+l`) and chats (`prefix+h`) bindings pass the active pane's cwd to their popups; opening each close popup captures the active pane, tab, and workspace in `HERDR_PLUGIN_CONTEXT_JSON`, and session-modal input keeps the target stable while the dialog is open. The hook receives the event as `HERDR_PLUGIN_EVENT_JSON`, publishes the `$project` sidebar token on detection (root repository, branch badge, and checked-out branch, for a linked worktree and the repository's own checkout alike), keeps its state under `HERDR_PLUGIN_STATE_DIR`, and names the pane's tab after its conversation once per tab — each hook run one bounded attempt, re-armed by the next status transition when a stalled start (a trust dialog) outlives it | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml`; `agentstart/scripts/install.sh` (`install_herdr_plugins`) |
 
 ### pins
 
@@ -242,7 +229,7 @@ sentence around the match, never from the name alone.
 | --- | --- | --- | --- |
 | agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
-| zig | Brewfile-tracked, duplicated in the installer | AgentVoice's native duplex audio path and Native SDK packaging build against it | `agentstart/scripts/install.sh` |
+| zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
 | Fx | `d5e5da7aad0bbfa9b0792a02f72e802e8606b20c` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable fmx install requires the same pin and receives a byte-identical `fmx-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
 | herdr | official stable Homebrew formula, fleet protocol 21 minimum | AgentStart installs or upgrades the formula only while every default/named server socket is proved inactive; otherwise it preserves the installed client bytes. Before cutover it also preserves the compatible source-built client and its build evidence while stable is too old or explicit `AGENTSTART_HERDR_ALLOW_CUTOVER=1` authorization is absent. Only that deliberately authorized inactive run performs the receipt-proved cleanup. Once no legacy binary or evidence remains, ordinary convergence recognizes Homebrew as authoritative, while subsequent formula upgrades require the same explicit inactive-run authorization; a clean machine with neither legacy state nor a formula installs stable normally | `agentstart/scripts/install.sh`; `agentstart/scripts/select-herdr-runtime`; behavioral coverage in `agentstart/tests/herdr-homebrew-cutover.sh` |
@@ -274,8 +261,7 @@ page is the overview of the arrangement.
 
 Codex-swap no longer binds `~/src/codex-multi-auth`: it uses the exact stock
 npm pin. Open upstream PRs #664 and #665 address helper cleanup for the retired
-per-TUI app-server topology and are no longer needed by this fleet; AgentVoice's
-independent app-server children do not use codex-swap's removed sidecars.
+per-TUI app-server topology and are no longer needed by this fleet.
 
 ### routes (skill → skill)
 
@@ -293,7 +279,7 @@ independent app-server children do not use codex-swap's removed sidecars.
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
 | GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
 | bus | notify | a blocked bus target is waiting on the operator, so a message that matters escalates to a human notification instead of more retries (`agentsurface/skills/bus/SKILL.md`) |
-| orchestrate (agentguidance) | collab, build, herdr | the wielder: collab's contract holds on the conversation thread, and execution leaves as standalone briefs run under build's contract by dispatched workers (`agentguidance/skills/orchestrate/SKILL.md`, `fragments/orchestrator-conduct.md`). Dispatch runs on two lanes: the native facility for work in the orchestrator's own service, and the surface — herdr — for the work itself; both orchestrator renditions bind herdr by name and load its skill for placement mechanics |
+| orchestrate (agentguidance) | collab, build, herdr | the wielder: collab's contract holds on the conversation thread, and execution leaves as standalone briefs run under build's contract by dispatched workers (`agentguidance/skills/orchestrate/SKILL.md`, `fragments/orchestrator-conduct.md`). Dispatch runs on two lanes: the native facility for work in the orchestrator's own service, and the surface — herdr — for the work itself; the orchestrator rendition binds herdr by name and loads its skill for placement mechanics |
 | resource-create / resource-update (agentguidance) | brain | resources are built from and refreshed against the agentbrain index |
 | story (agentguidance) | wiki | publishes the finished narrative through agentwiki |
 | watch-requests (agentguidance) | chats, notify | the watch diagnoses but never authors: `cass resume <source_path> --shell` names the session that opened the request, and notify carries the resume command and steering prompt to the human (`agentguidance/skills/watch-requests/SKILL.md`) |
@@ -306,9 +292,6 @@ does not re-suspect them:
 
 - agentbrain → agentsearch: no reference anywhere in `agentbrain/src`;
   ingestion is purely scrape-fed (checked 2026-08-09).
-- agentvoice → agentboard / agentwiki: the orchestrator's app-server
-  threads drive codex only; no board or wiki reference in `agentvoice/src`
-  (checked 2026-08-09).
 - active fleet → Agentweb: no runtime, service, checkout-install, skill-routing,
   or pinned-binary edge remains after the Agentscrape migration. Remaining
   mentions are the one-time ownership-guarded retirement path and dated
@@ -320,16 +303,14 @@ subcommands), added the conduit and TOOLS.md edges, and re-confirmed both
 absences above. Updated 2026-08-12 for the de-Orca topology: AgentLaunch owns
 bare harness launch balancing, AgentStart retires AgentBus launch agents and
 adapters, and TOOLS.md no longer advertises the retired bus skill. Updated
-again 2026-08-12 for the orchestrator doctrine unification: agentguidance
-renders the voice orchestrator prompts from shared fragments, the new
-orchestrate skill wields collab and build, and AgentStart links rendered
-doctrine instead of owning it. Updated again 2026-08-12 for the fleet service
+again 2026-08-12 for the orchestrator doctrine unification: the new
+agentguidance orchestrate skill wields collab and build through shared
+fragments. Updated again 2026-08-12 for the fleet service
 taxonomy: noun-role labels, explicit lifecycle metadata, and one public binary
 per tool replace daemon/command-shaped labels and separate `*d` executables.
 Updated 2026-08-15 for the surface abstraction: herdr (external,
 homebrew-core) becomes the orchestrator doctrine's reference launch surface —
-AgentStart renders its shipped skill from the binary, agentvoice subscribes
-to its events for `<surface_report>` wakes, and the orchestrate/voice
+AgentStart renders its shipped skill from the binary, and the orchestrate
 doctrine binds it by name. The `land-vs-place` and new launch-surface wiki
 pages carry the ruling. Updated 2026-08-16 for the first AgentSurface
 integration: `agentsurface launch` composes herdr (workspace/worktree
@@ -370,10 +351,6 @@ Updated 2026-08-17 to make the AgentSurface plugin the shared home for fleet
 TUIs bound to popups: its new `usage` pane runs `agentusage` through the
 escape-to-close wrapper under the title `Agent Usage`, while
 AgentStart's `prefix+u` binding opens that pane entrypoint.
-Updated 2026-08-17 with the third popup-bound fleet TUI: the plugin's `voice`
-pane runs `agentvoice remote` bare (esc belongs to that TUI's own palette)
-under the title `Agent Voice`, opened by AgentStart's `prefix+t` binding — the
-voice console's remote control, one chord from any pane.
 Updated 2026-08-18 for the inverted launch integration: the one-screen
 launch form moves into agentlaunch as `--x-surface`, taking the roots and
 priming config, the drafts, and project-frequency ordering with it, and
@@ -406,8 +383,7 @@ Updated 2026-08-24 for capability-pack composition: AgentStart collects the
 default `common` pack, AgentLaunch projects it and optional session packs into
 all three harnesses without moving native histories, Codex standalone App
 Servers register extra roots while suppressing the desktop compatibility
-aliases by name, AgentVoice composes common on each attachment and carries the
-same suppression in its thread params, and Pi's Herdr extension moves into the
+aliases by name, and Pi's Herdr extension moves into the
 explicit pack surface. Codex keeps the `-c` flags before a subcommand and the
 ones after it in separate sets and a subcommand carrying its own discards the
 global ones, so a caller that appends flags — codex-swap does — silently drops
@@ -476,8 +452,8 @@ fixed private resource set. AgentLaunch no longer owns a Codex App Server,
 socket, remote TUI, or fake provider: native `codex-swap run` and `resume`
 restore Codex's own linked-worktree trust behavior. The globally installed
 skills-only `agent` plugin stays inert by persistent qualified-name disables,
-and managed AgentLaunch and AgentVoice sessions enable those names in their
-later session layer.
+and managed AgentLaunch sessions enable those names in their later session
+layer.
 Updated 2026-08-29 to retire Agentweb after its last caller migrated. AgentStart
 no longer installs its checkout, broker service, command wrappers, or
 Agentscrape conduit environment; a marker-guarded one-time convergence removes
