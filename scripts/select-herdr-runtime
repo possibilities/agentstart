@@ -20,16 +20,51 @@ client_protocol() {
     printf '%s\n' "$protocol"
 }
 
-has_live_server_socket() {
+server_socket_state() {
     local herdr_config_root="$1"
+    local sessions_root
+    local session_dir
+    local socket_path
 
-    [ -d "$herdr_config_root" ] || return 1
-    find "$herdr_config_root" -type s -name herdr.sock -print -quit 2>/dev/null |
-        grep -q .
+    if [ ! -e "$herdr_config_root" ] && [ ! -L "$herdr_config_root" ]; then
+        return 1
+    fi
+    [ ! -L "$herdr_config_root" ] && [ -d "$herdr_config_root" ] &&
+        [ -r "$herdr_config_root" ] && [ -x "$herdr_config_root" ] || return 2
+
+    socket_path="$herdr_config_root/herdr.sock"
+    [ ! -S "$socket_path" ] || return 0
+    if [ -e "$socket_path" ] || [ -L "$socket_path" ]; then
+        return 2
+    fi
+
+    sessions_root="$herdr_config_root/sessions"
+    if [ ! -e "$sessions_root" ] && [ ! -L "$sessions_root" ]; then
+        return 1
+    fi
+    [ ! -L "$sessions_root" ] && [ -d "$sessions_root" ] &&
+        [ -r "$sessions_root" ] && [ -x "$sessions_root" ] || return 2
+
+    for session_dir in "$sessions_root"/*; do
+        if [ ! -e "$session_dir" ] && [ ! -L "$session_dir" ]; then
+            continue
+        fi
+        [ ! -L "$session_dir" ] && [ -d "$session_dir" ] &&
+            [ -r "$session_dir" ] && [ -x "$session_dir" ] || return 2
+
+        socket_path="$session_dir/herdr.sock"
+        [ ! -S "$socket_path" ] || return 0
+        if [ -e "$socket_path" ] || [ -L "$socket_path" ]; then
+            return 2
+        fi
+    done
+    return 1
 }
 
 brew_herdr_bin="${1:-}"
-minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-21}"
+fleet_minimum_protocol=21
+minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-$fleet_minimum_protocol}"
+cutover_allowed="${AGENTSTART_HERDR_ALLOW_CUTOVER:-0}"
 legacy_herdr_bin="${AGENTSTART_LEGACY_HERDR_BIN:-$HOME/.local/bin/herdr}"
 legacy_herdr_state="${AGENTSTART_STATE_ROOT:-$HOME/.local/state/agentstart}"
 legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"
@@ -40,6 +75,12 @@ herdr_config_root="${AGENTSTART_HERDR_CONFIG_ROOT:-${XDG_CONFIG_HOME:-$HOME/.con
     || die "Homebrew Herdr is not executable: $brew_herdr_bin"
 case "$minimum_protocol" in
     ''|*[!0-9]*) die "minimum protocol is not numeric: $minimum_protocol" ;;
+esac
+[ "$minimum_protocol" -ge "$fleet_minimum_protocol" ] \
+    || die "minimum protocol $minimum_protocol is below fleet floor $fleet_minimum_protocol"
+case "$cutover_allowed" in
+    0|1) ;;
+    *) die "AGENTSTART_HERDR_ALLOW_CUTOVER must be 0 or 1" ;;
 esac
 
 brew_protocol=$(client_protocol "$brew_herdr_bin") \
@@ -75,9 +116,20 @@ fi
 # choice. Keep the client that can control the resident server and defer the
 # destructive half of the cutover until no default or named-session socket
 # remains.
-if has_live_server_socket "$herdr_config_root"; then
-    select_legacy "a default or named Herdr server socket is present"
-fi
+socket_state=0
+server_socket_state "$herdr_config_root" || socket_state=$?
+case "$socket_state" in
+    0) select_legacy "a default or named Herdr server socket is present" ;;
+    1) ;;
+    *) select_legacy "the default/named Herdr server socket state could not be proved inactive" ;;
+esac
+
+# Ordinary full convergence may stage and validate the formula but never wins
+# the race-sensitive destructive cutover. The operator authorizes one quiet,
+# socket-free cutover run explicitly after deciding the resident sessions are
+# disposable or already absent.
+[ "$cutover_allowed" -eq 1 ] \
+    || select_legacy "the explicit inactive-cutover authorization is absent"
 
 # The retired updater wrote the binary and its 40-hex receipt in the same
 # whole second. Remove the old binary only when regular-file shape, owner, and

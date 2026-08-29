@@ -1194,7 +1194,7 @@ for required_install in \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'brew install or upgrade herdr  # stage the official stable formula; retain the compatible client while the formula is too old or any Herdr server is live' \
-    'select Homebrew Herdr only at protocol 21+ with no live server sockets, then remove the legacy source build when its receipt proves ownership  # ambiguous occupants and evidence are preserved' \
+    'select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence and ambiguous evidence preserve it' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
@@ -1463,12 +1463,19 @@ fi
 # shellcheck disable=SC2016 # Match the exact selector invocation.
 grep -F 'herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr")' scripts/install.sh >/dev/null \
     || fail "installer does not select a safe Herdr runtime after staging Homebrew"
-# shellcheck disable=SC2016 # Match the literal configurable protocol expression.
-grep -F 'minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-21}"' scripts/select-herdr-runtime >/dev/null \
+grep -F 'fleet_minimum_protocol=21' scripts/select-herdr-runtime >/dev/null \
     || fail "Herdr cutover does not enforce fleet protocol 21"
+# shellcheck disable=SC2016 # Match the literal configurable protocol expression.
+grep -F '[ "$minimum_protocol" -ge "$fleet_minimum_protocol" ]' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover allows its protocol floor to be lowered"
 # shellcheck disable=SC2016 # Match the literal socket-root variable.
-grep -F 'find "$herdr_config_root" -type s -name herdr.sock' scripts/select-herdr-runtime >/dev/null \
-    || fail "Herdr cutover does not conservatively detect default and named server sockets"
+grep -F 'server_socket_state "$herdr_config_root"' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover does not conservatively inspect default and named server sockets"
+# shellcheck disable=SC2016 # Match the literal config-root uncertainty guard.
+grep -F '[ ! -L "$herdr_config_root" ]' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover follows an uncertain socket-root symlink"
+grep -F 'AGENTSTART_HERDR_ALLOW_CUTOVER must be 0 or 1' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover does not require explicit authorization"
 # shellcheck disable=SC2016 # Match literal legacy cleanup variables and predicates.
 grep -F 'legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"' scripts/select-herdr-runtime >/dev/null \
     || fail "installer does not recognize the retired source-build receipt"

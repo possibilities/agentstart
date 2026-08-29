@@ -41,6 +41,7 @@ select_runtime() {
     HOME="$home" \
         AGENTSTART_STATE_ROOT="$state" \
         AGENTSTART_HERDR_CONFIG_ROOT="$config" \
+        AGENTSTART_HERDR_ALLOW_CUTOVER="${4:-0}" \
         FAKE_BREW_HERDR_PROTOCOL="$2" \
         FAKE_LEGACY_HERDR_PROTOCOL="$3" \
         "$root/scripts/select-herdr-runtime" "$brew_bin"
@@ -79,15 +80,27 @@ socket_pid=''
 make_fixture successful_cutover
 mv "$brew_bin" "$brew_bin.real"
 ln -s "${brew_bin##*/}.real" "$brew_bin"
-selected=$(select_runtime successful_cutover 21 21)
+selected=$(select_runtime successful_cutover 21 21 1)
 [ "$selected" = "$brew_bin" ] || fail "eligible formula was not selected"
 [ ! -e "$legacy_bin" ] || fail "proved legacy binary survived successful cutover"
 [ ! -e "$state/herdr-built-commit" ] || fail "proved legacy receipt survived successful cutover"
 [ ! -e "$state/herdr-build.log" ] || fail "proved legacy log survived successful cutover"
 
+make_fixture authorization_required
+selected=$(select_runtime authorization_required 21 21)
+[ "$selected" = "$legacy_bin" ] || fail "ordinary convergence performed the explicit cutover"
+[ -f "$legacy_bin" ] || fail "ordinary convergence removed the legacy client"
+
+make_fixture uncertain_socket_root
+mv "$config" "$config.real"
+ln -s "$config.real" "$config"
+selected=$(select_runtime uncertain_socket_root 21 21 1)
+[ "$selected" = "$legacy_bin" ] || fail "symlinked socket root did not fail closed"
+[ -f "$legacy_bin" ] || fail "uncertain socket audit removed the legacy client"
+
 make_fixture malformed_receipt
 printf 'not-a-commit\n' >"$state/herdr-built-commit"
-if select_runtime malformed_receipt 21 21 >"$fixture/output" 2>"$fixture/error"; then
+if select_runtime malformed_receipt 21 21 1 >"$fixture/output" 2>"$fixture/error"; then
     fail "malformed receipt was accepted"
 fi
 [ -f "$legacy_bin" ] || fail "malformed receipt removed its occupant"
@@ -96,14 +109,14 @@ fi
 make_fixture symlink_occupant
 mv "$legacy_bin" "$legacy_bin.real"
 ln -s "$legacy_bin.real" "$legacy_bin"
-if select_runtime symlink_occupant 21 21 >"$fixture/output" 2>"$fixture/error"; then
+if select_runtime symlink_occupant 21 21 1 >"$fixture/output" 2>"$fixture/error"; then
     fail "symlink occupant was accepted"
 fi
 [ -L "$legacy_bin" ] || fail "symlink occupant was removed"
 
 make_fixture mismatched_write_time
 touch -t 202001010000 "$legacy_bin"
-if select_runtime mismatched_write_time 21 21 >"$fixture/output" 2>"$fixture/error"; then
+if select_runtime mismatched_write_time 21 21 1 >"$fixture/output" 2>"$fixture/error"; then
     fail "mismatched write time was accepted"
 fi
 [ -f "$legacy_bin" ] || fail "mismatched occupant was removed"

@@ -44,7 +44,9 @@
   cutover guard: stable must speak fleet protocol 21 or newer and every
   default/named server socket must be absent before the receipt-proved source
   binary is removed. Until both are true, full convergence stages Homebrew but
-  keeps the compatible client and its build evidence. Package-manager updates
+  keeps the compatible client and its build evidence. The final inactive run
+  additionally requires `AGENTSTART_HERDR_ALLOW_CUTOVER=1`; ordinary
+  convergence may never win that race implicitly. Package-manager updates
   cannot use Herdr's live handoff, so never weaken the socket gate to force a
   cutover around resident agents.
 - Every fleet repo's `AGENTS.md` ends with the same "The fleet" section
