@@ -22,7 +22,8 @@ _Avoid_: stack, setup.
 
 **Fmx source installation** — Fmx's repository-owned `scripts/install.sh`,
 which AgentStart invokes with fxnk's exact already-gated Fx source build. It is
-the same path consumers use and publishes no binary artifacts.
+the same path consumers use, links the human `fmx` and agent-facing `fmx-mcp`
+commands, and publishes no binary artifacts.
 _Avoid_: release path, bucket installer, AgentStart-owned Fmx installer.
 
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart

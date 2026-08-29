@@ -3,8 +3,8 @@
 Every known dependency between the agent apps in `~/code`, with evidence.
 Four kinds of edge:
 
-- **calls** (solid): a runtime subprocess invocation of another tool's CLI.
-  Breaking the callee's flags or output breaks the caller.
+- **calls** (solid): a runtime request or subprocess invocation of another
+  tool. Breaking the callee's request, flags, or output breaks the caller.
 - **routes** (dashed): a skill deliberately handing work to another skill.
   Breaking the target skill strands the routing.
 - **serves** (dotted): a launchd service running fleet code, a tool reading
@@ -22,6 +22,7 @@ flowchart LR
         claude[Claude Code]
         codex[Codex CLI]
         pi[Pi]
+        fx[Fx]
     end
 
     subgraph balancing [Launch balancing]
@@ -48,6 +49,7 @@ flowchart LR
     herdr[herdr — the surface]
     herdrConfig[agentstart / herdr-config]
     surface[agentsurface]
+    fmx[fmx / fmx-mcp]
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -76,6 +78,8 @@ flowchart LR
     jobsearch -->|bounded attention create| attention
     board -->|publish --kind render| wiki
     chats -.->|indexes session stores| harnesses
+    harnesses -->|MCP stdio: orientation, creation, UI, and semantic Work tools| fmx
+    fmx -->|authenticated per-Agent Work socket: snapshot, queue, steer, interrupt, and queue edits| fx
 ```
 
 ## Install and service layer
@@ -88,6 +92,7 @@ flowchart LR
     machine ==>|scripts/install.sh --install, sync-skills| start
     start ==>|official installers| harnesses[Claude Code / Codex / Pi]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
+    start ==>|repository-owned source installer + exact Fx and Companion pins| fmxInstall[fmx / fmx-mcp]
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
@@ -184,7 +189,9 @@ sentence around the match, never from the name alone.
 | agentlaunch | Claude Code / Codex / Pi | loads the one fixed resource set. Claude receives the synthetic `agent` plugin; native Codex `run`, `resume`, `exec`, and `review` name-enable every qualified `$agent:<skill>` through session config and remain inside codex-swap's ordinary account pin; Pi receives explicit skill, extension, and prompt-template paths with ambient discovery disabled. AgentLaunch owns no App Server, Unix socket, remote TUI, fake provider, projection, or receipt; native Codex therefore owns linked-worktree trust and the complete session lifecycle | `agentlaunch/src/resources.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-use-fixed-resources-with-native-codex.md` |
 | agentstart | fxnk | invokes `~/code/fxnk/scripts/install.sh --install --sha <pin>` as the required Fx harness installation contract. The tracked Fx Integration consumer pin is an exact commit already approved by fxnk's Local development gate and ship gate; ordinary AgentStart convergence reuses it and never promotes a moving remote tip | `agentstart/scripts/install.sh`, asserted by `agentstart/tests/validate.sh`; `fxnk/scripts/install.sh`; `fxnk/MAINTAIN.md` (Consumer) |
 | fxnk | Fx | binds `~/src/fx` to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. AgentStart reuses those exact bytes as fmx's separate development `fmx-fx`, without another compilation. Fx's repo-local `/maintain` skill separately rebases, gates, and publishes integration | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/skills/maintain/SKILL.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
-| agentstart | fmx | proves Fmx's Fx pin equals AgentStart's ship-gate-approved Integration pin, then delegates the entire consumer installation to Fmx's repository-owned `scripts/install.sh`: the editable Bun link, a distinct `fmx-fx` copied from fxnk's exact already-gated source build, the exact source-built `fmx-zmx` Companion pin, and `fmx doctor`. AgentStart then links the tracked operator config into `~/.config/fmx/config.toml`; fmx's key schema stays a strict subset of Herdr's and uses the same `ctrl+space` prefix. Fmx publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (fmx block); `fmx/scripts/install.sh`; `fmx/scripts/local-gate.sh`; `fmx/scripts/install-companion.sh`; `fmx/.github/workflows/ci.yml`; `agentstart/config/fmx/config.toml`; `agentstart/scripts/fmx-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/fmx-config.sh` |
+| agentstart | fmx | proves Fmx's Fx pin equals AgentStart's ship-gate-approved Integration pin, then delegates the entire consumer installation to Fmx's repository-owned `scripts/install.sh`: the editable `fmx` and `fmx-mcp` Bun commands, a distinct `fmx-fx` copied from fxnk's exact already-gated source build, the exact source-built `fmx-zmx` Companion pin, and `fmx doctor`. AgentStart then links the tracked operator config into `~/.config/fmx/config.toml`; fmx's key schema stays a strict subset of Herdr's and uses the same `ctrl+space` prefix. Fmx publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (fmx block); `fmx/scripts/install.sh`; `fmx/scripts/local-gate.sh`; `fmx/scripts/install-companion.sh`; `fmx/.github/workflows/ci.yml`; `agentstart/config/fmx/config.toml`; `agentstart/scripts/fmx-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/fmx-config.sh` |
+| Claude Code / Codex / Pi / Fx | fmx | an MCP host starts `fmx-mcp` over stdio for the complete eleven-tool agent automation surface. The server resolves the caller's Home and Agent identity for each request, reaches the live Runtime through one private request/response connection, and exposes no CLI control command, Runtime event stream, prompt-paste path, or wait tool | `fmx/src/mcp.ts`; `fmx/src/mcp-server.ts`; `fmx/src/runtime-client.ts`; `fmx/docs/agent-integration.md`; `fmx/docs/runtime-bridge.md` |
+| fmx | Fx | every semantic Work read or mutation crosses Fx's authenticated per-Agent Unix socket: snapshot, queue, steer, interrupt, update, delete, and resume. Fmx mints and persists the endpoint identity and token when it creates the Agent; Fx owns native admission order and the authoritative post-operation snapshot. Agents predating this binding deliberately cannot acquire it retroactively | `fmx/src/fx-environment.ts`; `fmx/src/fx-work-control.ts`; `fmx/src/agent-manifest.ts`; `fx/src/core/control/work_control.zig`; `fx/src/core/app/app_work_control_runtime.zig` |
 | agentstart | Hunk | installs or upgrades the Homebrew formula, resolves the version-matched `hunk-review` skill through `hunk skill path hunk-review`, and copies that bundled skill into the fixed resources. It deliberately never installs the skill from GitHub head, which could teach a newer session API than the local binary accepts | `agentstart/scripts/install.sh` (`install_hunk_skill`), asserted by `agentstart/tests/validate.sh`; `hunk/src/core/run/paths.ts` (`resolveBundledSkillPath`) |
 | agentstart | pi-subagents | installs the exact npm pin `pi-subagents@0.55.0` self-contained — extracted with its runtime dependencies inside the package directory — because Pi ships no subagents and points at third-party packages instead. The renderer carries that directory into the fixed Pi resources, where AgentLaunch names it with `--extension`; Pi reads the `pi` manifest inside it to register the extension, its skills, and its workflow prompt templates from the one path. Not `pi install`: a settings-registered package is exactly what a managed launch suppresses | `agentstart/scripts/install-pi-subagents`; `agentstart/scripts/render-capabilities`, asserted by `agentstart/tests/validate.sh` |
 | agentsurface plugin | agentusage | the shared Herdr plugin's `usage` pane entrypoint runs `escape-to-quit agentusage` in a titled 80% popup. AgentStart's `prefix+u` binding opens the entrypoint instead of duplicating an untitled generic popup | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml` |
@@ -231,7 +238,7 @@ sentence around the match, never from the name alone.
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
 | zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
-| Fx | `fdc7dc07257d535076f09ec50dbcb42ff4062bf8` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable fmx install requires the same pin and receives a byte-identical `fmx-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
+| Fx | `121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable fmx install requires the same pin and receives a byte-identical `fmx-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
 | herdr | official stable Homebrew formula, fleet protocol 21 minimum | AgentStart installs or upgrades the formula only while every default/named server socket is proved inactive; otherwise it preserves the installed client bytes. Before cutover it also preserves the compatible source-built client and its build evidence while stable is too old or explicit `AGENTSTART_HERDR_ALLOW_CUTOVER=1` authorization is absent. Only that deliberately authorized inactive run performs the receipt-proved cleanup. Once no legacy binary or evidence remains, ordinary convergence recognizes Homebrew as authoritative, while subsequent formula upgrades require the same explicit inactive-run authorization; a clean machine with neither legacy state nor a formula installs stable normally | `agentstart/scripts/install.sh`; `agentstart/scripts/select-herdr-runtime`; behavioral coverage in `agentstart/tests/herdr-homebrew-cutover.sh` |
 
 The managed claude-swap fork rebases its **`integration` branch** onto upstream on every
@@ -465,3 +472,8 @@ agent-browser session, which the configured Agentbrowse provider maps to a
 durable Browser profile. Agentbrowse and Agentattention own browser automation,
 authentication persistence, and human handoff; the external agent-browser pin
 remains unchanged and immutable to this phase.
+Updated again 2026-08-29 for fmx's MCP-only automation surface: MCP hosts start
+the eleven-tool stdio server, fmx forwards semantic Work operations through
+Fx's authenticated per-Agent socket, and the former CLI control, duplex Bus,
+prompt-paste, wait, and event-stream paths have no runtime edge left in the
+fleet.

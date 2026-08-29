@@ -1093,7 +1093,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/code/fxnk/scripts/install.sh --install --sha fdc7dc07257d535076f09ec50dbcb42ff4062bf8  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/code/fxnk/scripts/install.sh --install --sha 121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
@@ -1104,7 +1104,7 @@ for required_install in \
     'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
     'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
-    '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
+    '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
@@ -1504,7 +1504,7 @@ theme_manager_refs=$(grep -R -Eih 'tinty|tinted-theming|base16|base24|chalk' \
     || fail "the retired Tinty configuration is still in the checkout"
 [ ! -e scripts/herdr-tinty ] \
     || fail "the retired herdr-tinty helper is still in the checkout"
-# Fmx owns the editable link, both native pins, and doctor verification in its
+# Fmx owns the editable commands, both native pins, and doctor verification in its
 # canonical source installer. AgentStart proves the pin and passes fxnk's exact
 # source build instead of reproducing those steps.
 # shellcheck disable=SC2016 # Match literal installer variables.

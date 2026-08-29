@@ -17,7 +17,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # gate approve the published Integration commit. Ordinary convergence reuses
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
-fx_integration_sha=fdc7dc07257d535076f09ec50dbcb42ff4062bf8
+fx_integration_sha=121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 resources_skills_state_root="$resources_root/skills-state"
 retired_capabilities_root="$HOME/.local/share/agentstart/capabilities"
@@ -497,7 +497,7 @@ Command-line tools:
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   brew install or upgrade zig  # Native SDK packaging requires it
-  ~/code/fxnk/scripts/install.sh --install --sha fdc7dc07257d535076f09ec50dbcb42ff4062bf8  # exact ship-gate-approved Fx Integration consumer pin
+  ~/code/fxnk/scripts/install.sh --install --sha 121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
@@ -509,7 +509,7 @@ Command-line tools:
   initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
-  ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
+  ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
@@ -1006,7 +1006,7 @@ install_herdr_plugins() {
 install_herdr_plugins
 
 # fmx owns its consumer and operator source installation. AgentStart delegates
-# the editable link and both exact native pins to that entrypoint, passing the
+# the editable commands and both exact native pins to that entrypoint, passing the
 # Fx binary fxnk just built only after proving fmx names the same Integration
 # commit. A machine without the checkout skips; a present checkout that fails
 # to install is a real error.

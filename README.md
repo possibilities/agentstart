@@ -101,8 +101,9 @@ file, and neither checkout may become program-written state.
 
 Fmx installs through `~/code/fmx/scripts/install.sh`, its canonical consumer
 path. AgentStart passes the Fx binary fxnk built from its gated Integration pin
-and the exact SHA; Fmx owns the editable link, private `fmx-fx`, pinned
-Companion, and doctor check. A machine without the fmx checkout skips it.
+and the exact SHA; Fmx owns the editable `fmx` and `fmx-mcp` commands, private
+`fmx-fx`, pinned Companion, and doctor check. A machine without the fmx
+checkout skips it.
 
 `scripts/fmx-config install` links `config/fmx/config.toml` into
 `~/.config/fmx/config.toml`. fmx does not write that file, and its `[keys]`
