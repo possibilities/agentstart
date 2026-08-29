@@ -557,7 +557,7 @@ Command-line tools:
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
-  npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build
+  npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
   ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
@@ -602,6 +602,7 @@ EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-pi-subagents" --check
     "$script_dir/install-launchagents" --check
+    "$script_dir/remove-retired-agentweb" --check
     printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
@@ -1060,13 +1061,12 @@ printf 'Installing the Native SDK CLI %s and its version-matched agent helpers.\
     "$native_sdk_version"
 npm install --global "@native-sdk/cli@$native_sdk_version"
 
-# agent-browser is the driver shared by Agentbrowse, Agentscrape, and Agentweb.
-# It is pinned rather than tracked: Agentbrowse implements this release's
-# provider protocol, while Agentweb records a SHA-256 digest and version lock in
-# its config.json and refuses to launch a browser whose binary does not match.
-# Raising this version means verifying the provider and re-locking Agentweb.
+# agent-browser is the driver shared by Agentbrowse and Agentscrape. It is
+# pinned rather than tracked: Agentbrowse implements this release's provider
+# protocol, and Agentscrape resolves the stable candidate below before PATH.
+# Raising this version means verifying both consumers against the new build.
 agent_browser_version=0.33.2
-printf 'Installing agent-browser %s for Agentbrowse, Agentscrape, and Agentweb.\n' \
+printf 'Installing agent-browser %s for Agentbrowse and Agentscrape.\n' \
     "$agent_browser_version"
 npm install --global "agent-browser@$agent_browser_version"
 
@@ -1291,6 +1291,14 @@ fi
 # layer keeps its own services, which are the reverse-DNS labels.
 printf 'Installing the fleet launch agents.\n'
 "$script_dir/install-launchagents" --install
+
+# Service retirement must complete before the old command wrapper disappears:
+# otherwise launchd can restart a KeepAlive broker against a half-removed
+# installation. install-launchagents proves ownership, boots out the loaded
+# job, removes its plist, and rewrites Agentbrain without conduit variables;
+# only after it returns may these marker-owned command artifacts be removed.
+printf 'Removing retired Agentweb command artifacts.\n'
+"$script_dir/remove-retired-agentweb" --install
 
 # Authorization is never implicit in ordinary convergence. Diagnose the
 # receiver and inspectable webhook path after its CLI and resident service

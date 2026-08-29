@@ -42,7 +42,6 @@ SERVICES=(
     "agentbrain.doctor|agentbrain|doctor.log|periodic"
     "agentusage.observer|agentusage|observer.log|resident"
     "agentattention.server|agentattention|server.log|resident"
-    "agentweb.broker|agentweb|broker.log|resident"
     "agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered"
     "agentsource.receiver|agentsource|receiver.log|resident"
     "agentwiki.server|agentwiki|server.log|resident"
@@ -56,7 +55,6 @@ legacy_agentattention_label="com.$(id -un).agentattention"
 LABEL_REPLACEMENTS=(
     "agentusage.observer|agentusage.daemon"
     "agentattention.server|$legacy_agentattention_label"
-    "agentweb.broker|agentweb.daemon"
     "agentscrape.queue-processor|agentscrape.process-queue"
     "agentwiki.server|agentwiki.serve"
 )
@@ -148,33 +146,6 @@ if flag in args:
 service_tokens() {
     local label="$1"
     case "$label" in
-        agentbrain.worker)
-            # Passed through to Agentscrape, which the worker spawns and which
-            # owns every fetch. Empty means unconfigured, and Agentscrape then
-            # extracts without an operator session rather than failing. Neither
-            # is a credential: the token is named by path and read from that
-            # 0600 file by the process that needs it. Unset preserves what is
-            # installed; set — including set to empty — is taken as given.
-            #
-            # Neither project may assume the other is installed, so the wiring
-            # belongs to whoever installs both. That is now this script: the
-            # paths are Agentweb's own state directory, derived the same way
-            # Agentweb derives them.
-            local agentweb_state socket token
-            agentweb_state="${XDG_STATE_HOME:-$HOME/.local/state}/agentweb"
-            if [ -n "${AGENTSTART_INSTALL_CONDUIT_SOCKET+set}" ]; then
-                socket="$AGENTSTART_INSTALL_CONDUIT_SOCKET"
-            else
-                socket="$agentweb_state/runtime/agentweb.sock"
-            fi
-            if [ -n "${AGENTSTART_INSTALL_CONDUIT_TOKEN_FILE+set}" ]; then
-                token="$AGENTSTART_INSTALL_CONDUIT_TOKEN_FILE"
-            else
-                token="$agentweb_state/worker-token"
-            fi
-            printf 'CONDUIT_SOCKET=%s\n' "$socket"
-            printf 'CONDUIT_TOKEN_FILE=%s\n' "$token"
-            ;;
         agentbrain.share)
             # Agentbrain's ADR 0017: accepting device shares requires naming the
             # tailnet address, and there is no default. With none supplied and
@@ -497,6 +468,53 @@ install_service() {
     reload_service "$label" "$destination" "$old_label" "$old_ownership"
 }
 
+# Agentweb is retired, but a previously installed broker may still be loaded.
+# The plist marker is the sole authority: without that exact marker, neither
+# the job nor its file belongs to this installer and both are preserved.
+retire_agentweb_broker() {
+    local label=agentweb.broker
+    local marker='agentstart-installer-owned: agentweb.broker.v1'
+    local plist="$launch_agents_dir/$label.plist"
+    local target
+    target="gui/$(id -u)/$label"
+
+    if [ ! -e "$plist" ] && [ ! -L "$plist" ]; then
+        if [ "$check_only" -eq 1 ]; then
+            printf '  %-28s %-18s %s\n' "$label" retired 'absent; nothing to remove'
+        fi
+        return 0
+    fi
+
+    if [ -L "$plist" ] || [ ! -f "$plist" ] ||
+        ! grep -Fqx "<!-- $marker -->" "$plist" 2>/dev/null; then
+        if [ "$check_only" -eq 1 ]; then
+            printf '  %-28s %-18s %s\n' "$label" retired 'REFUSE — not ours to remove'
+            return 0
+        fi
+        die "refusing to remove a retired service this installer does not own: $plist"
+    fi
+
+    if [ "$check_only" -eq 1 ]; then
+        printf '  %-28s %-18s %s\n' "$label" retired 'would boot out and remove owned plist'
+        return 0
+    fi
+
+    if launchctl_available && "$launchctl_bin" print "$target" >/dev/null 2>&1; then
+        "$launchctl_bin" bootout "$target" >/dev/null 2>&1 ||
+            die "failed to stop retired service $label"
+        local waited=0
+        while "$launchctl_bin" print "$target" >/dev/null 2>&1 && [ "$waited" -lt 30 ]; do
+            sleep 0.2
+            waited=$((waited + 1))
+        done
+        ! "$launchctl_bin" print "$target" >/dev/null 2>&1 ||
+            die "retired service remained loaded after bootout: $label"
+    fi
+
+    rm -- "$plist"
+    note "removed retired owned service $label"
+}
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --install) check_only=0 ;;
@@ -521,6 +539,8 @@ else
     mkdir -p "$launch_agents_dir"
     chmod 700 "$launch_agents_dir"
 fi
+
+retire_agentweb_broker
 
 for entry in "${SERVICES[@]}"; do
     install_service "$entry"

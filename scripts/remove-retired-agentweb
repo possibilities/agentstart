@@ -1,0 +1,114 @@
+#!/bin/bash
+# Remove only Agentweb command artifacts written by Agentweb's old installer.
+# The broker plist is retired first by install-launchagents; private Agentweb
+# state is deliberately outside this helper's three-file allowlist.
+
+set -euo pipefail
+
+check_only=0
+bin_dir="${AGENTSTART_RETIRED_AGENTWEB_BIN_DIR:-$HOME/.local/bin}"
+state_dir="${AGENTSTART_RETIRED_AGENTWEB_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/agentweb}"
+receipt="$state_dir/install-receipt"
+wrapper_marker='# agentweb-installer-owned:v1'
+receipt_marker='agentweb-installer-owned:v1'
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/remove-retired-agentweb [--install|--check]
+
+Remove the retired Agentweb command wrappers and install receipt only when
+they carry Agentweb's exact v1 installer marker. Private state is retained.
+EOF
+}
+
+die() {
+    printf 'AgentStart retired Agentweb cleanup: %s\n' "$*" >&2
+    exit 1
+}
+
+classify_wrapper() {
+    local target="$1"
+    [ -e "$target" ] || [ -L "$target" ] || { printf 'absent'; return 0; }
+    if [ -f "$target" ] && [ ! -L "$target" ] &&
+        grep -Fqx "$wrapper_marker" "$target" 2>/dev/null; then
+        printf 'owned'
+    else
+        printf 'foreign'
+    fi
+}
+
+classify_receipt() {
+    [ -e "$receipt" ] || [ -L "$receipt" ] || { printf 'absent'; return 0; }
+    if [ -f "$receipt" ] && [ ! -L "$receipt" ] &&
+        grep -Fqx "$receipt_marker" "$receipt" 2>/dev/null; then
+        printf 'owned'
+    else
+        printf 'foreign'
+    fi
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --install) check_only=0 ;;
+        --check) check_only=1 ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+agentweb="$bin_dir/agentweb"
+agentwebd="$bin_dir/agentwebd"
+agentweb_ownership="$(classify_wrapper "$agentweb")"
+agentwebd_ownership="$(classify_wrapper "$agentwebd")"
+receipt_ownership="$(classify_receipt)"
+
+if [ "$check_only" -eq 1 ]; then
+    printf 'Retired Agentweb command artifacts (private state retained):\n'
+    for item in \
+        "$agentweb:$agentweb_ownership" \
+        "$agentwebd:$agentwebd_ownership" \
+        "$receipt:$receipt_ownership"; do
+        target=${item%:*}
+        ownership=${item##*:}
+        case "$ownership" in
+            owned) plan='would remove (owned)' ;;
+            absent) plan='absent; nothing to remove' ;;
+            foreign) plan='REFUSE — foreign occupant' ;;
+        esac
+        printf '  %-48s %s\n' "$target" "$plan"
+    done
+    exit 0
+fi
+
+# Preflight all three paths before deleting any, so a foreign occupant cannot
+# leave a partially removed installation behind.
+for item in \
+    "$agentweb:$agentweb_ownership" \
+    "$agentwebd:$agentwebd_ownership" \
+    "$receipt:$receipt_ownership"; do
+    target=${item%:*}
+    ownership=${item##*:}
+    [ "$ownership" != foreign ] ||
+        die "refusing to remove foreign occupant: $target"
+done
+
+for item in \
+    "$agentweb:$agentweb_ownership" \
+    "$agentwebd:$agentwebd_ownership" \
+    "$receipt:$receipt_ownership"; do
+    target=${item%:*}
+    ownership=${item##*:}
+    if [ "$ownership" = owned ]; then
+        rm -- "$target"
+        printf 'Removed retired Agentweb artifact: %s\n' "$target"
+    fi
+done
+
+printf 'Retained Agentweb configuration, database, audit, vault, keys, logs, and all other private state.\n'

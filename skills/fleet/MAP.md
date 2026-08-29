@@ -34,7 +34,6 @@ flowchart LR
     subgraph research [Research pipeline]
         brain[agentbrain]
         scrape[agentscrape]
-        web[agentweb]
         browser[agent-browser]
         browse[agentbrowse]
         attention[agentattention]
@@ -77,9 +76,7 @@ flowchart LR
     supervise -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
     supervise -->|readiness, optional self-wake, completion messages| surface
     brain -->|extraction and discovery| scrape
-    scrape -->|drives| browser
-    scrape -->|sessions/resolve, unix-socket IPC| web
-    web -->|digest-locked launch| browser
+    scrape -->|stable session; drives| browser
     browser -->|default provider: launch + close over stdio| browse
     attention -.->|browser processor: agentbrowse/opentui live surface| browse
     jobsearch -->|bounded attention create| attention
@@ -101,7 +98,7 @@ flowchart LR
     start ==>|brew formula + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
     start ==>|pinned npm package, self-contained, into fixed Pi resources| piSubagents[pi-subagents]
-    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentweb / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
+    start ==>|checkout contracts| fleet[agentvoice / agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agenteditor / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / cass / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     skills ==>|fixed session resources| launch
     launch ==>|synthetic agent plugin| claude
@@ -109,7 +106,7 @@ flowchart LR
     launch ==>|explicit resource paths| pi
     skills ==>|globally installed, persistently disabled skills-only agent plugin| codexDesktop[Codex desktop / unmanaged Codex]
     start ==>|per-file links, after the scan| voiceDoctrine[agentvoice doctrine: server.json from start, orchestrator prompts agentguidance-rendered]
-    start -.->|config/launchd + install-launchagents| services[agentbrain worker + share + doctor / agentusage observer / agentattention server / agentweb broker / agentscrape queue-processor / agentsource receiver / agentwiki server]
+    start -.->|config/launchd + install-launchagents| services[agentbrain worker + share + doctor / agentusage observer / agentattention server / agentscrape queue-processor / agentsource receiver / agentwiki server]
 ```
 
 ## Skill routing
@@ -214,9 +211,7 @@ sentence around the match, never from the name alone.
 | agentstart | herdr | `scripts/update-herdr` is the one update path: fast-forward the clean `~/src/herdr` checkout at upstream master, build with pinned `zig@0.15`, install to `~/.local/bin/herdr`, and notify instead of forcing a blocked checkout. Every full install runs `herdr integration install claude\|codex\|pi`, links agentsurface's launcher-pane and tab-naming plugin directory by checkout path, and renders the installed binary's `herdr` skill into the fixed resources. The Herdr-generated, ownership-marked Pi extension is copied into the fixed Pi resources because managed Pi launches disable ambient extensions, then removed from the ambient root by the full installer | `agentstart/scripts/update-herdr`; `agentstart/scripts/install.sh` (`install_herdr_integrations`, `install_herdr_skill`); `agentstart/scripts/render-capabilities`; asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then reloads the default server and every reachable named session; an unavailable server is nonfatal because its next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`, `reload_live_servers`) |
 | agentbrain | agentscrape | evidence pipeline in four argv shapes — `fetch-markdown --markdown`, `fetch-markdown --envelope --allow-private-network --max-content-bytes`, `discover-feed`, `fetch-links --preset x-timeline --limit --max-scrolls` — plus a doctor check; a flag change breaks each shape separately | `agentbrain/src/agentscrape.ts:642,1298-1306,2038,2121-2129`, `src/jobs.ts:736` |
-| agentscrape | agentweb | unix-socket IPC, not a spawn: before navigating, asks the daemon `POST /v1/sessions/resolve` whether the origin has a stored signed-in session, via `AGENTSCRAPE_CONDUIT_SOCKET`/`_TOKEN_FILE`; degrades silently to unauthenticated fetching by contract, so it never surfaces in an error path | `agentscrape/src/conduit.ts:10-21,107-110`; served by `agentweb/src/ipc.ts:442-453` |
-| agentscrape | agent-browser | resolves `~/.local/bin/agent-browser` first, then PATH | `agentscrape/src/browser.ts:386-391` |
-| agentweb | agent-browser | daemon-only launch of the configured absolute path (default `~/Library/pnpm/bin/agent-browser`, never resolved through PATH), refused unless SHA-256 digest and version lock verify | `agentweb/src/config-schema.ts:51,83`, `src/paths.ts:268` |
+| agentscrape | agent-browser → agentbrowse | resolves `~/.local/bin/agent-browser` first, then PATH, and passes an explicit stable `--session` name without creating, authenticating, or closing it. With the configured Agentbrowse provider that name maps to a durable Browser profile: cookies and storage survive target replacement, so authentication established through the fleet `browser` + `attention` workflow is available to the deliberate Agentscrape call without an origin registry or conduit | `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`); `agentscrape/skills/scrape/SKILL.md:206-229`; `agentstart/config/agent-browser/config.json`; `agentbrowse/cli/provider.ts` |
 | agentboard | agentwiki | `agentwiki publish <file> --name agentboard --kind render --json` | `agentboard/src/cli.ts:834-843` |
 | agentsurface | agentlaunch | the plugin's `launch` pane runs `agentsurface host -- agentlaunch --x-surface`: the host spawns agentlaunch's interactive form on the popup terminal in the focused pane's cwd with stdout piped — the form renders on stderr and writes session directives to stdout, the whole interface, per the `surface-handoff-protocol` wiki contract and `agentsurface/directive.schema.json`. Realizing a directive rides agentlaunch again through the shim herdr types: the directive's `--x-level` args pass through untouched, and the executor appends `--x-prompt-file <spool path>` for the intent (agentlaunch ADR 0029), because herdr refuses control characters in a shell-typed argument. Separately, `agentlaunch x-catalog --x-json` before slug inference reads each harness's `metadata_level`, and `conversation slug` runs `agentlaunch --x-harness <h> --x-level <metadata_level>` with native non-interactive tokens in the fixed `/tmp/agentsurface/inference` cwd — agentlaunch by name, not the bare shim, because a session's `AGENTLAUNCH_LAUNCH` sentinel would exec the native binary and drop the level | `agentsurface/plugin/herdr-plugin.toml`; `agentsurface/src/host.ts` (`runHost`); `agentsurface/src/directive.ts` (`executeDirective`, `writeIntentFile`); `agentlaunch/src/surface/directive.ts`; `agentsurface/src/catalog.ts` (`loadLaunchCatalog`); `agentsurface/src/conversation/infer.ts` (`composeInference`) |
 | agentsurface | herdr | drives the socket API through the CLI (`HERDR_BIN_PATH`, then PATH), split across the host (`workspace list` probe, `pane get` for the opened-over cwd) and the detached `execute-directive` executor it spawns per stdout directive line so the popup closes with the hosted tool: `pane list`/`workspace list` to find a workspace already hosting the project, then `tab create` into it or `workspace create`/`worktree create` (each `--focus`/`--no-focus` by the directive, plus `workspace focus` for a cross-workspace jump), `agent list`, `agent start <opaque-a-token> --kind <harness> --pane <root-pane> -- --x-level <model>:<effort> [--x-prompt-file <state intents/ spool file>]` with the pane-busy ready retry and an `agent_name_taken` re-derive, and `notification show` for failures with no terminal. The intent travels as a spool-file reference, never literal text — herdr types the command into the pane's shell and rejects control characters (`invalid_agent_argument`), so a multi-line intent can only cross as a path; the executor prunes the spool by age. The bare harness command herdr runs is agentstart's shim, so the shim → agentlaunch edge carries balancing, yolo, and the prompt-file expansion; `agent_not_ready` (blocked on a startup dialog) is a soft outcome because the expanded intent rides the native argv and the harness submits it once the dialog clears. The plugin hook uses `pane get` + `workspace get`, plus `worktree list` for the checkout's branch, then `pane report-metadata` to publish the Agent sidebar's contiguous `$project` label on every detection; afterward it polls `pane get` for `agent_session`/`tab_id` and runs `tab rename <tab_id> <slug>`. The message bus (`agentsurface agents` / `message`) adds `agent list` + `tab list` (agents named by their tabs' labels), `pane get` for the sender's own identity from `HERDR_PANE_ID`, and `agent prompt <pane> <prefixed text>` — herdr delivering an agent-to-agent message as typed input (paste + Enter), so a working target's harness queues it and a blocked target rejects it. The generic `agentsurface confirm` boundary adds only exact argv execution after an explicit terminal decision; its three plugin pane entrypoints capture Herdr context, and the internal `close-active` bridge maps only `pane`, `tab`, or `workspace` to the context's id before calling the corresponding public `close` command, leaving every topology rule in Herdr | `agentsurface/src/herdr.ts`, `agentsurface/src/host.ts`, `agentsurface/src/directive.ts`, `agentsurface/src/tab-namer.ts`, `agentsurface/src/bus.ts`, `agentsurface/src/confirm.ts`, `agentsurface/src/close.ts`, `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml` |
@@ -225,10 +220,9 @@ sentence around the match, never from the name alone.
 
 | From | To | What | Evidence |
 | --- | --- | --- | --- |
-| agentstart | agentattention, agentbrain, agentscrape, agentsource, agentusage, agentweb, agentwiki | installs their commands too, and owns these fleet launch agents outright: agentattention server, agentbrain worker/share/doctor, agentusage observer, agentweb broker, agentscrape queue processor, agentsource webhook receiver, and agentwiki server. Labels name noun roles while the manifest records resident, periodic, or queue-triggered lifecycle; every plist enters through the tool's one public binary. The receiver plist names only the private secret's path, never its value. Templates, manifest, rendering, label replacement, and load live here so a service never has two owners racing to render it | `agentstart/config/launchd/*.plist`, `agentstart/scripts/install-launchagents`, asserted by `agentstart/tests/validate.sh` |
+| agentstart | agentattention, agentbrain, agentscrape, agentsource, agentusage, agentwiki | installs their commands too, and owns these fleet launch agents outright: agentattention server, agentbrain worker/share/doctor, agentusage observer, agentscrape queue processor, agentsource webhook receiver, and agentwiki server. Labels name noun roles while the manifest records resident, periodic, or queue-triggered lifecycle; every plist enters through the tool's one public binary. The receiver plist names only the private secret's path, never its value. Templates, manifest, rendering, label replacement, and load live here so a service never has two owners racing to render it | `agentstart/config/launchd/*.plist`, `agentstart/scripts/install-launchagents`, asserted by `agentstart/tests/validate.sh` |
 | agentattention | agentbrowse | the first-party browser-interaction processor loads Agentbrowse's supported `agentbrowse/opentui` package surface, discovers the attention item's exact Browser target name, embeds `LiveViewRenderable`, and requests/releases control around the human interaction. It never modifies or imports the pinned external agent-browser project | `agentattention/package.json`; `agentattention/src/tui/processors/browser.ts`; `agentbrowse/package.json` (`./opentui` export); `agentbrowse/src/opentui/core.ts` |
-| machine installer + updater | agentstart | the only inbound edges from outside the fleet: the installer calls `scripts/install.sh --install` and nothing else about the fleet, because agentstart installs every fleet command and every fleet service, and discovers the tailnet bind address and agentweb's conduit paths itself; the machine's scheduled updater calls `scripts/sync-skills` and `scripts/update-herdr` by path — the convergence steps that stay safe with no terminal | `agentstart/scripts/install.sh` (the documented external interface), `agentstart/scripts/install-agent-clis`, `agentstart/scripts/install-launchagents`, `funk/libexec/funk-update` |
-| agentstart | agentscrape ↔ agentweb conduit | brokers the session conduit, because it is the only thing that installs both: it renders agentweb's socket and token paths into the agentbrain.worker service, and the worker passes them uninterpreted into the agentscrape children it spawns | `agentstart/scripts/install-launchagents` (agentbrain.worker tokens), asserted by the machine's local-service verification |
+| machine installer + updater | agentstart | the only inbound edges from outside the fleet: the installer calls `scripts/install.sh --install` and nothing else about the fleet, because agentstart installs every fleet command and every fleet service and discovers the tailnet bind address itself; the machine's scheduled updater calls `scripts/sync-skills` and `scripts/update-herdr` by path — the convergence steps that stay safe with no terminal | `agentstart/scripts/install.sh` (the documented external interface), `agentstart/scripts/install-agent-clis`, `agentstart/scripts/install-launchagents`, `funk/libexec/funk-update` |
 | agentboard | agentwiki | stored data, distinct from the publish call: board items hold agentwiki slugs (`link <ref> --wiki <slug>` / `unlink`), so changing wiki's slug scheme breaks stored links even where publishing never runs | `agentboard/skills/board/SKILL.md:228-232`, reciprocated `agentwiki/skills/wiki/SKILL.md:133-134` |
 | cass (agentchats) | Claude Code, Codex, Pi | builds and refreshes the search index over the local session stores; cass itself is upstream software — the official checksummed installer, gh-resolved — with only the `agentchats` state CLI linked editable from the checkout | `agentchats/scripts/install.sh:6,95,123-129,137` |
 | agentsurface | agentchats | the plugin's `chats` pane runs `agentsurface host -- agentchats search`: the resume picker renders on stderr in the popup, live-queries cass (`search`/`sessions --json`), and writes one resume session directive to stdout per pick, per the `surface-handoff-protocol` contract. The directive carries `session_id`, the executor's dedupe key: a session already live on the surface is focused (workspace + tab), never resumed a second time. A pick that cannot resume faithfully exits nonzero with the reason, which the host holds on screen | `agentsurface/plugin/herdr-plugin.toml`; `agentchats/src/tui/app.ts` (`runSearch`); `agentchats/src/tui/directive.ts`; `agentsurface/src/directive.ts` (`startSession`, the `session_id` branch) |
@@ -246,7 +240,7 @@ sentence around the match, never from the name alone.
 
 | Binary | Version | Why | Evidence |
 | --- | --- | --- | --- |
-| agent-browser | 0.33.2 | one pin, three contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide, Agentweb digest-locks the exact build at its configured absolute path, and Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH. An upgrade verifies Agentbrowse and re-locks Agentweb; relocating one path still fixes only its consumer | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentweb/src/config-schema.ts:51,83`; `agentweb/src/paths.ts:268`; `agentscrape/src/browser.ts:386` |
+| agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
 | zig | Brewfile-tracked, duplicated in the installer | AgentVoice's native duplex audio path and Native SDK packaging build against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | herdr's vendored libghostty-vt pins 0.15 and herdr's release CI builds with this same formula; the official 0.15 tarball cannot link against current macOS SDKs. update-herdr refuses with a notification when the vendored pin drifts off 0.15 | `agentstart/scripts/install.sh`, `agentstart/scripts/update-herdr` (drift gate) |
@@ -315,6 +309,10 @@ does not re-suspect them:
 - agentvoice → agentboard / agentwiki: the orchestrator's app-server
   threads drive codex only; no board or wiki reference in `agentvoice/src`
   (checked 2026-08-09).
+- active fleet → Agentweb: no runtime, service, checkout-install, skill-routing,
+  or pinned-binary edge remains after the Agentscrape migration. Remaining
+  mentions are the one-time ownership-guarded retirement path and dated
+  historical update notes (checked 2026-08-29).
 
 Last verified: 2026-08-09, twice — an initial first-hand sweep, then an
 independent second sweep that removed two false routing edges (own-`search`
@@ -458,7 +456,8 @@ Updated again 2026-08-28 for browser skill ownership: Agentbrowse now owns the
 fleet's `browser` runbook, resolves each stable agent-browser session to its
 current exact Browser target for Agentattention handoff, and defers changing
 agent-browser command syntax to the binary's version-matched core guide.
-Agentweb keeps its legacy runtime for unmigrated callers but exports no skill.
+At that checkpoint Agentweb still kept its legacy runtime for unmigrated callers
+but exported no skill.
 Updated again 2026-08-28 for the local Browser fallback: AgentStart installs
 agentbrowse-infra before Agentbrowse, owns the locked Artbird-first and
 already-enabled-Apple-second deployment config, and names the short-lived
@@ -479,3 +478,12 @@ restore Codex's own linked-worktree trust behavior. The globally installed
 skills-only `agent` plugin stays inert by persistent qualified-name disables,
 and managed AgentLaunch and AgentVoice sessions enable those names in their
 later session layer.
+Updated 2026-08-29 to retire Agentweb after its last caller migrated. AgentStart
+no longer installs its checkout, broker service, command wrappers, or
+Agentscrape conduit environment; a marker-guarded one-time convergence removes
+only the owned broker plist, wrappers, and receipt while retaining private
+state and foreign occupants. Agentscrape now reuses an explicitly named stable
+agent-browser session, which the configured Agentbrowse provider maps to a
+durable Browser profile. Agentbrowse and Agentattention own browser automation,
+authentication persistence, and human handoff; the external agent-browser pin
+remains unchanged and immutable to this phase.

@@ -20,6 +20,7 @@ scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/install-agentvoice-cli
 scripts/remove-retired-integrations
+scripts/remove-retired-agentweb
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
 scripts/agentbrowse-config
@@ -33,6 +34,7 @@ tests/fmx-config.sh
 tests/herdr-config.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
+tests/remove-retired-agentweb.sh
 tests/fixtures/npx
 "
 
@@ -52,6 +54,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
     scripts/install-agentvoice-cli scripts/remove-retired-integrations \
+    scripts/remove-retired-agentweb \
     scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
@@ -67,6 +70,8 @@ done
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
 [ -x tests/install-launchagents.sh ] \
     || fail "launch agent installer test is not executable: tests/install-launchagents.sh"
+[ -x tests/remove-retired-agentweb.sh ] \
+    || fail "retired Agentweb cleanup test is not executable: tests/remove-retired-agentweb.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -100,6 +105,7 @@ tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
+tests/remove-retired-agentweb.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1192,7 +1198,7 @@ for required_install in \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
     'remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
-    'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentweb digest lock share this exact build' \
+    'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
@@ -1372,7 +1378,8 @@ fi
 # The native-sdk skill documents the 0.7 line and Zig builds both Native SDK
 # applications and AgentVoice's opt-in native duplex audio device, so both
 # stay pinned rather than tracking latest. agent-browser is pinned because
-# Agentweb digest-locks the exact build in its config.json.
+# Agentbrowse's provider protocol and Agentscrape's driver behavior are tested
+# against that exact build.
 grep -F 'native_sdk_version=0.7' scripts/install.sh >/dev/null \
     || fail "installer does not pin the Native SDK CLI to the compatible 0.7 line"
 if grep -F '@native-sdk/cli@latest' scripts/install.sh >/dev/null; then
@@ -1611,7 +1618,7 @@ if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.s
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi
 grep -F 'agent_browser_version=0.33.2' scripts/install.sh >/dev/null \
-    || fail "installer does not pin the Agentbrowse- and Agentweb-bound agent-browser build"
+    || fail "installer does not pin the Agentbrowse- and Agentscrape-bound agent-browser build"
 grep -F 'refusing to replace independent file' scripts/install.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
 
@@ -1671,6 +1678,29 @@ agent_browser_config_line=$(grep -n '^"$script_dir/agent-browser-config" install
     && [ "$agentbrowse_config_line" -gt "$agent_clis_line" ] \
     && [ "$agent_browser_config_line" -gt "$agentbrowse_config_line" ] \
     || fail "agentbrowse and agent-browser configs must be linked in order after the CLIs install"
+
+# Agentweb retirement has a load-bearing activation order: the migrated
+# Agentscrape command deploys in the CLI phase; service convergence then boots
+# out and removes the owned broker while rewriting Agentbrain; only after that
+# call returns may the command wrappers and receipt disappear.
+# shellcheck disable=SC2016 # Match the literal helper invocation in install.sh.
+launchagents_line=$(grep -n '^"$script_dir/install-launchagents" --install$' scripts/install.sh | cut -d: -f1)
+# shellcheck disable=SC2016 # Match the literal helper invocation in install.sh.
+retired_agentweb_line=$(grep -n '^"$script_dir/remove-retired-agentweb" --install$' scripts/install.sh | cut -d: -f1)
+[ -n "$launchagents_line" ] && [ -n "$retired_agentweb_line" ] \
+    && [ "$launchagents_line" -gt "$agent_clis_line" ] \
+    && [ "$retired_agentweb_line" -gt "$launchagents_line" ] \
+    || fail "Agentweb retirement does not preserve CLI, service, then command-cleanup order"
+# shellcheck disable=SC2016 # Match the literal helper invocation in check mode.
+launchagents_check_line=$(grep -n '^    "$script_dir/install-launchagents" --check$' scripts/install.sh | cut -d: -f1)
+# shellcheck disable=SC2016 # Match the literal helper invocation in check mode.
+retired_agentweb_check_line=$(grep -n '^    "$script_dir/remove-retired-agentweb" --check$' scripts/install.sh | cut -d: -f1)
+[ -n "$launchagents_check_line" ] && [ -n "$retired_agentweb_check_line" ] \
+    && [ "$retired_agentweb_check_line" -gt "$launchagents_check_line" ] \
+    || fail "check mode does not report Agentweb service retirement before command cleanup"
+if grep -F 'remove-retired-agentweb' scripts/remove-retired-integrations >/dev/null; then
+    fail "Agentweb command cleanup runs in the early retired-integrations phase"
+fi
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/remove-retired-integrations"' scripts/install.sh >/dev/null \
     || fail "installer does not run retired integration cleanup"
@@ -1697,18 +1727,16 @@ grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
     || fail "full installer does not retire Pi resources after packing them"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells its balance contract), agentweb must precede agentbrain
-# (whose worker spawns the agentscrape children that ask agentweb's conduit),
-# and codex-swap must precede agentusage so balance observes the command owner
-# codex-swap itself installed.
+# launcher shells its balance contract), and codex-swap must precede agentusage
+# so balance observes the command owner codex-swap itself installed.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb \
+for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource \
     agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
@@ -1717,6 +1745,7 @@ for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentatt
 done
 case "$agent_cli_order" in
     *" agentbus "*) fail "agent CLI loop still installs retired agentbus" ;;
+    *" agentweb "*) fail "agent CLI loop still installs retired agentweb" ;;
 esac
 # shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
 grep -F 'agentchats_root="$code_root/agentchats"' scripts/install.sh >/dev/null \
@@ -1784,13 +1813,22 @@ if rg -n 'agentbus\.(daemon|codex-appserver)' scripts/install-launchagents \
     config/launchd tests/validate.sh >/dev/null; then
     fail "retired AgentBus launch agents remain in the fleet service contract"
 fi
+[ ! -e config/launchd/agentweb.broker.plist ] \
+    || fail "retired Agentweb broker template still exists"
+if rg -n 'AGENTSCRAPE_CONDUIT|__CONDUIT_|agentweb_state' \
+    scripts/install-launchagents config/launchd >/dev/null; then
+    fail "retired Agentweb conduit wiring remains in the launch agent contract"
+fi
+grep -Fq "local label=agentweb.broker" scripts/install-launchagents \
+    || fail "launch agent installer does not retire the canonical Agentweb broker label"
+grep -Fq "agentstart-installer-owned: agentweb.broker.v1" scripts/install-launchagents \
+    || fail "retired broker cleanup does not require the exact ownership marker"
 
 expected_services='agentbrain.worker|agentbrain|worker.log|resident
 agentbrain.share|agentbrain|share.log|resident
 agentbrain.doctor|agentbrain|doctor.log|periodic
 agentusage.observer|agentusage|observer.log|resident
 agentattention.server|agentattention|server.log|resident
-agentweb.broker|agentweb|broker.log|resident
 agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered
 agentsource.receiver|agentsource|receiver.log|resident
 agentwiki.server|agentwiki|server.log|resident'

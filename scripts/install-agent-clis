@@ -43,14 +43,10 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # reads it. Its own installer binds the exact stock codex-multi-auth npm pin;
 # no fork checkout participates in this loop.
 #
-# agentweb, agentscrape, and agentbrain are ordered along the conduit rather
-# than by any install-time requirement: agentweb serves the session conduit,
-# agentscrape asks it whether an origin has a signed-in session, and
-# agentbrain's worker spawns agentscrape for every fetch. Installing them in
-# that order keeps a failure legible. agentweb and agentbrain used to belong
-# to the machine layer, on the reasoning that a resident service is machine
-# integration; the services moved here and the commands followed, so that no
-# checkout is installed from two places.
+# Agentscrape no longer consults Agentweb's origin/session conduit. An explicit
+# stable session maps through the configured agent-browser provider to an
+# Agentbrowse Browser profile, so Agentscrape and Agentbrain have no special
+# install-order relationship beyond both preceding their resident services.
 #
 # agentbrowse-infra precedes agentbrowse because it owns the manual Apple
 # lifecycle command referenced by agentbrowse's recovery messages. Installing
@@ -63,7 +59,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 #
 # agentsurface follows agentlaunch: its launcher and its conversation slugs
 # both consume the resolved catalog over `agentlaunch x-catalog`.
-for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentweb agentscrape \
+for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agenteditor agentsearch agentkeys agentsource agentscrape \
     agentbrain codex-swap agentusage agentlaunch agentsurface; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then
