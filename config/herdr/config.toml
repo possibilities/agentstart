@@ -30,7 +30,6 @@ goto = ["prefix+g", "alt+7"]
 # Herdr's names invert tmux's: split_vertical is tmux's `split-window -h`.
 # Pinned rather than left to herdr's defaults (prefix+v, prefix+minus) because
 # a default can move between stable releases.
-# Taking split_vertical off prefix+v is what frees it for the voice console.
 split_vertical = "prefix+|"
 split_horizontal = "prefix+_"
 
