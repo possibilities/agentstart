@@ -549,8 +549,8 @@ Command-line tools:
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
-  brew install or upgrade herdr  # stage the official stable formula; retain the compatible client while the formula is too old or any Herdr server is live
-  select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence and ambiguous evidence preserve it
+  brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization
+  initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
   herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
@@ -758,13 +758,47 @@ install -m 0755 "$termctrl_shim" "$termctrl_bin"
 # the boundary rubric, so AgentStart's, not the machine's. Homebrew's stable
 # formula owns its binary and normal update path; AgentStart still converges
 # the fleet integrations, plugin, behavior config, and bundled skill below.
-printf 'Installing or upgrading Herdr from the official stable formula.\n'
-install_or_upgrade_formula herdr
+# Package-manager replacement cannot use Herdr's live handoff. Inspect every
+# default/named socket before Homebrew can change the installed client bytes;
+# a later inactive convergence performs the deferred install or upgrade.
+herdr_socket_state=$("$script_dir/select-herdr-runtime" --socket-state) \
+    || die "inspecting Herdr server sockets before Homebrew convergence failed"
+herdr_legacy_state=$("$script_dir/select-herdr-runtime" --legacy-state) \
+    || die "inspecting legacy Herdr state before Homebrew convergence failed"
+herdr_cutover_allowed="${AGENTSTART_HERDR_ALLOW_CUTOVER:-0}"
+case "$herdr_cutover_allowed" in
+    0|1) ;;
+    *) die "AGENTSTART_HERDR_ALLOW_CUTOVER must be 0 or 1" ;;
+esac
+herdr_formula_installed=0
+if "$brew_bin" list --formula --versions herdr >/dev/null 2>&1; then
+    herdr_formula_installed=1
+fi
+case "$herdr_socket_state" in
+    inactive)
+        if [ "$herdr_legacy_state" = present ] ||
+            [ "$herdr_formula_installed" -eq 0 ] ||
+            [ "$herdr_cutover_allowed" -eq 1 ]; then
+            printf 'Installing or upgrading Herdr from the official stable formula.\n'
+            install_or_upgrade_formula herdr
+        else
+            printf 'Deferring post-cutover Homebrew Herdr upgrade without explicit inactive-maintenance authorization.\n'
+        fi
+        ;;
+    present)
+        printf 'Deferring Homebrew Herdr installation or upgrade while a server socket is present.\n'
+        ;;
+    uncertain)
+        printf 'Deferring Homebrew Herdr installation or upgrade because server socket state is uncertain.\n'
+        ;;
+    *) die "unexpected Herdr socket state: $herdr_socket_state" ;;
+esac
 
-# Homebrew updates cannot use Herdr's live-handoff API. Stage the formula, but
-# keep using the source-built protocol-21 client while stable is older or any
+# Keep using the source-built protocol-21 client while stable is older or any
 # default/named server socket exists. Only a fully compatible, inactive
 # cutover removes the old binary, and only with exact ownership evidence.
+# Once that evidence is gone, ordinary convergence recognizes Homebrew as the
+# already-selected runtime without requiring the one-time cutover flag again.
 herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr") \
     || die "selecting the safe Herdr runtime failed"
 if [ "$herdr_bin" = "$brew_prefix/bin/herdr" ]; then

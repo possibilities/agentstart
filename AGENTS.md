@@ -43,12 +43,18 @@
   official stable Homebrew formula. `scripts/select-herdr-runtime` is the
   cutover guard: stable must speak fleet protocol 21 or newer and every
   default/named server socket must be absent before the receipt-proved source
-  binary is removed. Until both are true, full convergence stages Homebrew but
-  keeps the compatible client and its build evidence. The final inactive run
-  additionally requires `AGENTSTART_HERDR_ALLOW_CUTOVER=1`; ordinary
-  convergence may never win that race implicitly. Package-manager updates
-  cannot use Herdr's live handoff, so never weaken the socket gate to force a
-  cutover around resident agents.
+  binary is removed. While a socket is present or uncertain, full convergence
+  leaves Homebrew's installed bytes unchanged and keeps the compatible client
+  and its build evidence. Once every socket is proved inactive, convergence
+  may stage stable, but the final cleanup additionally requires
+  `AGENTSTART_HERDR_ALLOW_CUTOVER=1`; ordinary
+  convergence may never win that race implicitly. Once no legacy binary or
+  evidence remains, ordinary convergence recognizes Homebrew as already
+  selected, and later formula upgrades require the same explicit inactive-run
+  authorization. A clean install with no prior formula or legacy state still
+  installs stable normally. Package-manager updates cannot use Herdr's live
+  handoff, so never weaken the socket gate to replace client bytes around
+  resident agents.
 - Every fleet repo's `AGENTS.md` ends with the same "The fleet" section
   pointing back here: the skills scan and its cadence, the fleet-map rule,
   and agentguidance as the home of general doctrine. Changing any of those

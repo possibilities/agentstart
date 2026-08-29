@@ -3,7 +3,7 @@
 set -euo pipefail
 
 root=$(cd -P -- "$(dirname -- "$0")/.." && pwd)
-test_root=$(mktemp -d)
+test_root=$(mktemp -d /tmp/herdr-cutover.XXXXXX)
 socket_pid=''
 
 cleanup() {
@@ -47,14 +47,8 @@ select_runtime() {
         "$root/scripts/select-herdr-runtime" "$brew_bin"
 }
 
-make_fixture old_formula
-selected=$(select_runtime old_formula 20 21)
-[ "$selected" = "$legacy_bin" ] || fail "old formula did not retain the compatible client"
-[ -f "$legacy_bin" ] || fail "old formula removed the compatible client"
-[ -f "$state/herdr-built-commit" ] || fail "old formula removed legacy ownership evidence"
-
-make_fixture live_server
-python3 - "$config/herdr.sock" <<'PYTHON' &
+start_socket() {
+    python3 - "$config/herdr.sock" <<'PYTHON' &
 import socket
 import sys
 import time
@@ -64,20 +58,41 @@ server.bind(sys.argv[1])
 server.listen(1)
 time.sleep(30)
 PYTHON
-socket_pid=$!
-for _ in $(seq 1 100); do
-    [ -S "$config/herdr.sock" ] && break
-    sleep 0.01
-done
-[ -S "$config/herdr.sock" ] || fail "socket fixture did not start"
+    socket_pid=$!
+    for _ in $(seq 1 100); do
+        [ -S "$config/herdr.sock" ] && return 0
+        sleep 0.01
+    done
+    fail "socket fixture did not start"
+}
+
+stop_socket() {
+    kill "$socket_pid"
+    wait "$socket_pid" 2>/dev/null || true
+    socket_pid=''
+}
+
+make_fixture old_formula
+selected=$(select_runtime old_formula 20 21)
+[ "$selected" = "$legacy_bin" ] || fail "old formula did not retain the compatible client"
+[ -f "$legacy_bin" ] || fail "old formula removed the compatible client"
+[ -f "$state/herdr-built-commit" ] || fail "old formula removed legacy ownership evidence"
+
+make_fixture live_server
+start_socket
+socket_state=$(HOME="$home" AGENTSTART_HERDR_CONFIG_ROOT="$config" \
+    "$root/scripts/select-herdr-runtime" --socket-state)
+[ "$socket_state" = present ] || fail "live server was not detected before formula convergence"
+rm -- "$brew_bin"
 selected=$(select_runtime live_server 21 21)
 [ "$selected" = "$legacy_bin" ] || fail "live server did not defer Homebrew cutover"
 [ -f "$legacy_bin" ] || fail "live server lost the compatible client"
-kill "$socket_pid"
-wait "$socket_pid" 2>/dev/null || true
-socket_pid=''
+stop_socket
 
 make_fixture successful_cutover
+legacy_state=$(HOME="$home" AGENTSTART_STATE_ROOT="$state" \
+    "$root/scripts/select-herdr-runtime" --legacy-state)
+[ "$legacy_state" = present ] || fail "legacy state was not detected before cutover"
 mv "$brew_bin" "$brew_bin.real"
 ln -s "${brew_bin##*/}.real" "$brew_bin"
 selected=$(select_runtime successful_cutover 21 21 1)
@@ -85,6 +100,16 @@ selected=$(select_runtime successful_cutover 21 21 1)
 [ ! -e "$legacy_bin" ] || fail "proved legacy binary survived successful cutover"
 [ ! -e "$state/herdr-built-commit" ] || fail "proved legacy receipt survived successful cutover"
 [ ! -e "$state/herdr-build.log" ] || fail "proved legacy log survived successful cutover"
+legacy_state=$(HOME="$home" AGENTSTART_STATE_ROOT="$state" \
+    "$root/scripts/select-herdr-runtime" --legacy-state)
+[ "$legacy_state" = absent ] || fail "completed cutover still reports legacy state"
+selected=$(select_runtime successful_cutover 21 21)
+[ "$selected" = "$brew_bin" ] || fail "ordinary convergence did not recognize completed cutover"
+
+start_socket
+selected=$(select_runtime successful_cutover 21 21)
+[ "$selected" = "$brew_bin" ] || fail "post-cutover live server did not preserve Homebrew selection"
+stop_socket
 
 make_fixture authorization_required
 selected=$(select_runtime authorization_required 21 21)

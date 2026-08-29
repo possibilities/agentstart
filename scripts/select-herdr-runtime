@@ -61,7 +61,7 @@ server_socket_state() {
     return 1
 }
 
-brew_herdr_bin="${1:-}"
+mode="${1:-}"
 fleet_minimum_protocol=21
 minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-$fleet_minimum_protocol}"
 cutover_allowed="${AGENTSTART_HERDR_ALLOW_CUTOVER:-0}"
@@ -71,8 +71,17 @@ legacy_herdr_receipt="$legacy_herdr_state/herdr-built-commit"
 legacy_herdr_build_log="$legacy_herdr_state/herdr-build.log"
 herdr_config_root="${AGENTSTART_HERDR_CONFIG_ROOT:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr}"
 
-[ -x "$brew_herdr_bin" ] \
-    || die "Homebrew Herdr is not executable: $brew_herdr_bin"
+socket_state=0
+server_socket_state "$herdr_config_root" || socket_state=$?
+if [ "$mode" = --socket-state ]; then
+    case "$socket_state" in
+        0) printf 'present\n' ;;
+        1) printf 'inactive\n' ;;
+        *) printf 'uncertain\n' ;;
+    esac
+    exit 0
+fi
+
 case "$minimum_protocol" in
     ''|*[!0-9]*) die "minimum protocol is not numeric: $minimum_protocol" ;;
 esac
@@ -83,13 +92,28 @@ case "$cutover_allowed" in
     *) die "AGENTSTART_HERDR_ALLOW_CUTOVER must be 0 or 1" ;;
 esac
 
-brew_protocol=$(client_protocol "$brew_herdr_bin") \
-    || die "could not read the Homebrew Herdr client protocol: $brew_herdr_bin"
-
 legacy_protocol=''
 if [ -x "$legacy_herdr_bin" ] && [ ! -L "$legacy_herdr_bin" ]; then
     legacy_protocol=$(client_protocol "$legacy_herdr_bin" || true)
 fi
+
+legacy_evidence_present=0
+for legacy_path in "$legacy_herdr_bin" "$legacy_herdr_receipt" "$legacy_herdr_build_log"; do
+    if [ -e "$legacy_path" ] || [ -L "$legacy_path" ]; then
+        legacy_evidence_present=1
+        break
+    fi
+done
+if [ "$mode" = --legacy-state ]; then
+    if [ "$legacy_evidence_present" -eq 1 ]; then
+        printf 'present\n'
+    else
+        printf 'absent\n'
+    fi
+    exit 0
+fi
+
+brew_herdr_bin="$mode"
 
 select_legacy() {
     local reason="$1"
@@ -107,22 +131,48 @@ select_legacy() {
     exit 0
 }
 
+# Package-manager updates cannot use Herdr's live-handoff path. A socket may
+# be active or stale; either way, treating it as live is conservative. Before
+# cutover, keep the receipt-backed client. After cutover, the installer has
+# already preserved the installed formula bytes by deferring their upgrade,
+# so selecting that same client is safe and makes ordinary convergence
+# idempotent.
+case "$socket_state" in
+    0)
+        if [ "$legacy_evidence_present" -eq 1 ]; then
+            select_legacy "a default or named Herdr server socket is present"
+        fi
+        ;;
+    1) ;;
+    *)
+        if [ "$legacy_evidence_present" -eq 1 ]; then
+            select_legacy "the default/named Herdr server socket state could not be proved inactive"
+        fi
+        ;;
+esac
+
+[ -x "$brew_herdr_bin" ] \
+    || die "Homebrew Herdr is not executable: $brew_herdr_bin"
+brew_protocol=$(client_protocol "$brew_herdr_bin") \
+    || die "could not read the Homebrew Herdr client protocol: $brew_herdr_bin"
+
 if [ "$brew_protocol" -lt "$minimum_protocol" ]; then
     select_legacy "official formula protocol $brew_protocol is below required protocol $minimum_protocol"
 fi
 
-# Package-manager updates cannot use Herdr's live-handoff path. A socket may
-# be active or stale; either way, treating it as live is the conservative
-# choice. Keep the client that can control the resident server and defer the
-# destructive half of the cutover until no default or named-session socket
-# remains.
-socket_state=0
-server_socket_state "$herdr_config_root" || socket_state=$?
-case "$socket_state" in
-    0) select_legacy "a default or named Herdr server socket is present" ;;
-    1) ;;
-    *) select_legacy "the default/named Herdr server socket state could not be proved inactive" ;;
-esac
+if [ "$legacy_evidence_present" -eq 0 ]; then
+    case "$socket_state" in
+        0)
+            printf 'Preserving the already-selected Homebrew Herdr client while a server socket is present.\n' >&2
+            ;;
+        1) ;;
+        *)
+            printf 'Preserving the already-selected Homebrew Herdr client while server socket state is uncertain.\n' >&2
+            ;;
+    esac
+    printf '%s\n' "$brew_herdr_bin"
+    exit 0
+fi
 
 # Ordinary full convergence may stage and validate the formula but never wins
 # the race-sensitive destructive cutover. The operator authorizes one quiet,

@@ -1193,8 +1193,8 @@ for required_install in \
     '"$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal' \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
-    'brew install or upgrade herdr  # stage the official stable formula; retain the compatible client while the formula is too old or any Herdr server is live' \
-    'select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence and ambiguous evidence preserve it' \
+    'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
+    'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
     'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
@@ -1447,6 +1447,16 @@ grep -F 'install_or_upgrade_formula zig@0.15' scripts/install.sh >/dev/null \
     || fail "installer does not converge the Zig 0.15 line Terminal Control builds against"
 grep -F 'install_or_upgrade_formula herdr' scripts/install.sh >/dev/null \
     || fail "installer does not converge the official stable Herdr formula"
+# shellcheck disable=SC2016 # Match the literal selector invocation.
+grep -F 'herdr_socket_state=$("$script_dir/select-herdr-runtime" --socket-state)' scripts/install.sh >/dev/null \
+    || fail "installer does not inspect Herdr sockets before Homebrew convergence"
+# shellcheck disable=SC2016 # Match the literal selector invocation.
+grep -F 'herdr_legacy_state=$("$script_dir/select-herdr-runtime" --legacy-state)' scripts/install.sh >/dev/null \
+    || fail "installer does not distinguish pre-cutover, post-cutover, and clean-install state"
+grep -F 'Deferring Homebrew Herdr installation or upgrade while a server socket is present.' scripts/install.sh >/dev/null \
+    || fail "installer does not preserve installed Herdr client bytes around a live server"
+grep -F 'Deferring post-cutover Homebrew Herdr upgrade without explicit inactive-maintenance authorization.' scripts/install.sh >/dev/null \
+    || fail "installer can race a post-cutover formula upgrade against a new server"
 [ ! -e scripts/update-herdr ] \
     || fail "retired source updater still exists"
 # shellcheck disable=SC2016 # Match the literal checkout path.
@@ -1471,6 +1481,9 @@ grep -F '[ "$minimum_protocol" -ge "$fleet_minimum_protocol" ]' scripts/select-h
 # shellcheck disable=SC2016 # Match the literal socket-root variable.
 grep -F 'server_socket_state "$herdr_config_root"' scripts/select-herdr-runtime >/dev/null \
     || fail "Herdr cutover does not conservatively inspect default and named server sockets"
+# shellcheck disable=SC2016 # Match the literal completed-cutover predicate.
+grep -F 'if [ "$legacy_evidence_present" -eq 0 ]; then' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr runtime selection does not recognize a completed cutover"
 # shellcheck disable=SC2016 # Match the literal config-root uncertainty guard.
 grep -F '[ ! -L "$herdr_config_root" ]' scripts/select-herdr-runtime >/dev/null \
     || fail "Herdr cutover follows an uncertain socket-root symlink"
