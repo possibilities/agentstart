@@ -128,6 +128,7 @@ flowchart LR
         browser -.-> attention & scrape & search
         attention
         jobsearch -.-> attention & browser
+        stateinsurance -.-> attention & browser
         wiki -.-> board & brain & chats
         desktop -.-> browser & bus
         chats
@@ -292,6 +293,7 @@ independent app-server children do not use codex-swap's removed sidecars.
 | search | brain, chats, scrape | check brain first — the answer is often already local |
 | browser | attention, scrape, search | human-only interaction with the prepared live target is attention; fetching public content is scrape; finding pages is search (`agentbrowse/skills/browser/SKILL.md`) |
 | jobsearch | attention, browser | the combined work-round skill loads attention for every human handoff and browser before interactive pages; its producer workflow hands only exact live Browser targets to Agentattention (`jobsearch/.claude/skills/jobsearch/SKILL.md`; `jobsearch/.claude/skills/references/attention-workflow.md`) |
+| stateinsurance | attention, browser | the project work-round skill routes bounded questions, document approvals, and exact-target MyMaineConnection interaction to attention while browser owns the stable `mainecare` session, persistent profile, and live-target handoff (`stateinsurance/.claude/skills/stateinsurance/SKILL.md`; `stateinsurance/AGENTS.md`) |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
 | GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
@@ -460,3 +462,7 @@ Updated again 2026-08-28 for the first downstream migration: Jobsearch now
 creates only bounded Agentattention items, retains only producer-side domain
 continuations, and routes its one cross-harness work-round skill through the
 fleet-owned `attention` and `browser` capabilities.
+Updated again 2026-08-28 for Stateinsurance: its cross-harness project skill
+keeps benefits-case facts in the repository, gives all human-item lifecycle to
+Agentattention, and uses Agentbrowse's durable `mainecare` Browser profile plus
+exact live-target handoff instead of a separate headed-browser path.
