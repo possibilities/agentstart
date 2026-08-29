@@ -38,6 +38,7 @@ flowchart LR
         browser[agent-browser]
         browse[agentbrowse]
         attention[agentattention]
+        jobsearch[Jobsearch]
     end
 
     voice[agentvoice]
@@ -81,6 +82,7 @@ flowchart LR
     web -->|digest-locked launch| browser
     browser -->|default provider: launch + close over stdio| browse
     attention -.->|browser processor: agentbrowse/opentui live surface| browse
+    jobsearch -->|bounded attention create| attention
     board -->|publish --kind render| wiki
     chats -.->|indexes session stores| harnesses
 ```
@@ -125,6 +127,7 @@ flowchart LR
         search -.-> brain & chats & scrape
         browser -.-> attention & scrape & search
         attention
+        jobsearch -.-> attention & browser
         wiki -.-> board & brain & chats
         desktop -.-> browser & bus
         chats
@@ -184,6 +187,7 @@ sentence around the match, never from the name alone.
 | agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After that succeeds, AgentStart links its tracked global agent-browser config with Artbird selected by default | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
 | agentstart | agentattention | immediately after Agentbrowse, `install-agent-clis` invokes Agentattention's hardened installer: frozen dependencies, an atomic editable command link and receipt, plus first-run mode-0600 server/local-client bootstrap. The order satisfies Agentattention's linked `agentbrowse/opentui` browser processor dependency before its resident service can be loaded | `agentstart/scripts/install-agent-clis`; `agentattention/scripts/install.sh`; asserted by both repositories' validation suites |
 | agent-browser | agentbrowse | the global `browser.provider` plugin config starts the AgentStart-managed `~/.local/bin/agentbrowse provider` through `$HOME` as a short-lived process for manifest, launch, and close requests, bypassing any older same-named command earlier on `PATH`. The provider provisions or destroys the Artbird Browser target and returns its Tailnet CDP URL dynamically; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` (Use Artbird as an agent-browser provider) |
+| Jobsearch | agentattention | `jobsearch attention create --file` validates one of the three bounded first-party payloads, invokes `agentattention --json create`, verifies the returned contract, title, and payload, then records only the producer-side continuation. The combined skill separately uses Agentattention's read/wait CLI surface to consume authoritative terminal outcomes | `jobsearch/cli/src/verbs/attention.ts` (`defaultAgentattentionRunner`, `commandFor`, `createAttentionRequest`); `jobsearch/.claude/skills/jobsearch/SKILL.md` |
 | agentstart | agentlaunch / Codex desktop | builds the default `common` capability pack, renders the session-only Claude `agent` plugin input and Codex desktop compatibility plugin, and leaves portable skill manifests bare. AgentLaunch composes per-session projections for all three harnesses and enumerates the compatibility copy's qualified skill names for managed-session suppression; the full installer removes only AgentStart-managed entries from retired compatibility roots, while the six-hour sync remains unattended-safe | `agentstart/scripts/sync-skills`; `agentstart/scripts/render-capabilities`; `agentstart/config/capabilities/common/*`; `agentstart/docs/adr/0002-compose-capabilities-without-moving-native-stores.md`; `agentlaunch/src/capabilities.ts` |
 | agentlaunch | Claude Code / Codex / Pi | resolves `common` plus repeatable session packs, rejects resource conflicts, and content-addresses immutable projections. Claude receives a synthetic plugin named `agent`; Codex is launched as a remote TUI against a caller-owned foreground App Server after `skills/extraRoots/set` plus session-flag `skills.config` that name-disables every compatibility `$agent:<skill>` alias and path-enables the exact selected bare manifests (with a client-only no-auth provider preventing false onboarding); every `-c` it emits follows the subcommand, because codex-swap appends its own after them and a subcommand's flags discard the global ones; Pi receives explicit skill, extension, and prompt-template paths with ambient discovery disabled. Native stores remain in place, and a receipt keyed by native session id restores non-default packs on resume | `agentlaunch/src/capabilities.ts`; `agentlaunch/src/codex-app-server.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-compose-capabilities-around-native-stores.md` |
 | agentvoice | agentstart / codex | registers `packs/common/skills` through `skills/extraRoots/set` after every attachment and before thread start/resume, and enumerates the compatibility projection's `agent:<skill>` names into a `skills.config` carried by every thread's own params — orchestrator and worker, start and resume. Its resident spawn carries no skill policy: a session flag cannot disable a plugin, which Codex resolves only from persistent layers. It stores no skill copy and keeps the shared native Codex rollout/session store intact across resident and account rotation | `agentvoice/src/capabilities.ts`; `agentvoice/src/core/params.ts`; `agentvoice/src/resident/contract.ts`; `agentvoice/src/core/runtime.ts`; `agentvoice/docs/adr/0006-compose-agentstart-common-before-opening-threads.md` |
@@ -287,6 +291,7 @@ independent app-server children do not use codex-swap's removed sidecars.
 | scrape | brain, browser, search | scrape wants a URL in hand; finding URLs is search; interaction is browser |
 | search | brain, chats, scrape | check brain first — the answer is often already local |
 | browser | attention, scrape, search | human-only interaction with the prepared live target is attention; fetching public content is scrape; finding pages is search (`agentbrowse/skills/browser/SKILL.md`) |
+| jobsearch | attention, browser | the combined work-round skill loads attention for every human handoff and browser before interactive pages; its producer workflow hands only exact live Browser targets to Agentattention (`jobsearch/.claude/skills/jobsearch/SKILL.md`; `jobsearch/.claude/skills/references/attention-workflow.md`) |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
 | GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
@@ -451,3 +456,7 @@ fleet's `browser` runbook, resolves each stable agent-browser session to its
 current exact Browser target for Agentattention handoff, and defers changing
 agent-browser command syntax to the binary's version-matched core guide.
 Agentweb keeps its legacy runtime for unmigrated callers but exports no skill.
+Updated again 2026-08-28 for the first downstream migration: Jobsearch now
+creates only bounded Agentattention items, retains only producer-side domain
+continuations, and routes its one cross-harness work-round skill through the
+fleet-owned `attention` and `browser` capabilities.
