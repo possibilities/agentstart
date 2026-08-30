@@ -17,7 +17,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # gate approve the published Integration commit. Ordinary convergence reuses
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
-fx_integration_sha=121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99
+fx_integration_sha=559bbd62cc4bdc338f2a135d4b5175bf5b662416
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 resources_skills_state_root="$resources_root/skills-state"
 retired_capabilities_root="$HOME/.local/share/agentstart/capabilities"
@@ -497,7 +497,7 @@ Command-line tools:
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   brew install or upgrade zig  # Native SDK packaging requires it
-  ~/code/fxnk/scripts/install.sh --install --sha 121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99  # exact ship-gate-approved Fx Integration consumer pin
+  ~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain

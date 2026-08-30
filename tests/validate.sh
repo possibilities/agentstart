@@ -1093,7 +1093,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/code/fxnk/scripts/install.sh --install --sha 121cae8b8e0a3db57d8d7efe7c44edbcebdb3d99  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
