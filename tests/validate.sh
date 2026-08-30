@@ -87,12 +87,22 @@ done
 /usr/bin/jq -e '
     .version == 2 and
     (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+    .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
+    (.backends[1] | has("video") | not) and
     .backends[1].maxTargets == 1 and
     .backends[1].cpus == 2 and
     .backends[1].memory == "6G" and
-    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3"
+    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
+    .browser.video == {
+        "screenRefreshRate": 60,
+        "fps": 30,
+        "cpuUsed": 4,
+        "threads": 4,
+        "targetBitrateBps": 2396160,
+        "keyframeMaxDistance": 30
+    }
 ' config/agentbrowse/config.json >/dev/null \
-    || fail "default agentbrowse config does not declare the locked ordered fallback"
+    || fail "default agentbrowse config does not declare the locked ordered fallback and Live View capture policy"
 tests/agentbrowse-config.sh
 
 [ -s config/agent-browser/config.json ] \

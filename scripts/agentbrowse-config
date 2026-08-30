@@ -27,6 +27,15 @@ jq_bin="${AGENTSTART_JQ_BIN:-/usr/bin/jq}"
 validate_config() {
     [ -x "$jq_bin" ] || die "jq is required to validate the agentbrowse config: $jq_bin"
     [ -s "$config_source" ] || die "agentbrowse config is missing or empty: $config_source"
+    # The Live View capture policy is locked together with the backends. The
+    # shared policy keeps Chromium's display at 60 Hz and captures 30 VP8
+    # frames per second; only Artbird overrides it to 60 fps, double the
+    # bitrate, and a 60-frame keyframe interval. The Apple backend carries no
+    # override until that shape is validated locally, so it must stay on the
+    # shared policy. Agentbrowse verifies capture settings as part of target
+    # ownership: changing any of these values makes it reject every existing
+    # Browser target at its next launch or create until that target is
+    # destroyed and recreated explicitly; Browser profiles are preserved.
     "$jq_bin" -e '
         .version == 2 and
         (.backends | map(.id)) == ["artbird", "apple-container-local"] and
@@ -37,7 +46,12 @@ validate_config() {
             "expectedEndpoint": "ssh://artbird",
             "expectedEngine": "artbird",
             "remoteHost": "artbird",
-            "networkAddressCommand": "tailscale ip -4"
+            "networkAddressCommand": "tailscale ip -4",
+            "video": {
+                "fps": 60,
+                "targetBitrateBps": 4792320,
+                "keyframeMaxDistance": 60
+            }
         } and
         .backends[1] == {
             "id": "apple-container-local",
@@ -48,10 +62,18 @@ validate_config() {
             "memory": "6G"
         } and
         .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
+        .browser.video == {
+            "screenRefreshRate": 60,
+            "fps": 30,
+            "cpuUsed": 4,
+            "threads": 4,
+            "targetBitrateBps": 2396160,
+            "keyframeMaxDistance": 30
+        } and
         .provider.name == "agentbrowse" and
         .discovery.commandTimeoutMs == 2000
     ' "$config_source" >/dev/null \
-        || die "agentbrowse config does not declare the locked ordered backends: $config_source"
+        || die "agentbrowse config does not declare the locked ordered backends and Live View capture policy: $config_source"
 }
 
 is_known_version_one_config() {

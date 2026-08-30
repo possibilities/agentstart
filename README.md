@@ -117,6 +117,17 @@ Apple container session with one 2-CPU, 6-GiB target. The provider never starts
 Apple services or acquires an image; recovery remains the explicit
 `agentbrowse-infra enable` plus pull/load lifecycle.
 
+The same file locks the Live View video capture policy. The shared
+`browser.video` policy keeps Chromium's display at 60 Hz and captures 30 VP8
+frames per second; only Artbird overrides it to 60 fps, 4,792,320 bits/s, and a
+60-frame keyframe interval, the shape agentbrowse measured for a remote Docker
+backend. The Apple backend deliberately carries no override and stays on the
+shared policy until that shape is validated locally. Agentbrowse verifies
+capture settings as part of target ownership, so after the policy changes it
+rejects an existing Browser target at its next launch or `create` until that
+target is destroyed and recreated explicitly; `list`, `resolve`, and `view`
+keep working, and Browser profiles, cookies, and authentication are preserved.
+
 `scripts/agent-browser-config install` links
 `config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
 selects agentbrowse and registers the managed

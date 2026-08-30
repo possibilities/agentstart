@@ -27,14 +27,47 @@ cmp -s "$source_config" "$target_config" \
 /usr/bin/jq -e '
     .version == 2 and
     (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+    .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
+    (.backends[1] | has("video") | not) and
     .backends[1].maxTargets == 1 and
     .backends[1].cpus == 2 and
     .backends[1].memory == "6G" and
-    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3"
-' "$target_config" >/dev/null || fail "installed config does not declare the locked fallback"
+    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
+    .browser.video == {
+        "screenRefreshRate": 60,
+        "fps": 30,
+        "cpuUsed": 4,
+        "threads": 4,
+        "targetBitrateBps": 2396160,
+        "keyframeMaxDistance": 30
+    }
+' "$target_config" >/dev/null \
+    || fail "installed config does not declare the locked fallback and Live View capture policy"
 
 # The converge is rerunnable.
 "$helper" install
+
+# A source that drifts from the locked Live View capture policy is refused
+# before anything is linked: the Apple backend must not carry an override, the
+# shared policy must stay at 30 fps capture, and neither block may go missing.
+drifted_source="$test_root/drifted-source.json"
+drifted_target="$test_root/drifted-home/.config/agentbrowse/config.json"
+for drift_filter in \
+    '.backends[1].video = {"fps": 60}' \
+    '.browser.video.fps = 60' \
+    'del(.browser.video)' \
+    'del(.backends[0].video)'; do
+    /usr/bin/jq "$drift_filter" "$root/config/agentbrowse/config.json" >"$drifted_source"
+    if drift_output=$(AGENTSTART_AGENTBROWSE_CONFIG_SOURCE="$drifted_source" \
+        AGENTSTART_AGENTBROWSE_CONFIG_TARGET="$drifted_target" \
+        "$helper" install 2>&1); then
+        fail "a drifted Live View capture policy was linked: $drift_filter"
+    fi
+    printf '%s\n' "$drift_output" | grep -F 'Live View capture policy' >/dev/null \
+        || fail "capture policy refusal did not name the policy: $drift_output"
+    [ ! -e "$drifted_target" ] && [ ! -L "$drifted_target" ] \
+        || fail "a refused capture policy still linked a config: $drift_filter"
+done
 
 # The one known hand-written version-1 config migrates deliberately.
 legacy_target="$test_root/legacy-home/.config/agentbrowse/config.json"
