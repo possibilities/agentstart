@@ -1103,6 +1103,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
+    '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
     '~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
@@ -1175,13 +1176,17 @@ grep -F 'XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code"' \
     || fail "Claude's native installer does not use the stable macOS cache root"
 
 # Plannotator is one versioned unit: the official installer contributes only
-# the binary, while the same tag's portable core skills enter fleet resources.
+# the binary, that binary installs its managed agent-terminal runtime, and the
+# same tag's portable core skills enter fleet resources.
 grep -F 'plannotator_version=0.27.9' scripts/install.sh >/dev/null \
     || fail "installer does not pin the Plannotator release"
 # shellcheck disable=SC2016 # Match the literal installer variable.
 grep -F '/bin/bash -s -- --version "v$plannotator_version" --minimal --non-interactive' \
     scripts/install.sh >/dev/null \
     || fail "Plannotator installer is not constrained to the pinned binary-only path"
+# shellcheck disable=SC2016 # Match the literal verified binary invocation.
+grep -F '"$plannotator_bin" install-runtime agent-terminal' scripts/install.sh >/dev/null \
+    || fail "installer does not install Plannotator's managed agent-terminal runtime"
 # shellcheck disable=SC2016 # Match the literal installer variable.
 grep -F 'plannotator_skill_source="https://github.com/backnotprop/plannotator/tree/v${plannotator_version}/apps/skills/core"' \
     scripts/install.sh >/dev/null \

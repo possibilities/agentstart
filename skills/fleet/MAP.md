@@ -91,6 +91,7 @@ flowchart LR
 
     machine ==>|scripts/install.sh --install, sync-skills| start
     start ==>|official installers| harnesses[Claude Code / Codex / Pi]
+    start ==>|pinned minimal binary + managed agent-terminal runtime + version-matched skills| plannotator[Plannotator]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
     start ==>|repository-owned source installer + exact Fx and Companion pins| fmxInstall[fmx / fmx-mcp]
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
@@ -172,6 +173,7 @@ sentence around the match, never from the name alone.
 
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
+| agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
 | agentstart | agentusage | `install-agent-clis` invokes the checkout's `scripts/install.sh --install`, which installs the claude-swap provider before installing the observer. It no longer writes a `codex-swap` shim, and no longer maintains the fork — both have one owner now | `agentstart/scripts/install-agent-clis`; `agentusage/scripts/install-providers.sh` |
 | agentusage | cswax | `scripts/install-providers.sh` invokes `~/code/cswax/scripts/install.sh --install --published` and does nothing else about the claude-swap fork. It previously rebased, gated, and force-pushed `integration` on every unattended converge; that moved to the workshop on 2026-08-25 | `agentusage/scripts/install-providers.sh`; `cswax/MAINTAIN.md` (Consumer); asserted by `cswax/tests/validate.sh` |
 | cswax | claude-swap | binds `~/src/claude-swap` to a published `fork/integration` commit and installs it with `uv tool install --force`, refusing a foreign fork remote, a dirty tree, or an unpublished commit, and reporting when integration trails upstream. `/maintain` separately composes the carry heads, gates, and publishes | `cswax/scripts/install.sh`; `cswax/MAINTAIN.md`; `cswax/scripts/reconcile-branches.sh` |
@@ -234,6 +236,7 @@ sentence around the match, never from the name alone.
 
 | Binary | Version | Why | Evidence |
 | --- | --- | --- | --- |
+| Plannotator | 0.27.9 | the CLI, its `install-runtime agent-terminal` contract, and its core skills move as one pinned release. AgentStart deliberately uses the minimal vendor install to avoid ambient harness integrations, then restores the separately managed runtime through the verified binary | `agentstart/scripts/install.sh` (`plannotator_version` and runtime invocation); `agentstart/tests/validate.sh` |
 | agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
 | zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
@@ -477,3 +480,7 @@ the eleven-tool stdio server, fmx forwards semantic Work operations through
 Fx's authenticated per-Agent socket, and the former CLI control, duplex Bus,
 prompt-paste, wait, and event-stream paths have no runtime edge left in the
 fleet.
+Updated 2026-08-30 for Plannotator: AgentStart keeps vendor installation
+minimal so fixed resources remain authoritative, then invokes the pinned
+binary's managed agent-terminal runtime installer and carries the same tag's
+core skills. The complete install and pin edges are now recorded here.

@@ -506,6 +506,7 @@ Command-line tools:
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
+  ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
   ~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
@@ -638,8 +639,10 @@ printf 'Installing Pi with its official installer.\n'
 
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:
-# no plan-mode hooks, ambient skills, slash commands, or Pi extension. The
-# exact release's portable core skills enter the fixed resources below.
+# no plan-mode hooks, ambient skills, slash commands, Pi extension, or managed
+# runtimes. AgentStart installs the agent-terminal runtime explicitly so the
+# embedded Agent tab works, while the exact release's portable core skills
+# enter the fixed resources below.
 install_official "Plannotator $plannotator_version" \
     https://plannotator.ai/install.sh \
     /bin/bash -s -- --version "v$plannotator_version" --minimal --non-interactive
@@ -649,6 +652,8 @@ plannotator_bin="$HOME/.local/bin/plannotator"
 plannotator_version_output=$("$plannotator_bin" --version)
 [ "$plannotator_version_output" = "plannotator $plannotator_version" ] \
     || die "Plannotator version mismatch: expected $plannotator_version, got $plannotator_version_output"
+printf 'Installing the Plannotator agent-terminal runtime.\n'
+"$plannotator_bin" install-runtime agent-terminal
 
 # Zig builds Native SDK applications, and the machine's Brewfile alone cannot
 # guarantee it is present in a session that only runs this script (intentional
