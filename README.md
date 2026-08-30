@@ -54,7 +54,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   own checkout's contract, skipping checkouts that are absent:
 
   - Claude Code, Codex, and Pi, by their official installers;
-  - Zig (an intentional duplicate of the machine's Brewfile), `llm`, and the
+  - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
+    pinned Plannotator review CLI with its version-matched core skills, and the
     Homebrew-installed Hunk review TUI with its version-matched bundled skill;
   - fmx's repository-owned source installer, given fxnk's exact gated Fx
     build, plus the generated live Herdr config and linked fmx key config;
@@ -148,3 +149,9 @@ explicit loop in
 `scripts/install-agent-clis`. Whether to advertise it in
 `prompts/agentguidance/TOOLS.md` is a separate decision — make it
 deliberately, per the `tool-advertisement-policy` wiki page.
+
+Plannotator follows that fixed-resource path: AgentStart installs only its
+pinned CLI binary, then carries the same release's `plannotator`,
+`plannotator-review`, `plannotator-annotate`, and `plannotator-last` core
+skills into Claude Code, Codex, and Pi. Plan-mode hooks and Pi's separate
+extension are deliberately not installed by this integration.

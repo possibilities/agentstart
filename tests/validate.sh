@@ -1092,6 +1092,7 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
+    'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
     '~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
@@ -1133,6 +1134,7 @@ for required_install in \
     'https://github.com/vercel/ai-elements: ai-elements' \
     'https://github.com/shadcn/ui: shadcn' \
     'https://github.com/vercel-labs/native: native-sdk' \
+    'https://github.com/backnotprop/plannotator/tree/v0.27.9/apps/skills/core: plannotator, plannotator-review, plannotator-annotate, plannotator-last' \
     'anomalyco/terminal-control@v<installed termctrl version>: terminal-control' \
     'hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it' \
     'install hunk-review with --copy into the fixed resources' \
@@ -1161,6 +1163,27 @@ grep -F 'Preserving independent occupant at retired Fmx release path' scripts/in
 grep -F 'XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code"' \
     scripts/install.sh >/dev/null \
     || fail "Claude's native installer does not use the stable macOS cache root"
+
+# Plannotator is one versioned unit: the official installer contributes only
+# the binary, while the same tag's portable core skills enter fleet resources.
+grep -F 'plannotator_version=0.27.9' scripts/install.sh >/dev/null \
+    || fail "installer does not pin the Plannotator release"
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F '/bin/bash -s -- --version "v$plannotator_version" --minimal --non-interactive' \
+    scripts/install.sh >/dev/null \
+    || fail "Plannotator installer is not constrained to the pinned binary-only path"
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F 'plannotator_skill_source="https://github.com/backnotprop/plannotator/tree/v${plannotator_version}/apps/skills/core"' \
+    scripts/install.sh >/dev/null \
+    || fail "Plannotator skills are not bound to the installed release's core subtree"
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F 'install_private_skill_pack "$plannotator_skill_source"' scripts/install.sh >/dev/null \
+    || fail "installer does not copy the pinned Plannotator skills into fleet resources"
+for plannotator_skill in plannotator plannotator-review plannotator-annotate plannotator-last; do
+    sed -n '/^remove_legacy_global_skills() {$/,/^}$/p' scripts/install.sh \
+        | grep -F "        $plannotator_skill" >/dev/null \
+        || fail "ambient cleanup omits AgentStart-managed skill: $plannotator_skill"
+done
 
 # Fx remains a required harness, but fxnk owns its fork and installer. This
 # repository invokes the public contract and carries no second implementation.

@@ -18,6 +18,11 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=559bbd62cc4bdc338f2a135d4b5175bf5b662416
+# Plannotator's core skills describe its CLI surface, so the two pins move as
+# one. The upstream installer runs in binary-only mode below; AgentStart owns
+# skill delivery through the fixed private resources instead of allowing the
+# vendor installer to populate ambient harness roots.
+plannotator_version=0.27.9
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 resources_skills_state_root="$resources_root/skills-state"
 retired_capabilities_root="$HOME/.local/share/agentstart/capabilities"
@@ -94,6 +99,10 @@ remove_legacy_global_skills() {
         ai-elements
         shadcn
         native-sdk
+        plannotator
+        plannotator-review
+        plannotator-annotate
+        plannotator-last
         terminal-control
         herdr
         livekit-simulations
@@ -496,6 +505,7 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
+  curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   brew install or upgrade zig  # Native SDK packaging requires it
   ~/code/fxnk/scripts/install.sh --install --sha 559bbd62cc4bdc338f2a135d4b5175bf5b662416  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
@@ -543,6 +553,7 @@ Fixed private fleet resources:
   https://github.com/vercel/ai-elements: ai-elements
   https://github.com/shadcn/ui: shadcn
   https://github.com/vercel-labs/native: native-sdk
+  https://github.com/backnotprop/plannotator/tree/v0.27.9/apps/skills/core: plannotator, plannotator-review, plannotator-annotate, plannotator-last
   anomalyco/terminal-control@v<installed termctrl version>: terminal-control
   hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it
   install hunk-review with --copy into the fixed resources
@@ -624,6 +635,20 @@ fi
 printf 'Installing Pi with its official installer.\n'
 /usr/bin/curl -fsSL https://pi.dev/install.sh \
     | run_without_controlling_terminal /bin/sh
+
+# Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
+# --minimal asks the upstream installer for only its checksummed release binary:
+# no plan-mode hooks, ambient skills, slash commands, or Pi extension. The
+# exact release's portable core skills enter the fixed resources below.
+install_official "Plannotator $plannotator_version" \
+    https://plannotator.ai/install.sh \
+    /bin/bash -s -- --version "v$plannotator_version" --minimal --non-interactive
+plannotator_bin="$HOME/.local/bin/plannotator"
+[ -x "$plannotator_bin" ] \
+    || die "Plannotator did not install an executable at $plannotator_bin"
+plannotator_version_output=$("$plannotator_bin" --version)
+[ "$plannotator_version_output" = "plannotator $plannotator_version" ] \
+    || die "Plannotator version mismatch: expected $plannotator_version, got $plannotator_version_output"
 
 # Zig builds Native SDK applications, and the machine's Brewfile alone cannot
 # guarantee it is present in a session that only runs this script (intentional
@@ -1138,6 +1163,14 @@ install_private_skill_pack https://github.com/shadcn/ui shadcn
 
 printf 'Installing the Native SDK discovery skill.\n'
 install_private_skill_pack https://github.com/vercel-labs/native native-sdk
+
+# Use the tagged core subtree rather than repository head or Claude's
+# injection-form variants. One portable set is rendered into all three managed
+# harnesses, and it must never teach commands newer than the installed binary.
+plannotator_skill_source="https://github.com/backnotprop/plannotator/tree/v${plannotator_version}/apps/skills/core"
+printf 'Installing the version-matched Plannotator skills.\n'
+install_private_skill_pack "$plannotator_skill_source" \
+    plannotator plannotator-review plannotator-annotate plannotator-last
 
 # Bind the runbook to the same release as the CLI. The skills CLI accepts a
 # GitHub ref suffix, and Terminal Control publishes v<crate-version> tags, so a
