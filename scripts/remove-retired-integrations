@@ -181,7 +181,6 @@ PYTHON
 # checkout contract in install-agent-clis.
 for item in \
     "$HOME/.local/bin/agentbus:$code_root/agentbus/src/main.ts" \
-    "$HOME/.pi/agent/extensions/agentbus.ts:$code_root/agentbus/extensions/pi/agentbus.ts" \
     "$HOME/.claude/skills/agentbus:$code_root/agentbus/plugins/claude"; do
     expected=${item#*:}
     target=${item%%:*}
@@ -194,7 +193,7 @@ for item in \
 done
 
 old_shim_dir="$HOME/.local/share/agentsurface/shims"
-for harness in claude codex pi; do
+for harness in claude codex; do
     shim="$old_shim_dir/$harness"
     if [ -f "$shim" ] && [ ! -L "$shim" ] &&
         grep -Eq '^(# AgentStart-managed agentsurface shim:|# Agentdots-managed agentsurface shim:)' "$shim"; then
@@ -208,18 +207,15 @@ rmdir "$old_shim_dir" 2>/dev/null || true
 rmdir "${old_shim_dir%/shims}" 2>/dev/null || true
 
 for target in \
-    "$HOME/.pi/agent/extensions/orca-agent-status.ts" \
-    "$HOME/.pi/agent/extensions/orca-prefill.ts" \
-    "$HOME/.pi/agent/extensions/orca-titlebar-spinner.ts" \
     "$HOME/.omp/agent/extensions/orca-agent-status.ts" \
     "$HOME/.omp/agent/extensions/orca-prefill.ts" \
     "$HOME/.omp/agent/extensions/orca-titlebar-spinner.ts"; do
     if [ -f "$target" ] && [ ! -L "$target" ] &&
         grep -Fq '@orca-managed-pi-extension' "$target"; then
         rm -- "$target"
-        printf 'Removed retired Orca Pi extension: %s.\n' "$target"
+        printf 'Removed retired Orca extension: %s.\n' "$target"
     elif [ -e "$target" ] || [ -L "$target" ]; then
-        printf 'Leaving independently owned Pi extension untouched: %s.\n' "$target"
+        printf 'Leaving independently owned extension untouched: %s.\n' "$target"
     fi
 done
 

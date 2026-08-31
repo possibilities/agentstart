@@ -11,8 +11,8 @@ case "$1" in
     --check)
         cat <<'EOF'
   render the fixed private fleet resource set under ~/.local/share/agentstart/resources
+  narrow vendor provider-origin guidance to retained Claude/Codex values
   derive and audit Codex invocation policy from portable skill frontmatter
-  carry the pinned Pi subagent package into the fixed Pi resource surface
   render one session-only Claude plugin named agent (/agent:<skill>)
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   persistently disable every agent:<skill> outside managed Codex sessions
@@ -41,45 +41,34 @@ managed_names="$resources_root/managed-skills.txt"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 [ -x "$invocation_policy_renderer" ] || die "skill invocation policy renderer is unavailable"
 
-mkdir -p "$resources_root/guidance" "$resources_root/claude" \
-    "$resources_root/pi/extensions" "$resources_root/pi/prompt-templates"
+mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
-cp "$repo_root/config/statusline/pi-statusline.ts" \
-    "$resources_root/pi/extensions/agentstart-statusline.ts"
 
-# Herdr can only install its Pi integration into Pi's ambient root. Managed Pi
-# suppresses that root, so carry its ownership-marked output privately.
-pi_herdr_source="$HOME/.pi/agent/extensions/herdr-agent-state.ts"
-pi_herdr_target="$resources_root/pi/extensions/herdr-agent-state.ts"
-if [ -e "$pi_herdr_source" ] || [ -L "$pi_herdr_source" ]; then
-    [ -f "$pi_herdr_source" ] || die "refusing non-file Pi Herdr integration: $pi_herdr_source"
-    grep -F '// managed by herdr;' "$pi_herdr_source" >/dev/null \
-        || die "refusing independent Pi extension at Herdr's managed path: $pi_herdr_source"
-    grep -F '// HERDR_INTEGRATION_ID=pi' "$pi_herdr_source" >/dev/null \
-        || die "Pi Herdr integration has the wrong identity: $pi_herdr_source"
-    cp "$pi_herdr_source" "$pi_herdr_target"
-fi
-
-# Pi deliberately ships no subagents. Copy the pinned private package whole,
-# including node_modules, and pass its path explicitly at launch time.
-pi_subagents_source="${AGENTSTART_PI_SUBAGENTS_ROOT:-$HOME/.local/share/agentstart/pi-subagents}/pi-subagents"
-pi_subagents_target="$resources_root/pi/extensions/pi-subagents"
-if [ -d "$pi_subagents_source" ]; then
-    [ -f "$pi_subagents_source/package.json" ] \
-        || die "refusing Pi subagents install without a package manifest: $pi_subagents_source"
-    source_version=$(/usr/bin/env node -e 'process.stdout.write(require(process.argv[1]).version ?? "")' \
-        "$pi_subagents_source/package.json" 2>/dev/null || true)
-    [ -n "$source_version" ] || die "Pi subagents install has no version: $pi_subagents_source"
-    target_version=''
-    if [ -f "$pi_subagents_target/package.json" ]; then
-        target_version=$(/usr/bin/env node -e 'process.stdout.write(require(process.argv[1]).version ?? "")' \
-            "$pi_subagents_target/package.json" 2>/dev/null || true)
-    fi
-    if [ "$source_version" != "$target_version" ] || [ ! -d "$pi_subagents_target/node_modules" ]; then
-        rm -rf -- "$pi_subagents_target"
-        cp -R "$pi_subagents_source" "$pi_subagents_target"
-    fi
-fi
+# Plannotator's portable upstream guide includes one provider-detection table
+# row for every origin its binary knows. Preserve that useful variable contract
+# while narrowing the documented values to this fleet's retained harnesses, so
+# a vendor refresh cannot re-advertise retired harnesses in installed resources
+# or the public field-guide snapshot.
+for skill_manifest in "$skills_root"/*/SKILL.md; do
+    [ -f "$skill_manifest" ] && [ ! -L "$skill_manifest" ] || continue
+    # shellcheck disable=SC2016 # The backticks name a literal documented variable.
+    grep -F '| `PLANNOTATOR_ORIGIN` |' "$skill_manifest" >/dev/null || continue
+    # shellcheck disable=SC2016 # The backticks name a literal documented variable.
+    [ "$(grep -Fc '| `PLANNOTATOR_ORIGIN` |' "$skill_manifest")" -eq 1 ] \
+        || die "vendor skill contains duplicate PLANNOTATOR_ORIGIN rows: $skill_manifest"
+    skill_mode=$(stat -f '%Lp' "$skill_manifest")
+    /usr/bin/awk '
+        /^\| `PLANNOTATOR_ORIGIN` \|/ {
+            print "| `PLANNOTATOR_ORIGIN` | Override agent-origin detection for the retained fleet harnesses (`claude-code`, `codex`). Set it when launching Plannotator from a wrapper the detection cannot see through. |"
+            next
+        }
+        { print }
+    ' \
+        "$skill_manifest" >"$skill_manifest.next"
+    chmod "$skill_mode" "$skill_manifest.next"
+    mv -f -- "$skill_manifest.next" "$skill_manifest"
+    printf 'Narrowed provider origins to Claude/Codex in %s.\n' "$skill_manifest"
+done
 
 "$invocation_policy_renderer" --install "$skills_root"
 next_managed_names="$resources_root/managed-skills.next"

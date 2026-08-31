@@ -299,7 +299,7 @@ pre:focus-visible {
   75%, 100% { transform: scale(1.22); opacity: 0; }
 }
 
-.transmission-lines { height: 330px; position: relative; }
+.transmission-lines { height: 220px; position: relative; }
 
 .transmission-lines::before {
   content: "";
@@ -313,8 +313,8 @@ pre:focus-visible {
 .transmission-lines::after {
   content: "";
   position: absolute;
-  top: 16.66%;
-  bottom: 16.66%;
+  top: 25%;
+  bottom: 25%;
   left: 50%;
   border-left: 1px solid var(--line-strong);
 }
@@ -326,9 +326,8 @@ pre:focus-visible {
   border-top: 1px solid var(--line-strong);
 }
 
-.transmission-lines i:nth-child(1) { top: 16.66%; }
-.transmission-lines i:nth-child(2) { top: 50%; }
-.transmission-lines i:nth-child(3) { top: 83.33%; }
+.transmission-lines i:nth-child(1) { top: 25%; }
+.transmission-lines i:nth-child(2) { top: 75%; }
 
 .harness-stack { display: grid; gap: 14px; }
 
@@ -362,7 +361,6 @@ pre:focus-visible {
 }
 
 .harness-stack article:nth-child(2) .harness-index { background: var(--coral); }
-.harness-stack article:nth-child(3) .harness-index { background: var(--yellow); }
 
 .harness-stack div { display: flex; flex-direction: column; gap: 3px; }
 .harness-stack strong { font-family: var(--font-display), sans-serif; font-size: 17px; }

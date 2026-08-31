@@ -1,14 +1,18 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const siteRoot = fileURLToPath(new URL("..", import.meta.url));
 const dataHome = process.env.XDG_DATA_HOME || join(homedir(), ".local", "share");
 const resourcesRoot =
   process.env.AGENTSTART_RESOURCES_ROOT || join(dataHome, "agentstart", "resources");
-const outputPath = join(siteRoot, "public", "fleet-resources.json");
+const outputPath =
+  process.env.AGENTSTART_SNAPSHOT_OUTPUT || join(siteRoot, "public", "fleet-resources.json");
+
+const retiredPiSpelling =
+  /(^|[^A-Za-z0-9_])pi([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])pi_(?:agent|coding_agent|session|subagents|viewer)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])pi(?:Agent|CodingAgent|Session|Subagents|Viewer)([^A-Za-z0-9_]|$)/i;
 
 const categoryCatalog = [
   {
@@ -99,47 +103,7 @@ const displayNames = {
   wiki: "Durable Wiki",
 };
 
-const utilityCatalog = [
-  {
-    id: "pi-subagents",
-    title: "Subagents for Pi",
-    harness: "Pi",
-    prefix: "pi/extensions/pi-subagents/",
-    summary:
-      "Gives Pi a deliberate way to dispatch isolated workers, since Pi does not include subagents of its own.",
-    capabilities: [
-      "Dispatches focused workers from the active session",
-      "Carries its own workflow prompts and supporting skills",
-      "Loads only through Pi's explicit managed resource paths",
-    ],
-  },
-  {
-    id: "pi-statusline",
-    title: "A shared Pi statusline",
-    harness: "Pi",
-    path: "pi/extensions/agentstart-statusline.ts",
-    summary:
-      "Replaces Pi’s footer with the fleet statusline so model, effort, context, and session state read consistently.",
-    capabilities: [
-      "Shows the session’s useful operating state",
-      "Matches the information available in Claude and Codex",
-      "Stays present without becoming another command to remember",
-    ],
-  },
-  {
-    id: "herdr-agent-state",
-    title: "Live Herdr session state",
-    harness: "Pi",
-    path: "pi/extensions/herdr-agent-state.ts",
-    summary:
-      "Lets Pi report useful activity state to Herdr while leaving native conversation history and resume behavior untouched.",
-    capabilities: [
-      "Reports when the agent is working, idle, or blocked",
-      "Keeps surface state separate from conversation storage",
-      "Supports the same live-session ergonomics as the other harnesses",
-    ],
-  },
-];
+const utilityCatalog = [];
 
 async function exists(path) {
   try {
@@ -300,7 +264,6 @@ const skills = await Promise.all(
       dialects: {
         claude: `/agent:${id}`,
         codex: `$agent:${id}`,
-        pi: `/${id}`,
       },
     };
   }),
@@ -356,8 +319,13 @@ const snapshot = {
   },
 };
 
-await mkdir(join(siteRoot, "public"), { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(snapshot)}\n`);
+const serialized = JSON.stringify(snapshot);
+if (retiredPiSpelling.test(serialized)) {
+  throw new Error("refusing to publish a fleet snapshot containing a retired Pi spelling");
+}
+
+await mkdir(dirname(outputPath), { recursive: true });
+await writeFile(outputPath, `${serialized}\n`);
 console.log(
   `Snapshotted ${snapshot.stats.skills} skills, ${snapshot.stats.references} references, and ${snapshot.stats.utilities} utility summaries from the fixed fleet resources (${digest}).`,
 );

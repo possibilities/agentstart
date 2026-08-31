@@ -1,15 +1,12 @@
 #!/bin/bash
 #
-# Install the fleet statusline into all three harnesses.
+# Install the fleet statusline into both managed harnesses.
 #
-# One bar, three mechanisms, because the harnesses differ in what they let an
+# One bar, two mechanisms, because the harnesses differ in what they let an
 # operator draw:
 #
 #   claude  runs an arbitrary command per render and pipes it a JSON payload,
 #           so config/statusline/claude-statusline.sh draws the whole bar.
-#   pi      has no status line but does have a replaceable footer, so
-#           config/statusline/pi-statusline.ts draws the same fields from its
-#           extension API.
 #   codex   renders its own status line and only lets an operator choose and
 #           order items from a fixed set. There is no custom renderer to
 #           install, so the closest thing is the ordered pick below.
@@ -49,10 +46,10 @@ usage() {
     cat <<'EOF'
 Usage: scripts/install-statusline [--install|--check]
 
-Install the fleet statusline for Claude Code, Pi, and Codex.
+Install the fleet statusline for Claude Code and Codex.
 
 Options:
-  --install  Install or converge the statusline in all three harnesses
+  --install  Install or converge the statusline in both harnesses
   --check    Print the plan without changing the system
 EOF
 }
@@ -88,23 +85,6 @@ install_claude_statusline() {
         || die "claude settings are not valid JSON: $settings"
     mv -- "$settings.agentstart-tmp" "$settings"
     printf 'Installed the claude statusline: %s.\n' "$target"
-}
-
-# Pi receives the renderer from the fixed private resources on each managed
-# launch. Remove only the old ambient link, because AgentLaunch disables
-# ambient discovery and passes the projected file explicitly.
-install_pi_statusline() {
-    local source="$source_dir/pi-statusline.ts"
-    local target="$HOME/.pi/agent/extensions/agentstart-statusline.ts"
-
-    [ -s "$source" ] || die "pi renderer is missing or empty: $source"
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-        unlink "$target"
-        printf 'Removed the retired ambient pi statusline link: %s.\n' "$target"
-    elif [ -e "$target" ] || [ -L "$target" ]; then
-        printf 'Leaving independent pi extension untouched: %s.\n' "$target"
-    fi
-    printf 'Pi receives its statusline from the fixed private resources.\n'
 }
 
 # Codex's config is TOML, and it has no `config set` subcommand. Rather than
@@ -189,7 +169,6 @@ if [ "$check_only" -eq 1 ]; then
 Fleet statusline:
   ln -sfn config/statusline/claude-statusline.sh ~/.claude/statusline.sh
   set .statusLine in ~/.claude/settings.json
-  copy config/statusline/pi-statusline.ts into the fixed private resources  # AgentLaunch passes it per session; pi has a footer, not a status line
   set [tui] status_line in ~/.codex/config.toml  # codex renders its own bar; only the item list is ours
     $CODEX_STATUS_LINE_ITEMS
 EOF
@@ -199,5 +178,4 @@ fi
 command -v jq >/dev/null 2>&1 || die "jq is required to edit ~/.claude/settings.json"
 
 install_claude_statusline
-install_pi_statusline
 install_codex_statusline

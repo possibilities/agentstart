@@ -19,6 +19,7 @@ scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/remove-retired-integrations
+scripts/remove-retired-pi
 scripts/remove-retired-agentweb
 scripts/remove-retired-capabilities
 scripts/install-launchagents
@@ -58,6 +59,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
     scripts/remove-retired-integrations \
+    scripts/remove-retired-pi \
     scripts/remove-retired-agentweb \
     scripts/remove-retired-capabilities \
     scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
@@ -208,13 +210,13 @@ grep -q -- '--content)' scripts/install.sh \
 for content_step in remove_retired_home_guidance link_extension_prompts \
     remove_retired_llm_config remove_legacy_global_skills \
     remove_retired_core_plugin remove_renamed_pack_skills \
-    remove_packed_pi_ambient_resources link_agent_guidance; do
+    link_agent_guidance; do
     [ "$(grep -c "^ *$content_step\$" scripts/install.sh)" -eq 1 ] \
         || fail "content step is called from more than one place: $content_step"
 done
 # The cheap path installs nothing: no formula, no fetch, no third-party pack.
 content_body=$(sed -n '/^converge_repo_content() {$/,/^}$/p' scripts/install.sh)
-printf '%s' "$content_body" | grep -Eq 'install_or_upgrade_formula|install_private_skill_pack|install-pi-subagents|curl|npm install' \
+printf '%s' "$content_body" | grep -Eq 'install_or_upgrade_formula|install_private_skill_pack|curl|npm install' \
     && fail "converge_repo_content installs or downloads something; it must only converge repository content"
 printf '%s' "$content_body" | grep -q 'sync-skills' \
     || fail "converge_repo_content does not run the skill sync"
@@ -356,7 +358,7 @@ printf ' <%s>' "$@"
 printf '\n'
 EOF
 chmod +x "$shim_bin/agentlaunch"
-for shim_harness in claude codex pi; do
+for shim_harness in claude codex; do
     cat >"$shim_real_bin/$shim_harness" <<'EOF'
 #!/bin/bash
 printf 'real %s' "$(basename "$0")"
@@ -368,7 +370,7 @@ done
 HOME="$shim_home" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$root/scripts/install-agentlaunch-shims" >/dev/null
-for shim_harness in claude codex pi; do
+for shim_harness in claude codex; do
     shim="$shim_home/.local/share/agentlaunch/shims/$shim_harness"
     [ -x "$shim" ] || fail "AgentLaunch shim is missing or not executable: $shim"
     grep -F "AgentStart-managed AgentLaunch shim" "$shim" >/dev/null \
@@ -444,7 +446,6 @@ cleanup_code_root="$skip_test_dir/cleanup-code"
 mkdir -p \
     "$cleanup_home/.local/bin" \
     "$cleanup_home/.local/share/agentsurface/shims" \
-    "$cleanup_home/.pi/agent/extensions" \
     "$cleanup_home/.omp/agent/extensions" \
     "$cleanup_home/.claude/skills" \
     "$cleanup_home/.claude" \
@@ -461,26 +462,19 @@ mkdir -p \
     "$cleanup_home/.kimi-code" \
     "$cleanup_home/.hermes/plugins/orca-status" \
     "$cleanup_code_root/agentbus/src" \
-    "$cleanup_code_root/agentbus/extensions/pi" \
     "$cleanup_code_root/agentbus/plugins/claude" \
     "$cleanup_code_root/agentsurface/src"
 touch \
     "$cleanup_code_root/agentbus/src/main.ts" \
-    "$cleanup_code_root/agentbus/extensions/pi/agentbus.ts" \
     "$cleanup_code_root/agentbus/plugins/claude/.keep" \
     "$cleanup_code_root/agentsurface/src/main.ts"
 ln -s "$cleanup_code_root/agentbus/src/main.ts" "$cleanup_home/.local/bin/agentbus"
 ln -s "$cleanup_code_root/agentsurface/src/main.ts" "$cleanup_home/.local/bin/agentsurface"
-ln -s "$cleanup_code_root/agentbus/extensions/pi/agentbus.ts" "$cleanup_home/.pi/agent/extensions/agentbus.ts"
 ln -s "$cleanup_code_root/agentbus/plugins/claude" "$cleanup_home/.claude/skills/agentbus"
 printf '# AgentStart-managed agentsurface shim: old\n' \
     >"$cleanup_home/.local/share/agentsurface/shims/claude"
 printf '# independent shim\n' \
     >"$cleanup_home/.local/share/agentsurface/shims/codex"
-printf '// @orca-managed-pi-extension\n' \
-    >"$cleanup_home/.pi/agent/extensions/orca-agent-status.ts"
-printf '// independent extension\n' \
-    >"$cleanup_home/.pi/agent/extensions/orca-prefill.ts"
 printf '// @orca-managed-pi-extension\n' \
     >"$cleanup_home/.omp/agent/extensions/orca-agent-status.ts"
 printf '// independent extension\n' \
@@ -628,18 +622,12 @@ HOME="$cleanup_home" AGENTSTART_CODE_ROOT="$cleanup_code_root" \
     || fail "retired AgentBus CLI symlink was not removed"
 [ -L "$cleanup_home/.local/bin/agentsurface" ] \
     || fail "live AgentSurface CLI symlink was removed by retired cleanup"
-[ ! -e "$cleanup_home/.pi/agent/extensions/agentbus.ts" ] \
-    || fail "retired AgentBus Pi extension was not removed"
 [ ! -e "$cleanup_home/.claude/skills/agentbus" ] \
     || fail "retired AgentBus Claude plugin was not removed"
 [ ! -e "$cleanup_home/.local/share/agentsurface/shims/claude" ] \
     || fail "retired AgentSurface shim was not removed"
 [ -e "$cleanup_home/.local/share/agentsurface/shims/codex" ] \
     || fail "independent shim at old AgentSurface path was removed"
-[ ! -e "$cleanup_home/.pi/agent/extensions/orca-agent-status.ts" ] \
-    || fail "retired Orca Pi extension was not removed"
-[ -e "$cleanup_home/.pi/agent/extensions/orca-prefill.ts" ] \
-    || fail "independent Pi extension was removed"
 [ ! -e "$cleanup_home/.omp/agent/extensions/orca-agent-status.ts" ] \
     || fail "retired Orca OMP extension was not removed"
 [ -e "$cleanup_home/.omp/agent/extensions/orca-prefill.ts" ] \
@@ -739,6 +727,1614 @@ printf '%s\n' "$bad_cleanup_output" \
 grep -F 'network_access = false' "$bad_cleanup_home/.codex/config.toml" >/dev/null \
     || fail "retired cleanup changed a refused sandbox block"
 
+# Pi retirement refuses to delete producer state until the corresponding
+# deployed commands prove their new Pi-free contracts. One shared set of clean
+# Git checkouts backs the hermetic command links used by the fixtures below.
+retired_pi_contract_code_root="$skip_test_dir/retired-pi-contract-code"
+mkdir -p \
+    "$retired_pi_contract_code_root/agentlaunch/src" \
+    "$retired_pi_contract_code_root/agentsurface/src" \
+    "$retired_pi_contract_code_root/agentchats/bin" \
+    "$retired_pi_contract_code_root/agentchats/scripts" \
+    "$retired_pi_contract_code_root/codex-swap/src/cli"
+retired_pi_contract_code_root=$(cd -P -- "$retired_pi_contract_code_root" && pwd)
+retired_pi_lock_assert="$retired_pi_contract_code_root/assert-no-retirement-lock-fd"
+cat >"$retired_pi_lock_assert" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+/usr/bin/perl -Mstrict -Mwarnings -e '
+    my $path = "$ENV{HOME}/.local/state/agentstart/retirement.lock";
+    my @lock = stat($path);
+    @lock or die "retirement lock is missing during deployment proof\n";
+    for my $fd (3 .. 255) {
+        open(my $handle, "<&=$fd") or next;
+        my @opened = stat($handle);
+        die "deployment proof inherited retirement lock fd $fd\n"
+            if @opened && $opened[0] == $lock[0] && $opened[1] == $lock[1];
+        close $handle or die "close inspected deployment fd $fd: $!\n";
+    }
+'
+EOF
+chmod +x "$retired_pi_lock_assert"
+export AGENTSTART_TEST_PI_LOCK_ASSERT="$retired_pi_lock_assert"
+cat >"$retired_pi_contract_code_root/agentlaunch/src/main.ts" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+"$AGENTSTART_TEST_PI_LOCK_ASSERT"
+case "$*" in
+    'x-catalog --x-json')
+        printf '%s\n' '{"ok":true,"data":{"harnesses":[{"harness":"claude"},{"harness":"codex"}]}}'
+        ;;
+    '--x-harness pi --x-dry-run')
+        printf '%s\n' '"pi" is not a harness (expected claude or codex)' >&2
+        exit 2
+        ;;
+    *) exit 64 ;;
+esac
+EOF
+cat >"$retired_pi_contract_code_root/agentsurface/src/main.ts" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+"$AGENTSTART_TEST_PI_LOCK_ASSERT"
+[ "${1:-} ${2:-}" = 'guide --json' ] || exit 64
+printf '%s\n' '{"ok":true,"data":{"contract":"fixture"}}'
+EOF
+cat >"$retired_pi_contract_code_root/agentchats/bin/agentchats" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+"$AGENTSTART_TEST_PI_LOCK_ASSERT"
+exit 0
+EOF
+cat >"$retired_pi_contract_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs" <<'EOF'
+#!/usr/bin/env node
+import { fstatSync, statSync } from "node:fs";
+const lock = statSync(`${process.env.HOME}/.local/state/agentstart/retirement.lock`);
+for (let fd = 3; fd <= 255; fd += 1) {
+  try {
+    const opened = fstatSync(fd);
+    if (opened.dev === lock.dev && opened.ino === lock.ino) {
+      throw new Error(`deployment proof inherited retirement lock fd ${fd}`);
+    }
+  } catch (error) {
+    if (error?.code !== "EBADF") throw error;
+  }
+}
+if (process.argv[2] === "--dry-run") {
+  console.log(JSON.stringify({pending_transaction: false, manifest_count: 0, blob_count: 0}));
+} else if (process.argv[2] === "--pending-status") {
+  console.log(JSON.stringify({pending: false}));
+} else {
+  process.exitCode = 64;
+}
+EOF
+printf '%s\n' 'export const retirementFixture = true;' \
+    >"$retired_pi_contract_code_root/codex-swap/src/cli/main.ts"
+chmod +x \
+    "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
+    "$retired_pi_contract_code_root/agentsurface/src/main.ts" \
+    "$retired_pi_contract_code_root/agentchats/bin/agentchats" \
+    "$retired_pi_contract_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs"
+for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; do
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" init -q -b main
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        config user.email fixture@example.invalid
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        config user.name Fixture
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        remote add origin "git@github.com:possibilities/$retired_pi_contract_repo.git"
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" add .
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        commit -q -m 'Pi-free deployment fixture'
+    retired_pi_contract_sha=$(git -C \
+        "$retired_pi_contract_code_root/$retired_pi_contract_repo" rev-parse HEAD)
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        update-ref refs/remotes/origin/main "$retired_pi_contract_sha"
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        config branch.main.remote origin
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        config branch.main.merge refs/heads/main
+done
+retired_pi_contract_agentlaunch_retirement_sha=$(git -C \
+    "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD)
+export AGENTSTART_TEST_PI_CODE_ROOT="$retired_pi_contract_code_root"
+export AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA="$retired_pi_contract_agentlaunch_retirement_sha"
+retired_pi_contract_agentsurface_retirement_sha=$(git -C \
+    "$retired_pi_contract_code_root/agentsurface" rev-parse HEAD)
+export AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA="$retired_pi_contract_agentsurface_retirement_sha"
+retired_pi_contract_codex_swap_sha=$(git -C \
+    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
+export AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA="$retired_pi_contract_codex_swap_sha"
+retired_pi_contract_agentchats_retirement_sha=$(git -C \
+    "$retired_pi_contract_code_root/agentchats" rev-parse HEAD)
+export AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA="$retired_pi_contract_agentchats_retirement_sha"
+for retired_pi_contract_repo in agentlaunch agentsurface; do
+    printf '%s\n' 'protected local contract fixture' \
+        >"$retired_pi_contract_code_root/$retired_pi_contract_repo/protected-contract"
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        add protected-contract
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        commit -q -m 'Protected local contract fixture'
+done
+retired_pi_contract_agentlaunch_sha=$(git -C \
+    "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD)
+
+install_retired_pi_codex_swap_contract() {
+    local fixture_home="$1"
+    fixture_home=$(cd -P -- "$fixture_home" && pwd)
+    mkdir -p "$fixture_home/.local/bin" "$fixture_home/.local/state/codex-swap"
+    cat >"$fixture_home/.local/bin/codex-swap" <<EOF
+#!/usr/bin/env bash
+# codex-swap-installer-owned:v1
+exec /usr/bin/true $retired_pi_contract_code_root/codex-swap/src/cli/main.ts "\$@"
+EOF
+    chmod 755 "$fixture_home/.local/bin/codex-swap"
+    cat >"$fixture_home/.local/state/codex-swap/install-receipt" <<EOF
+codex-swap-installer-owned:v1
+root=$retired_pi_contract_code_root/codex-swap
+bin=$fixture_home/.local/bin
+EOF
+    chmod 600 "$fixture_home/.local/state/codex-swap/install-receipt"
+}
+
+install_retired_pi_agentlaunch_contract() {
+    local fixture_home="$1"
+    install_retired_pi_codex_swap_contract "$fixture_home"
+    mkdir -p "$fixture_home/.local/bin" "$fixture_home/.local/state/agentlaunch"
+    ln -s "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
+        "$fixture_home/.local/bin/agentlaunch"
+    printf '%s\n' "$retired_pi_contract_agentlaunch_sha" \
+        >"$fixture_home/.local/state/agentlaunch/deployed-sha"
+    chmod 600 "$fixture_home/.local/state/agentlaunch/deployed-sha"
+}
+
+install_retired_pi_agentsurface_contract() {
+    local fixture_home="$1"
+    mkdir -p "$fixture_home/.local/bin"
+    ln -s "$retired_pi_contract_code_root/agentsurface/src/main.ts" \
+        "$fixture_home/.local/bin/agentsurface"
+}
+
+install_retired_pi_agentchats_contract() {
+    local fixture_home="$1"
+    local cass_fixture="$fixture_home/.local/bin/cass"
+    mkdir -p "$fixture_home/.local/bin"
+    ln -s "$retired_pi_contract_code_root/agentchats/bin/agentchats" \
+        "$fixture_home/.local/bin/agentchats"
+cat >"$cass_fixture" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+"$AGENTSTART_TEST_PI_LOCK_ASSERT"
+case "$*" in
+    'sources agents list --json')
+        printf '%s\n' '{"disabled_agents":["pi_agent"]}'
+        ;;
+    'stats --json')
+        printf '%s\n' '{"by_agent":[{"agent":"claude_code","count":1}]}'
+        ;;
+    'search  --robot --agent pi_agent --limit 1')
+        printf '%s\n' '{"count":0,"hits":[]}'
+        ;;
+    *) exit 64 ;;
+esac
+EOF
+    chmod +x "$cass_fixture"
+}
+
+make_retired_pi_claim_fixture() {
+    local fixture_home="$1"
+    local target="$fixture_home/.local/share/agentstart/resources/pi"
+    mkdir -p "$target"
+    printf 'retirement-owned fixture\n' >"$target/owned"
+}
+
+make_retired_pi_process_fixture() {
+    local fixture_home="$1"
+    local ps_fixture="$fixture_home/fake-ps"
+    cat >"$ps_fixture" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "$#" -eq 2 ] && [ "$1" = -axo ] && [ "$2" = 'pid=,comm=,args=' ] || exit 64
+if [ -e "$AGENTSTART_TEST_PI_PROCESS_TRIGGER" ]; then
+    printf '%s\n' '424242 pi pi --model fixture'
+else
+    printf '%s\n' '424241 bash bash fixture'
+fi
+EOF
+    chmod +x "$ps_fixture"
+}
+
+make_retired_pi_viewer_checkout() {
+    local fixture_home="$1"
+    local checkout="$fixture_home/code/pi-viewer"
+    mkdir -p "$checkout"
+    cat >"$checkout/README.md" <<'EOF'
+# Retired
+
+This project has been retired. Its former product, launcher, dependencies,
+and source checkout are no longer maintained or distributed from this branch.
+EOF
+    printf 'fixture license\n' >"$checkout/LICENSE"
+    git -C "$checkout" init -q -b main
+    git -C "$checkout" config user.email fixture@example.invalid
+    git -C "$checkout" config user.name Fixture
+    git -C "$checkout" remote add origin git@github.com:possibilities/pi-viewer.git
+    git -C "$checkout" add LICENSE README.md
+    git -C "$checkout" commit -q -m Retired
+    git -C "$checkout" update-ref refs/remotes/origin/main \
+        "$(git -C "$checkout" rev-parse HEAD)"
+    git -C "$checkout" config branch.main.remote origin
+    git -C "$checkout" config branch.main.merge refs/heads/main
+}
+
+# Protected local contract commits may sit above a reviewed, pushed retirement
+# commit, but moving either remote-tracking main away from that exact reviewed
+# commit must block cleanup before dedicated state is touched.
+wrong_codex_swap_remote_home="$skip_test_dir/wrong-codex-swap-retirement-remote-home"
+mkdir -p "$wrong_codex_swap_remote_home/.pi"
+install_retired_pi_codex_swap_contract "$wrong_codex_swap_remote_home"
+git -C "$retired_pi_contract_code_root/codex-swap" commit -q --allow-empty \
+    -m 'Wrong pushed codex-swap fixture'
+wrong_codex_swap_sha=$(git -C "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
+git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
+    refs/remotes/origin/main "$wrong_codex_swap_sha"
+set +e
+wrong_codex_swap_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_codex_swap_remote_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+wrong_codex_swap_remote_status=$?
+set -e
+git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
+    refs/heads/main "$retired_pi_contract_codex_swap_sha"
+git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
+    refs/remotes/origin/main "$retired_pi_contract_codex_swap_sha"
+[ "$wrong_codex_swap_remote_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted the wrong pushed codex-swap commit"
+printf '%s\n' "$wrong_codex_swap_remote_output" \
+    | grep -F 'pushed codex-swap main is not the reviewed Pi scrub commit' >/dev/null \
+    || fail "retired Pi cleanup did not explain the wrong codex-swap remote refusal"
+[ -d "$wrong_codex_swap_remote_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state with the wrong codex-swap remote"
+
+wrong_agentlaunch_remote_home="$skip_test_dir/wrong-agentlaunch-retirement-remote-home"
+mkdir -p "$wrong_agentlaunch_remote_home/.pi"
+install_retired_pi_agentlaunch_contract "$wrong_agentlaunch_remote_home"
+git -C "$retired_pi_contract_code_root/agentlaunch" \
+    update-ref refs/remotes/origin/main "$retired_pi_contract_agentlaunch_sha"
+set +e
+wrong_agentlaunch_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_agentlaunch_remote_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+wrong_agentlaunch_remote_status=$?
+set -e
+git -C "$retired_pi_contract_code_root/agentlaunch" update-ref \
+    refs/remotes/origin/main "$retired_pi_contract_agentlaunch_retirement_sha"
+[ "$wrong_agentlaunch_remote_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted the wrong pushed AgentLaunch commit"
+printf '%s\n' "$wrong_agentlaunch_remote_output" \
+    | grep -F 'pushed AgentLaunch main is not the reviewed Pi retirement commit' >/dev/null \
+    || fail "retired Pi cleanup did not explain the wrong AgentLaunch remote refusal"
+[ -d "$wrong_agentlaunch_remote_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state with the wrong AgentLaunch remote"
+
+wrong_agentsurface_remote_home="$skip_test_dir/wrong-agentsurface-retirement-remote-home"
+mkdir -p "$wrong_agentsurface_remote_home/.pi"
+install_retired_pi_agentsurface_contract "$wrong_agentsurface_remote_home"
+git -C "$retired_pi_contract_code_root/agentsurface" update-ref \
+    refs/remotes/origin/main \
+    "$(git -C "$retired_pi_contract_code_root/agentsurface" rev-parse HEAD)"
+set +e
+wrong_agentsurface_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_agentsurface_remote_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+wrong_agentsurface_remote_status=$?
+set -e
+git -C "$retired_pi_contract_code_root/agentsurface" update-ref \
+    refs/remotes/origin/main "$retired_pi_contract_agentsurface_retirement_sha"
+[ "$wrong_agentsurface_remote_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted the wrong pushed AgentSurface commit"
+printf '%s\n' "$wrong_agentsurface_remote_output" \
+    | grep -F 'pushed AgentSurface main is not the reviewed Pi retirement commit' >/dev/null \
+    || fail "retired Pi cleanup did not explain the wrong AgentSurface remote refusal"
+[ -d "$wrong_agentsurface_remote_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state with the wrong AgentSurface remote"
+
+# Process absence is checked before claims, after the claim-all barrier, and in
+# the final audit. A process appearing at any one of those boundaries must
+# fail the run instead of racing executable or state deletion.
+initial_process_home="$skip_test_dir/retired-pi-initial-process-home"
+initial_process_trigger="$initial_process_home/process-present"
+mkdir -p "$initial_process_home/.pi"
+make_retired_pi_process_fixture "$initial_process_home"
+: >"$initial_process_trigger"
+set +e
+initial_process_output=$(AGENTSTART_PI_CLEANUP_HOME="$initial_process_home" \
+    AGENTSTART_TEST_PI_PS_BIN="$initial_process_home/fake-ps" \
+    AGENTSTART_TEST_PI_PROCESS_TRIGGER="$initial_process_trigger" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+initial_process_status=$?
+set -e
+[ "$initial_process_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted an initially live Pi process"
+printf '%s\n' "$initial_process_output" | grep -F 'a live retired Pi process blocks cleanup' >/dev/null \
+    || fail "retired Pi cleanup did not explain its initial process refusal"
+[ -d "$initial_process_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state while an initial process was live"
+
+post_claim_process_home="$skip_test_dir/retired-pi-post-claim-process-home"
+post_claim_process_trigger="$post_claim_process_home/process-present"
+post_claim_process_hook="$post_claim_process_home/start-process-after-claims"
+make_retired_pi_claim_fixture "$post_claim_process_home"
+make_retired_pi_process_fixture "$post_claim_process_home"
+cat >"$post_claim_process_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+: >"$AGENTSTART_TEST_PI_PROCESS_TRIGGER"
+EOF
+chmod +x "$post_claim_process_hook"
+set +e
+post_claim_process_output=$(AGENTSTART_PI_CLEANUP_HOME="$post_claim_process_home" \
+    AGENTSTART_TEST_PI_PS_BIN="$post_claim_process_home/fake-ps" \
+    AGENTSTART_TEST_PI_PROCESS_TRIGGER="$post_claim_process_trigger" \
+    AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK="$post_claim_process_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+post_claim_process_status=$?
+set -e
+[ "$post_claim_process_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a process started after claim-all"
+printf '%s\n' "$post_claim_process_output" | grep -F 'a live retired Pi process blocks cleanup' >/dev/null \
+    || fail "retired Pi cleanup did not explain its post-claim process refusal"
+[ -f "$post_claim_process_home/.local/share/agentstart/resources/pi/owned" ] \
+    || fail "retired Pi cleanup did not restore claims after a post-claim process"
+
+final_process_home="$skip_test_dir/retired-pi-final-process-home"
+final_process_trigger="$final_process_home/process-present"
+final_process_hook="$final_process_home/start-process-before-final-audit"
+make_retired_pi_claim_fixture "$final_process_home"
+make_retired_pi_process_fixture "$final_process_home"
+cat >"$final_process_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+: >"$AGENTSTART_TEST_PI_PROCESS_TRIGGER"
+EOF
+chmod +x "$final_process_hook"
+set +e
+final_process_output=$(AGENTSTART_PI_CLEANUP_HOME="$final_process_home" \
+    AGENTSTART_TEST_PI_PS_BIN="$final_process_home/fake-ps" \
+    AGENTSTART_TEST_PI_PROCESS_TRIGGER="$final_process_trigger" \
+    AGENTSTART_TEST_PI_FINAL_HOOK="$final_process_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+final_process_status=$?
+set -e
+[ "$final_process_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a process started before final audit"
+printf '%s\n' "$final_process_output" | grep -F 'a live retired Pi process blocks cleanup' >/dev/null \
+    || fail "retired Pi cleanup did not explain its final process refusal"
+
+# Unsafe NVM occupants and failed recursive enumeration are pre-mutation
+# failures. Neither may be treated as an empty or harmless result.
+nvm_symlink_home="$skip_test_dir/retired-pi-nvm-symlink-home"
+mkdir -p "$nvm_symlink_home/.nvm/versions/node" "$nvm_symlink_home/nvm-target" \
+    "$nvm_symlink_home/.pi"
+ln -s "$nvm_symlink_home/nvm-target" \
+    "$nvm_symlink_home/.nvm/versions/node/v99.0.0"
+set +e
+nvm_symlink_output=$(AGENTSTART_PI_CLEANUP_HOME="$nvm_symlink_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+nvm_symlink_status=$?
+set -e
+[ "$nvm_symlink_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a symlink NVM version occupant"
+printf '%s\n' "$nvm_symlink_output" \
+    | grep -F 'refusing unsafe NVM version-root occupant' >/dev/null \
+    || fail "retired Pi cleanup did not explain its NVM symlink refusal"
+[ -d "$nvm_symlink_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after an unsafe NVM occupant"
+
+failed_find_home="$skip_test_dir/retired-pi-failed-find-home"
+failed_find_bin="$failed_find_home/failing-find"
+mkdir -p "$failed_find_home/.pi/agent/sessions"
+cat >"$failed_find_bin" <<'EOF'
+#!/bin/bash
+exit 73
+EOF
+chmod +x "$failed_find_bin"
+set +e
+failed_find_output=$(AGENTSTART_PI_CLEANUP_HOME="$failed_find_home" \
+    AGENTSTART_TEST_PI_FIND_BIN="$failed_find_bin" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+failed_find_status=$?
+set -e
+[ "$failed_find_status" -ne 0 ] \
+    || fail "retired Pi cleanup treated failed find enumeration as empty"
+printf '%s\n' "$failed_find_output" | grep -F 'could not enumerate' >/dev/null \
+    || fail "retired Pi cleanup did not explain its find failure"
+[ -d "$failed_find_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after failed find enumeration"
+
+# Shared redaction files must have one public hard-link name. An external name
+# makes in-place redaction ambiguous and blocks dedicated-state deletion.
+hardlinked_jsonl_home="$skip_test_dir/retired-pi-hardlinked-jsonl-home"
+hardlinked_jsonl="$hardlinked_jsonl_home/.local/state/agentlaunch/submitted.jsonl"
+mkdir -p "$(dirname "$hardlinked_jsonl")" "$hardlinked_jsonl_home/.pi"
+install_retired_pi_agentlaunch_contract "$hardlinked_jsonl_home"
+printf '%s\n' '{"at":"2026-08-31T00:00:00Z","project":"hardlink","harness":"pi","model":"model","effort":"high","worktree":false,"priming":null,"focus":true}' \
+    >"$hardlinked_jsonl"
+ln "$hardlinked_jsonl" "$hardlinked_jsonl_home/second-jsonl-name"
+set +e
+hardlinked_jsonl_output=$(AGENTSTART_PI_CLEANUP_HOME="$hardlinked_jsonl_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+hardlinked_jsonl_status=$?
+set -e
+[ "$hardlinked_jsonl_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a hard-linked shared JSONL"
+printf '%s\n' "$hardlinked_jsonl_output" \
+    | grep -F 'has another hard-link name' >/dev/null \
+    || fail "retired Pi cleanup did not explain its shared JSONL hard-link refusal"
+[ -d "$hardlinked_jsonl_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after a shared JSONL hard link"
+
+hardlinked_herdr_home="$skip_test_dir/retired-pi-hardlinked-herdr-home"
+hardlinked_herdr="$hardlinked_herdr_home/.local/state/herdr/agent-detection/status.toml"
+mkdir -p "$(dirname "$hardlinked_herdr")" "$hardlinked_herdr_home/.pi"
+cat >"$hardlinked_herdr" <<'EOF'
+[agents.pi]
+cached_version = "fixture"
+last_checked_unix = 1
+last_result = "current"
+EOF
+ln "$hardlinked_herdr" "$hardlinked_herdr_home/second-herdr-name"
+set +e
+hardlinked_herdr_output=$(AGENTSTART_PI_CLEANUP_HOME="$hardlinked_herdr_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+hardlinked_herdr_status=$?
+set -e
+[ "$hardlinked_herdr_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a hard-linked shared Herdr file"
+printf '%s\n' "$hardlinked_herdr_output" \
+    | grep -F 'has another hard-link name' >/dev/null \
+    || fail "retired Pi cleanup did not explain its Herdr hard-link refusal"
+[ -d "$hardlinked_herdr_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after a Herdr hard link"
+
+# Reopening the public name after every in-place write must traverse the
+# currently named parents, not a descriptor chain captured before a parent
+# replacement. Neither the old inode nor the foreign replacement may be
+# edited when a producer directory is swapped during redaction.
+parent_swapped_jsonl_home="$skip_test_dir/retired-pi-parent-swapped-jsonl-home"
+parent_swapped_jsonl="$parent_swapped_jsonl_home/.local/state/agentlaunch/submitted.jsonl"
+parent_swapped_jsonl_hook="$parent_swapped_jsonl_home/swap-jsonl-parent"
+mkdir -p "$(dirname "$parent_swapped_jsonl")" "$parent_swapped_jsonl_home/.pi"
+install_retired_pi_agentlaunch_contract "$parent_swapped_jsonl_home"
+cat >"$parent_swapped_jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","project":"original","harness":"pi","model":"model","effort":"high","worktree":false,"priming":null,"focus":true}
+EOF
+cat >"$parent_swapped_jsonl_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+path=$1
+parent=${path%/*}
+[ ! -e "$parent.original" ] || exit 0
+mv -- "$parent" "$parent.original"
+mkdir -- "$parent"
+cat >"$path" <<'JSON'
+{"at":"2026-08-31T00:00:01Z","project":"replacement","harness":"codex","model":"gpt","effort":"high","worktree":false,"priming":null,"focus":false}
+JSON
+EOF
+chmod +x "$parent_swapped_jsonl_hook"
+set +e
+parent_swapped_jsonl_output=$(AGENTSTART_PI_CLEANUP_HOME="$parent_swapped_jsonl_home" \
+    AGENTSTART_TEST_PI_JSONL_REDACT_HOOK="$parent_swapped_jsonl_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+parent_swapped_jsonl_status=$?
+set -e
+[ "$parent_swapped_jsonl_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a JSONL parent replacement"
+printf '%s\n' "$parent_swapped_jsonl_output" \
+    | grep -F 'changed path identity' >/dev/null \
+    || fail "retired Pi cleanup did not explain its JSONL parent refusal"
+grep -F '"project":"replacement"' "$parent_swapped_jsonl" >/dev/null \
+    && grep -F '"project":"original"' \
+        "${parent_swapped_jsonl%/*}.original/submitted.jsonl" >/dev/null \
+    && [ -d "$parent_swapped_jsonl_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state during a JSONL parent replacement"
+
+parent_swapped_herdr_home="$skip_test_dir/retired-pi-parent-swapped-herdr-home"
+parent_swapped_herdr="$parent_swapped_herdr_home/.local/state/herdr/agent-detection/status.toml"
+parent_swapped_herdr_hook="$parent_swapped_herdr_home/swap-herdr-parent"
+mkdir -p "$(dirname "$parent_swapped_herdr")" "$parent_swapped_herdr_home/.pi"
+cat >"$parent_swapped_herdr" <<'EOF'
+[agents.pi]
+cached_version = "original"
+last_checked_unix = 1
+last_result = "current"
+EOF
+cat >"$parent_swapped_herdr_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+path=$1
+parent=${path%/*}
+[ ! -e "$parent.original" ] || exit 0
+mv -- "$parent" "$parent.original"
+mkdir -- "$parent"
+cat >"$path" <<'TOML'
+[agents.codex]
+cached_version = "replacement"
+last_checked_unix = 2
+last_result = "current"
+TOML
+EOF
+chmod +x "$parent_swapped_herdr_hook"
+set +e
+parent_swapped_herdr_output=$(AGENTSTART_PI_CLEANUP_HOME="$parent_swapped_herdr_home" \
+    AGENTSTART_TEST_PI_HERDR_REDACT_HOOK="$parent_swapped_herdr_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+parent_swapped_herdr_status=$?
+set -e
+[ "$parent_swapped_herdr_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a Herdr parent replacement"
+printf '%s\n' "$parent_swapped_herdr_output" \
+    | grep -F 'changed while its descriptor was active' >/dev/null \
+    || fail "retired Pi cleanup did not explain its Herdr parent refusal"
+grep -F 'cached_version = "replacement"' "$parent_swapped_herdr" >/dev/null \
+    && grep -F 'cached_version = "original"' \
+        "${parent_swapped_herdr%/*}.original/status.toml" >/dev/null \
+    && [ -d "$parent_swapped_herdr_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state during a Herdr parent replacement"
+
+# npm cache enumeration is an authorization input. Failures, overlong keys,
+# and even trailing blank lines beyond the count bound fail before claims.
+# A key that another writer removes after enumeration is accepted only after
+# a fresh successful enumeration proves that exact key absent.
+failed_npm_home="$skip_test_dir/retired-pi-failed-npm-home"
+failed_npm_bin="$failed_npm_home/failing-npm"
+mkdir -p "$failed_npm_home/.npm/_cacache" "$failed_npm_home/.pi"
+cat >"$failed_npm_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "${1:-} ${2:-}" = 'cache ls' ] || exit 64
+exit 73
+EOF
+chmod +x "$failed_npm_bin"
+set +e
+failed_npm_output=$(AGENTSTART_PI_CLEANUP_HOME="$failed_npm_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$failed_npm_bin" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+failed_npm_status=$?
+set -e
+[ "$failed_npm_status" -ne 0 ] \
+    || fail "retired Pi cleanup treated failed npm enumeration as empty"
+printf '%s\n' "$failed_npm_output" \
+    | grep -F 'npm cache enumeration failed' >/dev/null \
+    || fail "retired Pi cleanup did not explain its npm enumeration failure"
+[ -d "$failed_npm_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after failed npm enumeration"
+
+overlong_npm_home="$skip_test_dir/retired-pi-overlong-npm-home"
+overlong_npm_bin="$overlong_npm_home/fake-npm"
+overlong_npm_keys="$overlong_npm_home/npm-cache-keys"
+mkdir -p "$overlong_npm_home/.npm/_cacache" "$overlong_npm_home/.pi"
+printf '%04097d\n' 0 >"$overlong_npm_keys"
+cat >"$overlong_npm_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "${1:-} ${2:-}" = 'cache ls' ] || exit 64
+cat "$AGENTSTART_PI_CLEANUP_NPM_KEYS"
+EOF
+chmod +x "$overlong_npm_bin"
+set +e
+overlong_npm_output=$(AGENTSTART_PI_CLEANUP_HOME="$overlong_npm_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$overlong_npm_bin" \
+    AGENTSTART_PI_CLEANUP_NPM_KEYS="$overlong_npm_keys" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+overlong_npm_status=$?
+set -e
+[ "$overlong_npm_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted an overlong npm cache key"
+printf '%s\n' "$overlong_npm_output" | grep -F 'overlong key' >/dev/null \
+    || fail "retired Pi cleanup did not explain its overlong npm key refusal"
+[ -d "$overlong_npm_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after an overlong npm key"
+
+blank_npm_home="$skip_test_dir/retired-pi-blank-count-npm-home"
+blank_npm_bin="$blank_npm_home/fake-npm"
+blank_npm_keys="$blank_npm_home/npm-cache-keys"
+mkdir -p "$blank_npm_home/.npm/_cacache" "$blank_npm_home/.pi"
+/usr/bin/awk 'BEGIN { for (i = 0; i < 65537; i += 1) print "" }' \
+    >"$blank_npm_keys"
+cat >"$blank_npm_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "${1:-} ${2:-}" = 'cache ls' ] || exit 64
+cat "$AGENTSTART_PI_CLEANUP_NPM_KEYS"
+EOF
+chmod +x "$blank_npm_bin"
+set +e
+blank_npm_output=$(AGENTSTART_PI_CLEANUP_HOME="$blank_npm_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$blank_npm_bin" \
+    AGENTSTART_PI_CLEANUP_NPM_KEYS="$blank_npm_keys" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+blank_npm_status=$?
+set -e
+[ "$blank_npm_status" -ne 0 ] \
+    || fail "retired Pi cleanup dropped trailing blank npm cache lines"
+printf '%s\n' "$blank_npm_output" | grep -F 'line-count bound' >/dev/null \
+    || fail "retired Pi cleanup did not explain its npm line-count refusal"
+[ -d "$blank_npm_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after excess blank npm lines"
+
+vanished_npm_home="$skip_test_dir/retired-pi-vanished-npm-key-home"
+vanished_npm_bin="$vanished_npm_home/fake-npm"
+vanished_npm_keys="$vanished_npm_home/npm-cache-keys"
+mkdir -p "$vanished_npm_home/.npm/_cacache" "$vanished_npm_home/.pi"
+printf '%s\n' \
+    'make-fetch-happen:request-cache:https://registry.npmjs.org/pi-mcp-adapter/-/pi-mcp-adapter-2.23.0.tgz' \
+    >"$vanished_npm_keys"
+cat >"$vanished_npm_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+case "${1:-} ${2:-}" in
+    'cache ls') cat "$AGENTSTART_PI_CLEANUP_NPM_KEYS" ;;
+    'cache clean')
+        : >"$AGENTSTART_PI_CLEANUP_NPM_KEYS"
+        exit 75
+        ;;
+    *) exit 64 ;;
+esac
+EOF
+chmod +x "$vanished_npm_bin"
+AGENTSTART_PI_CLEANUP_HOME="$vanished_npm_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$vanished_npm_bin" \
+    AGENTSTART_PI_CLEANUP_NPM_KEYS="$vanished_npm_keys" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+[ ! -e "$vanished_npm_home/.pi" ] \
+    && [ ! -L "$vanished_npm_home/.pi" ] \
+    && [ ! -s "$vanished_npm_keys" ] \
+    || fail "retired Pi cleanup did not re-prove a concurrently vanished npm key"
+
+for swapped_npm_kind in root cache; do
+    swapped_npm_home="$skip_test_dir/retired-pi-swapped-npm-$swapped_npm_kind-home"
+    swapped_npm_bin="$swapped_npm_home/swap-npm"
+    mkdir -p "$swapped_npm_home/.npm/_cacache" "$swapped_npm_home/.pi"
+    cat >"$swapped_npm_bin" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "${1:-} ${2:-}" = 'cache ls' ] || exit 64
+case "$AGENTSTART_TEST_PI_NPM_SWAP_KIND" in
+    root)
+        mv -- "$HOME/.npm" "$HOME/.npm.original"
+        mkdir -p "$HOME/.npm/_cacache"
+        : >"$HOME/.npm/replacement"
+        ;;
+    cache)
+        mv -- "$HOME/.npm/_cacache" "$HOME/.npm/_cacache.original"
+        mkdir -- "$HOME/.npm/_cacache"
+        : >"$HOME/.npm/_cacache/replacement"
+        ;;
+    *) exit 64 ;;
+esac
+printf '%s\n' 'make-fetch-happen:request-cache:https://registry.npmjs.org/pi-subagents'
+EOF
+    chmod +x "$swapped_npm_bin"
+    set +e
+    swapped_npm_output=$(AGENTSTART_PI_CLEANUP_HOME="$swapped_npm_home" \
+        AGENTSTART_PI_CLEANUP_NPM_BIN="$swapped_npm_bin" \
+        AGENTSTART_TEST_PI_NPM_SWAP_KIND="$swapped_npm_kind" \
+        "$root/scripts/remove-retired-pi" --install 2>&1)
+    swapped_npm_status=$?
+    set -e
+    [ "$swapped_npm_status" -ne 0 ] \
+        || fail "retired Pi cleanup accepted a swapped npm $swapped_npm_kind"
+    printf '%s\n' "$swapped_npm_output" \
+        | grep -F 'changed during retired cache cleanup' >/dev/null \
+        || fail "retired Pi cleanup did not explain its npm $swapped_npm_kind swap refusal"
+    [ -d "$swapped_npm_home/.pi" ] \
+        || fail "retired Pi cleanup mutated state after an npm $swapped_npm_kind swap"
+done
+
+# The retired Pi cleanup proves every shared-state shape before mutation. It
+# removes typed harness rows rather than prompt-text matches, deletes only
+# AgentSurface slugs keyed by native Pi transcripts, and proves the managed
+# npm/Bun/plugin/cache identities before recursive cleanup.
+retired_pi_home="$skip_test_dir/retired-pi-home"
+retired_pi_node="$retired_pi_home/.nvm/versions/node/v99.0.0"
+retired_pi_package="$retired_pi_node/lib/node_modules/@earendil-works/pi-coding-agent"
+retired_pi_transcript="$retired_pi_home/.pi/agent/sessions/project/2026-08-31T00-00-00-000Z_fixture-pi-session.jsonl"
+retired_pi_slug_key=$(basename "$retired_pi_transcript" .jsonl)
+retired_pi_npm="$retired_pi_home/fake-npm"
+retired_pi_npm_log="$retired_pi_home/npm-clean.log"
+retired_pi_npm_keys="$retired_pi_home/npm-cache-keys"
+retired_pi_append_hook="$retired_pi_home/append-during-redaction"
+retired_pi_herdr_hook="$retired_pi_home/append-during-herdr-redaction"
+mkdir -p \
+    "$retired_pi_package/dist/bundle" \
+    "$retired_pi_node/bin" \
+    "$(dirname "$retired_pi_transcript")" \
+    "$retired_pi_home/code/pi-viewer" \
+    "$retired_pi_home/.bun/bin" \
+    "$retired_pi_home/.bun/install/global/node_modules" \
+    "$retired_pi_home/.local/share/agentstart/pi-subagents/pi-subagents" \
+    "$retired_pi_home/.local/share/agentstart/resources/pi/extensions" \
+    "$retired_pi_home/.local/share/agentlaunch/shims" \
+    "$retired_pi_home/.local/share/agentsurface/shims" \
+    "$retired_pi_home/.local/state/agentlaunch" \
+    "$retired_pi_home/.local/state/agentsurface/slugs" \
+    "$retired_pi_home/.local/state/agentstart" \
+    "$retired_pi_home/.local/state/herdr/agent-detection/remote" \
+    "$retired_pi_home/.npm/_cacache" \
+    "$retired_pi_home/.codex/plugins/cache/agentstart-managed/agent/1.0.0/.codex-plugin" \
+    "$retired_pi_home/.claude/plugins/cache/agentstart-managed/agentstart-core/1.0.0/.claude-plugin"
+install_retired_pi_agentlaunch_contract "$retired_pi_home"
+install_retired_pi_agentsurface_contract "$retired_pi_home"
+install_retired_pi_agentchats_contract "$retired_pi_home"
+printf 'legacy Pi retirement lock\n' \
+    >"$retired_pi_home/.local/state/agentstart/retire-pi.lock"
+cat >"$retired_pi_npm" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+case "${1:-} ${2:-}" in
+    'cache ls')
+        cat "$AGENTSTART_PI_CLEANUP_NPM_KEYS"
+        ;;
+    'cache clean')
+        [ "$#" -eq 5 ] && [ "$3" = --force ] && [ "$4" = -- ] || exit 65
+        key=$5
+        printf '%s\n' "$key" >>"$AGENTSTART_PI_CLEANUP_NPM_LOG"
+        /usr/bin/grep -Fvx -- "$key" "$AGENTSTART_PI_CLEANUP_NPM_KEYS" \
+            >"$AGENTSTART_PI_CLEANUP_NPM_KEYS.next" || true
+        mv -f -- "$AGENTSTART_PI_CLEANUP_NPM_KEYS.next" \
+            "$AGENTSTART_PI_CLEANUP_NPM_KEYS"
+        ;;
+    *)
+        exit 64
+        ;;
+esac
+EOF
+chmod +x "$retired_pi_npm"
+cat >"$retired_pi_npm_keys" <<'EOF'
+make-fetch-happen:request-cache:https://registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.3.tgz
+make-fetch-happen:request-cache:https://registry.npmjs.org/@earendil-works%2fpi-coding-agent/-/pi-coding-agent-0.1.0.tgz
+make-fetch-happen:request-cache:https://registry.npmjs.org/pi-mcp-adapter/-/pi-mcp-adapter-2.23.0.tgz
+make-fetch-happen:request-cache:https://registry.npmjs.org/react/-/react-19.0.0.tgz
+EOF
+cat >"$retired_pi_append_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+path=$1
+schema=$2
+marker="$path.concurrent-append-complete"
+[ ! -e "$marker" ] || exit 0
+case "$schema" in
+    agentlaunch)
+        printf '%s\n' '{"at":"2026-08-31T00:00:02Z","project":"concurrent","harness":"codex","model":"gpt","effort":"high","worktree":false,"priming":null,"focus":false}' >>"$path"
+        ;;
+    agentsurface-launches)
+        printf '%s\n' '{"at":"2026-08-31T00:00:02Z","project":"concurrent","harness":"claude","worktree":false,"branch":null,"workspace":"concurrent","agent":"concurrent","named":false}' >>"$path"
+        ;;
+    agentsurface-submitted)
+        printf '%s\n' '{"at":"2026-08-31T00:00:02Z","plan":{"harness":"claude","prompt":"concurrent unrelated append"}}' >>"$path"
+        ;;
+    *)
+        exit 64
+        ;;
+esac
+: >"$marker"
+EOF
+chmod +x "$retired_pi_append_hook"
+cat >"$retired_pi_herdr_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+path=$1
+marker="$path.concurrent-append-complete"
+[ ! -e "$marker" ] || exit 0
+cat >>"$path" <<'TOML'
+
+[agents.cursor]
+cached_version = "concurrent"
+last_checked_unix = 4
+last_result = "current"
+TOML
+: >"$marker"
+EOF
+chmod +x "$retired_pi_herdr_hook"
+cat >"$retired_pi_package/package.json" <<'EOF'
+{"name":"@earendil-works/pi-coding-agent","bin":{"pi":"dist/bundle/cli.js"}}
+EOF
+printf '#!/bin/sh\n' >"$retired_pi_package/dist/bundle/cli.js"
+ln -s '../lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js' \
+    "$retired_pi_node/bin/pi"
+cat >"$retired_pi_home/code/pi-viewer/README.md" <<'EOF'
+# Retired
+
+This project has been retired. Its former product, launcher, dependencies,
+and source checkout are no longer maintained or distributed from this branch.
+EOF
+printf 'fixture license\n' >"$retired_pi_home/code/pi-viewer/LICENSE"
+git -C "$retired_pi_home/code/pi-viewer" init -q -b main
+git -C "$retired_pi_home/code/pi-viewer" config user.email fixture@example.invalid
+git -C "$retired_pi_home/code/pi-viewer" config user.name Fixture
+git -C "$retired_pi_home/code/pi-viewer" remote add origin \
+    git@github.com:possibilities/pi-viewer.git
+git -C "$retired_pi_home/code/pi-viewer" add LICENSE README.md
+git -C "$retired_pi_home/code/pi-viewer" commit -q -m Retired
+git -C "$retired_pi_home/code/pi-viewer" update-ref refs/remotes/origin/main \
+    "$(git -C "$retired_pi_home/code/pi-viewer" rev-parse HEAD)"
+git -C "$retired_pi_home/code/pi-viewer" config branch.main.remote origin
+git -C "$retired_pi_home/code/pi-viewer" config branch.main.merge refs/heads/main
+ln -s "$retired_pi_home/code/pi-viewer" \
+    "$retired_pi_home/.bun/install/global/node_modules/pi-viewer"
+ln -s '../install/global/node_modules/pi-viewer/bin/pi-viewer.ts' \
+    "$retired_pi_home/.bun/bin/pi-viewer"
+printf '#!/bin/sh\n# AgentStart-managed AgentLaunch shim: retired fixture\n' \
+    >"$retired_pi_home/.local/share/agentlaunch/shims/pi"
+printf '# AgentStart-managed agentsurface shim: retired fixture\n' \
+    >"$retired_pi_home/.local/share/agentsurface/shims/pi"
+cat >"$retired_pi_home/.codex/plugins/cache/agentstart-managed/agent/1.0.0/.codex-plugin/plugin.json" <<'EOF'
+{"name":"agent","version":"1.0.0"}
+EOF
+cat >"$retired_pi_home/.claude/plugins/cache/agentstart-managed/agentstart-core/1.0.0/.claude-plugin/plugin.json" <<'EOF'
+{"name":"agentstart-core","version":"1.0.0"}
+EOF
+cat >"$retired_pi_home/.local/state/agentlaunch/submitted.jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","project":"keep","harness":"codex","model":"gpt","effort":"high","worktree":true,"priming":null,"focus":true}
+{"at":"2026-08-31T00:00:01Z","project":"remove","harness":"pi","model":"model","effort":"high","worktree":false,"priming":null,"focus":true}
+EOF
+cat >"$retired_pi_home/.local/state/agentlaunch/form-draft.json" <<'EOF'
+{"prompt":"fixture","project":"fixture","worktree":false,"harness":"pi","model":"model","effort":"high","priming":"none"}
+EOF
+cat >"$retired_pi_home/.local/state/agentsurface/launches.jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","project":"keep","harness":"claude","worktree":false,"branch":null,"workspace":"keep","agent":"keep","named":true}
+{"at":"2026-08-31T00:00:01Z","project":"remove","harness":"pi","worktree":false,"branch":null,"workspace":"remove","agent":"remove"}
+EOF
+cat >"$retired_pi_home/.local/state/agentsurface/submitted.jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","plan":{"harness":"codex","prompt":"Pi may appear in unrelated prompt text"}}
+{"at":"2026-08-31T00:00:01Z","plan":{"harness":"pi","prompt":"remove"}}
+EOF
+printf '{"type":"session","id":"fixture-pi-session"}\n' >"$retired_pi_transcript"
+printf 'retired-pi-slug\n' \
+    >"$retired_pi_home/.local/state/agentsurface/slugs/$retired_pi_slug_key"
+printf 'keep-unrelated-slug\n' \
+    >"$retired_pi_home/.local/state/agentsurface/slugs/unrelated-session"
+printf 'fixture\n' >"$retired_pi_home/.local/state/herdr/agent-detection/remote/pi.toml"
+cat >"$retired_pi_home/.local/state/herdr/agent-detection/status.toml" <<'EOF'
+[agents.claude]
+cached_version = "1"
+last_checked_unix = 1
+last_result = "current"
+
+[agents.pi]
+cached_version = "2"
+last_checked_unix = 2
+last_result = "current"
+
+[agents.codex]
+cached_version = "3"
+last_checked_unix = 3
+last_result = "current"
+EOF
+retired_pi_agentlaunch_inode=$(stat -f '%i' \
+    "$retired_pi_home/.local/state/agentlaunch/submitted.jsonl")
+retired_pi_launches_inode=$(stat -f '%i' \
+    "$retired_pi_home/.local/state/agentsurface/launches.jsonl")
+retired_pi_submitted_inode=$(stat -f '%i' \
+    "$retired_pi_home/.local/state/agentsurface/submitted.jsonl")
+retired_pi_herdr_inode=$(stat -f '%i' \
+    "$retired_pi_home/.local/state/herdr/agent-detection/status.toml")
+retired_pi_plan=$(AGENTSTART_PI_CLEANUP_HOME="$retired_pi_home" \
+    "$root/scripts/remove-retired-pi" --check)
+for retired_pi_plan_claim in 'pi-viewer checkout' 'typed Pi rows' 'plugin caches' 'registry cache keys'; do
+    printf '%s\n' "$retired_pi_plan" | grep -F "$retired_pi_plan_claim" >/dev/null \
+        || fail "retired Pi cleanup plan omits: $retired_pi_plan_claim"
+done
+AGENTSTART_PI_CLEANUP_HOME="$retired_pi_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$retired_pi_npm" \
+    AGENTSTART_PI_CLEANUP_NPM_LOG="$retired_pi_npm_log" \
+    AGENTSTART_PI_CLEANUP_NPM_KEYS="$retired_pi_npm_keys" \
+    AGENTSTART_TEST_PI_JSONL_REDACT_HOOK="$retired_pi_append_hook" \
+    AGENTSTART_TEST_PI_HERDR_REDACT_HOOK="$retired_pi_herdr_hook" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+grep -F 'registry.npmjs.org/@earendil-works/pi-telemetry/-/pi-telemetry-1.2.3.tgz' \
+    "$retired_pi_npm_log" >/dev/null \
+    || fail "retired Pi cleanup omitted an @earendil-works/pi-* tarball cache key"
+grep -F 'registry.npmjs.org/@earendil-works%2fpi-coding-agent/-/pi-coding-agent-0.1.0.tgz' \
+    "$retired_pi_npm_log" >/dev/null \
+    || fail "retired Pi cleanup omitted an encoded @earendil-works/pi-* cache key"
+grep -F 'registry.npmjs.org/pi-mcp-adapter/-/pi-mcp-adapter-2.23.0.tgz' \
+    "$retired_pi_npm_log" >/dev/null \
+    || fail "retired Pi cleanup omitted a pi-mcp-adapter cache key"
+[ "$(wc -l <"$retired_pi_npm_log" | tr -d '[:space:]')" -eq 3 ] \
+    || fail "retired Pi cleanup did not clean exactly one npm cache key per call"
+if grep -F 'registry.npmjs.org/react/' "$retired_pi_npm_log" >/dev/null; then
+    fail "retired Pi cleanup selected an unrelated npm cache key"
+fi
+for retired_pi_target in \
+    "$retired_pi_node/bin/pi" \
+    "$retired_pi_package" \
+    "$retired_pi_home/.bun/bin/pi-viewer" \
+    "$retired_pi_home/.bun/install/global/node_modules/pi-viewer" \
+    "$retired_pi_home/code/pi-viewer" \
+    "$retired_pi_home/.pi" \
+    "$retired_pi_home/.local/share/agentstart/pi-subagents" \
+    "$retired_pi_home/.local/share/agentstart/resources/pi" \
+    "$retired_pi_home/.local/share/agentlaunch/shims/pi" \
+    "$retired_pi_home/.local/share/agentsurface/shims/pi" \
+    "$retired_pi_home/.claude/plugins/cache/agentstart-managed" \
+    "$retired_pi_home/.local/state/agentlaunch/form-draft.json" \
+    "$retired_pi_home/.local/state/agentsurface/slugs/$retired_pi_slug_key" \
+    "$retired_pi_home/.local/state/agentstart/retire-pi.lock" \
+    "$retired_pi_home/.local/state/herdr/agent-detection/remote/pi.toml"; do
+    [ ! -e "$retired_pi_target" ] && [ ! -L "$retired_pi_target" ] \
+        || fail "retired Pi cleanup left an exact managed target: $retired_pi_target"
+done
+[ -f "$retired_pi_home/.codex/plugins/cache/agentstart-managed/agent/1.0.0/.codex-plugin/plugin.json" ] \
+    || fail "retired Pi cleanup removed the refreshed Pi-free Codex plugin cache"
+for retired_pi_log in \
+    "$retired_pi_home/.local/state/agentlaunch/submitted.jsonl" \
+    "$retired_pi_home/.local/state/agentsurface/launches.jsonl"; do
+    /usr/bin/jq -s -e '
+        length == 2 and
+        all(.[]; .harness != "pi") and
+        ([.[] | select(.project == "concurrent")] | length == 1)
+    ' "$retired_pi_log" >/dev/null \
+        || fail "retired Pi cleanup lost or duplicated a concurrent unrelated typed log row: $retired_pi_log"
+done
+/usr/bin/jq -s -e '
+    length == 2 and
+    all(.[]; .plan.harness != "pi") and
+    ([.[] | select(.plan.prompt == "concurrent unrelated append")] | length == 1)
+' \
+    "$retired_pi_home/.local/state/agentsurface/submitted.jsonl" >/dev/null \
+    || fail "retired Pi cleanup lost or duplicated a concurrent legacy submission row"
+for inode_check in \
+    "$retired_pi_agentlaunch_inode:$retired_pi_home/.local/state/agentlaunch/submitted.jsonl" \
+    "$retired_pi_launches_inode:$retired_pi_home/.local/state/agentsurface/launches.jsonl" \
+    "$retired_pi_submitted_inode:$retired_pi_home/.local/state/agentsurface/submitted.jsonl"; do
+    expected_inode=${inode_check%%:*}
+    inode_path=${inode_check#*:}
+    [ "$(stat -f '%i' "$inode_path")" = "$expected_inode" ] \
+        || fail "retired Pi cleanup replaced a shared JSONL inode: $inode_path"
+done
+grep -F 'Pi may appear in unrelated prompt text' \
+    "$retired_pi_home/.local/state/agentsurface/submitted.jsonl" >/dev/null \
+    || fail "retired Pi cleanup matched prompt text instead of the typed harness"
+[ -f "$retired_pi_home/.local/state/agentsurface/slugs/unrelated-session" ] \
+    || fail "retired Pi cleanup removed an unrelated AgentSurface slug"
+if grep -F '[agents.pi]' "$retired_pi_home/.local/state/herdr/agent-detection/status.toml" >/dev/null; then
+    fail "retired Pi cleanup left Herdr's typed Pi cache block"
+fi
+for kept_herdr_agent in claude codex; do
+    grep -F "[agents.$kept_herdr_agent]" \
+        "$retired_pi_home/.local/state/herdr/agent-detection/status.toml" >/dev/null \
+        || fail "retired Pi cleanup removed Herdr's $kept_herdr_agent cache block"
+done
+grep -F '[agents.cursor]' \
+    "$retired_pi_home/.local/state/herdr/agent-detection/status.toml" >/dev/null \
+    || fail "retired Pi cleanup lost a concurrent Herdr cache append"
+[ "$(stat -f '%i' "$retired_pi_home/.local/state/herdr/agent-detection/status.toml")" = \
+    "$retired_pi_herdr_inode" ] \
+    || fail "retired Pi cleanup replaced Herdr's shared status inode"
+
+# The retired pi-viewer branch deliberately deleted its package manifest.
+# Bun's links are claimed before the canonical checkout, whose exact tracked
+# tombstone, origin, clean main branch, and single-worktree topology prove that
+# the whole checkout is retirement-owned.
+retired_pi_viewer_home="$skip_test_dir/retired-pi-viewer-home"
+mkdir -p \
+    "$retired_pi_viewer_home/code/pi-viewer" \
+    "$retired_pi_viewer_home/.bun/bin" \
+    "$retired_pi_viewer_home/.bun/install/global/node_modules"
+cat >"$retired_pi_viewer_home/code/pi-viewer/README.md" <<'EOF'
+# Retired
+
+This project has been retired. Its former product, launcher, dependencies,
+and source checkout are no longer maintained or distributed from this branch.
+EOF
+printf 'fixture license\n' >"$retired_pi_viewer_home/code/pi-viewer/LICENSE"
+git -C "$retired_pi_viewer_home/code/pi-viewer" init -q -b main
+git -C "$retired_pi_viewer_home/code/pi-viewer" config user.email fixture@example.invalid
+git -C "$retired_pi_viewer_home/code/pi-viewer" config user.name Fixture
+git -C "$retired_pi_viewer_home/code/pi-viewer" remote add origin \
+    git@github.com:possibilities/pi-viewer.git
+git -C "$retired_pi_viewer_home/code/pi-viewer" add LICENSE README.md
+git -C "$retired_pi_viewer_home/code/pi-viewer" commit -q -m Retired
+git -C "$retired_pi_viewer_home/code/pi-viewer" update-ref refs/remotes/origin/main \
+    "$(git -C "$retired_pi_viewer_home/code/pi-viewer" rev-parse HEAD)"
+git -C "$retired_pi_viewer_home/code/pi-viewer" config branch.main.remote origin
+git -C "$retired_pi_viewer_home/code/pi-viewer" config branch.main.merge refs/heads/main
+ln -s "$retired_pi_viewer_home/code/pi-viewer" \
+    "$retired_pi_viewer_home/.bun/install/global/node_modules/pi-viewer"
+ln -s '../install/global/node_modules/pi-viewer/bin/pi-viewer.ts' \
+    "$retired_pi_viewer_home/.bun/bin/pi-viewer"
+AGENTSTART_PI_CLEANUP_HOME="$retired_pi_viewer_home" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+[ ! -e "$retired_pi_viewer_home/.bun/bin/pi-viewer" ] \
+    && [ ! -L "$retired_pi_viewer_home/.bun/bin/pi-viewer" ] \
+    || fail "retired Pi cleanup left the tombstoned pi-viewer launcher"
+[ ! -e "$retired_pi_viewer_home/.bun/install/global/node_modules/pi-viewer" ] \
+    && [ ! -L "$retired_pi_viewer_home/.bun/install/global/node_modules/pi-viewer" ] \
+    || fail "retired Pi cleanup left the tombstoned pi-viewer package link"
+[ ! -e "$retired_pi_viewer_home/code/pi-viewer" ] \
+    || fail "retired Pi cleanup left the canonical pi-viewer checkout"
+
+# The historical viewer sometimes carried the Pi source as an untracked Git
+# module after .gitmodules was removed on the tombstone branch. Its one exact
+# owned topology is safe to delete together; every other worktree, ref, ignored
+# file, unpublished commit, or non-GitHub origin must block checkout deletion.
+nested_retired_pi_viewer_home="$skip_test_dir/nested-retired-pi-viewer-home"
+mkdir -p "$nested_retired_pi_viewer_home"
+nested_retired_pi_viewer_home=$(cd -P -- "$nested_retired_pi_viewer_home" && pwd)
+nested_retired_pi_viewer="$nested_retired_pi_viewer_home/code/pi-viewer"
+nested_retired_pi="$nested_retired_pi_viewer/pi"
+make_retired_pi_viewer_checkout "$nested_retired_pi_viewer_home"
+mkdir -p "$nested_retired_pi"
+git -C "$nested_retired_pi" init -q -b pi-viewer
+git -C "$nested_retired_pi" config user.email fixture@example.invalid
+git -C "$nested_retired_pi" config user.name Fixture
+git -C "$nested_retired_pi" remote add origin git@github.com:possibilities/pi.git
+printf 'nested fixture\n' >"$nested_retired_pi/README.md"
+printf 'node_modules/\n' >"$nested_retired_pi/.gitignore"
+git -C "$nested_retired_pi" add .gitignore README.md
+git -C "$nested_retired_pi" commit -q -m 'Retired nested Pi fixture'
+nested_retired_pi_head=$(git -C "$nested_retired_pi" rev-parse HEAD)
+git -C "$nested_retired_pi" update-ref refs/remotes/origin/pi-viewer \
+    "$nested_retired_pi_head"
+git -C "$nested_retired_pi" update-ref refs/heads/main \
+    "$nested_retired_pi_head"
+git -C "$nested_retired_pi" update-ref refs/remotes/origin/main \
+    "$nested_retired_pi_head"
+git -C "$nested_retired_pi" config branch.pi-viewer.remote origin
+git -C "$nested_retired_pi" config branch.pi-viewer.merge refs/heads/pi-viewer
+mkdir -p \
+    "$nested_retired_pi/node_modules/package" \
+    "$nested_retired_pi/packages/agent/node_modules/package"
+printf 'ignored root package\n' \
+    >"$nested_retired_pi/node_modules/package/index.js"
+printf 'ignored workspace package\n' \
+    >"$nested_retired_pi/packages/agent/node_modules/package/index.js"
+mkdir -p "$nested_retired_pi_viewer/.git/modules"
+mv -- "$nested_retired_pi/.git" "$nested_retired_pi_viewer/.git/modules/pi"
+printf '%s\n' 'gitdir: ../.git/modules/pi' >"$nested_retired_pi/.git"
+git -C "$nested_retired_pi_viewer" config submodule.pi.url \
+    git@github.com:possibilities/pi.git
+git -C "$nested_retired_pi_viewer" config submodule.pi.active true
+nested_foreign_pi_viewer_home="$skip_test_dir/nested-foreign-retired-pi-viewer-home"
+cp -R -- "$nested_retired_pi_viewer_home" "$nested_foreign_pi_viewer_home"
+nested_foreign_pi_viewer_home=$(cd -P -- "$nested_foreign_pi_viewer_home" && pwd)
+nested_foreign_pi_viewer="$nested_foreign_pi_viewer_home/code/pi-viewer"
+printf '%s\n' private-notes \
+    >>"$nested_foreign_pi_viewer/.git/modules/pi/info/exclude"
+printf 'independent ignored state\n' \
+    >"$nested_foreign_pi_viewer/pi/private-notes"
+mkdir -p "$nested_foreign_pi_viewer_home/.pi"
+AGENTSTART_PI_CLEANUP_HOME="$nested_retired_pi_viewer_home" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+[ ! -e "$nested_retired_pi_viewer" ] \
+    || fail "retired Pi cleanup left the exact nested pi-viewer topology"
+set +e
+nested_foreign_pi_viewer_output=$(AGENTSTART_PI_CLEANUP_HOME="$nested_foreign_pi_viewer_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+nested_foreign_pi_viewer_status=$?
+set -e
+[ "$nested_foreign_pi_viewer_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted foreign ignored state in nested Pi"
+printf '%s\n' "$nested_foreign_pi_viewer_output" \
+    | grep -F 'foreign ignored local state: private-notes' >/dev/null \
+    || fail "retired Pi cleanup did not explain foreign nested ignored state"
+[ -d "$nested_foreign_pi_viewer" ] \
+    && [ -d "$nested_foreign_pi_viewer_home/.pi" ] \
+    || fail "retired Pi cleanup mutated foreign nested ignored state"
+
+for retired_pi_viewer_risk in linked-worktree ignored-state local-ref unpushed local-remote; do
+    risky_retired_pi_viewer_home="$skip_test_dir/retired-pi-viewer-$retired_pi_viewer_risk-home"
+    risky_retired_pi_viewer="$risky_retired_pi_viewer_home/code/pi-viewer"
+    make_retired_pi_viewer_checkout "$risky_retired_pi_viewer_home"
+    mkdir -p "$risky_retired_pi_viewer_home/.pi"
+    case "$retired_pi_viewer_risk" in
+        linked-worktree)
+            git -C "$risky_retired_pi_viewer" worktree add -q \
+                "$risky_retired_pi_viewer_home/linked" -b linked
+            risky_retired_pi_viewer_expect='still has a linked worktree'
+            ;;
+        ignored-state)
+            printf '%s\n' ignored-local \
+                >>"$risky_retired_pi_viewer/.git/info/exclude"
+            : >"$risky_retired_pi_viewer/ignored-local"
+            risky_retired_pi_viewer_expect='has ignored local state'
+            ;;
+        local-ref)
+            printf 'local change\n' >>"$risky_retired_pi_viewer/README.md"
+            git -C "$risky_retired_pi_viewer" stash push -q
+            risky_retired_pi_viewer_expect='has a local-only Git ref'
+            ;;
+        unpushed)
+            git -C "$risky_retired_pi_viewer" commit -q --allow-empty \
+                -m 'Unpushed fixture'
+            risky_retired_pi_viewer_expect='is not equal to pushed origin/main'
+            ;;
+        local-remote)
+            git -C "$risky_retired_pi_viewer" remote set-url origin \
+                "$risky_retired_pi_viewer_home/local-origin.git"
+            risky_retired_pi_viewer_expect='has a foreign origin'
+            ;;
+        *) fail "unknown retired pi-viewer risk fixture" ;;
+    esac
+    set +e
+    risky_retired_pi_viewer_output=$(AGENTSTART_PI_CLEANUP_HOME="$risky_retired_pi_viewer_home" \
+        "$root/scripts/remove-retired-pi" --install 2>&1)
+    risky_retired_pi_viewer_status=$?
+    set -e
+    [ "$risky_retired_pi_viewer_status" -ne 0 ] \
+        || fail "retired Pi cleanup accepted pi-viewer $retired_pi_viewer_risk state"
+    printf '%s\n' "$risky_retired_pi_viewer_output" \
+        | grep -F "$risky_retired_pi_viewer_expect" >/dev/null \
+        || fail "retired Pi cleanup did not explain pi-viewer $retired_pi_viewer_risk refusal"
+    [ -d "$risky_retired_pi_viewer" ] \
+        && [ -d "$risky_retired_pi_viewer_home/.pi" ] \
+        || fail "retired Pi cleanup mutated pi-viewer $retired_pi_viewer_risk state"
+done
+
+bad_retired_pi_viewer_home="$skip_test_dir/bad-retired-pi-viewer-home"
+mkdir -p \
+    "$bad_retired_pi_viewer_home/code/pi-viewer" \
+    "$bad_retired_pi_viewer_home/.bun/bin" \
+    "$bad_retired_pi_viewer_home/.bun/install/global/node_modules" \
+    "$bad_retired_pi_viewer_home/.pi"
+printf '# Independently repurposed checkout\n' \
+    >"$bad_retired_pi_viewer_home/code/pi-viewer/README.md"
+ln -s "$bad_retired_pi_viewer_home/code/pi-viewer" \
+    "$bad_retired_pi_viewer_home/.bun/install/global/node_modules/pi-viewer"
+ln -s '../install/global/node_modules/pi-viewer/bin/pi-viewer.ts' \
+    "$bad_retired_pi_viewer_home/.bun/bin/pi-viewer"
+set +e
+bad_retired_pi_viewer_output=$(AGENTSTART_PI_CLEANUP_HOME="$bad_retired_pi_viewer_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+bad_retired_pi_viewer_status=$?
+set -e
+[ "$bad_retired_pi_viewer_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a changed pi-viewer tombstone"
+printf '%s\n' "$bad_retired_pi_viewer_output" \
+    | grep -F 'tombstone identity mismatch' >/dev/null \
+    || fail "retired Pi cleanup did not explain its pi-viewer tombstone refusal"
+[ -L "$bad_retired_pi_viewer_home/.bun/bin/pi-viewer" ] \
+    && [ -L "$bad_retired_pi_viewer_home/.bun/install/global/node_modules/pi-viewer" ] \
+    && [ -d "$bad_retired_pi_viewer_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after refusing a changed pi-viewer tombstone"
+
+# A second run is a no-op, and a foreign package at the retired location fails
+# closed before any dedicated state is removed.
+AGENTSTART_PI_CLEANUP_HOME="$retired_pi_home" \
+    AGENTSTART_PI_CLEANUP_NPM_BIN="$retired_pi_npm" \
+    AGENTSTART_PI_CLEANUP_NPM_LOG="$retired_pi_npm_log" \
+    AGENTSTART_PI_CLEANUP_NPM_KEYS="$retired_pi_npm_keys" \
+    AGENTSTART_TEST_PI_JSONL_REDACT_HOOK="$retired_pi_append_hook" \
+    AGENTSTART_TEST_PI_HERDR_REDACT_HOOK="$retired_pi_herdr_hook" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+bad_retired_pi_home="$skip_test_dir/bad-retired-pi-home"
+bad_retired_pi_package="$bad_retired_pi_home/.nvm/versions/node/v99.0.0/lib/node_modules/@earendil-works/pi-coding-agent"
+mkdir -p "$bad_retired_pi_package" "$bad_retired_pi_home/.pi"
+printf '{"name":"independent-package","bin":{"pi":"cli.js"}}\n' \
+    >"$bad_retired_pi_package/package.json"
+set +e
+bad_retired_pi_output=$(AGENTSTART_PI_CLEANUP_HOME="$bad_retired_pi_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+bad_retired_pi_status=$?
+set -e
+[ "$bad_retired_pi_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a foreign npm package"
+printf '%s\n' "$bad_retired_pi_output" | grep -F 'identity mismatch' >/dev/null \
+    || fail "retired Pi cleanup did not explain its package refusal"
+[ -f "$bad_retired_pi_package/package.json" ] && [ -d "$bad_retired_pi_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after refusing package ownership"
+
+bad_retired_state_home="$skip_test_dir/bad-retired-pi-state-home"
+mkdir -p \
+    "$bad_retired_state_home/.pi" \
+    "$bad_retired_state_home/.local/state/agentlaunch"
+install_retired_pi_agentlaunch_contract "$bad_retired_state_home"
+printf '{"harness":"cursor"}\n' \
+    >"$bad_retired_state_home/.local/state/agentlaunch/submitted.jsonl"
+set +e
+bad_retired_state_output=$(AGENTSTART_PI_CLEANUP_HOME="$bad_retired_state_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+bad_retired_state_status=$?
+set -e
+[ "$bad_retired_state_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a foreign typed-state row"
+printf '%s\n' "$bad_retired_state_output" | grep -F 'malformed or foreign' >/dev/null \
+    || fail "retired Pi cleanup did not explain its typed-state refusal"
+[ -d "$bad_retired_state_home/.pi" ] \
+    || fail "retired Pi cleanup mutated dedicated state after refusing a foreign log"
+
+# A lexically in-home path is not sufficient ownership proof when one of its
+# parents is a symlink. Refuse before touching either the escaped shared log or
+# the dedicated native state.
+escaped_retired_state_home="$skip_test_dir/escaped-retired-pi-state-home"
+escaped_retired_state_target="$skip_test_dir/escaped-retired-pi-state-target"
+mkdir -p \
+    "$escaped_retired_state_home/.pi" \
+    "$escaped_retired_state_target/state/agentlaunch"
+ln -s "$escaped_retired_state_target" "$escaped_retired_state_home/.local"
+install_retired_pi_agentlaunch_contract "$escaped_retired_state_home"
+cat >"$escaped_retired_state_target/state/agentlaunch/submitted.jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","project":"escaped","harness":"pi","model":"model","effort":"high","worktree":false,"priming":null,"focus":true}
+EOF
+set +e
+escaped_retired_state_output=$(AGENTSTART_PI_CLEANUP_HOME="$escaped_retired_state_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+escaped_retired_state_status=$?
+set -e
+[ "$escaped_retired_state_status" -ne 0 ] \
+    || fail "retired Pi cleanup followed an escaping state parent"
+printf '%s\n' "$escaped_retired_state_output" \
+    | grep -F 'could not create or prove retirement state directory' >/dev/null \
+    || fail "retired Pi cleanup did not explain its escaping-parent refusal"
+[ -f "$escaped_retired_state_target/state/agentlaunch/submitted.jsonl" ] \
+    && [ -d "$escaped_retired_state_home/.pi" ] \
+    || fail "retired Pi cleanup mutated state after refusing an escaping parent"
+
+bad_retired_status_home="$skip_test_dir/bad-retired-pi-status-home"
+mkdir -p \
+    "$bad_retired_status_home/.pi" \
+    "$bad_retired_status_home/.local/state/herdr/agent-detection"
+cat >"$bad_retired_status_home/.local/state/herdr/agent-detection/status.toml" <<'EOF'
+[agents.pi]
+cached_version = "fixture"
+foreign_key = "do not discard"
+EOF
+set +e
+bad_retired_status_output=$(AGENTSTART_PI_CLEANUP_HOME="$bad_retired_status_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+bad_retired_status_status=$?
+set -e
+[ "$bad_retired_status_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a changed Herdr cache block"
+printf '%s\n' "$bad_retired_status_output" | grep -F 'changed [agents.pi]' >/dev/null \
+    || fail "retired Pi cleanup did not explain its Herdr cache refusal"
+[ -d "$bad_retired_status_home/.pi" ] \
+    || fail "retired Pi cleanup mutated dedicated state after refusing a Herdr cache block"
+
+# JSONL validation, selection, overwrite, and fsync share one no-follow file
+# descriptor. Replacing the public path from the concurrency hook must make the
+# cleanup fail without applying the old offsets to the replacement file.
+swapped_retired_jsonl_home="$skip_test_dir/swapped-retired-pi-jsonl-home"
+swapped_retired_jsonl="$swapped_retired_jsonl_home/.local/state/agentlaunch/submitted.jsonl"
+swapped_retired_jsonl_hook="$swapped_retired_jsonl_home/swap-jsonl-path"
+mkdir -p "$(dirname "$swapped_retired_jsonl")" "$swapped_retired_jsonl_home/.pi"
+install_retired_pi_agentlaunch_contract "$swapped_retired_jsonl_home"
+cat >"$swapped_retired_jsonl" <<'EOF'
+{"at":"2026-08-31T00:00:00Z","project":"remove","harness":"pi","model":"model","effort":"high","worktree":false,"priming":null,"focus":true}
+EOF
+cat >"$swapped_retired_jsonl_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+path=$1
+schema=$2
+[ "$schema" = agentlaunch ] || exit 64
+mv "$path" "$path.validated-inode"
+cat >"$path" <<'JSON'
+{"at":"2026-08-31T00:00:01Z","project":"replacement","harness":"codex","model":"gpt","effort":"high","worktree":false,"priming":null,"focus":false}
+JSON
+EOF
+chmod +x "$swapped_retired_jsonl_hook"
+set +e
+swapped_retired_jsonl_output=$(AGENTSTART_PI_CLEANUP_HOME="$swapped_retired_jsonl_home" \
+    AGENTSTART_TEST_PI_JSONL_REDACT_HOOK="$swapped_retired_jsonl_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+swapped_retired_jsonl_status=$?
+set -e
+[ "$swapped_retired_jsonl_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a JSONL path replacement"
+printf '%s\n' "$swapped_retired_jsonl_output" | grep -F 'changed path identity' >/dev/null \
+    || fail "retired Pi cleanup did not explain its JSONL identity refusal"
+jq -e '.harness == "codex" and .project == "replacement"' \
+    "$swapped_retired_jsonl" >/dev/null \
+    || fail "retired Pi cleanup applied stale offsets to a replacement JSONL file"
+[ -d "$swapped_retired_jsonl_home/.pi" ] \
+    || fail "retired Pi cleanup removed dedicated state after a JSONL path replacement"
+
+# A target swapped after its final public-name stat is refused by the anchored
+# exclusive claim move before the foreign replacement can be claimed or
+# recursively removed. The empty quarantine is removed on that refusal.
+swapped_retired_claim_home="$skip_test_dir/swapped-retired-pi-claim-home"
+swapped_retired_claim_target="$swapped_retired_claim_home/.local/share/agentstart/resources/pi"
+swapped_retired_claim_hook="$swapped_retired_claim_home/swap-claim-path"
+mkdir -p "$swapped_retired_claim_target" "$swapped_retired_claim_home/.pi"
+printf 'validated owned bytes\n' >"$swapped_retired_claim_target/owned"
+cat >"$swapped_retired_claim_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+target=$1
+expected=$(/bin/realpath "$AGENTSTART_TEST_PI_CLAIM_SWAP_TARGET")
+[ "$target" = "$expected" ] || exit 0
+mv "$target" "$target.validated-inode"
+mkdir "$target"
+printf 'foreign bytes\n' >"$target/foreign"
+EOF
+chmod +x "$swapped_retired_claim_hook"
+set +e
+swapped_retired_claim_output=$(AGENTSTART_PI_CLEANUP_HOME="$swapped_retired_claim_home" \
+    AGENTSTART_TEST_PI_CLAIM_HOOK="$swapped_retired_claim_hook" \
+    AGENTSTART_TEST_PI_CLAIM_SWAP_TARGET="$swapped_retired_claim_target" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+swapped_retired_claim_status=$?
+set -e
+[ "$swapped_retired_claim_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a post-validation target replacement"
+printf '%s\n' "$swapped_retired_claim_output" \
+    | grep -F 'claim move source identity changed' >/dev/null \
+    || fail "retired Pi cleanup did not explain its anchored claim refusal"
+[ -f "$swapped_retired_claim_target/foreign" ] \
+    && [ -f "$swapped_retired_claim_target.validated-inode/owned" ] \
+    && [ -d "$swapped_retired_claim_home/.pi" ] \
+    || fail "retired Pi cleanup deleted state during a post-validation path swap"
+[ ! -e "$swapped_retired_claim_home/.local/state/agentstart/retirement-quarantine" ] \
+    || fail "retired Pi cleanup left an empty quarantine after restoring a swapped target"
+
+# AgentSurface stores only a basename-keyed slug, so a matching transcript in
+# either remaining native store makes ownership ambiguous and must block the
+# deletion before the native Pi tree is touched.
+colliding_retired_slug_home="$skip_test_dir/colliding-retired-pi-slug-home"
+colliding_retired_slug_name='2026-08-31T00-00-00-000Z_collision-session.jsonl'
+colliding_retired_slug_key=${colliding_retired_slug_name%.jsonl}
+colliding_retired_transcript="$colliding_retired_slug_home/.pi/agent/sessions/project/$colliding_retired_slug_name"
+colliding_active_transcript="$colliding_retired_slug_home/.claude/projects/project/$colliding_retired_slug_name"
+colliding_retired_slug="$colliding_retired_slug_home/.local/state/agentsurface/slugs/$colliding_retired_slug_key"
+mkdir -p \
+    "$(dirname "$colliding_retired_transcript")" \
+    "$(dirname "$colliding_active_transcript")" \
+    "$(dirname "$colliding_retired_slug")"
+install_retired_pi_agentsurface_contract "$colliding_retired_slug_home"
+printf '%s\n' '{"type":"session","id":"collision-session"}' >"$colliding_retired_transcript"
+printf '%s\n' '{"type":"active"}' >"$colliding_active_transcript"
+printf 'collision-slug\n' >"$colliding_retired_slug"
+set +e
+colliding_retired_slug_output=$(AGENTSTART_PI_CLEANUP_HOME="$colliding_retired_slug_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+colliding_retired_slug_status=$?
+set -e
+[ "$colliding_retired_slug_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a cross-harness AgentSurface slug collision"
+printf '%s\n' "$colliding_retired_slug_output" \
+    | grep -F 'slug key collides with an active harness transcript' >/dev/null \
+    || fail "retired Pi cleanup did not explain its AgentSurface slug collision refusal"
+[ -f "$colliding_retired_slug" ] && [ -d "$colliding_retired_slug_home/.pi" ] \
+    || fail "retired Pi cleanup removed an ambiguously keyed AgentSurface slug"
+
+# A stale receipt is restore-only. After a crash leaves a valid package in the
+# quarantine, changing that same preserved inode must restore it and make the
+# ordinary package validator refuse it; the receipt cannot authorize deletion.
+stale_retired_claim_home="$skip_test_dir/stale-retired-pi-claim-home"
+stale_retired_claim_package="$stale_retired_claim_home/.nvm/versions/node/v99.0.0/lib/node_modules/@earendil-works/pi-coding-agent"
+stale_retired_claim_root="$stale_retired_claim_home/.local/state/agentstart/retirement-quarantine"
+mkdir -p "$stale_retired_claim_package"
+printf '%s\n' '{"name":"@earendil-works/pi-coding-agent","bin":{"pi":"cli.js"}}' \
+    >"$stale_retired_claim_package/package.json"
+printf '#!/bin/sh\n' >"$stale_retired_claim_package/cli.js"
+set +e
+AGENTSTART_PI_CLEANUP_HOME="$stale_retired_claim_home" \
+    AGENTSTART_TEST_PI_CRASH_AT=claim-item-renamed \
+    "$root/scripts/remove-retired-pi" --install >/dev/null 2>&1
+stale_retired_claim_crash_status=$?
+set -e
+[ "$stale_retired_claim_crash_status" -ne 0 ] \
+    && [ -d "$stale_retired_claim_root" ] \
+    || fail "retired Pi cleanup did not leave the expected crash receipt"
+stale_retired_claim_item=$(/usr/bin/find "$stale_retired_claim_root" \
+    -path '*/item' -type d -print -quit)
+[ -n "$stale_retired_claim_item" ] \
+    || fail "retired Pi cleanup crash did not preserve the claimed package"
+printf '%s\n' '{"name":"independent-package","bin":{"pi":"cli.js"}}' \
+    >"$stale_retired_claim_item/package.json"
+set +e
+stale_retired_claim_output=$(AGENTSTART_PI_CLEANUP_HOME="$stale_retired_claim_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+stale_retired_claim_status=$?
+set -e
+[ "$stale_retired_claim_status" -ne 0 ] \
+    || fail "retired Pi cleanup treated a stale receipt as deletion authority"
+printf '%s\n' "$stale_retired_claim_output" | grep -F 'identity mismatch' >/dev/null \
+    || fail "retired Pi cleanup did not ordinarily revalidate the restored stale claim"
+if [ ! -f "$stale_retired_claim_package/package.json" ] \
+    || ! grep -F 'independent-package' \
+        "$stale_retired_claim_package/package.json" >/dev/null; then
+    fail "retired Pi cleanup deleted or failed to restore a changed stale claim"
+fi
+[ ! -e "$stale_retired_claim_root" ] \
+    || fail "retired Pi cleanup left its quarantine after restoring a stale claim"
+
+# Every published durability boundary must recover without treating a receipt
+# as deletion authority. A one-target fixture reaches every boundary while
+# keeping the recovery proof small enough to run as a matrix.
+run_retired_pi_crash_boundary() {
+    local fixture_home="$1"
+    local boundary="$2"
+    set +e
+    (
+        AGENTSTART_PI_CLEANUP_HOME="$fixture_home" \
+            AGENTSTART_TEST_PI_CRASH_AT="$boundary" \
+            "$root/scripts/remove-retired-pi" --install
+    ) >/dev/null 2>&1
+    retired_pi_crash_status=$?
+    set -e
+}
+
+for retired_pi_crash_boundary in \
+    lock-acquired \
+    quarantine-temporary-created \
+    quarantine-owner-temporary-durable \
+    quarantine-owner-published \
+    quarantine-root-published \
+    claim-temporary-created \
+    receipt-prepared-temporary-durable \
+    receipt-prepared-published \
+    claim-published \
+    claim-item-renamed \
+    claim-item-revalidated \
+    all-claims-collected \
+    all-claims-revalidated \
+    pre-mutation-claims-revalidated \
+    receipt-deleting-temporary-durable \
+    receipt-deleting-published \
+    claim-item-removed \
+    receipt-deleted-temporary-durable \
+    receipt-deleted-published \
+    claim-receipt-removed \
+    claim-directory-removed \
+    quarantine-owner-removed \
+    quarantine-root-removed; do
+    retired_pi_crash_home="$skip_test_dir/retired-pi-crash-$retired_pi_crash_boundary"
+    retired_pi_crash_target="$retired_pi_crash_home/.local/share/agentstart/resources/pi"
+    make_retired_pi_claim_fixture "$retired_pi_crash_home"
+    run_retired_pi_crash_boundary \
+        "$retired_pi_crash_home" "$retired_pi_crash_boundary"
+    [ "$retired_pi_crash_status" -eq 137 ] \
+        || fail "retired Pi crash boundary was not reached: $retired_pi_crash_boundary"
+    AGENTSTART_PI_CLEANUP_HOME="$retired_pi_crash_home" \
+        "$root/scripts/remove-retired-pi" --install >/dev/null
+    [ ! -e "$retired_pi_crash_target" ] \
+        || fail "retired Pi crash recovery did not revalidate and remove: $retired_pi_crash_boundary"
+    [ ! -e "$retired_pi_crash_home/.local/state/agentstart/retirement-quarantine" ] \
+        || fail "retired Pi crash recovery left its quarantine: $retired_pi_crash_boundary"
+done
+
+# Receipt target ids are a closed vocabulary. Even a shape-valid receipt may
+# not authorize restoring or deleting an arbitrary same-user path.
+unknown_retired_receipt_home="$skip_test_dir/unknown-retired-pi-receipt-home"
+unknown_retired_receipt_root="$unknown_retired_receipt_home/.local/state/agentstart/retirement-quarantine"
+unknown_retired_receipt_entry="$unknown_retired_receipt_root/claim.unknown"
+mkdir -p "$unknown_retired_receipt_entry/item"
+printf '%s\n' 'agentstart-retirement-quarantine-v2' \
+    >"$unknown_retired_receipt_root/.owner"
+printf 'preserve unknown claim\n' >"$unknown_retired_receipt_entry/item/owned"
+cat >"$unknown_retired_receipt_entry/receipt.json" <<EOF
+{"version":2,"target_id":"unknown-target","target":"$unknown_retired_receipt_home/foreign","identity":"1:2","proof":"0000000000000000000000000000000000000000000000000000000000000000","state":"prepared"}
+EOF
+chmod 600 "$unknown_retired_receipt_root/.owner" \
+    "$unknown_retired_receipt_entry/receipt.json"
+set +e
+unknown_retired_receipt_output=$(AGENTSTART_PI_CLEANUP_HOME="$unknown_retired_receipt_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+unknown_retired_receipt_status=$?
+set -e
+[ "$unknown_retired_receipt_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted an unknown receipt target id"
+printf '%s\n' "$unknown_retired_receipt_output" \
+    | grep -F 'receipt names an unknown target' >/dev/null \
+    || fail "retired Pi cleanup did not explain its unknown-receipt refusal"
+[ -f "$unknown_retired_receipt_entry/item/owned" ] \
+    || fail "retired Pi cleanup mutated an unknown receipt item"
+
+# Recursive ownership proof rejects a hard link whose other name escapes the
+# retirement target, even though both names belong to the same user.
+hardlinked_retired_pi_home="$skip_test_dir/hardlinked-retired-pi-home"
+hardlinked_retired_pi_target="$hardlinked_retired_pi_home/.local/share/agentstart/resources/pi"
+make_retired_pi_claim_fixture "$hardlinked_retired_pi_home"
+ln "$hardlinked_retired_pi_target/owned" \
+    "$hardlinked_retired_pi_home/escaped-hard-link"
+set +e
+hardlinked_retired_pi_output=$(AGENTSTART_PI_CLEANUP_HOME="$hardlinked_retired_pi_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+hardlinked_retired_pi_status=$?
+set -e
+[ "$hardlinked_retired_pi_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a hard link escaping its target"
+printf '%s\n' "$hardlinked_retired_pi_output" \
+    | grep -F 'hard link escapes the retirement target' >/dev/null \
+    || fail "retired Pi cleanup did not explain its escaping-hard-link refusal"
+[ -f "$hardlinked_retired_pi_target/owned" ] \
+    && [ -f "$hardlinked_retired_pi_home/escaped-hard-link" ] \
+    || fail "retired Pi cleanup mutated an escaping hard-link fixture"
+
+# A delete hook rewrites a file through the already-claimed inode. The second
+# content proof must catch it and restore the changed target instead of deleting
+# recursively under stale authority.
+rewritten_retired_pi_home="$skip_test_dir/rewritten-retired-pi-home"
+rewritten_retired_pi_target="$rewritten_retired_pi_home/.local/share/agentstart/resources/pi"
+rewritten_retired_pi_hook="$rewritten_retired_pi_home/rewrite-claimed-item"
+make_retired_pi_claim_fixture "$rewritten_retired_pi_home"
+cat >"$rewritten_retired_pi_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+item=$1
+printf 'rewritten through the same inode\n' >"$item/owned"
+EOF
+chmod +x "$rewritten_retired_pi_hook"
+set +e
+rewritten_retired_pi_output=$(AGENTSTART_PI_CLEANUP_HOME="$rewritten_retired_pi_home" \
+    AGENTSTART_TEST_PI_DELETE_HOOK="$rewritten_retired_pi_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+rewritten_retired_pi_status=$?
+set -e
+[ "$rewritten_retired_pi_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a same-inode rewrite before deletion"
+printf '%s\n' "$rewritten_retired_pi_output" \
+    | grep -F 'rewritten before deletion' >/dev/null \
+    || fail "retired Pi cleanup did not explain its same-inode rewrite refusal"
+grep -F 'rewritten through the same inode' "$rewritten_retired_pi_target/owned" >/dev/null \
+    || fail "retired Pi cleanup deleted or failed to restore a rewritten claim"
+[ ! -e "$rewritten_retired_pi_home/.local/state/agentstart/retirement-quarantine" ] \
+    || fail "retired Pi cleanup left its quarantine after restoring a rewritten claim"
+
+# Recreating a public target after claim-all blocks irreversible mutation. The
+# foreign occupant stays public and the original claim stays quarantined for a
+# human to resolve; neither one becomes deletion authority for the other.
+recreated_retired_pi_home="$skip_test_dir/recreated-retired-pi-home"
+recreated_retired_pi_target="$recreated_retired_pi_home/.local/share/agentstart/resources/pi"
+recreated_retired_pi_hook="$recreated_retired_pi_home/recreate-public-target"
+make_retired_pi_claim_fixture "$recreated_retired_pi_home"
+cat >"$recreated_retired_pi_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+fixture_home=$2
+target="$fixture_home/.local/share/agentstart/resources/pi"
+mkdir "$target"
+printf 'foreign recreation\n' >"$target/foreign"
+EOF
+chmod +x "$recreated_retired_pi_hook"
+set +e
+recreated_retired_pi_output=$(AGENTSTART_PI_CLEANUP_HOME="$recreated_retired_pi_home" \
+    AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK="$recreated_retired_pi_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+recreated_retired_pi_status=$?
+set -e
+[ "$recreated_retired_pi_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a public-path recreation after claim-all"
+printf '%s\n' "$recreated_retired_pi_output" \
+    | grep -F 'reappeared after the claim-all barrier' >/dev/null \
+    || fail "retired Pi cleanup did not explain its public-path recreation refusal"
+[ -f "$recreated_retired_pi_target/foreign" ] \
+    && [ -d "$recreated_retired_pi_home/.local/state/agentstart/retirement-quarantine" ] \
+    || fail "retired Pi cleanup discarded a public recreation or its preserved original claim"
+
+# The final audit remains authoritative after deletion. A recreated retired
+# path makes the run fail without deleting the new occupant.
+final_recreated_retired_pi_home="$skip_test_dir/final-recreated-retired-pi-home"
+final_recreated_retired_pi_target="$final_recreated_retired_pi_home/.local/share/agentstart/resources/pi"
+final_recreated_retired_pi_hook="$final_recreated_retired_pi_home/recreate-final-target"
+make_retired_pi_claim_fixture "$final_recreated_retired_pi_home"
+cat >"$final_recreated_retired_pi_hook" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+fixture_home=$1
+target="$fixture_home/.local/share/agentstart/resources/pi"
+mkdir -p "$target"
+printf 'post-delete recreation\n' >"$target/foreign"
+EOF
+chmod +x "$final_recreated_retired_pi_hook"
+set +e
+final_recreated_retired_pi_output=$(AGENTSTART_PI_CLEANUP_HOME="$final_recreated_retired_pi_home" \
+    AGENTSTART_TEST_PI_FINAL_HOOK="$final_recreated_retired_pi_hook" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+final_recreated_retired_pi_status=$?
+set -e
+[ "$final_recreated_retired_pi_status" -ne 0 ] \
+    || fail "retired Pi cleanup accepted a retired path recreated before its final audit"
+printf '%s\n' "$final_recreated_retired_pi_output" \
+    | grep -F 'retired Pi path remains after cleanup' >/dev/null \
+    || fail "retired Pi cleanup did not explain its final recreation refusal"
+grep -F 'post-delete recreation' "$final_recreated_retired_pi_target/foreign" >/dev/null \
+    || fail "retired Pi cleanup deleted a path recreated for the final audit"
+
+# shellcheck disable=SC2016 # Match the literal embedded Perl durability call.
+grep -F '$handle->sync() or die "fsync $path' scripts/remove-retired-pi >/dev/null \
+    || fail "retired Pi shared-state redaction is not made durable before success"
+
 # The agent* skill scan finds participants by convention instead of by list:
 # an agent* checkout that exports skills/<name>/SKILL.md is a participant, and
 # everything else under the root is not. The scan must batch one invocation
@@ -748,7 +2344,6 @@ code_skills_home="$skip_test_dir/code-home"
 code_skills_log="$skip_test_dir/npx.log"
 mkdir -p \
     "$code_skills_home" \
-    "$code_skills_home/.pi/agent/extensions" \
     "$code_skills_root/agentbus/skills/bus" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
@@ -767,17 +2362,20 @@ for code_skills_fixture in \
     printf -- '---\nname: %s\ndescription: fixture skill\n---\n' "$code_skills_name" \
         >"$code_skills_root/$code_skills_fixture/SKILL.md"
 done
+# A vendor skill may enumerate provider origins that the fleet has retired.
+# The fixed-resource renderer preserves the variable contract but narrows its
+# documented values before copying resources into either managed plugin.
+cat >>"$code_skills_root/agentdemo/skills/demo/SKILL.md" <<'EOF'
+
+| Variable | Description |
+| --- | --- |
+| `PLANNOTATOR_ORIGIN` | retired-origin fixture |
+EOF
 # The portable frontmatter is the invocation-policy source of truth. This
 # skill deliberately has no OpenAI manifest; the renderer must create one.
 sed -i '' '/^description:/a\
 disable-model-invocation: true
 ' "$code_skills_root/agentdemo/skills/second/SKILL.md"
-cat >"$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" <<'EOF'
-// installed by herdr
-// managed by herdr; reinstalling or updating the integration overwrites this file.
-// HERDR_INTEGRATION_ID=pi
-export {};
-EOF
 # OpenAI manifests are portable source: their default prompt starts with the
 # plain skill name. Compatibility packaging must qualify only its generated
 # copy without changing the canonical fixed resources.
@@ -841,29 +2439,6 @@ printf '%s\n' "$sync_plan" \
 [ ! -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync plan ran a post-sync hook instead of only printing"
 
-# The Pi subagent package the full installer pins. The renderer only carries an
-# install that is already present, so the fixture stands in for one.
-fixture_pi_subagents_root="$code_skills_home/pi-subagents-install"
-mkdir -p \
-    "$fixture_pi_subagents_root/pi-subagents/node_modules/yaml" \
-    "$fixture_pi_subagents_root/pi-subagents/skills/pi-subagents" \
-    "$fixture_pi_subagents_root/pi-subagents/prompts"
-cat >"$fixture_pi_subagents_root/pi-subagents/package.json" <<'FIXTURE_JSON'
-{
-  "name": "pi-subagents",
-  "version": "9.9.9",
-  "pi": { "extensions": ["./index.ts"], "skills": ["./skills"], "prompts": ["./prompts"] }
-}
-FIXTURE_JSON
-printf 'export default () => {}\n' \
-    >"$fixture_pi_subagents_root/pi-subagents/index.ts"
-printf '{"name":"yaml"}\n' \
-    >"$fixture_pi_subagents_root/pi-subagents/node_modules/yaml/package.json"
-printf -- '---\nname: pi-subagents\ndescription: fixture\n---\n' \
-    >"$fixture_pi_subagents_root/pi-subagents/skills/pi-subagents/SKILL.md"
-printf -- '---\ndescription: fixture workflow\n---\n' \
-    >"$fixture_pi_subagents_root/pi-subagents/prompts/parallel-review.md"
-
 mkdir -p "$code_skills_home/.codex"
 cat >"$code_skills_home/.codex/config.toml" <<'EOF'
 model = "fixture-model"
@@ -888,7 +2463,6 @@ sync_output=$(
         AGENTSTART_TEST_NPX_OUTPUT=skills-cli-success-noise \
         AGENTSTART_CLAUDE_BIN=/usr/bin/true \
         AGENTSTART_CODEX_BIN=/usr/bin/true \
-        AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
         "$root/scripts/sync-skills"
 )
 if printf '%s\n' "$sync_output" | grep -F skills-cli-success-noise >/dev/null; then
@@ -919,6 +2493,17 @@ fixture_claude_root="$fixture_resources_root/claude/agent"
 fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
 [ -f "$fixture_resources_root/skills/demo/SKILL.md" ] \
     || fail "skill sync did not copy a participant into the fixed resources"
+if grep -F 'retired-origin fixture' "$fixture_resources_root/skills/demo/SKILL.md" >/dev/null; then
+    fail "fixed-resource rendering retained retired vendor-origin guidance"
+fi
+# shellcheck disable=SC2016 # Match the literal documented variable.
+[ "$(grep -Fc '| `PLANNOTATOR_ORIGIN` |' \
+    "$fixture_resources_root/skills/demo/SKILL.md")" -eq 1 ] \
+    || fail "fixed-resource rendering did not preserve exactly one PLANNOTATOR_ORIGIN row"
+# shellcheck disable=SC2016 # Match the literal documented harness values.
+grep -F 'retained fleet harnesses (`claude-code`, `codex`)' \
+    "$fixture_resources_root/skills/demo/SKILL.md" >/dev/null \
+    || fail "fixed-resource rendering did not narrow PLANNOTATOR_ORIGIN to Claude/Codex"
 [ -f "$fixture_claude_root/.claude-plugin/plugin.json" ] \
     || fail "skill sync did not render the Claude fleet plugin"
 [ -f "$fixture_codex_root/.codex-plugin/plugin.json" ] \
@@ -962,33 +2547,8 @@ fi
 "$root/scripts/render-skill-invocation-policy" --install \
     "$fixture_resources_root/skills" >/dev/null
 chmod 644 "$fixture_resources_root/skills/demo/agents/openai.yaml"
-[ ! -e "$code_skills_home/.pi/agent/skills/demo" ] \
-    || fail "skill sync leaked a common skill into Pi's ambient global root"
-[ -f "$fixture_resources_root/pi/extensions/herdr-agent-state.ts" ] \
-    || fail "skill sync did not collect Pi's generated Herdr extension privately"
-[ -f "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" ] \
-    || fail "unattended skill sync removed Pi's ambient Herdr extension"
-cmp -s \
-    "$code_skills_home/.pi/agent/extensions/herdr-agent-state.ts" \
-    "$fixture_resources_root/pi/extensions/herdr-agent-state.ts" \
-    || fail "skill sync did not copy Pi's Herdr extension exactly into private resources"
-
-# The subagent package rides the fixed resources as a directory, because
-# AgentLaunch names a directory with --extension and Pi reads the manifest inside it to register
-# the extension, its skills, and its workflow templates from that one path.
-fixture_pi_subagents_packed="$fixture_resources_root/pi/extensions/pi-subagents"
-[ -f "$fixture_pi_subagents_packed/package.json" ] \
-    || fail "skill sync did not carry the Pi subagent package into the fixed resources"
-grep -F '"pi":' "$fixture_pi_subagents_packed/package.json" >/dev/null \
-    || fail "the packed Pi subagent package lost the manifest Pi resolves it by"
-# Pi never installs dependencies for a local path, so the dependencies must
-# ride inside the explicitly named package directory.
-[ -f "$fixture_pi_subagents_packed/node_modules/yaml/package.json" ] \
-    || fail "the packed Pi subagent package lost its runtime dependencies"
-[ -f "$fixture_pi_subagents_packed/prompts/parallel-review.md" ] \
-    || fail "the packed Pi subagent package lost its workflow prompt templates"
-[ -f "$fixture_pi_subagents_packed/skills/pi-subagents/SKILL.md" ] \
-    || fail "the packed Pi subagent package lost its own skills"
+[ ! -e "$fixture_resources_root/pi" ] \
+    || fail "skill sync recreated resources for the retired Pi harness"
 
 # The plugin is installed globally, so every managed name must be disabled in
 # persistent Codex config before a managed session selectively enables it.
@@ -1020,7 +2580,6 @@ fixture_codex_config_next="$fixture_codex_config.next"
 mv "$fixture_codex_config_next" "$fixture_codex_config"
 if HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
     AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
-    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
     AGENTSTART_CODEX_BIN=/usr/bin/false \
     "$root/scripts/render-capabilities" --install >/dev/null 2>&1; then
     fail "Codex resource rendering accepted a failed plugin refresh"
@@ -1029,7 +2588,6 @@ grep -F 'name = "agent:retired"' "$fixture_codex_config" >/dev/null \
     || fail "failed Codex plugin refresh pruned a stale skill disable"
 HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
     AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
-    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
     AGENTSTART_CODEX_BIN=/usr/bin/true \
     "$root/scripts/render-capabilities" --install >/dev/null
 if grep -F 'name = "agent:retired"' "$fixture_codex_config" >/dev/null; then
@@ -1054,36 +2612,6 @@ if CODEX_HOME="$fixture_bad_codex_home" "$root/scripts/sync-codex-skill-policy" 
     "$fixture_resources_root/managed-skills.txt" >/dev/null 2>&1; then
     fail "Codex skill policy accepted malformed ownership markers"
 fi
-[ ! -e "$code_skills_home/.pi/agent/extensions/pi-subagents" ] \
-    || fail "skill sync installed the Pi subagent package into Pi's ambient root"
-
-# A matching version is a no-op: this is the one pack resource large enough
-# that re-copying it every six hours would be felt.
-printf 'sentinel\n' >"$fixture_pi_subagents_packed/render-sentinel"
-HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
-    AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
-    AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
-    AGENTSTART_CLAUDE_BIN=/usr/bin/true \
-    AGENTSTART_CODEX_BIN=/usr/bin/true \
-    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
-    "$root/scripts/sync-skills" >/dev/null
-[ -f "$fixture_pi_subagents_packed/render-sentinel" ] \
-    || fail "the renderer re-copied an unchanged Pi subagent package"
-
-# A newer pin replaces the packed copy wholesale.
-/usr/bin/sed -i '' 's/"9.9.9"/"9.9.10"/' \
-    "$fixture_pi_subagents_root/pi-subagents/package.json"
-HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
-    AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
-    AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
-    AGENTSTART_CLAUDE_BIN=/usr/bin/true \
-    AGENTSTART_CODEX_BIN=/usr/bin/true \
-    AGENTSTART_PI_SUBAGENTS_ROOT="$fixture_pi_subagents_root" \
-    "$root/scripts/sync-skills" >/dev/null
-[ ! -e "$fixture_pi_subagents_packed/render-sentinel" ] \
-    || fail "the renderer kept a stale Pi subagent package across a version change"
-grep -F '"9.9.10"' "$fixture_pi_subagents_packed/package.json" >/dev/null \
-    || fail "the renderer did not carry the newer Pi subagent pin into fixed Pi resources"
 [ ! -e "$code_skills_home/.agents/skills/demo" ] \
     || fail "skill sync leaked a managed skill into Fx's compatibility root"
 
@@ -1137,7 +2665,6 @@ install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root"
 for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
-    'curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
@@ -1151,12 +2678,13 @@ for required_install in \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
     'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
-    'herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned' \
+    'herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
+    'remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher' \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
     'remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
@@ -1170,7 +2698,6 @@ for required_install in \
     'native skills list' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
-    'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi'"'"'s global slot' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
@@ -1188,6 +2715,7 @@ for required_install in \
     'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
     'install herdr with --copy into the fixed resources' \
     'remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant' \
+    'narrow vendor provider-origin guidance to retained Claude/Codex values' \
     'render one session-only Claude plugin named agent (/agent:<skill>)' \
     'render and refresh the skills-only Codex plugin agent@agentstart-managed' \
     'persistently disable every agent:<skill> outside managed Codex sessions' \
@@ -1319,8 +2847,8 @@ fi
 grep -F 'link_agent_guidance' scripts/install.sh >/dev/null \
     || fail "installer does not link the harness guidance"
 # shellcheck disable=SC2016 # Match the literal target paths in the script.
-grep -F '"$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"' scripts/install.sh >/dev/null \
-    || fail "installer does not target all three harness guidance locations"
+grep -F '"$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"' scripts/install.sh >/dev/null \
+    || fail "installer does not target both harness guidance locations"
 grep -F 'refusing to replace independent guidance' scripts/install.sh >/dev/null \
     || fail "installer would replace independent guidance files"
 # shellcheck disable=SC2016 # Match the literal direct-link operation.
@@ -1369,7 +2897,7 @@ grep -F 'install_or_upgrade_formula zig' scripts/install.sh >/dev/null \
 # Terminal Control is built from its locked crates.io release with the exact
 # Zig line libghostty-vt requires. Its upstream skill is selected from the
 # installed binary's matching release tag and then shipped through the common
-# fixed private resources to Claude Code, Codex, and Pi.
+# fixed private resources to Claude Code and Codex.
 grep -F 'install_or_upgrade_formula rustup' scripts/install.sh >/dev/null \
     || fail "installer does not converge Rustup for Terminal Control"
 # shellcheck disable=SC2016 # Match the literal formula-owned Rustup variable.
@@ -1485,8 +3013,8 @@ grep -F '[ "$(command -v herdr)" = "$herdr_bin" ]' scripts/install.sh >/dev/null
     || fail "installer does not verify that Homebrew Herdr wins resolution"
 grep -F 'install_herdr_integrations' scripts/install.sh >/dev/null \
     || fail "installer does not converge the herdr harness integrations"
-grep -F 'for harness in claude codex pi' scripts/install.sh >/dev/null \
-    || fail "herdr integrations do not cover the three harnesses the fleet runs"
+grep -F 'for harness in claude codex' scripts/install.sh >/dev/null \
+    || fail "herdr integrations do not cover both harnesses the fleet runs"
 
 # AgentStart owns Herdr's behavior config and renders it into the live file,
 # because Herdr writes its own keys there. It carries no palette: Herdr's
@@ -1652,17 +3180,9 @@ grep -F 'agent_browser_version=0.33.2' scripts/install.sh >/dev/null \
 grep -F 'refusing to replace independent file' scripts/install.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
 
-# Pi reads its prompts from /dev/tty, so only removing the controlling
-# terminal keeps the run unattended and stops it editing the Stow-managed
-# shell profile.
-grep -F 'run_without_controlling_terminal /bin/sh' scripts/install.sh >/dev/null \
-    || fail "Pi installer is not detached from the controlling terminal"
-grep -F 'POSIX::setsid()' scripts/install.sh >/dev/null \
-    || fail "Pi installer detachment does not start a new session"
-
-# The fleet statusline is one bar in three harness idioms: a render command
-# for claude, a footer extension for pi, and an ordered pick from codex's
-# fixed item set — codex has no custom renderer to install.
+# The fleet statusline is one bar in two harness idioms: a render command for
+# Claude and an ordered pick from Codex's fixed item set. Codex has no custom
+# renderer to install.
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/install-statusline" --install' scripts/install.sh >/dev/null \
     || fail "installer does not converge the fleet statusline"
@@ -1671,16 +3191,11 @@ grep -F '"$script_dir/install-statusline" --check' scripts/install.sh >/dev/null
     || fail "installation plan omits the fleet statusline"
 [ -x scripts/install-statusline ] \
     || fail "the statusline installer is not executable"
-for renderer in config/statusline/claude-statusline.sh config/statusline/pi-statusline.ts; do
-    [ -s "$renderer" ] \
-        || fail "statusline renderer is missing or empty: $renderer"
-done
-# Claude refuses an independent statusline; Pi's ambient slot is retired and
-# an independent occupant is explicitly left untouched.
+[ -s config/statusline/claude-statusline.sh ] \
+    || fail "Claude statusline renderer is missing or empty"
+# Claude refuses an independent statusline.
 grep -F 'refusing to replace an independent claude renderer' scripts/install-statusline >/dev/null \
     || fail "the statusline installer would replace an independent Claude file"
-grep -F 'Leaving independent pi extension untouched' scripts/install-statusline >/dev/null \
-    || fail "the statusline installer would replace an independent Pi extension"
 if grep -F 'agent-hooks/claude-statusline.sh' config/statusline/claude-statusline.sh >/dev/null; then
     fail "the claude renderer still forwards statusline payloads to the retired Orca sink"
 fi
@@ -1741,14 +3256,12 @@ grep -F 'remove_retired_core_plugin' scripts/install.sh >/dev/null \
 if grep -Eq 'plugin (uninstall|remove)|plugin marketplace remove' scripts/render-capabilities; then
     fail "render-capabilities uninstalls plugins on the unattended path"
 fi
-if grep -Eq 'rm -- .*herdr-agent-state|unlink .*herdr-agent-state' scripts/render-capabilities; then
-    fail "render-capabilities removes Pi resources on the unattended path"
-fi
 # shellcheck disable=SC2016 # Match literal generated-manifest variables.
 grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/dev/null \
     || fail "render-capabilities may prompt before replacing an immutable generated manifest"
-grep -F 'remove_packed_pi_ambient_resources' scripts/install.sh >/dev/null \
-    || fail "full installer does not retire Pi resources after packing them"
+# shellcheck disable=SC2016 # Match the literal helper invocation.
+grep -F '"$script_dir/remove-retired-pi" --install' scripts/install.sh >/dev/null \
+    || fail "full installer does not run the exact-target Pi retirement cleanup"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
 # launcher shells its balance contract), and codex-swap must precede agentusage

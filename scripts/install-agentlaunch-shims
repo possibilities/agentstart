@@ -15,7 +15,7 @@ die() {
 [ "$(uname -s)" = Darwin ] || die "macOS is required"
 [ "$(id -u)" -ne 0 ] || die "run as the target user, not root"
 
-# Bare `claude`, `codex`, and `pi` become balanced launches. Each shim names
+# Bare `claude` and `codex` become balanced launches. Each shim names
 # only the harness; every other token remains native harness input and reaches
 # AgentLaunch unchanged. A managed launch carries AGENTLAUNCH_LAUNCH=1 so a
 # descendant that resolves the same PATH falls through to the real binary.
@@ -27,10 +27,10 @@ command -v agentlaunch >/dev/null 2>&1 ||
 
 mkdir -p "$shim_dir"
 
-for harness in claude codex pi; do
+for harness in claude codex; do
     shim="$shim_dir/$harness"
     # apply_patch owns this source file; this heredoc deliberately generates
-    # the three installed wrappers from one reviewed template.
+    # the installed wrappers from one reviewed template.
     cat >"$shim" <<EOF
 #!/usr/bin/env bash
 # AgentStart-managed AgentLaunch shim: bare \`$harness\` uses the fleet launch
