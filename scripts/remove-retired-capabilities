@@ -1,0 +1,332 @@
+#!/bin/bash
+# Remove the retired capability-pack tree only when its old manifest or every
+# remaining byte proves that AgentStart produced it. The fixed resource set is
+# the replacement and must already be rendered before this helper runs.
+
+set -euo pipefail
+
+check_only=0
+retired_root="${AGENTSTART_RETIRED_CAPABILITIES_ROOT:-$HOME/.local/share/agentstart/capabilities}"
+resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
+quarantine_dir=
+quarantine_root=
+classification=foreign
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/remove-retired-capabilities [--install|--check]
+
+Remove AgentStart's retired capability-pack tree only when its original
+manifest or an exact fixed-resource comparison proves ownership.
+EOF
+}
+
+die() {
+    printf 'AgentStart retired capability cleanup: %s\n' "$*" >&2
+    exit 1
+}
+
+manifest_without_policy_is_managed() {
+    local retired_file="$1"
+    local current_file="$2"
+    local scratch_root="$3"
+    local retired_bytes current_bytes
+
+    retired_bytes=$(/usr/bin/wc -c <"$retired_file") || return 1
+    current_bytes=$(/usr/bin/wc -c <"$current_file") || return 1
+    [ "$current_bytes" -gt "$retired_bytes" ] || return 1
+
+    /usr/bin/head -c "$retired_bytes" "$current_file" \
+        >"$scratch_root/current-prefix" || return 1
+    /usr/bin/cmp -s "$retired_file" "$scratch_root/current-prefix" \
+        || return 1
+    /usr/bin/tail -c "+$((retired_bytes + 1))" "$current_file" \
+        >"$scratch_root/current-suffix" || return 1
+
+    printf '\npolicy:\n  allow_implicit_invocation: true\n' \
+        >"$scratch_root/expected-true"
+    printf '\npolicy:\n  allow_implicit_invocation: false\n' \
+        >"$scratch_root/expected-false"
+    /usr/bin/cmp -s "$scratch_root/current-suffix" \
+        "$scratch_root/expected-true" \
+        || /usr/bin/cmp -s "$scratch_root/current-suffix" \
+            "$scratch_root/expected-false"
+}
+
+skill_residue_is_managed() (
+    local candidate_root="$1"
+    local candidate_residue="$candidate_root/packs/common/skills"
+    local path relative current_file found_item=0 scratch_root
+
+    [ -d "$candidate_residue" ] && [ ! -L "$candidate_residue" ] \
+        || return 1
+    [ -d "$resources_root/skills" ] && [ ! -L "$resources_root/skills" ] \
+        || return 1
+
+    scratch_root=$(/usr/bin/mktemp -d \
+        "${TMPDIR:-/tmp}/agentstart-capability-proof.XXXXXX") || return 1
+    trap '/bin/rm -rf -- "$scratch_root"' EXIT
+
+    # Capture one fail-closed traversal before inspecting anything. This both
+    # preserves arbitrary path bytes and prevents a failed walk from looking
+    # like an empty or complete inventory.
+    /usr/bin/find "$candidate_root" -print0 >"$scratch_root/inventory" \
+        || return 1
+
+    while IFS= read -r -d '' path; do
+        if [ -L "$path" ]; then
+            case "$path" in
+                "$candidate_residue"/*) ;;
+                *) return 1 ;;
+            esac
+            found_item=1
+            relative=${path#"$candidate_residue"/}
+            current_file="$resources_root/skills/$relative"
+            [ -L "$current_file" ] || return 1
+            /usr/bin/readlink -n "$path" >"$scratch_root/retired-link" \
+                || return 1
+            /usr/bin/readlink -n "$current_file" >"$scratch_root/current-link" \
+                || return 1
+            /usr/bin/cmp -s "$scratch_root/retired-link" \
+                "$scratch_root/current-link" || return 1
+        elif [ -d "$path" ]; then
+            case "$path" in
+                "$candidate_root" | "$candidate_root/packs" | \
+                    "$candidate_root/packs/common" | "$candidate_residue") ;;
+                "$candidate_residue"/*)
+                    relative=${path#"$candidate_residue"/}
+                    [ -d "$resources_root/skills/$relative" ] \
+                        && [ ! -L "$resources_root/skills/$relative" ] \
+                        || return 1
+                    ;;
+                *) return 1 ;;
+            esac
+        elif [ -f "$path" ]; then
+            case "$path" in
+                "$candidate_residue"/*) ;;
+                *) return 1 ;;
+            esac
+            found_item=1
+            relative=${path#"$candidate_residue"/}
+            current_file="$resources_root/skills/$relative"
+            [ -f "$current_file" ] && [ ! -L "$current_file" ] || return 1
+            /usr/bin/cmp -s "$path" "$current_file" && continue
+            case "$relative" in
+                */agents/openai.yaml)
+                    manifest_without_policy_is_managed \
+                        "$path" "$current_file" "$scratch_root" || return 1
+                    ;;
+                *) return 1 ;;
+            esac
+        else
+            # Sockets, devices, fifos, and paths that changed type or vanished
+            # during proof can carry independent state.
+            return 1
+        fi
+    done <"$scratch_root/inventory"
+
+    [ "$found_item" -eq 1 ]
+)
+
+classify_root() {
+    local candidate_root="$1"
+    local manifest="$candidate_root/packs/common/capability.json"
+
+    classification=foreign
+    [ -d "$candidate_root" ] && [ ! -L "$candidate_root" ] || return 0
+
+    if [ -e "$manifest" ] || [ -L "$manifest" ]; then
+        if [ -d "$candidate_root/packs" ] \
+            && [ ! -L "$candidate_root/packs" ] \
+            && [ -d "$candidate_root/packs/common" ] \
+            && [ ! -L "$candidate_root/packs/common" ] \
+            && [ -f "$manifest" ] && [ ! -L "$manifest" ] \
+            && /usr/bin/jq -e \
+                '.schema_version == 1 and .id == "common" and .default == true' \
+                "$manifest" >/dev/null 2>&1; then
+            classification=owned-manifest
+        fi
+    elif skill_residue_is_managed "$candidate_root"; then
+        classification=owned-residue
+    fi
+}
+
+print_plan() {
+    local ownership="$1"
+    local plan
+
+    case "$ownership" in
+        absent) plan='absent; nothing to remove' ;;
+        owned-manifest) plan='would remove (original manifest)' ;;
+        owned-residue) plan='would remove (byte-proved managed residue)' ;;
+        foreign) plan='REFUSE — foreign or unproved occupant' ;;
+    esac
+    printf 'Retired capability-pack tree:\n  %-48s %s\n' \
+        "$retired_root" "$plan"
+}
+
+same_or_ancestor_by_identity() {
+    local possible_ancestor="$1"
+    local path="$2"
+    local ancestor_identity path_identity
+
+    ancestor_identity=$(/usr/bin/stat -f '%d:%i' -- "$possible_ancestor") \
+        || return 2
+    while :; do
+        path_identity=$(/usr/bin/stat -f '%d:%i' -- "$path") || return 2
+        [ "$ancestor_identity" != "$path_identity" ] || return 0
+        [ "$path" != / ] || break
+        path=${path%/*}
+        [ -n "$path" ] || path=/
+    done
+    return 1
+}
+
+restore_quarantine() {
+    local status=$?
+
+    trap - EXIT
+    if [ -n "$quarantine_root" ] \
+        && { [ -e "$quarantine_root" ] || [ -L "$quarantine_root" ]; }; then
+        if [ ! -e "$retired_root" ] && [ ! -L "$retired_root" ]; then
+            if /bin/mv -- "$quarantine_root" "$retired_root"; then
+                /bin/rmdir -- "$quarantine_dir" 2>/dev/null || true
+                printf 'AgentStart retired capability cleanup: restored refused tree to %s\n' \
+                    "$retired_root" >&2
+            else
+                printf 'AgentStart retired capability cleanup: could not restore refused tree; preserved it at %s\n' \
+                    "$quarantine_root" >&2
+            fi
+        else
+            printf 'AgentStart retired capability cleanup: original path was recreated; preserved refused tree at %s\n' \
+                "$quarantine_root" >&2
+        fi
+    elif [ -n "$quarantine_dir" ]; then
+        /bin/rmdir -- "$quarantine_dir" 2>/dev/null || true
+    fi
+    exit "$status"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --install) check_only=0 ;;
+        --check) check_only=1 ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+case "$retired_root$resources_root" in
+    *$'\n'* | *$'\r'*) die 'root paths may not contain line breaks' ;;
+esac
+while [ "$retired_root" != / ] && [ "${retired_root%/}" != "$retired_root" ]; do
+    retired_root=${retired_root%/}
+done
+while [ "$resources_root" != / ] && [ "${resources_root%/}" != "$resources_root" ]; do
+    resources_root=${resources_root%/}
+done
+
+case "$retired_root" in
+    /*) ;;
+    *) die "retired root must be absolute: $retired_root" ;;
+esac
+case "$resources_root" in
+    /*) ;;
+    *) die "resources root must be absolute: $resources_root" ;;
+esac
+case "$retired_root" in
+    / | "$HOME") die "refusing unsafe retired root: $retired_root" ;;
+esac
+
+if [ ! -e "$retired_root" ] && [ ! -L "$retired_root" ]; then
+    [ "$check_only" -eq 0 ] || print_plan absent
+    exit 0
+fi
+[ ! -L "$retired_root" ] \
+    || die "refusing linked retired root: $retired_root"
+[ -d "$resources_root" ] && [ ! -L "$resources_root" ] \
+    || die "fixed resources root must be a real directory: $resources_root"
+
+retired_root=$(/bin/realpath "$retired_root") \
+    || die 'could not resolve retired root'
+resources_root=$(/bin/realpath "$resources_root") \
+    || die 'could not resolve fixed resources root'
+home_root=$(/bin/realpath "$HOME") || die 'could not resolve home directory'
+
+case "$retired_root" in
+    /) die "refusing unsafe retired root: $retired_root" ;;
+esac
+if same_or_ancestor_by_identity "$retired_root" "$home_root"; then
+    die "refusing retired root that contains the home directory: $retired_root"
+else
+    relation_status=$?
+    [ "$relation_status" -eq 1 ] \
+        || die "could not prove retired root separate from home: $retired_root"
+fi
+if same_or_ancestor_by_identity "$retired_root" "$resources_root"; then
+    die "retired and fixed-resource roots overlap: $retired_root and $resources_root"
+else
+    relation_status=$?
+    [ "$relation_status" -eq 1 ] \
+        || die "could not compare retired and fixed-resource roots"
+fi
+if same_or_ancestor_by_identity "$resources_root" "$retired_root"; then
+    die "retired and fixed-resource roots overlap: $retired_root and $resources_root"
+else
+    relation_status=$?
+    [ "$relation_status" -eq 1 ] \
+        || die "could not compare fixed-resource and retired roots"
+fi
+[ -d "$resources_root/skills" ] && [ ! -L "$resources_root/skills" ] \
+    || die "fixed skill resources must be a real directory: $resources_root/skills"
+
+if [ "$check_only" -eq 1 ]; then
+    classify_root "$retired_root"
+    print_plan "$classification"
+    exit 0
+fi
+
+# Move the complete tree behind a private sibling directory before proving it.
+# Writers using the retired public path can no longer add bytes between proof
+# and deletion; anything that won the rename race moves with the tree and is
+# included in the one fail-closed inventory below.
+retired_parent=${retired_root%/*}
+[ -n "$retired_parent" ] || retired_parent=/
+retired_name=${retired_root##*/}
+quarantine_dir=$(/usr/bin/mktemp -d \
+    "$retired_parent/.${retired_name}.agentstart-cleanup.XXXXXX") \
+    || die "could not create cleanup quarantine beside $retired_root"
+quarantine_root="$quarantine_dir/tree"
+trap restore_quarantine EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+if ! /bin/mv -- "$retired_root" "$quarantine_root"; then
+    quarantine_root=
+    /bin/rmdir -- "$quarantine_dir" 2>/dev/null || true
+    quarantine_dir=
+    die "could not quarantine retired root: $retired_root"
+fi
+
+classify_root "$quarantine_root"
+case "$classification" in
+    owned-manifest | owned-residue) ;;
+    foreign) die "refusing foreign or unproved occupant: $retired_root" ;;
+esac
+
+/bin/rm -rf -- "$quarantine_root"
+quarantine_root=
+if ! /bin/rmdir -- "$quarantine_dir"; then
+    die "cleanup quarantine gained an unproved occupant; preserved it at $quarantine_dir"
+fi
+quarantine_dir=
+trap - EXIT HUP INT TERM
+printf 'Removed the retired capability-pack tree: %s.\n' "$retired_root"

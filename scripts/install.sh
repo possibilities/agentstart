@@ -203,18 +203,7 @@ remove_packed_pi_ambient_resources() {
 }
 
 remove_retired_capability_resources() {
-    local manifest="$retired_capabilities_root/packs/common/capability.json"
-
-    [ -e "$retired_capabilities_root" ] || [ -L "$retired_capabilities_root" ] || return 0
-    [ -d "$retired_capabilities_root" ] \
-        || die "refusing non-directory retired capability root: $retired_capabilities_root"
-    [ -f "$manifest" ] \
-        || die "refusing unrecognized retired capability root without $manifest"
-    /usr/bin/jq -e '.schema_version == 1 and .id == "common" and .default == true' \
-        "$manifest" >/dev/null \
-        || die "refusing unrecognized retired capability root: $retired_capabilities_root"
-    rm -rf -- "$retired_capabilities_root"
-    printf 'Removed the retired capability-pack tree: %s.\n' "$retired_capabilities_root"
+    "$script_dir/remove-retired-capabilities" --install
 }
 
 # Pi's installer reads its prompts from /dev/tty instead of stdin, so redirecting
@@ -441,8 +430,9 @@ converge_repo_content() {
 
     # Both managed consumers are installed earlier in the full convergence and
     # now read the fixed resources. The old projections and pack receipts are
-    # not a compatibility surface; remove only the ownership-proven tree.
-    printf 'Retiring the ownership-proven capability-pack tree.\n'
+    # not a compatibility surface; remove only a manifest-owned tree or an
+    # exact managed-skill residue from the fixed-resource migration.
+    printf 'Retiring the provably managed capability-pack tree.\n'
     remove_retired_capability_resources
 
     # The renderer above copied Herdr's generated Pi extension into the private resources.
@@ -561,6 +551,7 @@ Fixed private fleet resources:
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the fixed resources
   remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it
+  remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant
 
 Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):

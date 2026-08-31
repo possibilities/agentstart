@@ -20,6 +20,7 @@ scripts/install-agent-clis
 scripts/install-agentlaunch-shims
 scripts/remove-retired-integrations
 scripts/remove-retired-agentweb
+scripts/remove-retired-capabilities
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
 scripts/agentbrowse-config
@@ -36,6 +37,7 @@ tests/herdr-homebrew-cutover.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
 tests/remove-retired-agentweb.sh
+tests/remove-retired-capabilities.sh
 tests/fixtures/npx
 tests/fixtures/herdr-protocol
 "
@@ -57,6 +59,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/render-skill-invocation-policy \
     scripts/remove-retired-integrations \
     scripts/remove-retired-agentweb \
+    scripts/remove-retired-capabilities \
     scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/herdr-config \
     scripts/select-herdr-runtime; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
@@ -77,6 +80,8 @@ done
     || fail "launch agent installer test is not executable: tests/install-launchagents.sh"
 [ -x tests/remove-retired-agentweb.sh ] \
     || fail "retired Agentweb cleanup test is not executable: tests/remove-retired-agentweb.sh"
+[ -x tests/remove-retired-capabilities.sh ] \
+    || fail "retired capability cleanup test is not executable: tests/remove-retired-capabilities.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
 /usr/bin/python3 -c \
@@ -121,6 +126,7 @@ tests/agent-browser-config.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
 tests/remove-retired-agentweb.sh
+tests/remove-retired-capabilities.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
 for supervise_script in \
@@ -1151,6 +1157,7 @@ for required_install in \
     'install hunk-review with --copy into the fixed resources' \
     'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
     'install herdr with --copy into the fixed resources' \
+    'remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant' \
     'render one session-only Claude plugin named agent (/agent:<skill>)' \
     'render and refresh the skills-only Codex plugin agent@agentstart-managed' \
     'persistently disable every agent:<skill> outside managed Codex sessions' \
