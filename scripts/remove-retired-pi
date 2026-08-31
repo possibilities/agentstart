@@ -1657,7 +1657,7 @@ validate_agentchats_deployment() {
     local command="$cleanup_home/.local/bin/agentchats"
     local cass="$cleanup_home/.local/bin/cass"
     local raw_helper="$cleanup_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs"
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-9593ffa9ba218f4f329e33943c5fbbd45fe4cba9}"
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-bb387cdb1516b14f2f622660f611ed47c14ac3e6}"
     local exclusions stats search raw pending
     for path in \
         "$command" "$cass" \
