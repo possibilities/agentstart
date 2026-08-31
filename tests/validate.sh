@@ -1626,8 +1626,9 @@ last_result = "current"
 
 [agents.pi]
 cached_version = "2"
+attempted_version = "2"
 last_checked_unix = 2
-last_result = "current"
+last_result = "updated"
 
 [agents.codex]
 cached_version = "3"

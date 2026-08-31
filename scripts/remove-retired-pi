@@ -2392,7 +2392,8 @@ sub scan_block {
         $body =~ s/\r?\n\z//;
         next unless $body eq '[agents.pi]';
         my $j = $i + 1;
-        my ($versions, $checks, $results) = (0, 0, 0);
+        my ($versions, $attempted, $checks, $results, $errors) = (0, 0, 0, 0, 0);
+        my $result_value;
         while ($j < @lines) {
             my $candidate = $lines[$j];
             $candidate =~ s/\r?\n\z//;
@@ -2401,16 +2402,23 @@ sub scan_block {
                 # whitespace inside the owned block is harmless
             } elsif ($candidate =~ /^cached_version = "[^"]+"\z/) {
                 $versions += 1;
+            } elsif ($candidate =~ /^attempted_version = \x22[^\x22]+\x22\z/) {
+                $attempted += 1;
             } elsif ($candidate =~ /^last_checked_unix = [0-9]+\z/) {
                 $checks += 1;
             } elsif ($candidate =~ /^last_result = "[^"]+"\z/) {
                 $results += 1;
+                ($result_value) = $candidate =~ /^last_result = \x22([^\x22]+)\x22\z/;
+            } elsif ($candidate =~ /^last_error = \x22[^\x22]*\x22\z/) {
+                $errors += 1;
             } else {
                 die "changed [agents.pi] cache block in $path\n";
             }
             $j += 1;
         }
-        $versions == 1 && $checks == 1 && $results == 1
+        $versions == 1 && $attempted <= 1 && $checks == 1 && $results == 1
+            && $errors <= 1
+            && (!$attempted || ($result_value // '') eq 'updated')
             or die "changed [agents.pi] cache block in $path\n";
         my $end = $j < @offsets ? $offsets[$j] : length($content);
         push @blocks, [$offsets[$i], $end - $offsets[$i]];
