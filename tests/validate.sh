@@ -277,6 +277,36 @@ command -v bun >/dev/null 2>&1 \
     || fail "bun is required to test the supervise skill's TypeScript helpers"
 bun test tests/supervise.test.ts
 
+# The fleet agent contract: config/agent-contract/schema.json is normative and
+# scripts/validate-agent-contract.ts is its dependency-free enforcement. The two
+# are kept honest by a fixture per rule, so the test file is the thing that
+# fails when they drift apart rather than a fleet CLI failing much later.
+[ -f config/agent-contract/schema.json ] \
+    || fail "the agent contract schema is missing"
+[ -f config/agent-contract/README.md ] \
+    || fail "the agent contract has no explanation for the repositories adopting it"
+[ -x scripts/validate-agent-contract.ts ] \
+    || fail "scripts/validate-agent-contract.ts must be executable"
+# The validator executes the schema rather than restating it; losing the
+# interpreter would silently return this to two authorships of one rule set.
+[ -f scripts/json-schema-subset.ts ] \
+    || fail "the schema interpreter is missing; the validator would be mirroring the schema again"
+grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
+    || fail "the agent contract validator no longer executes config/agent-contract/schema.json"
+[ -f config/agent-contract/example.json ] \
+    || fail "the agent contract has no worked example for the repositories adopting it"
+bun test tests/agent-contract.test.ts
+
+# Prove the executable rejects, not just the exported function: a validator that
+# only ever runs green in a unit test is a validator nobody has actually used.
+contract_probe=$(mktemp)
+printf '%s' '{"schema_version":1,"ok":true,"data":{"contract_version":1}}' > "$contract_probe"
+if scripts/validate-agent-contract.ts --file "$contract_probe" >/dev/null 2>&1; then
+    rm -f "$contract_probe"
+    fail "the agent contract validator accepted a contract with no meta or commands"
+fi
+rm -f "$contract_probe"
+
 # Cross-project guidance lives in the wiki, not in this repository; a
 # guidance/ directory reappearing here means the decision reversed silently.
 [ ! -e guidance ] \
