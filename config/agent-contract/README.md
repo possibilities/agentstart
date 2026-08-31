@@ -192,6 +192,14 @@ caller has already fixed, not parameters a model should be asked to choose.
 5. Add a conformance test in your own repository, and check yourself with
    `agentstart/scripts/validate-agent-contract.ts <cli>`.
 
+## Generating a call surface
+
+`MCP.md` beside this file is the mapping from a contract to an MCP server, which
+each CLI serves as its own `<cli> mcp` subcommand — in process, reading its own
+contract, dispatching through its own command table. It is written once there
+for the same reason this contract exists at all: seven repositories implementing
+one mapping beats seven inventing their own.
+
 ## A worked example
 
 `example.json` is a real, validated fragment of what AgentBoard's contract looks
