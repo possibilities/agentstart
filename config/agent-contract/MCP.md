@@ -98,6 +98,30 @@ leads with `error.code`, then the message, then `recovery` when the contract
 gives one — the recovery line is the difference between a caller that retries
 correctly and one that retries identically.
 
+## Stopping
+
+A stdio server is built to outlive its caller, which is exactly why it must be
+told to stop. It ends when the host closes stdio — the transport closing, or
+`end`/`close` on stdin — and it must also end on SIGTERM, because that is what a
+supervisor, a `timeout`, and a test harness all send.
+
+**If the CLI installs its own SIGINT or SIGTERM handlers, the serve path must
+honour them.** Installing a handler suppresses the runtime's own
+terminate-on-signal, so a server that does not listen to whatever the handler
+signals will survive SIGTERM and need SIGKILL. AgentScrape shipped exactly that
+bug: its entrypoint aborts an `AbortController` on signal and every other
+command receives it through `signal`, but serving was dispatched without one, so
+SIGTERM aborted a controller nothing was listening to. Two servers stayed
+resident for nine minutes and one was orphaned to init. A CLI that installs no
+handler needs nothing here — the runtime terminates it normally.
+
+Test it by spawning a real server, sending SIGTERM, and failing if the test has
+to escalate to SIGKILL. `timeout` does not escalate on its own without
+`--kill-after`, so an untested serve path leaks one process per run.
+
+An idle server must also sit at ~0% CPU, blocked on a read. Steady CPU with flat
+memory is a poll loop, not work.
+
 ## Declaring it
 
 `mcp` is a command like any other and appears in the contract as
