@@ -89,7 +89,12 @@
             "description": "An agent-facing CLI owes the conceptual layer. An operator CLI owes only meta and commands \u2014 a webhook receiver has no routing doctrine, and inventing one is worse than omitting it."
           }
         }
-      ]
+      ],
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
+        }
+      }
     },
     "meta": {
       "type": "object",
@@ -121,6 +126,11 @@
             "operator"
           ],
           "description": "Who the CLI is built for. `agent` requires the conceptual layer and is the only value whose commands are candidates for a generated call surface. `operator` means humans and installers drive it."
+        }
+      },
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
         }
       }
     },
@@ -178,6 +188,11 @@
               "recovery": {
                 "type": "string",
                 "description": "What a caller should do about it. Present whenever the answer is not obvious from the meaning."
+              }
+            },
+            "patternProperties": {
+              "^x_": {
+                "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
               }
             }
           },
@@ -258,6 +273,44 @@
             "$ref": "#/$defs/constraint"
           },
           "description": "Relations between this command's arguments that a per-argument type cannot state."
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "invocation",
+              "description"
+            ],
+            "properties": {
+              "invocation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "description": "Worked invocations. Hand-written help carried these and a contract without them renders help that is visibly worse than what it replaced, which is the one thing adoption may not do."
+        },
+        "blocking": {
+          "type": "boolean",
+          "default": false,
+          "description": "The command waits on something outside itself and may not return promptly \u2014 AgentAttention's `wait`, an `events --follow` stream. A caller with a request timeout needs to know before it calls, not after it hangs."
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Other names this exact command answers to, such as AgentBrain's `ingest` for `submit`."
+        },
+        "deprecated": {
+          "type": "string",
+          "description": "Present when the command still works but should not be reached for; the value says what to use instead."
         }
       },
       "allOf": [
@@ -280,7 +333,12 @@
             "description": "A leaf is invocable and owes the full mechanical description. A group owes only its name, summary, and audience."
           }
         }
-      ]
+      ],
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
+        }
+      }
     },
     "stdin": {
       "type": "object",
@@ -305,6 +363,11 @@
           "type": "string",
           "minLength": 1
         }
+      },
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
+        }
       }
     },
     "constraint": {
@@ -318,10 +381,11 @@
         "kind": {
           "enum": [
             "one_of",
+            "at_least_one",
             "conflicts",
             "requires"
           ],
-          "description": "`one_of`: at most one may be given, or exactly one when `required` is true. `conflicts`: these may not be combined. `requires`: the first argument makes the rest mandatory."
+          "description": "`one_of`: at most one may be given, or exactly one when `required` is true. `at_least_one`: at least one must be \u2014 AgentBoard's `edit` needs one of --label/--title/--summary, which `one_of` states backwards. `conflicts`: these may not be combined. `requires`: the first argument makes the rest mandatory. A relation conditioned on another argument's VALUE \u2014 AgentBoard's `order` anchor, required only when `--to after` \u2014 has no kind here and belongs in `description`."
         },
         "arguments": {
           "type": "array",
@@ -337,6 +401,11 @@
         },
         "description": {
           "type": "string"
+        }
+      },
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
         }
       }
     },
@@ -414,6 +483,34 @@
             "type": "string"
           },
           "description": "Short or historical spellings, such as `-j` for `--json`."
+        },
+        "csv": {
+          "type": "boolean",
+          "default": false,
+          "description": "The flag takes one comma-joined string of values. Composes with `repeatable`: AgentSearch's `--domains` is documented Repeatable AND takes `<a.com,b.com>`, so it is both, and an either/or could not describe it. When set, `format` describes the ELEMENT \u2014 AgentBoard's `order --id \"a,b,c\"` is a csv of refs."
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Inclusive lower bound for an integer or number argument, such as AgentBrowse's `--slot` at 0."
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Inclusive upper bound, such as AgentSearch's `--limit` at 20."
+        },
+        "role": {
+          "enum": [
+            "call",
+            "output-format",
+            "store-selection",
+            "meta"
+          ],
+          "default": "call",
+          "description": "What kind of knob this is. A consumer building a call surface should expose only `call`: every global argument across the fleet is output shape, store selection, or meta \u2014 things the caller has already fixed, not parameters a model should be asked to choose."
+        }
+      },
+      "patternProperties": {
+        "^x_": {
+          "description": "Reserved for a CLI's own extensions. A closed shape plus a frozen contract_version would otherwise make version 2 a fifteen-repository flag day; an x_ key is how one repository experiments without one."
         }
       }
     }

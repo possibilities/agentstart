@@ -82,14 +82,18 @@ function crossFieldViolations(data: Json): Violation[] {
     byParent.set(parent, seen);
   }
 
+  const duplicated = out.length > 0;
   const leafPaths = leaves.map((leaf) => leaf.path);
   const nonMutating = leaves
     .filter((leaf) => leaf.command["mutates"] === false)
     .map((leaf) => leaf.path);
 
   // read_only_commands must be exactly the non-mutating leaves, by full path.
+  // A duplicate name makes every path ambiguous, so the cross-check below
+  // would compare against a list that names one thing twice — a duplicate pair
+  // straddling `mutates` would satisfy it. Report the duplicate and stop.
   const concepts = data["concepts"];
-  if (isObject(concepts) && Array.isArray(concepts["read_only_commands"])) {
+  if (!duplicated && isObject(concepts) && Array.isArray(concepts["read_only_commands"])) {
     const declared = concepts["read_only_commands"] as unknown[];
     for (const entry of declared) {
       if (typeof entry !== "string") continue;
@@ -124,8 +128,14 @@ function crossFieldViolations(data: Json): Violation[] {
       if (!isObject(argument)) continue;
       const name = argument["name"];
       if (typeof name !== "string") continue;
-      if (seenArgs.has(name)) at(`${where}.arguments`, `declares "${name}" twice`);
-      seenArgs.add(name);
+      const spellings = [name, ...(Array.isArray(argument["aliases"]) ? argument["aliases"] : [])];
+      for (const spelling of spellings) {
+        if (typeof spelling !== "string") continue;
+        if (seenArgs.has(spelling)) {
+          at(`${where}.arguments`, `declares "${spelling}" twice, counting aliases`);
+        }
+        seenArgs.add(spelling);
+      }
       const looksLikeFlag = name.startsWith("-");
       if (argument["positional"] === true && looksLikeFlag) {
         at(`${where}.arguments.${name}`, "a positional must not carry leading dashes");
@@ -195,6 +205,15 @@ function usage(): never {
 
 function main(argv: readonly string[]): number {
   if (argv.length === 0) usage();
+  if (argv[0] === "-h" || argv[0] === "--help") {
+    process.stdout.write(
+      "Usage: validate-agent-contract.ts <cli-name> | --file <contract.json>\n\n" +
+        "Validates one fleet agent contract against config/agent-contract/schema.json.\n",
+    );
+    return 0;
+  }
+  if (argv[0]!.startsWith("-") && argv[0] !== "--file") usage();
+
   let raw: string;
   let source: string;
 
@@ -202,11 +221,22 @@ function main(argv: readonly string[]): number {
     const path = argv[1];
     if (path === undefined) usage();
     source = path;
-    raw = readFileSync(path, "utf8");
+    try {
+      raw = readFileSync(path, "utf8");
+    } catch {
+      process.stderr.write(`agent contract: cannot read ${path}\n`);
+      return 1;
+    }
   } else {
     const cli = argv[0]!;
     source = `${cli} guide --json`;
-    const run = Bun.spawnSync([cli, "guide", "--json"], { stdout: "pipe", stderr: "pipe" });
+    let run: { success: boolean; exitCode: number | null; stdout: Buffer; stderr: Buffer };
+    try {
+      run = Bun.spawnSync([cli, "guide", "--json"], { stdout: "pipe", stderr: "pipe" });
+    } catch {
+      process.stderr.write(`agent contract: no such command "${cli}" on PATH\n`);
+      return 1;
+    }
     if (!run.success) {
       process.stderr.write(
         `agent contract: \`${source}\` failed (exit ${run.exitCode})\n${run.stderr.toString()}`,

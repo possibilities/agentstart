@@ -78,8 +78,17 @@ from an oversight.
 - An `operator` CLI may not contain an `agent` command.
 - A positional carries no leading dashes; a flag carries them. The slip
   produces an argument nobody can pass, and it is the most common one.
-- No field outside the contract. An `mcp_tool` hint belongs to the consumer,
-  not here — the contract describes the CLI, and MCP is one reader of many.
+- No field outside the contract, except an `x_` extension. An `mcp_tool` hint
+  belongs to the consumer, not here — the contract describes the CLI, and a
+  generated call surface is one reader of many.
+
+Two of these — the dash rule and the `read_only_commands` agreement — are not
+expressible in JSON Schema. A repository that validates with `ajv` alone will
+not catch them, so run this validator too, not only the schema.
+
+`read_only_commands` is **derived**: it is exactly the leaves declaring
+`mutates: false`. It is optional for that reason, and checked only for
+agreement when present. Compute it rather than maintaining it by hand.
 
 ## Nested commands
 
@@ -128,14 +137,46 @@ A **value grammar inside one argument** is not any of these. AgentSearch's
 mixed. That belongs in the argument's `description`; the type system does not
 carry it, and an author who assumes "typed arguments" covers it will drop it.
 
+## Fields the first round of adoption asked for
+
+Every one of these is optional, and every one exists because a real CLI needed
+it or a generated call would otherwise be wrong:
+
+- **`csv` composes with `repeatable`.** They are not alternatives: AgentSearch's
+  `--domains` is documented Repeatable *and* takes `<a.com,b.com>`. When `csv`
+  is set, `format` describes the **element** — AgentBoard's `order --id "a,b,c"`
+  is a csv of refs.
+- **`minimum` / `maximum`** — AgentBrowse's `--slot` is 0–999, AgentSearch's
+  `--limit` is 1–20. A bound stated in prose is a bound a caller violates.
+- **`examples`** — hand-written help carried worked invocations. A contract
+  without them renders help visibly worse than what it replaced, which is the
+  one thing adoption may not do.
+- **`blocking`** — the command waits on something outside itself.
+  AgentAttention's `wait` and an `events --follow` stream will hang a caller
+  that has a request timeout and no warning.
+- **`aliases` and `deprecated`** on a command — AgentBrain's `ingest` is a
+  compatibility alias for `submit`, and a contract that hides that makes the
+  alias undiscoverable.
+- **`role`** on an argument, for the suppression rule below.
+- **`x_` keys**, admitted everywhere `additionalProperties: false` applies. A
+  closed shape plus a frozen `contract_version` would make version 2 a
+  fifteen-repository flag day; an `x_` key is how one repository experiments
+  without calling one.
+
+`constraints` gained **`at_least_one`** for the same reason: AgentBoard's `edit`
+requires one of `--label` / `--title` / `--summary`, which `one_of` states
+backwards. A relation conditioned on another argument's *value* — AgentBoard's
+`order` anchor, required only when `--to after` — still has no kind and belongs
+in `description`. Say so there rather than leaving it unsaid.
+
 ## Global arguments
 
 `--json`, `--db`, `--format` and their kind are declared once in
 `global_arguments`, not repeated in each command — for a 32-command CLI that is
 the difference between a contract and a chore. A consumer building a call
-surface should normally **suppress** them: they are transport and storage
-concerns the caller has already fixed, not parameters a model should be asked
-to choose.
+surface should suppress everything whose `role` is not `call`: every global
+across the fleet is `output-format`, `store-selection`, or `meta` — concerns the
+caller has already fixed, not parameters a model should be asked to choose.
 
 ## Adopting it
 

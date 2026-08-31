@@ -19,7 +19,8 @@
 const SUPPORTED = new Set([
   "$schema", "$id", "$ref", "$defs", "title", "description", "default",
   "type", "const", "enum", "properties", "required", "additionalProperties",
-  "items", "minItems", "minLength", "allOf", "if", "then", "not",
+  "items", "minItems", "minLength", "minimum", "maximum",
+  "allOf", "if", "then", "not", "patternProperties",
 ]);
 
 type Json = unknown;
@@ -103,6 +104,15 @@ function check(root: Schema, schema: Schema, value: Json, path: string, out: Vio
     }
   }
 
+  if (typeof value === "number") {
+    if (typeof schema["minimum"] === "number" && value < schema["minimum"]) {
+      out.push({ path, message: `must be at least ${schema["minimum"]}` });
+    }
+    if (typeof schema["maximum"] === "number" && value > schema["maximum"]) {
+      out.push({ path, message: `must be at most ${schema["maximum"]}` });
+    }
+  }
+
   if (Array.isArray(value)) {
     if (typeof schema["minItems"] === "number" && value.length < schema["minItems"]) {
       out.push({ path, message: `must have at least ${schema["minItems"]} item(s)` });
@@ -135,11 +145,27 @@ function check(root: Schema, schema: Schema, value: Json, path: string, out: Vio
       }
     }
 
+    // patternProperties is how the contract keeps `additionalProperties: false`
+    // strict while still admitting `x_` extensions — a closed shape plus a
+    // frozen version number would otherwise make version 2 a fifteen-repository
+    // flag day.
+    const patterns = schema["patternProperties"] as Record<string, Schema> | undefined;
+    if (patterns !== undefined) {
+      for (const [pattern, sub] of Object.entries(patterns)) {
+        const re = new RegExp(pattern);
+        for (const [key, entry] of Object.entries(value as Record<string, Json>)) {
+          if (re.test(key)) check(root, sub, entry, path === "" ? key : `${path}.${key}`, out);
+        }
+      }
+    }
+
     const additional = schema["additionalProperties"];
     if (additional !== undefined && additional !== true) {
       const known = new Set(Object.keys(properties ?? {}));
+      const patternList = Object.keys(patterns ?? {}).map((p) => new RegExp(p));
       for (const key of Object.keys(object)) {
         if (known.has(key)) continue;
+        if (patternList.some((re) => re.test(key))) continue;
         const where = path === "" ? key : `${path}.${key}`;
         if (additional === false) {
           out.push({ path: where, message: "is not a field this contract defines" });

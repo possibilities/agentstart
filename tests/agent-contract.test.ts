@@ -107,7 +107,7 @@ describe("the schema is executed, not mirrored", () => {
   });
 
   test("an unsupported schema keyword fails loudly rather than silently passing", () => {
-    expect(() => validateAgainstSchema({ patternProperties: {} }, {})).toThrow(/unsupported keyword/);
+    expect(() => validateAgainstSchema({ oneOf: [] }, {})).toThrow(/unsupported keyword/);
   });
 });
 
@@ -263,6 +263,103 @@ describe("argument relations", () => {
     const f = clone();
     (commands(f)[0]!["constraints"] as Record<string, unknown>[])[0]!["arguments"] = ["ref"];
     expect(said(f)).toMatch(/arguments/);
+  });
+});
+
+describe("bugs adversarial review found in the first validator", () => {
+  test("counts aliases when detecting a duplicate argument", () => {
+    // `--json` alongside `{--jsonl, aliases:["--json"]}` passed before.
+    const f = clone();
+    (data(f)["global_arguments"] as Record<string, unknown>[]).push({
+      name: "--jsonl", type: "boolean", description: "One record per line", aliases: ["--json"],
+    });
+    // globals are checked per-command; put the collision inside one command.
+    (commands(f)[0]!["arguments"] as Record<string, unknown>[]).push(
+      { name: "--long", type: "boolean", description: "a" },
+      { name: "--verbose", type: "boolean", description: "b", aliases: ["--long"] },
+    );
+    expect(said(f)).toContain('declares "--long" twice, counting aliases');
+  });
+
+  test("a duplicate command name suppresses the read_only cross-check", () => {
+    // Two leaves named alike, straddling `mutates`, used to satisfy it.
+    const f = clone();
+    commands(f).push({
+      name: "read", summary: "A second read", audience: "agent", mutates: true, arguments: [],
+    });
+    const problems = said(f);
+    expect(problems).toContain("duplicates a sibling command name");
+    expect(problems).not.toContain("read_only_commands");
+  });
+});
+
+describe("fields added after the first round of adoption", () => {
+  test("accepts csv composing with repeatable", () => {
+    // agentsearch --domains is documented Repeatable AND takes <a.com,b.com>.
+    const f = clone();
+    (commands(f)[1]!["arguments"] as Record<string, unknown>[]).push({
+      name: "--domains", type: "string", description: "Allowlist or denylist",
+      repeatable: true, csv: true,
+    });
+    expect(validateContract(f)).toEqual([]);
+  });
+
+  test("accepts numeric bounds", () => {
+    const f = clone();
+    (commands(f)[1]!["arguments"] as Record<string, unknown>[]).push({
+      name: "--slot", type: "integer", description: "Port slot", minimum: 0, maximum: 999,
+    });
+    expect(validateContract(f)).toEqual([]);
+  });
+
+  test("accepts examples, blocking, aliases, and deprecated", () => {
+    const f = clone();
+    const read = commands(f)[0]!;
+    read["examples"] = [{ invocation: "agentexample read the-thing", description: "By phrase" }];
+    read["blocking"] = false;
+    read["aliases"] = ["show"];
+    read["deprecated"] = "use get instead";
+    expect(validateContract(f)).toEqual([]);
+  });
+
+  test("rejects an example missing its description", () => {
+    const f = clone();
+    commands(f)[0]!["examples"] = [{ invocation: "agentexample read x" }];
+    expect(said(f)).toMatch(/description/);
+  });
+
+  test("accepts the at_least_one constraint", () => {
+    // agentboard `edit` needs at least one of --label/--title/--summary,
+    // which one_of states backwards.
+    const f = clone();
+    const write = commands(f)[1]!;
+    (write["arguments"] as Record<string, unknown>[]).push({
+      name: "--title", type: "string", description: "Title",
+    });
+    write["constraints"] = [{ kind: "at_least_one", arguments: ["--depth", "--title"] }];
+    expect(validateContract(f)).toEqual([]);
+  });
+
+  test("accepts role on a global argument", () => {
+    const f = clone();
+    (data(f)["global_arguments"] as Record<string, unknown>[])[0]!["role"] = "output-format";
+    expect(validateContract(f)).toEqual([]);
+  });
+
+  test("rejects an unknown role", () => {
+    const f = clone();
+    (data(f)["global_arguments"] as Record<string, unknown>[])[0]!["role"] = "vibes";
+    expect(said(f)).toMatch(/role/);
+  });
+
+  test("admits an x_ extension without opening the shape", () => {
+    const f = clone();
+    data(f)["x_agentexample_notes"] = { anything: true };
+    commands(f)[0]!["x_legacy_name"] = "fetch";
+    expect(validateContract(f)).toEqual([]);
+    const bad = clone();
+    data(bad)["y_not_reserved"] = 1;
+    expect(said(bad)).toContain("not a field this contract defines");
   });
 });
 
