@@ -1615,7 +1615,7 @@ validate_agentlaunch_deployment() {
         die "deployed AgentLaunch still accepts the retired Pi harness"
     fi
     case "$rejection" in
-        '"pi" is not a harness (expected claude or codex)'*) ;;
+        'harness "pi" is retired; choose claude or codex'*) ;;
         *) die "deployed AgentLaunch did not explicitly reject the retired Pi harness" ;;
     esac
 }
