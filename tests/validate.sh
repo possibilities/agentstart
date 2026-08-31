@@ -345,6 +345,23 @@ grep -F 'post-sync hook failed' scripts/sync-skills >/dev/null \
 
 skip_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-validate.XXXXXX")
 trap 'rm -rf "$skip_test_dir"' EXIT
+
+# A reviewed deployment SHA is a fixture seam only. Even the AgentChats
+# override must never make the live HOME eligible for a test-hook run.
+set +e
+live_agentchats_override_output=$(env -i \
+    HOME="$HOME" PATH="$PATH" \
+    AGENTSTART_PI_CLEANUP_HOME="$HOME" \
+    AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA=fixture-override \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+live_agentchats_override_status=$?
+set -e
+[ "$live_agentchats_override_status" -ne 0 ] \
+    || fail "retired cleanup accepted an AgentChats SHA override against the live home"
+printf '%s\n' "$live_agentchats_override_output" \
+    | grep -F 'retired Pi test hooks cannot target the live home' >/dev/null \
+    || fail "retired cleanup did not reject an AgentChats SHA override against the live home"
+
 # Bare harness shims route through AgentLaunch, and the recursion sentinel
 # keeps AgentLaunch-managed child processes from entering the shim again.
 shim_home="$skip_test_dir/shim-home"
@@ -766,7 +783,7 @@ case "$*" in
         printf '%s\n' '{"ok":true,"data":{"harnesses":[{"harness":"claude"},{"harness":"codex"}]}}'
         ;;
     '--x-harness pi --x-dry-run')
-        printf '%s\n' '"pi" is not a harness (expected claude or codex)' >&2
+        printf '%s\n' 'harness "pi" is retired; choose claude or codex' >&2
         exit 2
         ;;
     *) exit 64 ;;
