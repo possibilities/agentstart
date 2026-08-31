@@ -97,6 +97,14 @@ Where things go:
   if it has one. The `agent*` skills scan needs nothing. A loop member's
   installer must be rerunnable, because a present checkout that fails stops
   the whole install.
+- A fleet CLI's self-description: one contract per CLI, published as
+  `<cli> guide --json` against `config/agent-contract/schema.json`, with
+  `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than
+  written again beside it. `config/agent-contract/README.md` is the contract;
+  `scripts/validate-agent-contract.ts` enforces it. Each command declares its
+  own `audience` and `mutates`, so the CLI's owner — not a downstream consumer
+  — decides which verbs are for agents. A second hand-written agent help is
+  the failure mode this replaces, not a fallback it tolerates.
 - A new long-running fleet service: a noun-role template in `config/launchd/`,
   an entry with its explicit lifecycle (`resident`, `periodic`, or
   `queue-triggered`) in the manifest at the top of

@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentstart.invalid/agent-contract/v1/schema.json",
+  "title": "Fleet agent contract, version 1",
+  "description": "The one machine-readable self-description every agent* CLI publishes as `<cli> guide --json`. It carries two layers that used to live in separate, independently authored places: the conceptual contract an agent needs in order to route (guidance, concepts) and the mechanical contract a caller needs in order to invoke (commands with typed arguments). `--agent-help`, `--agent-teaser`, and `--help` are renders of this document, never second authorships of it.",
+  "type": "object",
+  "required": ["schema_version", "ok", "data"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "description": "The envelope version the CLI already emits for every other command."
+    },
+    "ok": { "const": true },
+    "error": { "type": "null" },
+    "data": { "$ref": "#/$defs/contract" }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "meta", "commands"],
+      "properties": {
+        "contract_version": {
+          "const": 1,
+          "description": "This document's version, independent of the CLI's own version and of the envelope's schema_version."
+        },
+        "meta": { "$ref": "#/$defs/meta" },
+        "guidance": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Prose routing doctrine: when to reach for this tool, which verb to pick, what a caller habitually gets wrong. Deliberately not structured — agentsearch's depth routing is judgment, and flattening it into enum descriptions loses it. Rendered verbatim by --agent-help and hoisted into an MCP server's instructions."
+        },
+        "concepts": { "$ref": "#/$defs/concepts" },
+        "commands": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/command" },
+          "description": "Every command the CLI dispatches, including the ones no agent should call. Audience decides exposure; omission is never how a command is hidden, because a missing command is indistinguishable from an oversight."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "meta": { "properties": { "audience": { "const": "agent" } } } } },
+          "then": {
+            "required": ["contract_version", "meta", "commands", "guidance", "concepts"],
+            "description": "An agent-facing CLI owes the conceptual layer. An operator CLI owes only meta and commands — a webhook receiver has no routing doctrine, and inventing one is worse than omitting it."
+          }
+        }
+      ]
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "purpose", "audience"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "description": "The invoked command name." },
+        "version": { "type": "string", "minLength": 1 },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One or two sentences on what this tool is for. The first thing a router reads."
+        },
+        "audience": {
+          "enum": ["agent", "operator"],
+          "description": "Who the CLI is built for. `agent` requires the conceptual layer and is the only value whose commands are candidates for an MCP surface. `operator` means humans and installers drive it."
+        }
+      }
+    },
+    "concepts": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["output_contract", "error_codes"],
+      "properties": {
+        "model": {
+          "type": "object",
+          "description": "The domain vocabulary — the nouns and their rules. Free-form per CLI, because a board's items and a vault's documents share no shape."
+        },
+        "output_contract": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["envelope", "exit_codes"],
+          "properties": {
+            "envelope": { "type": "string", "minLength": 1 },
+            "exit_codes": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Keyed by the numeric code as a string; the value says what it means."
+            }
+          }
+        },
+        "error_codes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "meaning"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1 },
+              "meaning": { "type": "string", "minLength": 1 },
+              "recovery": {
+                "type": "string",
+                "description": "What a caller should do about it. Present whenever the answer is not obvious from the meaning."
+              }
+            }
+          },
+          "description": "Every error.code the CLI can put in an ok:false envelope. Authored here once; the refusal sites in code are the only other place these strings may appear."
+        },
+        "read_only_commands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command names that never write. Must agree with each command's own `mutates` field; the validator checks that."
+        },
+        "agent_defaults": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The ordered opening moves — what to call first, and what to reach for before answering from memory."
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "summary", "audience", "mutates", "arguments"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1, "description": "One line, imperative." },
+        "audience": {
+          "enum": ["agent", "operator", "internal"],
+          "description": "`agent`: a verb an agent should be able to call, and the default MCP surface. `operator`: real, supported, human-driven — doctor, backup, reindex, serve. `internal`: a protocol handler or subprocess entrypoint that is nonsense to call directly, such as agentbrowse's `provider`. This field is what answers 'which subcommands form the proper MCP interface', and it is answered by whoever owns the CLI rather than by the consumer."
+        },
+        "mutates": {
+          "type": "boolean",
+          "description": "Whether a successful call can change durable state anywhere — disk, database, network, or another process."
+        },
+        "guidance": {
+          "type": "string",
+          "description": "Per-command prose, for the cases where the summary cannot carry the judgment. Optional."
+        },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/argument" },
+          "description": "Every argument the command accepts, positional and flag alike, in the order help should present them. An empty array means the command takes none."
+        }
+      }
+    },
+    "argument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "description"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Bare name for a positional (`url`), or the long flag with its leading dashes (`--depth`). Short aliases go in `aliases`."
+        },
+        "type": {
+          "enum": ["string", "boolean", "integer", "number"],
+          "description": "Deliberately the four JSON Schema scalars, so a consumer can map an argument to a tool input schema without interpreting anything."
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "format": {
+          "enum": ["path", "url", "duration", "ref", "json", "csv"],
+          "description": "A refinement of `type`, never a replacement. `ref` is the fleet's tiered slug-or-title-or-phrase resolution; `csv` is a repeatable value passed as one comma-joined string."
+        },
+        "required": { "type": "boolean", "default": false },
+        "positional": { "type": "boolean", "default": false },
+        "repeatable": {
+          "type": "boolean",
+          "default": false,
+          "description": "The flag may be given more than once and accumulates."
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "The closed set of accepted values. Present whenever one exists, because it is what lets a consumer build an enum instead of a free string."
+        },
+        "default": {
+          "description": "The value used when the argument is absent. Omit when there is none; null is a real default, not an absence."
+        },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Short or historical spellings, such as `-j` for `--json`."
+        }
+      }
+    }
+  }
+}
