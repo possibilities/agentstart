@@ -287,6 +287,12 @@ bun test tests/supervise.test.ts
     || fail "the agent contract has no explanation for the repositories adopting it"
 [ -x scripts/validate-agent-contract.ts ] \
     || fail "scripts/validate-agent-contract.ts must be executable"
+# The validator executes the schema rather than restating it; losing the
+# interpreter would silently return this to two authorships of one rule set.
+[ -f scripts/json-schema-subset.ts ] \
+    || fail "the schema interpreter is missing; the validator would be mirroring the schema again"
+grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
+    || fail "the agent contract validator no longer executes config/agent-contract/schema.json"
 bun test tests/agent-contract.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that

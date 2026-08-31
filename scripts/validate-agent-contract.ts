@@ -4,264 +4,200 @@
  * Validate one fleet agent contract — the document a CLI publishes as
  * `<cli> guide --json`.
  *
- * config/agent-contract/schema.json is normative; this script is a
- * dependency-free implementation of the same rules, because AgentStart carries
- * no package.json and a JSON Schema library is not worth acquiring one. Every
- * rule below names the schema construct it mirrors, and tests/agent-contract.test.ts
- * asserts that a fixture violating each rule is actually rejected — that pairing
- * is what keeps the two from drifting.
+ * config/agent-contract/schema.json is normative and this script EXECUTES it,
+ * through the small interpreter in json-schema-subset.ts. It does not restate
+ * the schema's rules: an earlier version did, and drifted from it in nine
+ * places in both directions while claiming the schema was authoritative. Two
+ * authorships of one set of rules is the disease this contract exists to cure.
  *
- * It additionally enforces the cross-field agreements JSON Schema cannot state:
- * read_only_commands must be exactly the non-mutating commands, and an
- * agent-audience command may not appear in an operator-audience CLI.
+ * What lives here is only what JSON Schema cannot say — the agreements that
+ * span fields, and the command tree's full-path semantics.
  */
 
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { validateAgainstSchema, type Violation } from "./json-schema-subset.ts";
 
-const SCALARS = new Set(["string", "boolean", "integer", "number"]);
-const FORMATS = new Set(["path", "url", "duration", "ref", "json", "csv"]);
-const CLI_AUDIENCES = new Set(["agent", "operator"]);
-const COMMAND_AUDIENCES = new Set(["agent", "operator", "internal"]);
+const SCHEMA_PATH = join(dirname(import.meta.dir), "config", "agent-contract", "schema.json");
 
 type Json = Record<string, unknown>;
-
-class Problems {
-  private readonly found: string[] = [];
-
-  at(path: string, message: string): void {
-    this.found.push(`${path}: ${message}`);
-  }
-
-  get list(): readonly string[] {
-    return this.found;
-  }
-}
 
 function isObject(value: unknown): value is Json {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function requireString(p: Problems, at: string, value: unknown): void {
-  if (typeof value !== "string" || value.length === 0) p.at(at, "must be a non-empty string");
+interface Leaf {
+  path: string;
+  command: Json;
 }
 
-/** $defs/argument */
-function checkArgument(p: Problems, at: string, arg: unknown): void {
-  if (!isObject(arg)) {
-    p.at(at, "must be an object");
-    return;
-  }
-  const allowed = new Set([
-    "name", "type", "description", "format", "required",
-    "positional", "repeatable", "choices", "default", "aliases",
-  ]);
-  for (const key of Object.keys(arg)) {
-    if (!allowed.has(key)) p.at(`${at}.${key}`, "is not a contract field");
-  }
-  requireString(p, `${at}.name`, arg["name"]);
-  requireString(p, `${at}.description`, arg["description"]);
-  if (typeof arg["type"] !== "string" || !SCALARS.has(arg["type"])) {
-    p.at(`${at}.type`, `must be one of ${[...SCALARS].join(", ")}`);
-  }
-  if (arg["format"] !== undefined && (typeof arg["format"] !== "string" || !FORMATS.has(arg["format"]))) {
-    p.at(`${at}.format`, `must be one of ${[...FORMATS].join(", ")}`);
-  }
-  for (const flag of ["required", "positional", "repeatable"]) {
-    if (arg[flag] !== undefined && typeof arg[flag] !== "boolean") {
-      p.at(`${at}.${flag}`, "must be a boolean");
-    }
-  }
-  if (arg["choices"] !== undefined) {
-    const choices = arg["choices"];
-    if (!Array.isArray(choices) || choices.length === 0) {
-      p.at(`${at}.choices`, "must be a non-empty array when present");
-    } else if (choices.some((c) => typeof c !== "string")) {
-      p.at(`${at}.choices`, "must contain only strings");
-    }
-  }
-  // A positional named like a flag is the single most common authoring slip:
-  // it silently produces an MCP argument nobody can pass.
-  const name = arg["name"];
-  if (typeof name === "string") {
-    const looksLikeFlag = name.startsWith("-");
-    if (arg["positional"] === true && looksLikeFlag) {
-      p.at(`${at}.name`, "a positional must not carry leading dashes");
-    }
-    if (arg["positional"] !== true && !looksLikeFlag) {
-      p.at(`${at}.name`, "a flag must carry its leading dashes, or be marked positional");
+/**
+ * Walk the command forest, yielding every node with its full space-joined path.
+ * `groom export` and `artifacts list` are paths, not names — which is exactly
+ * what AgentBoard's guide already publishes in read_only_commands today.
+ */
+function walk(commands: unknown, prefix: string[], into: Leaf[], groups: Leaf[]): void {
+  if (!Array.isArray(commands)) return;
+  for (const command of commands) {
+    if (!isObject(command)) continue;
+    const name = typeof command["name"] === "string" ? command["name"] : "?";
+    const path = [...prefix, name];
+    const subcommands = command["subcommands"];
+    if (Array.isArray(subcommands) && subcommands.length > 0) {
+      groups.push({ path: path.join(" "), command });
+      walk(subcommands, path, into, groups);
+    } else {
+      into.push({ path: path.join(" "), command });
     }
   }
 }
 
-/** $defs/command */
-function checkCommand(p: Problems, at: string, command: unknown): string | undefined {
-  if (!isObject(command)) {
-    p.at(at, "must be an object");
-    return undefined;
-  }
-  const allowed = new Set(["name", "summary", "audience", "mutates", "guidance", "arguments"]);
-  for (const key of Object.keys(command)) {
-    if (!allowed.has(key)) p.at(`${at}.${key}`, "is not a contract field");
-  }
-  requireString(p, `${at}.name`, command["name"]);
-  requireString(p, `${at}.summary`, command["summary"]);
-  if (typeof command["audience"] !== "string" || !COMMAND_AUDIENCES.has(command["audience"])) {
-    p.at(`${at}.audience`, `must be one of ${[...COMMAND_AUDIENCES].join(", ")}`);
-  }
-  if (typeof command["mutates"] !== "boolean") p.at(`${at}.mutates`, "must be a boolean");
-  if (command["guidance"] !== undefined) requireString(p, `${at}.guidance`, command["guidance"]);
+function argumentNames(command: Json): string[] {
   const args = command["arguments"];
-  if (!Array.isArray(args)) {
-    p.at(`${at}.arguments`, "must be an array, empty when the command takes none");
-  } else {
-    const seen = new Set<string>();
-    args.forEach((arg, index) => {
-      checkArgument(p, `${at}.arguments[${index}]`, arg);
-      if (isObject(arg) && typeof arg["name"] === "string") {
-        if (seen.has(arg["name"])) p.at(`${at}.arguments[${index}].name`, "is declared twice");
-        seen.add(arg["name"]);
-      }
-    });
-  }
-  return typeof command["name"] === "string" ? command["name"] : undefined;
+  if (!Array.isArray(args)) return [];
+  return args
+    .filter(isObject)
+    .map((argument) => argument["name"])
+    .filter((name): name is string => typeof name === "string");
 }
 
-/** $defs/concepts */
-function checkConcepts(p: Problems, concepts: unknown): void {
-  if (!isObject(concepts)) {
-    p.at("data.concepts", "must be an object");
-    return;
+/** The agreements JSON Schema cannot state. */
+function crossFieldViolations(data: Json): Violation[] {
+  const out: Violation[] = [];
+  const leaves: Leaf[] = [];
+  const groups: Leaf[] = [];
+  walk(data["commands"], [], leaves, groups);
+
+  const at = (path: string, message: string) => out.push({ path, message });
+
+  // Sibling names must be unique at each level, or a path is ambiguous.
+  const byParent = new Map<string, Set<string>>();
+  for (const node of [...leaves, ...groups]) {
+    const segments = node.path.split(" ");
+    const parent = segments.slice(0, -1).join(" ");
+    const own = segments[segments.length - 1]!;
+    const seen = byParent.get(parent) ?? new Set<string>();
+    if (seen.has(own)) at(`commands.${node.path}`, "duplicates a sibling command name");
+    seen.add(own);
+    byParent.set(parent, seen);
   }
-  const output = concepts["output_contract"];
-  if (!isObject(output)) {
-    p.at("data.concepts.output_contract", "must be an object");
-  } else {
-    requireString(p, "data.concepts.output_contract.envelope", output["envelope"]);
-    const codes = output["exit_codes"];
-    if (!isObject(codes) || Object.keys(codes).length === 0) {
-      p.at("data.concepts.output_contract.exit_codes", "must be a non-empty object keyed by code");
+
+  const leafPaths = leaves.map((leaf) => leaf.path);
+  const nonMutating = leaves
+    .filter((leaf) => leaf.command["mutates"] === false)
+    .map((leaf) => leaf.path);
+
+  // read_only_commands must be exactly the non-mutating leaves, by full path.
+  const concepts = data["concepts"];
+  if (isObject(concepts) && Array.isArray(concepts["read_only_commands"])) {
+    const declared = concepts["read_only_commands"] as unknown[];
+    for (const entry of declared) {
+      if (typeof entry !== "string") continue;
+      if (!leafPaths.includes(entry)) {
+        at("concepts.read_only_commands", `names "${entry}", which is not a command`);
+      } else if (!nonMutating.includes(entry)) {
+        at("concepts.read_only_commands", `names "${entry}", which declares mutates: true`);
+      }
+    }
+    for (const path of nonMutating) {
+      if (!declared.includes(path)) {
+        at("concepts.read_only_commands", `omits "${path}", which declares mutates: false`);
+      }
     }
   }
-  const errors = concepts["error_codes"];
-  if (!Array.isArray(errors)) {
-    p.at("data.concepts.error_codes", "must be an array");
-  } else {
-    errors.forEach((entry, index) => {
-      const at = `data.concepts.error_codes[${index}]`;
-      if (!isObject(entry)) {
-        p.at(at, "must be an object");
-        return;
-      }
-      requireString(p, `${at}.code`, entry["code"]);
-      requireString(p, `${at}.meaning`, entry["meaning"]);
-    });
-  }
-}
-
-export function validateContract(envelope: unknown): readonly string[] {
-  const p = new Problems();
-  if (!isObject(envelope)) {
-    p.at("$", "must be a JSON object");
-    return p.list;
-  }
-  if (typeof envelope["schema_version"] !== "number") {
-    p.at("schema_version", "must be a number");
-  }
-  if (envelope["ok"] !== true) p.at("ok", "must be true — a guide that failed is not a contract");
-
-  const data = envelope["data"];
-  if (!isObject(data)) {
-    p.at("data", "must be an object");
-    return p.list;
-  }
-  if (data["contract_version"] !== 1) p.at("data.contract_version", "must be 1");
 
   const meta = data["meta"];
-  let audience: unknown;
-  if (!isObject(meta)) {
-    p.at("data.meta", "must be an object");
-  } else {
-    requireString(p, "data.meta.name", meta["name"]);
-    requireString(p, "data.meta.version", meta["version"]);
-    requireString(p, "data.meta.purpose", meta["purpose"]);
-    audience = meta["audience"];
-    if (typeof audience !== "string" || !CLI_AUDIENCES.has(audience)) {
-      p.at("data.meta.audience", `must be one of ${[...CLI_AUDIENCES].join(", ")}`);
+  const cliAudience = isObject(meta) ? meta["audience"] : undefined;
+
+  for (const { path, command } of [...leaves, ...groups]) {
+    const where = `commands.${path}`;
+
+    if (cliAudience === "operator" && command["audience"] === "agent") {
+      at(`${where}.audience`, "is agent, but the CLI declares meta.audience operator");
     }
-  }
 
-  const commands = data["commands"];
-  const names: string[] = [];
-  const nonMutating: string[] = [];
-  if (!Array.isArray(commands) || commands.length === 0) {
-    p.at("data.commands", "must be a non-empty array");
-  } else {
-    const seen = new Set<string>();
-    commands.forEach((command, index) => {
-      const name = checkCommand(p, `data.commands[${index}]`, command);
-      if (name === undefined) return;
-      if (seen.has(name)) p.at(`data.commands[${index}].name`, `duplicates "${name}"`);
-      seen.add(name);
-      names.push(name);
-      if (isObject(command) && command["mutates"] === false) nonMutating.push(name);
-    });
-  }
-
-  // The conditional branch of $defs/contract: an agent CLI owes the conceptual layer.
-  if (audience === "agent") {
-    requireString(p, "data.guidance", data["guidance"]);
-    if (data["concepts"] === undefined) {
-      p.at("data.concepts", "is required when meta.audience is agent");
-    } else {
-      checkConcepts(p, data["concepts"]);
-    }
-  }
-
-  // Cross-field agreements JSON Schema cannot state.
-  const concepts = data["concepts"];
-  if (isObject(concepts) && concepts["read_only_commands"] !== undefined) {
-    const declared = concepts["read_only_commands"];
-    if (!Array.isArray(declared)) {
-      p.at("data.concepts.read_only_commands", "must be an array");
-    } else {
-      for (const name of declared) {
-        if (typeof name !== "string") continue;
-        if (!names.includes(name)) {
-          p.at("data.concepts.read_only_commands", `names "${name}", which is not a command`);
-        } else if (!nonMutating.includes(name)) {
-          p.at("data.concepts.read_only_commands", `names "${name}", which declares mutates: true`);
-        }
+    // A flag must wear its dashes and a positional must not: the slip produces
+    // an argument no caller can pass, and it is the most common one.
+    const args = Array.isArray(command["arguments"]) ? command["arguments"] : [];
+    const seenArgs = new Set<string>();
+    for (const argument of args) {
+      if (!isObject(argument)) continue;
+      const name = argument["name"];
+      if (typeof name !== "string") continue;
+      if (seenArgs.has(name)) at(`${where}.arguments`, `declares "${name}" twice`);
+      seenArgs.add(name);
+      const looksLikeFlag = name.startsWith("-");
+      if (argument["positional"] === true && looksLikeFlag) {
+        at(`${where}.arguments.${name}`, "a positional must not carry leading dashes");
       }
-      for (const name of nonMutating) {
-        if (!declared.includes(name)) {
-          p.at("data.concepts.read_only_commands", `omits "${name}", which declares mutates: false`);
+      if (argument["positional"] !== true && !looksLikeFlag) {
+        at(`${where}.arguments.${name}`, "a flag must carry its leading dashes, or be marked positional");
+      }
+      if (argument["direction"] !== undefined && argument["format"] !== "path") {
+        at(`${where}.arguments.${name}`, "direction applies only to format: path");
+      }
+    }
+
+    // A constraint that names an argument the command does not have is a
+    // silent no-op, which is worse than an error.
+    const constraints = Array.isArray(command["constraints"]) ? command["constraints"] : [];
+    for (const constraint of constraints) {
+      if (!isObject(constraint)) continue;
+      const named = Array.isArray(constraint["arguments"]) ? constraint["arguments"] : [];
+      for (const name of named) {
+        if (typeof name === "string" && !seenArgs.has(name)) {
+          at(`${where}.constraints`, `names "${name}", which this command does not accept`);
         }
       }
     }
-  }
-  if (audience === "operator" && Array.isArray(commands)) {
-    commands.forEach((command, index) => {
-      if (isObject(command) && command["audience"] === "agent") {
-        p.at(`data.commands[${index}].audience`, "is agent, but the CLI declares meta.audience operator");
-      }
-    });
+
+    // An out-of-process caller has no pipe. A command that can only be fed
+    // through stdin is unreachable, so an agent verb may not require it.
+    const stdin = command["stdin"];
+    if (isObject(stdin) && stdin["required"] === true && command["audience"] === "agent") {
+      at(
+        `${where}.stdin`,
+        "is required on an agent command, which has no pipe; accept the content inline too",
+      );
+    }
   }
 
-  return p.list;
+  // Global arguments obey the same dash rule.
+  const globals = Array.isArray(data["global_arguments"]) ? data["global_arguments"] : [];
+  for (const argument of globals) {
+    if (!isObject(argument)) continue;
+    const name = argument["name"];
+    if (typeof name !== "string") continue;
+    if (argument["positional"] !== true && !name.startsWith("-")) {
+      at(`global_arguments.${name}`, "a flag must carry its leading dashes");
+    }
+  }
+
+  return out;
+}
+
+export function validateContract(envelope: unknown, schema?: Json): readonly string[] {
+  const root = schema ?? (JSON.parse(readFileSync(SCHEMA_PATH, "utf8")) as Json);
+  const shape = validateAgainstSchema(root, envelope);
+  const problems = shape.map((v) => `${v.path || "$"}: ${v.message}`);
+  // Cross-field checks assume a well-shaped document; running them on a
+  // malformed one produces noise that buries the real fault.
+  if (shape.length > 0) return problems;
+  const data = (envelope as Json)["data"];
+  if (!isObject(data)) return problems;
+  return crossFieldViolations(data).map((v) => `${v.path}: ${v.message}`);
 }
 
 function usage(): never {
-  process.stderr.write(
-    "Usage: validate-agent-contract.ts <cli-name> | --file <contract.json>\n",
-  );
+  process.stderr.write("Usage: validate-agent-contract.ts <cli-name> | --file <contract.json>\n");
   process.exit(2);
 }
 
 function main(argv: readonly string[]): number {
   if (argv.length === 0) usage();
-
   let raw: string;
   let source: string;
+
   if (argv[0] === "--file") {
     const path = argv[1];
     if (path === undefined) usage();
