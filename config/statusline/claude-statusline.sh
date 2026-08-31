@@ -2,10 +2,9 @@
 # Claude Code status line — the fleet statusline's claude renderer.
 #
 # AgentStart owns this file; ~/.claude/statusline.sh links at it and
-# scripts/install-statusline points Claude's settings.json here. The pi
-# renderer beside it draws the same fields in the same order from pi's
-# extension API; codex has no custom renderer, so the installer picks the
-# closest ordered subset of its built-in status line items instead.
+# scripts/install-statusline points Claude's settings.json here. Codex has no
+# custom renderer, so the installer picks the closest ordered subset of its
+# built-in status line items instead.
 #
 # Renders: directory + git, model, effort, context usage, diff size,
 # subscription rate limits, the harness version, and the balanced account.

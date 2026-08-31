@@ -33,7 +33,7 @@ Fx maintenance cycle advances it, so a moving remote branch is never treated
 as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
-**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Pi, Fx.
+**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx.
 Skills install into harnesses; AgentLaunch shims balance their bare
 launches. _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
@@ -59,17 +59,10 @@ never move on this path).
 
 **Fleet resources** — the one fixed private set under
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,
-canonical guidance, the session-only Claude plugin, the globally installed but
-inert Codex skills-only plugin, and explicit Pi extensions/templates. Every
+canonical guidance, the session-only Claude plugin, and the globally installed
+but inert Codex skills-only plugin. Every
 managed AgentLaunch session receives the skills; there are no
 selectable packs. _Avoid_: capability pack, common pack, projection.
-
-**Subagent capability** — the fleet's answer to a harness that dispatches no
-workers of its own. Pi's is the pinned `pi-subagents` package, installed
-self-contained and carried in the fixed Pi extension resources,
-which registers a dispatch tool, its skills, and its workflow prompt
-templates from one directory. _Avoid_: subagent plugin (Pi calls the unit a
-package), worker (that is what a dispatched agent is, not the capability).
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every
@@ -95,7 +88,7 @@ interface).
 **Model invocation policy** — the portable fact recorded by
 `disable-model-invocation` in a skill's `SKILL.md` frontmatter; absent or false
 means model-invocable. The fixed-resource render derives Codex's inverse
-`allow_implicit_invocation` field from it, while Claude and Pi consume the fact
+`allow_implicit_invocation` field from it, while Claude consumes the fact
 directly. _Avoid_: OpenAI policy (that is one rendered representation).
 
 **Peer** — an agent session doing ordinary work in its own worktree. Its

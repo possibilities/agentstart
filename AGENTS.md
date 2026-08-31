@@ -13,7 +13,7 @@
 - The fleet lives beside this checkout: every `~/code/agent*` checkout
   without exception — including `~/code/agentguidance`, the general guidance
   skills and their renderer — plus `~/code/codex-swap`, the first-party
-  account-swapping launcher for codex and pi. Each fleet repo owns its own
+  account-swapping launcher for Codex. Each fleet repo owns its own
   hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides that every
   one of them is installed. `install-agent-clis` runs each checkout's own
@@ -109,21 +109,12 @@ Where things go:
   `agentsurface` plugin, then bind the key to `herdr plugin pane open`. The
   tool continues to own its TUI; the shared plugin owns the popup title and
   geometry so the dialog is also exposed through Herdr's plugin surface.
-- A third-party harness capability the fleet decides every session gets:
-  its own pinned installer script invoked by `scripts/install.sh`, with
-  `scripts/render-capabilities` carrying the result into the fixed resources.
-  `install-pi-subagents` is the standing example — Pi ships no subagents by
-  design and points at third-party packages, so the fleet picks one and pins
-  it. Install it self-contained and let the renderer carry it; never register
-  it in a harness's own settings, which is exactly what a managed launch
-  suppresses.
 - A statusline change: `config/statusline/`, converged by
-  `scripts/install-statusline`. One bar in three harness idioms, because
-  that is all the harnesses offer — claude runs a render command per frame,
-  pi replaces its footer from an extension, and codex draws its own bar and
-  only lets an operator choose and order a fixed set of items. A field
-  added to one renderer belongs in the others wherever they can know it;
-  each renderer's comments record what its harness cannot.
+  `scripts/install-statusline`. One bar in two harness idioms, because that is
+  all the harnesses offer — Claude runs a render command per frame, while
+  Codex draws its own bar and only lets an operator choose and order a fixed
+  set of items. A field added to one renderer belongs in the other wherever
+  it can know it; each renderer's comments record what its harness cannot.
 - An operator extension prompt edit: `prompts/agentguidance/`, then
   `scripts/install.sh --install` (or wait for the six-hour sync plus the
   next render) so the rendered skills pick it up. A GUIDELINES.md bullet
@@ -144,8 +135,8 @@ Where things go:
 This checkout participates in the same convention it administers: skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
 `scripts/sync-skills`. AgentLaunch loads them into each managed session:
-Claude Code exposes `/agent:<name>`, Codex uses `$agent:<name>`, and Pi uses
-`/<name>`. The `fleet` skill is the dependency map of the ecosystem;
+Claude Code exposes `/agent:<name>` and Codex uses `$agent:<name>`. The
+`fleet` skill is the dependency map of the ecosystem;
 its `MAP.md` claims to be current, so a stale edge there is a bug, not a doc
 nit.
 

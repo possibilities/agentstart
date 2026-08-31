@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 async function render() {
@@ -66,11 +69,44 @@ test("checks in a complete, advice-focused resource snapshot", async () => {
   assert.ok(snapshot.guidance.some((item) => item.id === "guidance/AGENTS.md"));
   assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.codex, "$agent:collab");
   assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.claude, "/agent:collab");
-  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.pi, "/collab");
-  assert.equal(snapshot.utilities.find((utility) => utility.id === "pi-subagents")?.fileCount, 1898);
+  assert.deepEqual(
+    Object.keys(snapshot.skills.find((skill) => skill.id === "collab")?.dialects ?? {}).sort(),
+    ["claude", "codex"],
+  );
+  assert.equal(snapshot.utilities.length, 0);
+  assert.doesNotMatch(
+    source,
+    /(^|[^A-Za-z0-9_])pi([^A-Za-z0-9_]|$)/i,
+    "the public snapshot should not re-advertise a retired harness from vendor prose",
+  );
   assert.equal(snapshot.files, undefined, "raw implementation inventory should not ship to the browser");
   assert.ok(snapshot.stats.implementationFiles > snapshot.stats.adviceDocuments);
   assert.ok(Buffer.byteLength(source) < 2_000_000, "the advice guide should stay far smaller than the raw resources");
+});
+
+test("refuses retired Pi connector spellings before writing a snapshot", async (t) => {
+  const fixture = await mkdtemp(join(tmpdir(), "agentstart-retired-harness-"));
+  t.after(() => rm(fixture, { force: true, recursive: true }));
+  const resources = join(fixture, "resources");
+  const output = join(fixture, "fleet-resources.json");
+  await mkdir(join(resources, "skills", "fixture"), { recursive: true });
+  await writeFile(
+    join(resources, "skills", "fixture", "SKILL.md"),
+    "---\nname: fixture\ndescription: A pi_agent connector remnant.\n---\n\n# Fixture\n",
+  );
+
+  const result = spawnSync(process.execPath, ["scripts/snapshot-fleet-resources.mjs"], {
+    cwd: new URL("..", import.meta.url),
+    env: {
+      ...process.env,
+      AGENTSTART_RESOURCES_ROOT: resources,
+      AGENTSTART_SNAPSHOT_OUTPUT: output,
+    },
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /retired Pi spelling/);
+  await assert.rejects(readFile(output), { code: "ENOENT" });
 });
 
 test("keeps the advice guide reachable within the viewport", async () => {

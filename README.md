@@ -33,8 +33,8 @@ believing any of this.
     and `TOOLS.md`, which agentguidance renders into the collab and build
     skills. Linked into `~/.config/agentguidance/`.
   - `AGENTS.md` — the deliberately empty harness guidance source, copied into
-    the fixed private resources and linked from there into the Claude Code,
-    Codex, and Pi global slots. Advice belongs in the extension prompts.
+    the fixed private resources and linked from there into the Claude Code and
+    Codex global slots. Advice belongs in the extension prompts.
 - `config/` — harness configuration and resource manifests, the
   agent-browser, Herdr, and fmx operator configs, and the launchd templates for
   fleet services AgentStart owns.
@@ -53,7 +53,7 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install.sh --install` — the whole AI toolchain, each piece by its
   own checkout's contract, skipping checkouts that are absent:
 
-  - Claude Code, Codex, and Pi, by their official installers;
+  - Claude Code and Codex, by their official installers;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -83,7 +83,7 @@ flags, and skip-versus-fail semantics are load-bearing:
   never removes a skill from a compatibility root or restarts services.
   `--check` prints the plan.
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
-  `claude`/`codex`/`pi`; the machine's wrapper of the same name delegates
+  `claude`/`codex`; the machine's wrapper of the same name delegates
   here.
 AI desktop applications are not here by design: the claude and chatgpt casks
 belong to the machine layer, as does the `gh` credential migration.
@@ -151,8 +151,8 @@ tests/validate.sh
 A new fleet tool usually needs almost no edit here. Name the checkout
 `agent*` and export `skills/<name>/SKILL.md`, and the scan ships it into the
 fixed private resources. AgentLaunch loads those resources into every managed
-session: Claude Code exposes `/agent:<name>`, Codex `$agent:<name>`, and Pi
-`/<name>`. The globally installed Codex plugin is skills-only and every name is
+session: Claude Code exposes `/agent:<name>` and Codex `$agent:<name>`. The
+globally installed Codex plugin is skills-only and every name is
 persistently disabled until AgentLaunch enables it in a session;
 Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
 skills. Participant source manifests remain portable and bare; only the Codex
@@ -166,5 +166,5 @@ Plannotator follows that fixed-resource path: AgentStart asks the upstream
 installer for only its pinned CLI binary, uses that binary to install the
 managed agent-terminal runtime, then carries the same release's `plannotator`,
 `plannotator-review`, `plannotator-annotate`, and `plannotator-last` core
-skills into Claude Code, Codex, and Pi. Plan-mode hooks and Pi's separate
-extension are deliberately not installed by this integration.
+skills into Claude Code and Codex. Plan-mode hooks are deliberately not
+installed by this integration.

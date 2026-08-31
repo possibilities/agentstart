@@ -111,7 +111,7 @@ remove_legacy_global_skills() {
         computer-use
         supervisor
     )
-    local project skill_dir skill_name previous_names pi_target pi_link
+    local project skill_dir skill_name previous_names
 
     for project in "$code_root"/agent*/; do
         [ -d "$project" ] || continue
@@ -131,19 +131,6 @@ remove_legacy_global_skills() {
                 [ -n "$skill_name" ] && names+=("$skill_name")
             done <"$previous_names"
         fi
-    done
-
-    # The fixed resources may already have been synchronized before the first
-    # full migration run. Detach only its Pi links before asking the generic
-    # skills CLI to remove legacy installs, so that tool can never mistake a
-    # link into the private canonical tree for content it owns.
-    for skill_name in "${names[@]}"; do
-        pi_target="$HOME/.pi/agent/skills/$skill_name"
-        [ -L "$pi_target" ] || continue
-        pi_link=$(readlink "$pi_target")
-        case "$pi_link" in
-            "$resources_root"/skills/*|"$retired_capabilities_root"/packs/common/skills/*|"$legacy_core_plugin_root"/skills/*) unlink "$pi_target" ;;
-        esac
     done
 
     "$script_dir/run-skills-cli" npx --yes skills remove --global --yes "${names[@]}" \
@@ -188,42 +175,8 @@ remove_retired_core_plugin() {
     fi
 }
 
-remove_packed_pi_ambient_resources() {
-    local source="$HOME/.pi/agent/extensions/herdr-agent-state.ts"
-
-    [ -e "$source" ] || [ -L "$source" ] || return 0
-    [ -f "$source" ] \
-        || die "refusing non-file Pi Herdr integration: $source"
-    grep -F '// managed by herdr;' "$source" >/dev/null \
-        || die "refusing independent Pi extension at Herdr's managed path: $source"
-    grep -F '// HERDR_INTEGRATION_ID=pi' "$source" >/dev/null \
-        || die "Pi Herdr integration has the wrong identity: $source"
-    rm -- "$source"
-    printf 'Removed the ambient Pi Herdr integration after packing it: %s.\n' "$source"
-}
-
 remove_retired_capability_resources() {
     "$script_dir/remove-retired-capabilities" --install
-}
-
-# Pi's installer reads its prompts from /dev/tty instead of stdin, so redirecting
-# input does not make it unattended: run from a terminal it stops on its
-# install/reinstall menu and offers to append a PATH line to the shell profile
-# that the machine's zsh package owns. Running it in its own session leaves it with no
-# controlling terminal, which is exactly the condition its documented
-# "No terminal detected; continuing without confirmation" path tests for.
-run_without_controlling_terminal() {
-    /usr/bin/perl -e '
-        use POSIX ();
-        my $pid = fork();
-        die "fork failed: $!\n" unless defined $pid;
-        if ($pid == 0) {
-            POSIX::setsid();
-            exec { $ARGV[0] } @ARGV or exit 127;
-        }
-        waitpid($pid, 0);
-        exit($? >> 8);
-    ' -- "$@"
 }
 
 configure_shadcn_mcp() {
@@ -236,15 +189,14 @@ configure_shadcn_mcp() {
     claude mcp add --scope user shadcn -- npx shadcn@latest mcp
 }
 
-# AgentStart owns one guidance slot for each harness. Link all three to the
+# AgentStart owns one guidance slot for each managed harness. Link both to the
 # fixed resource set's canonical AGENTS.md, which stays deliberately empty — global
 # advice belongs
 # in the extension prompts below, rendered into the collab and build skills,
 # not in a file loaded into every session. Claude Code reads only CLAUDE.md,
-# Codex skips empty guidance files, and pi's designated global slot is
-# ~/.pi/agent/AGENTS.md. An independent non-symlink file with content at any
-# target is preserved and reported — the same conflict rule the guidance file
-# itself prescribes for repositories.
+# while Codex skips empty guidance files. An independent non-symlink file with
+# content at either target is preserved and reported — the same conflict rule
+# the guidance file itself prescribes for repositories.
 link_agent_guidance() {
     local source="$resources_root/guidance/AGENTS.md"
     local target
@@ -252,7 +204,7 @@ link_agent_guidance() {
     [ -f "$source" ] \
         || die "agent guidance source is missing: $source"
 
-    for target in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md" "$HOME/.pi/agent/AGENTS.md"; do
+    for target in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
         if [ ! -L "$target" ] && [ -s "$target" ]; then
             die "refusing to replace independent guidance: $target"
         fi
@@ -291,7 +243,7 @@ renamed_pack_skill_names=(
 )
 
 remove_renamed_pack_skills() {
-    local name project target pi_target in_service
+    local name project target in_service
 
     for name in "${renamed_pack_skill_names[@]}"; do
         in_service=0
@@ -309,13 +261,6 @@ remove_renamed_pack_skills() {
         if [ -d "$target" ]; then
             rm -rf -- "$target"
             printf 'Removed the renamed skill left in the fixed resources: %s.\n' "$target"
-        fi
-
-        pi_target="$HOME/.pi/agent/skills/$name"
-        if [ -L "$pi_target" ]; then
-            case "$(readlink "$pi_target")" in
-                "$resources_root"/skills/*) unlink "$pi_target" ;;
-            esac
         fi
     done
 }
@@ -382,8 +327,8 @@ link_extension_prompts() {
 # the two can never disagree about what content convergence means.
 #
 # What it deliberately leaves out is anything that installs, upgrades, or
-# downloads: the pinned third-party skill packs, the Pi subagents package, and
-# the retired-harness-integration cleanup that touches live harness state.
+# downloads: the pinned third-party skill packs and the retired-harness-
+# integration cleanup that touches live harness state.
 # Those persist from the last full install, and the renderer below carries
 # whatever they left behind. A machine that has never had a full install is
 # not a machine this mode can converge.
@@ -435,17 +380,10 @@ converge_repo_content() {
     printf 'Retiring the provably managed capability-pack tree.\n'
     remove_retired_capability_resources
 
-    # The renderer above copied Herdr's generated Pi extension into the private resources.
-    # Only the explicit full installer retires the ambient source; the
-    # six-hour sync must remain additive and leave live-session resources in
-    # place.
-    printf 'Retiring AgentStart-owned ambient Pi resources after private rendering.\n'
-    remove_packed_pi_ambient_resources
-
     # The sync above renders the canonical guidance source. Link
-    # the three harness discovery slots only after that source is guaranteed
+    # the two harness discovery slots only after that source is guaranteed
     # to exist.
-    printf 'Linking the fleet harness guidance for Claude Code, Codex, and pi.\n'
+    printf 'Linking the fleet harness guidance for Claude Code and Codex.\n'
     link_agent_guidance
 
 }
@@ -494,7 +432,6 @@ if [ "$check_only" -eq 1 ]; then
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
-  curl -fsSL https://pi.dev/install.sh | sh  # in its own session, no controlling terminal
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
@@ -508,7 +445,7 @@ Command-line tools:
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
   brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization
   initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
-  herdr integration install claude, codex, and pi  # Claude and Codex are pinned to canonical ~/.claude and ~/.codex, and stale swap-session hooks are pruned
+  herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
@@ -528,11 +465,11 @@ Agent documentation:
 Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
-  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.pi/agent/AGENTS.md  # pi's global slot
   remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
   remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete
   remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
+  remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher
   remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved
 
 Fixed private fleet resources:
@@ -557,7 +494,6 @@ Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):
 EOF
     "$script_dir/install-statusline" --check
-    "$script_dir/install-pi-subagents" --check
     "$script_dir/install-launchagents" --check
     "$script_dir/remove-retired-agentweb" --check
     printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
@@ -565,6 +501,7 @@ EOF
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
         "$code_root/agentchats/scripts/install.sh" --check
     fi
+    "$script_dir/remove-retired-pi" --check
     if [ -f "$code_root/agentdesk/scripts/install.sh" ]; then
         "$code_root/agentdesk/scripts/install.sh" --check
     fi
@@ -611,27 +548,10 @@ printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
 
-# Pi requires Node.js 22.19 or newer. The machine initializes the pinned NVM
-# default before its Brewfile converges; load that default into this subprocess so
-# Pi's official installer can use it.
-nvm_script="$brew_prefix/opt/nvm/nvm.sh"
-if [ -s "$nvm_script" ]; then
-    export NVM_DIR="$HOME/.nvm"
-    # shellcheck disable=SC1090
-    source "$nvm_script" --no-use
-    if nvm version default >/dev/null 2>&1; then
-        nvm use --silent default
-    fi
-fi
-
-printf 'Installing Pi with its official installer.\n'
-/usr/bin/curl -fsSL https://pi.dev/install.sh \
-    | run_without_controlling_terminal /bin/sh
-
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:
-# no plan-mode hooks, ambient skills, slash commands, Pi extension, or managed
-# runtimes. AgentStart installs the agent-terminal runtime explicitly so the
+# no plan-mode hooks, ambient skills, slash commands, or managed runtimes.
+# AgentStart installs the agent-terminal runtime explicitly so the
 # embedded Agent tab works, while the exact release's portable core skills
 # enter the fixed resources below.
 install_official "Plannotator $plannotator_version" \
@@ -781,18 +701,17 @@ if [ "$herdr_bin" = "$brew_prefix/bin/herdr" ]; then
         || die "Homebrew Herdr does not win PATH after legacy cleanup: $(command -v herdr || printf missing)"
 fi
 
-# The harness integrations wire each agent into herdr — pi's is a lifecycle
-# authority, while claude's and codex's report session identity (for native
-# restore) and deliberately leave lifecycle to herdr's screen detection.
-# They install after the three harness CLIs above, because each one
+# The harness integrations wire each agent into Herdr. Claude's and Codex's
+# report session identity (for native restore) and deliberately leave lifecycle
+# to Herdr's screen detection. They install after both harness CLIs above, because each one
 # writes inside a harness's own configuration directory that those installers
 # create. Reinstalled unconditionally on every run: a herdr upgrade can leave
 # an integration stale — the reason `herdr integration status --outdated-only`
 # exists — and reinstalling is how it converges. Unlike the harness
-# configuration this installer writes itself, these files belong to herdr, so
+# configuration this installer writes itself, these files belong to Herdr, so
 # ownership and conflict rules are its installer's to enforce, exactly as they
-# are for a fleet checkout's own installer. The harnesses are the three the
-# fleet runs; herdr supports more, and adding one here is a deliberate edit.
+# are for a fleet checkout's own installer. Herdr supports more harnesses, and
+# adding one here is a deliberate edit.
 prune_shadow_codex_herdr_hooks() {
     local hooks_path="$HOME/.codex/hooks.json"
 
@@ -964,7 +883,7 @@ PYTHON
 install_herdr_integrations() {
     local harness
 
-    for harness in claude codex pi; do
+    for harness in claude codex; do
         printf 'Installing the herdr %s integration.\n' "$harness"
         if [ "$harness" = claude ]; then
             # A claude-swap launch runs with CLAUDE_CONFIG_DIR pointed at a
@@ -981,9 +900,6 @@ install_herdr_integrations() {
             # Codex trusts the definition hash, so every new path asks again.
             prune_shadow_codex_herdr_hooks
             CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness" \
-                || die "herdr integration install failed: $harness"
-        else
-            "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         fi
     done
@@ -1134,12 +1050,6 @@ if [ "$retired_integrations_status" -ne 0 ]; then
     exit "$retired_integrations_status"
 fi
 
-# Pi ships no subagents deliberately and points at third-party packages
-# instead, so the fleet installs one and pins it. This must precede the skill
-# sync below, because that is what renders the fixed private resources, and the
-# renderer carries whatever this step has installed.
-"$script_dir/install-pi-subagents" --install
-
 printf 'Installing the common skill discovery helper.\n'
 install_private_skill_pack https://github.com/vercel-labs/skills find-skills
 
@@ -1161,7 +1071,7 @@ printf 'Installing the Native SDK discovery skill.\n'
 install_private_skill_pack https://github.com/vercel-labs/native native-sdk
 
 # Use the tagged core subtree rather than repository head or Claude's
-# injection-form variants. One portable set is rendered into all three managed
+# injection-form variants. One portable set is rendered into both managed
 # harnesses, and it must never teach commands newer than the installed binary.
 plannotator_skill_source="https://github.com/backnotprop/plannotator/tree/v${plannotator_version}/apps/skills/core"
 printf 'Installing the version-matched Plannotator skills.\n'
@@ -1260,7 +1170,7 @@ printf "Linking AgentStart's default agentbrowse provider configuration.\n"
 
 # cass — the coding-agent session search CLI — installs by the agentchats
 # checkout's own contract: the upstream checksummed release plus the index
-# over the local Claude Code, Codex, and Pi session stores. Its chats skill
+# over the local Claude Code and Codex session stores. Its chats skill
 # ships through the agent* checkout skill scan like every other tool's. A
 # machine without the checkout skips, like the agent CLIs above; a present
 # checkout that fails to install is a real error.
@@ -1277,6 +1187,13 @@ else
     printf 'AgentStart installer: no agentchats checkout at %s; skipping cass.\n' \
         "$agentchats_root"
 fi
+
+# Retire Pi only after AgentLaunch and AgentSurface have installed their
+# Pi-free producer contracts and AgentChats has removed Cass's indexed/raw
+# evidence. The JSONL cleanup preserves each live log inode, so a final
+# unrelated append cannot be lost to temp-file replacement.
+printf 'Removing the retired Pi CLI and exact machine state roots.\n'
+"$script_dir/remove-retired-pi" --install
 
 # peekaboo — the macOS GUI capture and automation CLI — installs by the
 # agentdesk checkout's own contract: the official tap formula, the TCC

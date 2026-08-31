@@ -1,0 +1,2981 @@
+#!/bin/bash
+# Remove only the retired Pi installation and its typed, dedicated state.
+# Shared producer files keep their inode; every path removed outright is first
+# atomically claimed under a durable, restore-only transaction.
+
+set -euo pipefail
+
+die() {
+    printf 'AgentStart retired Pi cleanup: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    printf 'Usage: remove-retired-pi --install|--check\n'
+}
+
+[ "$#" -eq 1 ] || { usage >&2; exit 64; }
+case "$1" in
+    --install) ;;
+    --check)
+        cat <<'EOF'
+  acquire one exclusive retirement lock and restore every interrupted claim before revalidating it
+  require deployed Pi-free AgentLaunch, AgentSurface, and AgentChats contracts before touching their state
+  prove no live Pi process, then remove the retired NVM package/launchers and the complete owned pi-viewer checkout
+  remove only typed Pi rows from AgentLaunch and AgentSurface state, including orphan Pi-shaped slug records
+  remove AgentStart's Pi package/resources, native state, managed shims/plugin caches, and Herdr's exact Pi cache entries
+  remove bounded registry cache keys one at a time, re-enumerate, and audit every final command/cache/path postcondition
+EOF
+        exit 0
+        ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 64 ;;
+esac
+
+cleanup_home="${AGENTSTART_PI_CLEANUP_HOME:-$HOME}"
+[ "$(uname -s)" = Darwin ] \
+    || die "retired Pi cleanup is supported only on Darwin"
+[ "$(id -u)" -ne 0 ] \
+    || die "refusing to run retired Pi cleanup as root"
+case "$cleanup_home" in
+    /*) ;;
+    *) die "cleanup home must be an absolute path: $cleanup_home" ;;
+esac
+[ -d "$cleanup_home" ] && [ ! -L "$cleanup_home" ] \
+    || die "cleanup home must be a real directory: $cleanup_home"
+cleanup_home=$(cd -P -- "$cleanup_home" && pwd)
+[ "$cleanup_home" != / ] || die "refusing to use the filesystem root as cleanup home"
+[ "$(stat -f '%u' "$cleanup_home")" = "$(id -u)" ] \
+    || die "cleanup home is not owned by the effective user: $cleanup_home"
+
+live_home=$(cd -P -- "$HOME" && pwd)
+if [ -n "${AGENTSTART_TEST_PI_CODE_ROOT:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_PS_BIN:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_CRASH_AT:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_CLAIM_HOOK:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_DELETE_HOOK:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_JSONL_REDACT_HOOK:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_HERDR_REDACT_HOOK:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_FIND_BIN:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK:-}" ] \
+    || [ -n "${AGENTSTART_TEST_PI_FINAL_HOOK:-}" ]; then
+    [ "$cleanup_home" != "$live_home" ] \
+        || die "retired Pi test hooks cannot target the live home"
+fi
+
+cleanup_code_root="$cleanup_home/code"
+if [ -n "${AGENTSTART_TEST_PI_CODE_ROOT:-}" ]; then
+    case "$AGENTSTART_TEST_PI_CODE_ROOT" in
+        /*) ;;
+        *) die "test retirement contract code root must be absolute" ;;
+    esac
+    [ -d "$AGENTSTART_TEST_PI_CODE_ROOT" ] && [ ! -L "$AGENTSTART_TEST_PI_CODE_ROOT" ] \
+        || die "test retirement contract code root must be a real directory"
+    cleanup_code_root=$(cd -P -- "$AGENTSTART_TEST_PI_CODE_ROOT" && pwd)
+fi
+
+command -v jq >/dev/null 2>&1 || die "jq is required to prove retired Pi state ownership"
+command -v shasum >/dev/null 2>&1 || die "shasum is required to prove retired Pi state content"
+
+path_exists() {
+    [ -e "$1" ] || [ -L "$1" ]
+}
+
+assert_inside_home() {
+    /usr/bin/perl -Mstrict -Mwarnings -MFcntl=:DEFAULT -e '
+        use Fcntl qw(:mode);
+        my ($home, $target, $expected_uid) = @ARGV;
+        index($target, "$home/") == 0
+            or die "target escapes cleanup home: $target\n";
+        my $relative = substr($target, length($home) + 1);
+        my @parts = split m{/}, $relative, -1;
+        @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+            or die "unsafe target below cleanup home: $target\n";
+        pop @parts;
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home: $!\n";
+        my @opened = stat($directory);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe cleanup home descriptor\n";
+        chdir($directory) or die "chdir cleanup home: $!\n";
+        for my $component (@parts) {
+            sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open target parent component $component: $!\n";
+            @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe target parent component $component\n";
+            chdir($next) or die "chdir target parent component $component: $!\n";
+            close $directory or die "close target parent component: $!\n";
+            $directory = $next;
+        }
+    ' "$cleanup_home" "$1" "$(id -u)" \
+        || die "could not prove the target parent inside the cleanup home: $1"
+}
+
+path_identity() {
+    /usr/bin/perl -Mstrict -Mwarnings -MFcntl=:DEFAULT -e '
+        use Fcntl qw(:mode);
+        my ($home, $path) = @ARGV;
+        index($path, "$home/") == 0
+            or die "path escapes cleanup home: $path\n";
+        my $relative = substr($path, length($home) + 1);
+        my @parts = split m{/}, $relative, -1;
+        @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+            or die "unsafe path below cleanup home: $path\n";
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home: $!\n";
+        my @home_state = stat($directory);
+        @home_state && S_ISDIR($home_state[2]) && $home_state[4] == $<
+            or die "unsafe cleanup home descriptor\n";
+        chdir($directory) or die "chdir cleanup home: $!\n";
+        for my $component (@parts[0 .. $#parts - 1]) {
+            sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open path component $component in $path: $!\n";
+            my @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $<
+                or die "unsafe path component $component in $path\n";
+            chdir($next) or die "chdir path component $component in $path: $!\n";
+            close $directory or die "close path component in $path: $!\n";
+            $directory = $next;
+        }
+        my @state = lstat($parts[-1]);
+        @state or die "lstat $ARGV[0]: $!\n";
+        $state[4] == $< or die "foreign-owned path $path\n";
+        print "$state[0]:$state[1]\n";
+    ' "$cleanup_home" "$1"
+}
+
+# Hash a path without following symlinks. The walk rejects special files,
+# cross-device descendants, foreign owners, and hard links that escape the
+# claimed tree. Every node is checked before and after it is read so one digest
+# never blesses a concurrently rewritten tree.
+content_proof() {
+    local path="$1" anchor="${2:-$cleanup_home}"
+    /usr/bin/perl -Mstrict -Mwarnings -MDigest::SHA -MFcntl=:DEFAULT -e '
+        use bytes;
+        use Fcntl qw(:mode);
+
+        my ($home, $root, $expected_uid) = @ARGV;
+        my $digest = Digest::SHA->new(256);
+        my %links;
+        my $root_device;
+        my @root_state;
+
+        sub same_node {
+            my ($left, $right) = @_;
+            return $left->[0] == $right->[0]
+                && $left->[1] == $right->[1]
+                && $left->[2] == $right->[2]
+                && $left->[3] == $right->[3]
+                && $left->[4] == $right->[4]
+                && $left->[5] == $right->[5]
+                && $left->[7] == $right->[7]
+                && $left->[9] == $right->[9]
+                && $left->[10] == $right->[10];
+        }
+
+        sub add_field {
+            my ($value) = @_;
+            $value = "$value";
+            $digest->add(length($value), ":", $value, "\0");
+        }
+
+        sub anchor_parent {
+            my ($home, $path) = @_;
+            index($path, "$home/") == 0
+                or die "path escapes cleanup home: $path\n";
+            my $relative = substr($path, length($home) + 1);
+            my @parts = split m{/}, $relative, -1;
+            @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+                or die "unsafe path below cleanup home: $path\n";
+            sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open cleanup home: $!\n";
+            my @opened = stat($directory);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe cleanup home descriptor\n";
+            chdir($directory) or die "chdir cleanup home: $!\n";
+            for my $component (@parts[0 .. $#parts - 1]) {
+                sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    or die "open path component $component in $path: $!\n";
+                @opened = stat($next);
+                @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                    or die "unsafe path component $component in $path\n";
+                chdir($next) or die "chdir path component $component in $path: $!\n";
+                close $directory or die "close path component in $path: $!\n";
+                $directory = $next;
+            }
+            return ($directory, $parts[-1]);
+        }
+
+        sub visit {
+            my ($name, $relative) = @_;
+            my @before = lstat($name);
+            @before or die "lstat $root/$relative: $!\n";
+            @root_state = @before if $relative eq "";
+            if (!defined $root_device) {
+                $root_device = $before[0];
+            } elsif ($before[0] != $root_device) {
+                die "cross-device entry in $root: $relative\n";
+            }
+            $before[4] == $expected_uid
+                or die "foreign-owned entry in $root: $relative\n";
+
+            my $kind = S_ISREG($before[2]) ? "file"
+                : S_ISDIR($before[2]) ? "directory"
+                : S_ISLNK($before[2]) ? "symlink"
+                : die "unsupported entry in $root: $relative\n";
+            add_field($kind);
+            add_field($relative);
+            add_field($before[2] & 07777);
+            add_field($before[4]);
+            add_field($before[5]);
+
+            if ($kind eq "file") {
+                sysopen(my $handle, $name, O_RDONLY | O_NOFOLLOW)
+                    or die "open $root/$relative: $!\n";
+                binmode $handle;
+                my @opened = stat($handle);
+                @opened && $opened[0] == $before[0] && $opened[1] == $before[1]
+                    or die "changed file while proving $root/$relative\n";
+                my $file_digest = Digest::SHA->new(256);
+                while (1) {
+                    my $read = sysread($handle, my $chunk, 65536);
+                    defined $read or die "read $root/$relative: $!\n";
+                    last if $read == 0;
+                    $file_digest->add($chunk);
+                }
+                my @after_handle = stat($handle);
+                close $handle or die "close $root/$relative: $!\n";
+                my @after_name = lstat($name);
+                same_node(\@before, \@after_handle)
+                    && same_node(\@before, \@after_name)
+                    or die "changed file while proving $root/$relative\n";
+                add_field($file_digest->hexdigest);
+                $links{"$before[0]:$before[1]"} = [($links{"$before[0]:$before[1]"} // [0, $before[3]])->[0] + 1, $before[3]];
+            } elsif ($kind eq "symlink") {
+                my $link = readlink($name);
+                defined $link or die "readlink $root/$relative: $!\n";
+                my @after = lstat($name);
+                same_node(\@before, \@after)
+                    or die "changed symlink while proving $root/$relative\n";
+                add_field($link);
+            } else {
+                sysopen(my $directory_handle, $name,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    or die "open directory $root/$relative: $!\n";
+                my @opened = stat($directory_handle);
+                @opened && $opened[0] == $before[0] && $opened[1] == $before[1]
+                    or die "changed directory while proving $root/$relative\n";
+                opendir(my $directory, $name)
+                    or die "opendir $root/$relative: $!\n";
+                my @listed = stat($directory);
+                @listed && $listed[0] == $before[0] && $listed[1] == $before[1]
+                    or die "changed directory while listing $root/$relative\n";
+                my @names = sort { $a cmp $b }
+                    grep { $_ ne "." && $_ ne ".." } readdir($directory);
+                closedir($directory) or die "closedir $root/$relative: $!\n";
+                sysopen(my $parent_handle, ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    or die "open parent while proving $root/$relative: $!\n";
+                chdir($directory_handle)
+                    or die "chdir directory while proving $root/$relative: $!\n";
+                for my $child_name (@names) {
+                    my $child_relative = length($relative)
+                        ? "$relative/$child_name" : $child_name;
+                    visit($child_name, $child_relative);
+                }
+                my @after_handle = stat($directory_handle);
+                chdir($parent_handle)
+                    or die "restore parent while proving $root/$relative: $!\n";
+                close $parent_handle
+                    or die "close parent while proving $root/$relative: $!\n";
+                my @after_name = lstat($name);
+                same_node(\@before, \@after_handle)
+                    && same_node(\@before, \@after_name)
+                    or die "changed directory while proving $root/$relative\n";
+                close $directory_handle
+                    or die "close directory while proving $root/$relative: $!\n";
+                add_field(scalar @names);
+            }
+        }
+
+        my ($root_parent, $root_name) = anchor_parent($home, $root);
+        visit($root_name, "");
+        for my $inode (keys %links) {
+            my ($seen, $count) = @{$links{$inode}};
+            $seen == $count
+                or die "hard link escapes the retirement target $root: $inode\n";
+        }
+        close $root_parent or die "close retirement root parent: $!\n";
+        my ($current_parent, $current_name) = anchor_parent($home, $root);
+        my @current = lstat($current_name);
+        @current && same_node(\@root_state, \@current)
+            or die "retirement target changed public identity while proving $root\n";
+        close $current_parent or die "close current retirement root parent: $!\n";
+        print $digest->hexdigest, "\n";
+    ' "$anchor" "$path" "$(id -u)"
+}
+
+# The Codex plugin was refreshed earlier in the full installer and must remain
+# installed. Prove that its retained cache contains no path or file content
+# naming the retired harness instead of deleting a newly valid plugin.
+assert_no_retired_pi_reference_tree() {
+    local root="$1" before after
+    before=$(content_proof "$root") \
+        || die "could not prove retained plugin content before its Pi audit: $root"
+    /usr/bin/perl -Mstrict -Mwarnings -MFile::Find -MFcntl=:DEFAULT -e '
+        use bytes;
+        use Fcntl qw(:mode);
+
+        my $root = $ARGV[0];
+        find({
+            no_chdir => 1,
+            follow => 0,
+            wanted => sub {
+                my $path = $File::Find::name;
+                my $relative = substr($path, length($root));
+                for my $component (grep { length } split m{/+}, $relative) {
+                    die "retired Pi path remains in $root: $path\n"
+                        if $component eq "pi"
+                        || $component =~ /^pi[-_]/i
+                        || $component =~ /[-_]pi(?:[-_.]|$)/i
+                        || $component =~ /^pi_(?:agent|coding)/i;
+                }
+                my @state = lstat($path);
+                @state or die "lstat $path: $!\n";
+                return unless S_ISREG($state[2]);
+                $state[7] <= 16 * 1024 * 1024
+                    or die "oversized retained plugin file cannot be audited: $path\n";
+                sysopen(my $handle, $path, O_RDONLY | O_NOFOLLOW)
+                    or die "open $path: $!\n";
+                binmode $handle;
+                local $/;
+                my $content = <$handle> // "";
+                close $handle or die "close $path: $!\n";
+                if ($content =~ /(?<![A-Za-z0-9_])(?:Pi|pi)(?![A-Za-z0-9_])/
+                    || $content =~ /pi_agent|PI_CODING_AGENT_DIR/) {
+                    die "retired Pi content remains in retained plugin cache: $path\n";
+                }
+            },
+        }, $root);
+    ' "$root" || die "retained AgentStart plugin cache is not Pi-free: $root"
+    after=$(content_proof "$root") \
+        || die "could not re-prove retained plugin content after its Pi audit: $root"
+    [ "$before" = "$after" ] \
+        || die "retained plugin cache changed during its Pi audit: $root"
+}
+
+fsync_path() {
+    /usr/bin/perl -Mstrict -Mwarnings -MIO::Handle -MFcntl=:DEFAULT -e '
+        use Fcntl qw(:mode);
+        my ($home, $path, $expected_uid) = @ARGV;
+        if ($path eq $home) {
+            sysopen(my $home_handle, $home,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open cleanup home for fsync: $!\n";
+            my @home_state = stat($home_handle);
+            @home_state && S_ISDIR($home_state[2])
+                && $home_state[4] == $expected_uid
+                or die "unsafe cleanup home fsync target\n";
+            $home_handle->sync() or die "fsync cleanup home: $!\n";
+            close $home_handle or die "close cleanup home after fsync: $!\n";
+            exit 0;
+        }
+        index($path, "$home/") == 0
+            or die "fsync path escapes cleanup home: $path\n";
+        my @parts = split m{/}, substr($path, length($home) + 1), -1;
+        @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+            or die "unsafe fsync path: $path\n";
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home for fsync: $!\n";
+        my @opened = stat($directory);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe cleanup home descriptor for fsync\n";
+        chdir($directory) or die "chdir cleanup home for fsync: $!\n";
+        for my $component (@parts[0 .. $#parts - 1]) {
+            sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open fsync parent component $component: $!\n";
+            @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe fsync parent component $component\n";
+            chdir($next) or die "chdir fsync parent component $component: $!\n";
+            close $directory or die "close fsync parent component: $!\n";
+            $directory = $next;
+        }
+        sysopen(my $handle, $parts[-1], O_RDONLY | O_NOFOLLOW)
+            or die "open $path for fsync: $!\n";
+        @opened = stat($handle);
+        @opened && $opened[4] == $expected_uid
+            or die "unsafe fsync target ownership: $path\n";
+        $handle->sync() or die "fsync $path: $!\n";
+        close $handle or die "close $path: $!\n";
+    ' "$cleanup_home" "$1" "$(id -u)" \
+        || die "could not durably record retirement claim state: $1"
+}
+
+# Move one already-proved claim without resolving either parent again during
+# the rename. Darwin's renameatx_np(RENAME_EXCL) anchors both names to opened,
+# no-follow directory descriptors and atomically refuses a recreated target.
+# The surrounding content proofs still decide whether the moved inode is the
+# retirement-owned object; this helper prevents a parent swap from redirecting
+# the move outside the cleanup home.
+move_claim_exclusive() {
+    local source="$1" target="$2" expected_identity="$3"
+    /usr/bin/perl -Mstrict -Mwarnings -MErrno=ENOENT \
+        -MFcntl=:DEFAULT -MIO::Handle -e '
+        use Fcntl qw(:mode);
+
+        my ($home, $source, $target, $expected_identity) = @ARGV;
+        my ($expected_device, $expected_inode) =
+            $expected_identity =~ /^([0-9]+):([0-9]+)$/
+                or die "invalid expected move identity\n";
+
+        sub split_path {
+            my ($path) = @_;
+            index($path, "$home/") == 0
+                or die "claim move path escapes cleanup home: $path\n";
+            my @parts = split m{/}, substr($path, length($home) + 1), -1;
+            @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+                or die "claim move has an unsafe path: $path\n";
+            my $name = pop @parts;
+            return (\@parts, $name);
+        }
+
+        sub open_parent {
+            my ($parts, $path) = @_;
+            sysopen(my $handle, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "could not safely open cleanup home for $path: $!\n";
+            my @opened = stat($handle);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $<
+                or die "cleanup home is not an owned directory for $path\n";
+            chdir($handle) or die "chdir cleanup home for $path: $!\n";
+            for my $component (@$parts) {
+                sysopen(my $next, $component,
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                    or die "could not safely open claim parent component $component for $path: $!\n";
+                @opened = stat($next);
+                @opened && S_ISDIR($opened[2]) && $opened[4] == $<
+                    or die "claim parent component is not owned: $component for $path\n";
+                chdir($next) or die "chdir claim parent component $component for $path: $!\n";
+                close $handle or die "close claim parent component for $path: $!\n";
+                $handle = $next;
+            }
+            @opened = stat($handle);
+            return ($handle, \@opened);
+        }
+
+        sub parent_still_named {
+            my ($parts, $opened, $path) = @_;
+            my ($current, $current_state) = open_parent($parts, $path);
+            $current_state->[0] == $opened->[0]
+                && $current_state->[1] == $opened->[1]
+                or die "claim move parent changed during rename: $path\n";
+            close $current or die "close revalidated claim parent for $path: $!\n";
+        }
+
+        sub lstat_at {
+            my ($directory, $name, $path) = @_;
+            chdir($directory) or die "chdir claim parent for $path: $!\n";
+            return lstat($name);
+        }
+
+        my ($source_parts, $source_name) = split_path($source);
+        my ($target_parts, $target_name) = split_path($target);
+        my ($source_handle, $source_parent_state) = open_parent($source_parts, $source);
+        my ($target_handle, $target_parent_state) = open_parent($target_parts, $target);
+
+        my @source_state = lstat_at($source_handle, $source_name, $source);
+        @source_state
+            && $source_state[0] == $expected_device
+            && $source_state[1] == $expected_inode
+            or die "claim move source identity changed: $source\n";
+        my @target_state = lstat_at($target_handle, $target_name, $target);
+        !@target_state && $!{ENOENT}
+            or die "claim move target already exists: $target\n";
+        parent_still_named($source_parts, $source_parent_state, $source);
+        parent_still_named($target_parts, $target_parent_state, $target);
+
+        # Darwin syscall 488 is renameatx_np; flag 0x4 is RENAME_EXCL.
+        syscall(488, fileno($source_handle), $source_name,
+            fileno($target_handle), $target_name, 0x4) == 0
+            or die "exclusive claim rename failed: $!\n";
+        $source_handle->sync() or die "fsync source parent for $source: $!\n";
+        $target_handle->sync() or die "fsync target parent for $target: $!\n";
+        parent_still_named($source_parts, $source_parent_state, $source);
+        parent_still_named($target_parts, $target_parent_state, $target);
+
+        @target_state = lstat_at($target_handle, $target_name, $target);
+        @target_state
+            && $target_state[0] == $expected_device
+            && $target_state[1] == $expected_inode
+            or die "claim move target identity changed: $target\n";
+        @source_state = lstat_at($source_handle, $source_name, $source);
+        !@source_state && $!{ENOENT}
+            or die "claim move source reappeared: $source\n";
+        close $source_handle or die "close source claim parent: $!\n";
+        close $target_handle or die "close target claim parent: $!\n";
+    ' "$cleanup_home" "$source" "$target" "$expected_identity" \
+        || die "could not safely move retirement claim from $source to $target"
+}
+
+ensure_real_directory() {
+    /usr/bin/perl -Mstrict -Mwarnings -MErrno=EEXIST \
+        -MFcntl=:DEFAULT -MIO::Handle -e '
+        use Fcntl qw(:mode);
+        my ($home, $target, $expected_uid) = @ARGV;
+        index($target, "$home/") == 0
+            or die "directory target escapes cleanup home: $target\n";
+        my @parts = split m{/}, substr($target, length($home) + 1), -1;
+        @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+            or die "unsafe directory target: $target\n";
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home: $!\n";
+        my @opened = stat($directory);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe cleanup home descriptor\n";
+        chdir($directory) or die "chdir cleanup home: $!\n";
+        for my $component (@parts) {
+            my $created = 0;
+            if (!mkdir($component, 0700)) {
+                $!{EEXIST} or die "mkdir $component in $target: $!\n";
+            } else {
+                $created = 1;
+            }
+            sysopen(my $next, $component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open retirement directory component $component: $!\n";
+            @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe retirement directory component $component\n";
+            if ($created) {
+                chmod 0700, $component
+                    or die "chmod retirement directory component $component: $!\n";
+                $next->sync()
+                    or die "fsync new retirement directory component $component: $!\n";
+                $directory->sync()
+                    or die "fsync parent of new retirement directory component $component: $!\n";
+            }
+            chdir($next)
+                or die "chdir retirement directory component $component: $!\n";
+            close $directory
+                or die "close retirement directory parent for $component: $!\n";
+            $directory = $next;
+        }
+    ' "$cleanup_home" "$1" "$(id -u)" \
+        || die "could not create or prove retirement state directory: $1"
+}
+
+quarantine_parent="$cleanup_home/.local/state/agentstart"
+quarantine_root="$quarantine_parent/retirement-quarantine"
+quarantine_owner="$quarantine_root/.owner"
+quarantine_owner_text='agentstart-retirement-quarantine-v2'
+retirement_lock="$quarantine_parent/retirement.lock"
+legacy_retirement_lock="$quarantine_parent/retire-pi.lock"
+lock_acquired=0
+
+ensure_real_directory "$quarantine_parent"
+if [ -z "${AGENTSTART_INTERNAL_RETIREMENT_LOCK_FD:-}" ]; then
+    /usr/bin/perl -Mstrict -Mwarnings -MCwd=abs_path -MErrno=EINTR \
+        -MFcntl=:DEFAULT,:flock -MIO::Handle -MPOSIX=:sys_wait_h -e '
+        use Fcntl qw(:mode);
+        my ($home, $path, $expected_uid, $script, @arguments) = @ARGV;
+        my $resolved_script = abs_path($script);
+        defined $resolved_script or die "resolve retirement script $script: $!\n";
+        index($path, "$home/") == 0
+            or die "lock path escapes cleanup home\n";
+        my @parts = split m{/}, substr($path, length($home) + 1), -1;
+        @parts && !grep { $_ eq "" || $_ eq "." || $_ eq ".." } @parts
+            or die "unsafe retirement lock path\n";
+        my $name = pop @parts;
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home for lock: $!\n";
+        my @opened = stat($directory);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe cleanup home descriptor for lock\n";
+        chdir($directory) or die "chdir cleanup home for lock: $!\n";
+        for my $component (@parts) {
+            sysopen(my $next, $component,
+                O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open lock parent component $component: $!\n";
+            @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe lock parent component $component\n";
+            chdir($next) or die "chdir lock parent component $component: $!\n";
+            close $directory or die "close lock parent component: $!\n";
+            $directory = $next;
+        }
+        sysopen(my $lock, $name, O_CREAT | O_RDWR | O_NOFOLLOW, 0600)
+            or die "open retirement lock safely: $!\n";
+        my @locked = stat($lock);
+        @locked && S_ISREG($locked[2]) && $locked[4] == $expected_uid
+            && $locked[3] == 1
+            or die "retirement lock is not a singly linked owned regular file\n";
+        my @named = lstat($name);
+        @named && $named[0] == $locked[0] && $named[1] == $locked[1]
+            or die "retirement lock changed while opening\n";
+        chmod 0600, $name or die "chmod retirement lock: $!\n";
+        $lock->sync() or die "fsync retirement lock: $!\n";
+        $directory->sync() or die "fsync retirement lock parent: $!\n";
+        local $SIG{ALRM} = sub { die "retirement lock timed out after 30 minutes\n" };
+        alarm 1800;
+        flock($lock, LOCK_EX) or die "lock retirement transaction: $!\n";
+        alarm 0;
+        fcntl($lock, F_SETFD, FD_CLOEXEC)
+            or die "protect retirement lock from child execs: $!\n";
+        my $child = fork();
+        defined $child or die "fork retirement transaction: $!\n";
+        if ($child == 0) {
+            my $inherited = fcntl($lock, F_DUPFD, 20);
+            defined $inherited or die "duplicate retirement lock descriptor: $!\n";
+            $ENV{AGENTSTART_INTERNAL_RETIREMENT_LOCK_FD} = "$inherited";
+            exec {$resolved_script} $resolved_script, @arguments;
+            die "exec retirement transaction: $!\n";
+        }
+        for my $signal (qw(INT TERM HUP QUIT)) {
+            $SIG{$signal} = sub { kill $signal, $child };
+        }
+        while (waitpid($child, 0) < 0) {
+            $!{EINTR} or die "wait for retirement transaction: $!\n";
+        }
+        my $status = $?;
+        exit(($status & 127) ? 128 + ($status & 127) : $status >> 8);
+    ' "$cleanup_home" "$retirement_lock" "$(id -u)" "$0" "$@" \
+        || exit $?
+    exit 0
+fi
+retirement_lock_fd=$AGENTSTART_INTERNAL_RETIREMENT_LOCK_FD
+unset AGENTSTART_INTERNAL_RETIREMENT_LOCK_FD
+[[ "$retirement_lock_fd" =~ ^[0-9]+$ ]] \
+    || die "retirement lock wrapper passed an invalid descriptor"
+/usr/bin/perl -Mstrict -Mwarnings -MFcntl=:DEFAULT,:flock -e '
+    use Fcntl qw(:mode);
+    my ($fd, $home, $path, $expected_uid) = @ARGV;
+    open(my $lock, "<&=$fd") or die "open inherited retirement lock: $!\n";
+    my @locked = stat($lock);
+    @locked && S_ISREG($locked[2]) && $locked[4] == $expected_uid
+        && $locked[3] == 1
+        or die "inherited retirement lock is unsafe\n";
+    index($path, "$home/") == 0 or die "retirement lock path escapes home\n";
+    my @parts = split m{/}, substr($path, length($home) + 1), -1;
+    my $name = pop @parts;
+    sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        or die "open cleanup home while proving inherited lock: $!\n";
+    chdir($directory) or die "chdir cleanup home while proving inherited lock: $!\n";
+    for my $component (@parts) {
+        sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open inherited lock parent component $component: $!\n";
+        my @opened = stat($next);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe inherited lock parent component $component\n";
+        chdir($next) or die "chdir inherited lock parent component $component: $!\n";
+        close $directory or die "close inherited lock parent component: $!\n";
+        $directory = $next;
+    }
+    my @named = lstat($name);
+    @named && $named[0] == $locked[0] && $named[1] == $locked[1]
+        or die "inherited retirement lock is not the public lock\n";
+    flock($lock, LOCK_EX | LOCK_NB)
+        or die "inherited retirement lock is not held\n";
+' "$retirement_lock_fd" "$cleanup_home" "$retirement_lock" "$(id -u)" \
+    || die "retirement lock wrapper did not prove serialization"
+eval "exec ${retirement_lock_fd}>&-"
+unset retirement_lock_fd
+lock_acquired=1
+
+crash_boundary() {
+    local boundary="$1"
+    [ "${AGENTSTART_TEST_PI_CRASH_AT:-}" != "$boundary" ] || kill -KILL "$$"
+}
+
+crash_boundary lock-acquired
+
+find_bin="${AGENTSTART_TEST_PI_FIND_BIN:-/usr/bin/find}"
+[ -f "$find_bin" ] && [ ! -L "$find_bin" ] && [ -x "$find_bin" ] \
+    || die "could not resolve a safe find command: $find_bin"
+temporary_find_files=()
+temporary_find_file_count=0
+
+collect_find_nul() {
+    local description="$1" size
+    shift
+    find_listing=$(/usr/bin/mktemp /private/tmp/agentstart-retirement-find.XXXXXX) \
+        || die "could not create a bounded find result for $description"
+    chmod 600 "$find_listing"
+    temporary_find_files[temporary_find_file_count]="$find_listing"
+    temporary_find_file_count=$((temporary_find_file_count + 1))
+    if ! "$find_bin" "$@" -print0 >"$find_listing"; then
+        rm -f -- "$find_listing"
+        die "could not enumerate $description"
+    fi
+    size=$(stat -f '%z' "$find_listing") \
+        || die "could not measure the bounded find result for $description"
+    [ "$size" -le 16777216 ] \
+        || die "find result exceeded the safe retirement bound for $description"
+}
+
+discard_find_listing() {
+    rm -f -- "$1"
+}
+
+cleanup_temporary_find_files() {
+    local listing index
+    for ((index = 0; index < temporary_find_file_count; index += 1)); do
+        listing=${temporary_find_files[$index]}
+        [ -n "$listing" ] || continue
+        rm -f -- "$listing"
+    done
+}
+
+claim_ids=()
+claim_paths=()
+claim_identities=()
+claim_proofs=()
+claim_entries=()
+claim_count=0
+
+target_for_id() {
+    local target_id="$1" suffix
+    resolved_target=
+    case "$target_id" in
+        bun-viewer-bin) resolved_target="$cleanup_home/.bun/bin/pi-viewer" ;;
+        bun-viewer-package) resolved_target="$cleanup_home/.bun/install/global/node_modules/pi-viewer" ;;
+        pi-viewer-checkout) resolved_target="$cleanup_home/code/pi-viewer" ;;
+        agentlaunch-shim) resolved_target="$cleanup_home/.local/share/agentlaunch/shims/pi" ;;
+        agentsurface-shim) resolved_target="$cleanup_home/.local/share/agentsurface/shims/pi" ;;
+        claude-plugin-cache) resolved_target="$cleanup_home/.claude/plugins/cache/agentstart-managed" ;;
+        agentlaunch-draft) resolved_target="$cleanup_home/.local/state/agentlaunch/form-draft.json" ;;
+        herdr-remote-cache) resolved_target="$cleanup_home/.local/state/herdr/agent-detection/remote/pi.toml" ;;
+        agentstart-pi-subagents) resolved_target="$cleanup_home/.local/share/agentstart/pi-subagents" ;;
+        agentstart-pi-resources) resolved_target="$cleanup_home/.local/share/agentstart/resources/pi" ;;
+        native-pi-home) resolved_target="$cleanup_home/.pi" ;;
+        legacy-retirement-lock) resolved_target="$legacy_retirement_lock" ;;
+        nvm-launcher:*)
+            suffix=${target_id#nvm-launcher:}
+            [[ "$suffix" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+            resolved_target="$cleanup_home/.nvm/versions/node/$suffix/bin/pi"
+            ;;
+        nvm-earendil-package:*)
+            suffix=${target_id#nvm-earendil-package:}
+            [[ "$suffix" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+            resolved_target="$cleanup_home/.nvm/versions/node/$suffix/lib/node_modules/@earendil-works/pi-coding-agent"
+            ;;
+        nvm-mario-package:*)
+            suffix=${target_id#nvm-mario-package:}
+            [[ "$suffix" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+            resolved_target="$cleanup_home/.nvm/versions/node/$suffix/lib/node_modules/@mariozechner/pi-coding-agent"
+            ;;
+        agentsurface-slug:*)
+            suffix=${target_id#agentsurface-slug:}
+            [[ "$suffix" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}Z_[A-Za-z0-9._-]+$ ]] \
+                || return 1
+            resolved_target="$cleanup_home/.local/state/agentsurface/slugs/$suffix"
+            ;;
+        *) return 1 ;;
+    esac
+    return 0
+}
+
+claim_hash() {
+    printf '%s' "$1" | /usr/bin/shasum -a 256 | /usr/bin/awk '{ print $1 }'
+}
+
+capture_claim_state() {
+    local target="$1"
+    assert_inside_home "$target"
+    captured_identity=$(path_identity "$target") \
+        || die "could not identify retirement target: $target"
+    captured_proof=$(content_proof "$target") \
+        || die "could not prove retirement target content: $target"
+}
+
+register_claim() {
+    local target_id="$1" target="$2" expected_identity="$3" expected_proof="$4"
+    local current_identity current_proof index other
+    target_for_id "$target_id" \
+        || die "retirement target has no closed identifier: $target_id"
+    [ "$resolved_target" = "$target" ] \
+        || die "retirement target identifier does not resolve exactly: $target_id"
+    current_identity=$(path_identity "$target") \
+        || die "could not re-prove a validated retirement target: $target"
+    current_proof=$(content_proof "$target") \
+        || die "could not re-prove retirement target content: $target"
+    [ "$current_identity" = "$expected_identity" ] \
+        && [ "$current_proof" = "$expected_proof" ] \
+        || die "retirement target changed during validation: $target"
+    for ((index = 0; index < claim_count; index += 1)); do
+        other=${claim_paths[$index]}
+        [ "$other" != "$target" ] \
+            || die "retirement target was registered twice: $target"
+        case "$other/" in "$target/"*) die "overlapping retirement target: $target" ;; esac
+        case "$target/" in "$other/"*) die "overlapping retirement target: $target" ;; esac
+    done
+    index=$claim_count
+    claim_ids[index]="$target_id"
+    claim_paths[index]="$target"
+    claim_identities[index]="$expected_identity"
+    claim_proofs[index]="$expected_proof"
+    claim_count=$((claim_count + 1))
+}
+
+register_exact_claim() {
+    local target_id="$1" target="$2"
+    path_exists "$target" || return 0
+    capture_claim_state "$target"
+    register_claim "$target_id" "$target" "$captured_identity" "$captured_proof"
+}
+
+validate_receipt_file() {
+    local receipt="$1" entry_name="$2" hash
+    [ -f "$receipt" ] && [ ! -L "$receipt" ] \
+        || die "retirement quarantine claim has no safe receipt: $receipt"
+    jq -e '
+        type == "object" and .version == 2 and
+        (.target_id | type == "string") and
+        (.target | type == "string") and
+        (.identity | type == "string" and test("^[0-9]+:[0-9]+$")) and
+        (.proof | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.state == "prepared" or .state == "deleting" or .state == "deleted") and
+        (keys | sort == ["identity", "proof", "state", "target", "target_id", "version"])
+    ' "$receipt" >/dev/null 2>&1 \
+        || die "retirement quarantine receipt is malformed: $receipt"
+    receipt_target_id=$(jq -r '.target_id' "$receipt")
+    receipt_target=$(jq -r '.target' "$receipt")
+    receipt_identity=$(jq -r '.identity' "$receipt")
+    receipt_state=$(jq -r '.state' "$receipt")
+    target_for_id "$receipt_target_id" \
+        || die "retirement quarantine receipt names an unknown target: $receipt"
+    [ "$resolved_target" = "$receipt_target" ] \
+        || die "retirement quarantine receipt target does not match its closed identifier: $receipt"
+    hash=$(claim_hash "$receipt_target_id")
+    [ "$entry_name" = "claim.$hash" ] \
+        || die "retirement quarantine receipt does not match its claim directory: $receipt"
+}
+
+write_receipt() {
+    local entry="$1" target_id="$2" target="$3" identity="$4" proof="$5" state="$6"
+    local next="$entry/receipt.next"
+    [ ! -e "$next" ] && [ ! -L "$next" ] \
+        || die "refusing occupied temporary retirement receipt: $next"
+    jq -n --arg target_id "$target_id" --arg target "$target" \
+        --arg identity "$identity" --arg proof "$proof" --arg state "$state" \
+        '{version: 2, target_id: $target_id, target: $target, identity: $identity, proof: $proof, state: $state}' \
+        >"$next"
+    chmod 600 "$next"
+    fsync_path "$next"
+    crash_boundary "receipt-$state-temporary-durable"
+    mv -f -- "$next" "$entry/receipt.json"
+    fsync_path "$entry"
+    crash_boundary "receipt-$state-published"
+}
+
+cleanup_incomplete_quarantine_roots() {
+    local root occupant basename listing
+    for root in "$quarantine_parent"/.retirement-quarantine.new.*; do
+        path_exists "$root" || continue
+        [ -d "$root" ] && [ ! -L "$root" ] \
+            || die "unsafe incomplete retirement quarantine: $root"
+        collect_find_nul "incomplete retirement quarantine $root" \
+            "$root" -mindepth 1 -maxdepth 1
+        listing=$find_listing
+        while IFS= read -r -d '' occupant; do
+            basename=${occupant##*/}
+            case "$basename" in
+                .owner|.owner.next)
+                    [ -f "$occupant" ] && [ ! -L "$occupant" ] \
+                        && [ "$(cat "$occupant")" = "$quarantine_owner_text" ] \
+                        || die "unsafe incomplete retirement owner marker: $occupant"
+                    ;;
+                *) die "foreign occupant in incomplete retirement quarantine: $occupant" ;;
+            esac
+        done <"$listing"
+        discard_find_listing "$listing"
+        rm -f -- "$root/.owner" "$root/.owner.next"
+        rmdir "$root"
+        fsync_path "$quarantine_parent"
+    done
+}
+
+prepare_quarantine() {
+    local temporary owner_next
+    path_exists "$quarantine_root" && return 0
+    temporary="$quarantine_parent/.retirement-quarantine.new.$$"
+    [ ! -e "$temporary" ] && [ ! -L "$temporary" ] \
+        || die "refusing occupied temporary retirement quarantine: $temporary"
+    mkdir -- "$temporary"
+    chmod 700 "$temporary"
+    crash_boundary quarantine-temporary-created
+    owner_next="$temporary/.owner.next"
+    printf '%s\n' "$quarantine_owner_text" >"$owner_next"
+    chmod 600 "$owner_next"
+    fsync_path "$owner_next"
+    crash_boundary quarantine-owner-temporary-durable
+    mv -- "$owner_next" "$temporary/.owner"
+    fsync_path "$temporary"
+    crash_boundary quarantine-owner-published
+    mv -- "$temporary" "$quarantine_root"
+    fsync_path "$quarantine_parent"
+    crash_boundary quarantine-root-published
+}
+
+remove_empty_claim_entry() {
+    local entry="$1"
+    rm -f -- "$entry/receipt.next"
+    [ ! -e "$entry/item" ] && [ ! -L "$entry/item" ] \
+        || die "refusing to discard an unreceipted retirement claim item: $entry/item"
+    rm -f -- "$entry/receipt.json"
+    rmdir "$entry"
+    fsync_path "$quarantine_root"
+}
+
+restore_claim_entry() {
+    local entry="$1" entry_name receipt item occupant basename listing
+    entry_name=${entry##*/}
+    receipt="$entry/receipt.json"
+    item="$entry/item"
+    validate_receipt_file "$receipt" "$entry_name"
+    collect_find_nul "retirement claim entry $entry" \
+        "$entry" -mindepth 1 -maxdepth 1
+    listing=$find_listing
+    while IFS= read -r -d '' occupant; do
+        basename=${occupant##*/}
+        case "$basename" in
+            receipt.json|receipt.next|item) ;;
+            *) die "foreign claim occupant in retirement quarantine: $occupant" ;;
+        esac
+    done <"$listing"
+    discard_find_listing "$listing"
+    rm -f -- "$entry/receipt.next"
+
+    if path_exists "$item"; then
+        if path_exists "$receipt_target"; then
+            die "retirement target reappeared while its prior inode is preserved at $item: $receipt_target"
+        fi
+        [ -d "${receipt_target%/*}" ] && [ ! -L "${receipt_target%/*}" ] \
+            || die "could not restore a retirement claim through its changed parent: $receipt_target"
+        assert_inside_home "$receipt_target"
+        move_claim_exclusive "$item" "$receipt_target" "$receipt_identity"
+        fsync_path "${receipt_target%/*}"
+        fsync_path "$entry"
+        printf 'Restored interrupted retired Pi claim for revalidation: %s.\n' "$receipt_target"
+    elif [ "$receipt_state" = prepared ] && ! path_exists "$receipt_target"; then
+        die "prepared retirement claim has neither its public target nor a preserved item: $entry"
+    fi
+
+    rm -- "$receipt"
+    fsync_path "$entry"
+    rmdir "$entry"
+    fsync_path "$quarantine_root"
+}
+
+finish_quarantine() {
+    local occupant listing
+    path_exists "$quarantine_root" || return 0
+    [ -d "$quarantine_root" ] && [ ! -L "$quarantine_root" ] \
+        || die "refusing unsafe retirement quarantine: $quarantine_root"
+    if [ ! -e "$quarantine_owner" ] && [ ! -L "$quarantine_owner" ]; then
+        collect_find_nul "ownerless retirement quarantine" \
+            "$quarantine_root" -mindepth 1 -maxdepth 1
+        listing=$find_listing
+        occupant=
+        IFS= read -r -d '' occupant <"$listing" || true
+        discard_find_listing "$listing"
+        [ -z "$occupant" ] \
+            || die "ownerless retirement quarantine is not empty: $quarantine_root"
+        rmdir "$quarantine_root"
+        fsync_path "$quarantine_parent"
+        return 0
+    fi
+    [ -f "$quarantine_owner" ] && [ ! -L "$quarantine_owner" ] \
+        && [ "$(cat "$quarantine_owner")" = "$quarantine_owner_text" ] \
+        || die "retirement quarantine ownership marker mismatch: $quarantine_root"
+    collect_find_nul "retirement quarantine claims" \
+        "$quarantine_root" -mindepth 1 -maxdepth 1 ! -name .owner
+    listing=$find_listing
+    occupant=
+    IFS= read -r -d '' occupant <"$listing" || true
+    discard_find_listing "$listing"
+    [ -z "$occupant" ] \
+        || die "retirement quarantine still contains a claim: $occupant"
+    rm -- "$quarantine_owner"
+    fsync_path "$quarantine_root"
+    crash_boundary quarantine-owner-removed
+    rmdir "$quarantine_root"
+    fsync_path "$quarantine_parent"
+    crash_boundary quarantine-root-removed
+}
+
+recover_quarantine() {
+    local entry occupant basename listing
+    cleanup_incomplete_quarantine_roots
+    path_exists "$quarantine_root" || return 0
+    [ -d "$quarantine_root" ] && [ ! -L "$quarantine_root" ] \
+        || die "refusing unsafe retirement quarantine: $quarantine_root"
+    if [ ! -e "$quarantine_owner" ] && [ ! -L "$quarantine_owner" ]; then
+        finish_quarantine
+        return 0
+    fi
+    [ -f "$quarantine_owner" ] && [ ! -L "$quarantine_owner" ] \
+        && [ "$(cat "$quarantine_owner")" = "$quarantine_owner_text" ] \
+        || die "retirement quarantine ownership marker mismatch: $quarantine_root"
+    for entry in "$quarantine_root"/.claim.*.new.*; do
+        path_exists "$entry" || continue
+        [ -d "$entry" ] && [ ! -L "$entry" ] \
+            || die "unsafe temporary claim in retirement quarantine: $entry"
+        collect_find_nul "temporary retirement claim $entry" \
+            "$entry" -mindepth 1 -maxdepth 1
+        listing=$find_listing
+        while IFS= read -r -d '' occupant; do
+            basename=${occupant##*/}
+            case "$basename" in
+                receipt.json|receipt.next)
+                    [ -f "$occupant" ] && [ ! -L "$occupant" ] \
+                        || die "unsafe temporary receipt in retirement quarantine: $occupant"
+                    ;;
+                *) die "foreign temporary claim occupant in retirement quarantine: $occupant" ;;
+            esac
+        done <"$listing"
+        discard_find_listing "$listing"
+        rm -f -- "$entry/receipt.json" "$entry/receipt.next"
+        rmdir "$entry"
+        fsync_path "$quarantine_root"
+    done
+    for entry in "$quarantine_root"/claim.*; do
+        path_exists "$entry" || continue
+        [ -d "$entry" ] && [ ! -L "$entry" ] \
+            || die "unsafe claim in retirement quarantine: $entry"
+        if [ -e "$entry/receipt.json" ] || [ -L "$entry/receipt.json" ]; then
+            restore_claim_entry "$entry"
+        else
+            remove_empty_claim_entry "$entry"
+        fi
+    done
+    finish_quarantine
+}
+
+recover_quarantine
+
+claim_registered_index() {
+    local index="$1" target_id target expected_identity expected_proof
+    local current_identity current_proof target_device quarantine_device hash temporary entry item
+    target_id=${claim_ids[$index]}
+    target=${claim_paths[$index]}
+    expected_identity=${claim_identities[$index]}
+    expected_proof=${claim_proofs[$index]}
+    path_exists "$target" \
+        || die "retirement target disappeared before it could be claimed: $target"
+    current_identity=$(path_identity "$target") \
+        || die "could not identify retirement target before claim: $target"
+    current_proof=$(content_proof "$target") \
+        || die "could not prove retirement target before claim: $target"
+    [ "$current_identity" = "$expected_identity" ] \
+        && [ "$current_proof" = "$expected_proof" ] \
+        || die "retirement target changed before claim: $target"
+
+    prepare_quarantine
+    target_device=${expected_identity%%:*}
+    quarantine_device=$(path_identity "$quarantine_root")
+    quarantine_device=${quarantine_device%%:*}
+    [ "$target_device" = "$quarantine_device" ] \
+        || die "retirement target is on a different filesystem from the safe quarantine: $target"
+
+    hash=$(claim_hash "$target_id")
+    temporary="$quarantine_root/.claim.$hash.new.$$"
+    entry="$quarantine_root/claim.$hash"
+    item="$entry/item"
+    [ ! -e "$temporary" ] && [ ! -L "$temporary" ] \
+        && [ ! -e "$entry" ] && [ ! -L "$entry" ] \
+        || die "retirement claim path is already occupied for $target"
+    mkdir -- "$temporary"
+    chmod 700 "$temporary"
+    crash_boundary claim-temporary-created
+    write_receipt "$temporary" "$target_id" "$target" "$expected_identity" "$expected_proof" prepared
+    mv -- "$temporary" "$entry"
+    fsync_path "$quarantine_root"
+    crash_boundary claim-published
+
+    if [ -n "${AGENTSTART_TEST_PI_CLAIM_HOOK:-}" ]; then
+        [ -f "$AGENTSTART_TEST_PI_CLAIM_HOOK" ] \
+            && [ ! -L "$AGENTSTART_TEST_PI_CLAIM_HOOK" ] \
+            && [ -x "$AGENTSTART_TEST_PI_CLAIM_HOOK" ] \
+            || die "retirement claim test hook is not a safe executable"
+        "$AGENTSTART_TEST_PI_CLAIM_HOOK" "$target"
+    fi
+
+    move_claim_exclusive "$target" "$item" "$expected_identity"
+    fsync_path "$entry"
+    fsync_path "${target%/*}"
+    crash_boundary claim-item-renamed
+    current_identity=$(path_identity "$item") \
+        || die "could not identify claimed retirement target: $item"
+    current_proof=$(content_proof "$item") \
+        || die "could not prove claimed retirement target: $item"
+    if [ "$current_identity" = "$expected_identity" ] \
+        && [ "$current_proof" = "$expected_proof" ] \
+        && [ "$(content_proof "$item")" = "$expected_proof" ]; then
+        claim_entries[index]="$entry"
+        crash_boundary claim-item-revalidated
+        return 0
+    fi
+    restore_claim_entry "$entry"
+    finish_quarantine
+    die "retirement target was replaced or rewritten during claim and was restored: $target"
+}
+
+claim_all_registered_paths() {
+    local index
+    [ "$claim_count" -gt 0 ] || return 0
+    for ((index = 0; index < claim_count; index += 1)); do
+        claim_registered_index "$index"
+    done
+}
+
+delete_claimed_index() {
+    local index="$1" entry target_id target identity proof item current_proof
+    entry=${claim_entries[$index]}
+    [ -n "$entry" ] || return 0
+    target_id=${claim_ids[$index]}
+    target=${claim_paths[$index]}
+    identity=${claim_identities[$index]}
+    proof=${claim_proofs[$index]}
+    item="$entry/item"
+    ! path_exists "$target" \
+        || die "retirement target reappeared before deletion: $target"
+    [ "$(path_identity "$item")" = "$identity" ] \
+        && [ "$(content_proof "$item")" = "$proof" ] \
+        && [ "$(content_proof "$item")" = "$proof" ] \
+        || die "claimed retirement target changed before deletion: $target"
+    write_receipt "$entry" "$target_id" "$target" "$identity" "$proof" deleting
+    if [ -n "${AGENTSTART_TEST_PI_DELETE_HOOK:-}" ]; then
+        [ -f "$AGENTSTART_TEST_PI_DELETE_HOOK" ] \
+            && [ ! -L "$AGENTSTART_TEST_PI_DELETE_HOOK" ] \
+            && [ -x "$AGENTSTART_TEST_PI_DELETE_HOOK" ] \
+            || die "retirement delete test hook is not a safe executable"
+        "$AGENTSTART_TEST_PI_DELETE_HOOK" "$item" "$target"
+    fi
+    current_proof=$(content_proof "$item") \
+        || die "could not re-prove claimed retirement target before deletion: $target"
+    [ "$(path_identity "$item")" = "$identity" ] \
+        && [ "$current_proof" = "$proof" ] \
+        && [ "$(content_proof "$item")" = "$proof" ] \
+        || die "claimed retirement target was rewritten before deletion: $target"
+    ! path_exists "$target" \
+        || die "retirement target reappeared immediately before deletion: $target"
+    if [ -d "$item" ] && [ ! -L "$item" ]; then
+        rm -rf -- "$item"
+    else
+        rm -- "$item"
+    fi
+    fsync_path "$entry"
+    crash_boundary claim-item-removed
+    write_receipt "$entry" "$target_id" "$target" "$identity" "$proof" deleted
+    rm -- "$entry/receipt.json"
+    fsync_path "$entry"
+    crash_boundary claim-receipt-removed
+    rmdir "$entry"
+    fsync_path "$quarantine_root"
+    crash_boundary claim-directory-removed
+    printf 'Removed retired Pi path: %s.\n' "$target"
+}
+
+revalidate_all_claims() {
+    local index entry target identity proof item
+    for ((index = 0; index < claim_count; index += 1)); do
+        entry=${claim_entries[$index]}
+        target=${claim_paths[$index]}
+        identity=${claim_identities[$index]}
+        proof=${claim_proofs[$index]}
+        item="$entry/item"
+        if [ -z "$entry" ] || ! path_exists "$item"; then
+            die "retirement claim is incomplete before mutation: $target"
+        fi
+        ! path_exists "$target" \
+            || die "retirement target reappeared after the claim-all barrier: $target"
+        [ "$(path_identity "$item")" = "$identity" ] \
+            && [ "$(content_proof "$item")" = "$proof" ] \
+            && [ "$(content_proof "$item")" = "$proof" ] \
+            || die "retirement claim changed after the claim-all barrier: $target"
+    done
+}
+
+delete_all_claimed_paths() {
+    local index
+    for ((index = 0; index < claim_count; index += 1)); do
+        delete_claimed_index "$index"
+    done
+    finish_quarantine
+}
+
+restore_claims_on_error() {
+    local status=$?
+    cleanup_temporary_find_files
+    [ "$status" -ne 0 ] || return 0
+    [ "$lock_acquired" -eq 1 ] || return "$status"
+    set +e
+    recover_quarantine >/dev/null 2>&1
+    return "$status"
+}
+trap restore_claims_on_error EXIT
+
+validate_legacy_retirement_lock() {
+    path_exists "$legacy_retirement_lock" || return 0
+    capture_claim_state "$legacy_retirement_lock"
+    [ -f "$legacy_retirement_lock" ] && [ ! -L "$legacy_retirement_lock" ] \
+        || die "refusing unsafe legacy retirement lock: $legacy_retirement_lock"
+    /usr/bin/perl -Mstrict -Mwarnings -MFcntl=:DEFAULT,:flock -e '
+        use Fcntl qw(:mode);
+        my ($home, $path, $expected_uid) = @ARGV;
+        my @parts = split m{/}, substr($path, length($home) + 1), -1;
+        my $name = pop @parts;
+        sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open cleanup home for legacy lock: $!\n";
+        chdir($directory) or die "chdir cleanup home for legacy lock: $!\n";
+        for my $component (@parts) {
+            sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+                or die "open legacy lock parent component $component: $!\n";
+            my @opened = stat($next);
+            @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+                or die "unsafe legacy lock parent component $component\n";
+            chdir($next) or die "chdir legacy lock parent component $component: $!\n";
+            close $directory or die "close legacy lock parent component: $!\n";
+            $directory = $next;
+        }
+        sysopen(my $lock, $name, O_RDWR | O_NOFOLLOW)
+            or die "open legacy retirement lock: $!\n";
+        my @opened = stat($lock);
+        @opened && S_ISREG($opened[2]) && $opened[4] == $expected_uid
+            && $opened[3] == 1
+            or die "legacy retirement lock is not a singly linked owned file\n";
+        flock($lock, LOCK_EX | LOCK_NB)
+            or die "another retired cleanup still holds the legacy lock\n";
+        flock($lock, LOCK_UN) or die "unlock legacy retirement lock: $!\n";
+    ' "$cleanup_home" "$legacy_retirement_lock" "$(id -u)" \
+        || die "legacy retirement lock is active or unsafe"
+    register_claim legacy-retirement-lock "$legacy_retirement_lock" \
+        "$captured_identity" "$captured_proof"
+}
+
+validate_managed_shim() {
+    local target_id="$1" shim="$2" marker="$3"
+    path_exists "$shim" || return 0
+    capture_claim_state "$shim"
+    [ -f "$shim" ] && [ ! -L "$shim" ] \
+        || die "refusing non-file occupant at the retired managed shim: $shim"
+    grep -Eq "$marker" "$shim" \
+        || die "refusing independently owned occupant at the retired managed shim: $shim"
+    register_claim "$target_id" "$shim" "$captured_identity" "$captured_proof"
+}
+
+validate_global_package() {
+    local node_root="$1" package_name="$2" package_root manifest bin_path target_id version
+    package_root="$node_root/lib/node_modules/$package_name"
+    manifest="$package_root/package.json"
+    path_exists "$package_root" || return 0
+    version=$(basename "$node_root")
+    case "$package_name" in
+        '@earendil-works/pi-coding-agent') target_id="nvm-earendil-package:$version" ;;
+        '@mariozechner/pi-coding-agent') target_id="nvm-mario-package:$version" ;;
+        *) die "unknown retired npm package vocabulary: $package_name" ;;
+    esac
+    capture_claim_state "$package_root"
+    [ -d "$package_root" ] && [ ! -L "$package_root" ] \
+        || die "refusing unsafe retired npm package root: $package_root"
+    [ -f "$manifest" ] && [ ! -L "$manifest" ] \
+        || die "retired npm package has no safe manifest: $package_root"
+    [ "$(jq -r '.name // empty' "$manifest")" = "$package_name" ] \
+        || die "retired npm package identity mismatch: $package_root"
+    bin_path=$(jq -r \
+        'if .bin | type == "object" then .bin.pi // empty elif .bin | type == "string" then .bin else empty end' \
+        "$manifest")
+    [ -n "$bin_path" ] || die "retired npm package does not declare its Pi launcher: $package_root"
+    case "$bin_path" in
+        /*|../*|*/../*|*/..) die "retired npm package declares an unsafe launcher path: $bin_path" ;;
+    esac
+    register_claim "$target_id" "$package_root" "$captured_identity" "$captured_proof"
+}
+
+validate_global_launcher() {
+    local node_root="$1" launcher link package_name package_root manifest bin_path expected matched=0 version
+    launcher="$node_root/bin/pi"
+    path_exists "$launcher" || return 0
+    version=$(basename "$node_root")
+    capture_claim_state "$launcher"
+    [ -L "$launcher" ] || die "refusing independently owned Pi launcher: $launcher"
+    link=$(readlink "$launcher")
+
+    for package_name in \
+        '@earendil-works/pi-coding-agent' \
+        '@mariozechner/pi-coding-agent'; do
+        package_root="$node_root/lib/node_modules/$package_name"
+        manifest="$package_root/package.json"
+        [ -f "$manifest" ] || continue
+        bin_path=$(jq -r \
+            'if .bin | type == "object" then .bin.pi // empty elif .bin | type == "string" then .bin else empty end' \
+            "$manifest")
+        expected="../lib/node_modules/$package_name/$bin_path"
+        [ "$link" != "$expected" ] || matched=1
+    done
+    case "$link" in
+        ../lib/node_modules/@earendil-works/pi-coding-agent/*|\
+        ../lib/node_modules/@mariozechner/pi-coding-agent/*) matched=1 ;;
+    esac
+    [ "$matched" -eq 1 ] || die "refusing independently owned Pi launcher: $launcher"
+    register_claim "nvm-launcher:$version" "$launcher" "$captured_identity" "$captured_proof"
+}
+
+bun_viewer_bin="$cleanup_home/.bun/bin/pi-viewer"
+bun_viewer_package="$cleanup_home/.bun/install/global/node_modules/pi-viewer"
+pi_viewer_tombstone_sha256=ab060c0714e749fd743bb010903a679e7fd39dc54364941484517857841acb8f
+
+validate_pi_viewer_tombstone() {
+    local checkout="$1" readme="$1/README.md" digest
+
+    [ ! -e "$checkout/package.json" ] && [ ! -L "$checkout/package.json" ] \
+        || die "retired pi-viewer tombstone unexpectedly retains a package manifest: $checkout"
+    [ -f "$readme" ] && [ ! -L "$readme" ] \
+        || die "retired pi-viewer tombstone has no safe README: $checkout"
+    digest=$(/usr/bin/shasum -a 256 "$readme" | /usr/bin/awk '{ print $1 }') \
+        || die "could not identify the retired pi-viewer tombstone: $checkout"
+    [ "$digest" = "$pi_viewer_tombstone_sha256" ] \
+        || die "retired pi-viewer tombstone identity mismatch: $checkout"
+}
+
+validate_bun_viewer() {
+    local package_manifest bin_path expected_link package_target expected_target
+    local package_identity='' package_proof='' bin_identity='' bin_proof=''
+
+    if path_exists "$bun_viewer_package"; then
+        capture_claim_state "$bun_viewer_package"
+        package_identity=$captured_identity
+        package_proof=$captured_proof
+        if [ -L "$bun_viewer_package" ]; then
+            package_target=$(/bin/realpath "$bun_viewer_package") \
+                || die "could not resolve the linked Bun package: $bun_viewer_package"
+            expected_target=$(/bin/realpath "$cleanup_home/code/pi-viewer") \
+                || die "could not resolve the retired pi-viewer checkout"
+            [ "$package_target" = "$expected_target" ] \
+                || die "refusing independently linked Bun package: $bun_viewer_package"
+        else
+            [ -d "$bun_viewer_package" ] \
+                || die "refusing unsafe Bun package occupant: $bun_viewer_package"
+        fi
+        package_manifest="$bun_viewer_package/package.json"
+        if [ -f "$package_manifest" ] && [ ! -L "$package_manifest" ]; then
+            [ "$(jq -r '.name // empty' "$package_manifest")" = pi-viewer ] \
+                || die "retired Bun package identity mismatch: $bun_viewer_package"
+            bin_path=$(jq -r \
+                'if .bin | type == "object" then .bin["pi-viewer"] // empty elif .bin | type == "string" then .bin else empty end' \
+                "$package_manifest")
+            [ -n "$bin_path" ] || die "retired Bun package does not declare pi-viewer: $bun_viewer_package"
+            case "$bin_path" in
+                /*|../*|*/../*|*/..) die "retired Bun package declares an unsafe launcher path: $bin_path" ;;
+            esac
+            expected_link="../install/global/node_modules/pi-viewer/$bin_path"
+        elif [ -L "$bun_viewer_package" ]; then
+            validate_pi_viewer_tombstone "$package_target"
+            expected_link='../install/global/node_modules/pi-viewer/bin/pi-viewer.ts'
+        else
+            die "retired Bun package has neither a safe manifest nor the exact retired tombstone: $bun_viewer_package"
+        fi
+    else
+        expected_link='../install/global/node_modules/pi-viewer/bin/pi-viewer.ts'
+    fi
+
+    if path_exists "$bun_viewer_bin"; then
+        capture_claim_state "$bun_viewer_bin"
+        bin_identity=$captured_identity
+        bin_proof=$captured_proof
+        [ -L "$bun_viewer_bin" ] && [ "$(readlink "$bun_viewer_bin")" = "$expected_link" ] \
+            || die "refusing independently owned pi-viewer launcher: $bun_viewer_bin"
+    fi
+    [ -z "$bin_identity" ] \
+        || register_claim bun-viewer-bin "$bun_viewer_bin" "$bin_identity" "$bin_proof"
+    [ -z "$package_identity" ] \
+        || register_claim bun-viewer-package "$bun_viewer_package" "$package_identity" "$package_proof"
+}
+
+normalize_github_remote() {
+    local value="$1"
+    value=${value%.git}
+    value=${value%/}
+    case "$value" in
+        https://github.com/*) value=${value#https://github.com/} ;;
+        git@github.com:*) value=${value#git@github.com:} ;;
+        ssh://git@github.com/*) value=${value#ssh://git@github.com/} ;;
+        *) return 1 ;;
+    esac
+    [[ "$value" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+    printf '%s\n' "$value"
+}
+
+validate_owned_regular_file() {
+    local path="$1" description="$2" anchor="${3:-$cleanup_home}" mode
+    [ -f "$path" ] && [ ! -L "$path" ] \
+        || die "$description is not a safe regular file: $path"
+    content_proof "$path" "$anchor" >/dev/null \
+        || die "$description is not wholly owned: $path"
+    mode=$(stat -f '%Lp' "$path" 2>/dev/null || stat -c '%a' "$path") \
+        || die "could not read permissions for $description: $path"
+    printf '%s\n' "$mode"
+}
+
+validate_pi_free_checkout() {
+    local root="$1" repository="$2" source="$3" executable="${4:-yes}"
+    local upstream_policy="${5:-exact}"
+    local origin top status branch upstream source_relative source_index source_blob
+    [ -d "$root" ] && [ ! -L "$root" ] \
+        || die "required Pi-free $repository checkout is missing or unsafe: $root"
+    [ -d "$root/.git" ] && [ ! -L "$root/.git" ] \
+        || die "required Pi-free $repository source is not a canonical Git checkout: $root"
+    top=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" rev-parse --show-toplevel 2>/dev/null) \
+        || die "could not resolve the required Pi-free $repository checkout: $root"
+    top=$(cd -P -- "$top" && pwd) \
+        || die "could not canonicalize the required Pi-free $repository checkout: $root"
+    [ "$top" = "$root" ] \
+        || die "required Pi-free $repository checkout has the wrong top level: $root"
+    origin=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" remote get-url origin 2>/dev/null) \
+        || die "required Pi-free $repository checkout has no origin: $root"
+    [ "$(normalize_github_remote "$origin")" = "possibilities/$repository" ] \
+        || die "required Pi-free $repository checkout has a foreign origin: $root"
+    branch=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" symbolic-ref --short HEAD 2>/dev/null) \
+        || die "required Pi-free $repository checkout has a detached HEAD: $root"
+    [ "$branch" = main ] \
+        || die "required Pi-free $repository checkout is not on main: $root"
+    upstream=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" rev-parse \
+        --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) \
+        || die "required Pi-free $repository checkout has no pushed upstream: $root"
+    [ "$upstream" = origin/main ] \
+        || die "required Pi-free $repository checkout does not track origin/main: $root"
+    status=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" status --porcelain=v1 --untracked-files=all) \
+        || die "could not prove the required Pi-free $repository working tree: $root"
+    [ -z "$status" ] \
+        || die "required Pi-free $repository checkout is not clean: $root"
+    validated_checkout_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" rev-parse --verify HEAD 2>/dev/null) \
+        || die "required Pi-free $repository checkout has no HEAD: $root"
+    [[ "$validated_checkout_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || die "required Pi-free $repository checkout has an invalid HEAD: $root"
+    validated_upstream_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" \
+        rev-parse --verify '@{upstream}' 2>/dev/null) \
+        || die "required Pi-free $repository checkout has no pushed main commit: $root"
+    [[ "$validated_upstream_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || die "required Pi-free $repository checkout has an invalid pushed main commit: $root"
+    case "$upstream_policy" in
+        exact)
+            [ "$validated_upstream_sha" = "$validated_checkout_sha" ] \
+                || die "required Pi-free $repository checkout is not equal to its pushed main ref: $root"
+            ;;
+        reviewed-ancestor)
+            GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
+                "$validated_upstream_sha" "$validated_checkout_sha" \
+                || die "required Pi-free $repository checkout does not contain its pushed main ref: $root"
+            ;;
+        *) die "unknown pushed-main policy for required Pi-free $repository checkout" ;;
+    esac
+    case "$source" in
+        "$root"/*) source_relative=${source#"$root"/} ;;
+        *) die "required Pi-free $repository command escapes its checkout: $source" ;;
+    esac
+    GIT_OPTIONAL_LOCKS=0 git -C "$root" ls-files --error-unmatch \
+        -- "$source_relative" >/dev/null 2>&1 \
+        || die "required Pi-free $repository command is not tracked: $source"
+    source_index=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" ls-files -s \
+        -- "$source_relative" | /usr/bin/awk 'NR == 1 { print $2 } END { if (NR != 1) exit 1 }') \
+        || die "could not resolve the tracked $repository command blob: $source"
+    source_blob=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" hash-object -- "$source") \
+        || die "could not hash the deployed $repository command source: $source"
+    [ "$source_index" = "$source_blob" ] \
+        || die "required Pi-free $repository command differs from its pushed checkout: $source"
+    validate_owned_regular_file \
+        "$source" "required Pi-free $repository command" "$root" >/dev/null
+    if [ "$executable" = yes ]; then
+        [ -x "$source" ] \
+            || die "required Pi-free $repository command is not executable: $source"
+    elif [ "$executable" != no ]; then
+        die "unknown executable policy for required Pi-free $repository checkout"
+    fi
+}
+
+validate_exact_deployed_link() {
+    local link="$1" source="$2" description="$3"
+    assert_inside_home "$link"
+    [ -L "$link" ] \
+        || die "$description is not the required editable command link: $link"
+    content_proof "$link" >/dev/null \
+        || die "$description command link is not owned: $link"
+    [ "$(readlink "$link")" = "$source" ] \
+        || die "$description command link does not name the proved checkout: $link"
+}
+
+validate_codex_swap_deployment() {
+    local relevant=0 root="$cleanup_code_root/codex-swap"
+    local source="$cleanup_code_root/codex-swap/src/cli/main.ts"
+    local command="$cleanup_home/.local/bin/codex-swap"
+    local receipt="$cleanup_home/.local/state/codex-swap/install-receipt"
+    local retirement_sha="${AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA:-0c2d70b92aaf851f6582f0672180d325313c3140}"
+    local receipt_mode command_mode expected_receipt node_path
+    if [ "$cleanup_home" = "$live_home" ]; then
+        relevant=1
+    else
+        for path in \
+            "$command" "$receipt" \
+            "$cleanup_home/.local/share/agentlaunch/shims/pi" \
+            "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" \
+            "$cleanup_home/.local/state/agentlaunch/form-draft.json"; do
+            path_exists "$path" && relevant=1
+        done
+    fi
+    [ "$relevant" -eq 1 ] || return 0
+    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || die "codex-swap retirement gate received an invalid commit"
+
+    validate_pi_free_checkout "$root" codex-swap "$source" no
+    [ "$validated_upstream_sha" = "$retirement_sha" ] \
+        || die "pushed codex-swap main is not the reviewed Pi scrub commit"
+    command_mode=$(validate_owned_regular_file "$command" "codex-swap installed command")
+    [ "$command_mode" = 755 ] \
+        || die "codex-swap installed command is not mode 0755: $command"
+    receipt_mode=$(validate_owned_regular_file "$receipt" "codex-swap install receipt")
+    [ "$receipt_mode" = 600 ] \
+        || die "codex-swap install receipt is not mode 0600: $receipt"
+    expected_receipt=$(printf '%s\n' \
+        'codex-swap-installer-owned:v1' \
+        "root=$root" \
+        "bin=$cleanup_home/.local/bin")
+    [ "$(cat "$receipt")" = "$expected_receipt" ] \
+        && [ "$(wc -l <"$receipt" | tr -d '[:space:]')" -eq 3 ] \
+        || die "codex-swap install receipt does not name the proved deployment"
+    node_path=$(/usr/bin/perl -Mstrict -Mwarnings -e '
+        my ($path, $source) = @ARGV;
+        open(my $handle, "<", $path) or die "open $path: $!\n";
+        my @lines = <$handle>;
+        close $handle or die "close $path: $!\n";
+        chomp @lines;
+        @lines == 3
+            && $lines[0] eq "#!/usr/bin/env bash"
+            && $lines[1] eq "# codex-swap-installer-owned:v1"
+            or die "unknown codex-swap shim header\n";
+        $lines[2] =~ /^exec ([^\s]+) \Q$source\E "\$\@"\z/
+            or die "unknown codex-swap shim exec contract\n";
+        print "$1\n";
+    ' "$command" "$source") \
+        || die "codex-swap installed command does not execute the proved checkout"
+    case "$node_path" in
+        /*) ;;
+        *) die "codex-swap installed command does not name an absolute Node executable" ;;
+    esac
+    [ -x "$node_path" ] && [ ! -d "$node_path" ] \
+        || die "codex-swap installed command names an unavailable Node executable: $node_path"
+}
+
+validate_agentlaunch_deployment() {
+    local relevant=0 root="$cleanup_code_root/agentlaunch"
+    local source="$cleanup_code_root/agentlaunch/src/main.ts"
+    local command="$cleanup_home/.local/bin/agentlaunch"
+    local receipt="$cleanup_home/.local/state/agentlaunch/deployed-sha"
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-c22f679198f919c96f52c5d18dc9b0eb09d454c0}"
+    local receipt_sha receipt_mode catalog rejection
+    for path in \
+        "$command" "$receipt" \
+        "$cleanup_home/.local/share/agentlaunch/shims/pi" \
+        "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" \
+        "$cleanup_home/.local/state/agentlaunch/form-draft.json"; do
+        path_exists "$path" && relevant=1
+    done
+    [ "$relevant" -eq 1 ] || return 0
+
+    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || die "AgentLaunch retirement gate received an invalid commit"
+    validate_pi_free_checkout \
+        "$root" agentlaunch "$source" yes reviewed-ancestor
+    [ "$validated_upstream_sha" = "$retirement_sha" ] \
+        || die "pushed AgentLaunch main is not the reviewed Pi retirement commit"
+    validate_exact_deployed_link "$command" "$source" AgentLaunch
+    receipt_mode=$(validate_owned_regular_file "$receipt" "AgentLaunch deployed-SHA receipt")
+    [ "$receipt_mode" = 600 ] \
+        || die "AgentLaunch deployed-SHA receipt is not mode 0600: $receipt"
+    IFS= read -r receipt_sha <"$receipt" \
+        || die "AgentLaunch deployed-SHA receipt is empty: $receipt"
+    printf '%s\n' "$receipt_sha" | cmp -s - "$receipt" \
+        || die "AgentLaunch deployed-SHA receipt is malformed: $receipt"
+    [ "$receipt_sha" = "$validated_checkout_sha" ] \
+        || die "AgentLaunch deployed-SHA receipt does not match its Pi-free checkout: $receipt"
+    catalog=$(HOME="$cleanup_home" AGENTLAUNCH_NO_BALANCE=1 \
+        "$command" x-catalog --x-json) \
+        || die "deployed AgentLaunch could not report its Pi-free catalog"
+    printf '%s\n' "$catalog" | jq -e '
+        .ok == true and
+        (.data.harnesses | type == "array") and
+        ([.data.harnesses[].harness] == ["claude", "codex"])
+    ' >/dev/null 2>&1 \
+        || die "deployed AgentLaunch catalog is not exactly Claude and Codex"
+    if rejection=$(HOME="$cleanup_home" AGENTLAUNCH_NO_BALANCE=1 \
+        "$command" --x-harness pi --x-dry-run 2>&1); then
+        die "deployed AgentLaunch still accepts the retired Pi harness"
+    fi
+    case "$rejection" in
+        '"pi" is not a harness (expected claude or codex)'*) ;;
+        *) die "deployed AgentLaunch did not explicitly reject the retired Pi harness" ;;
+    esac
+}
+
+validate_agentsurface_deployment() {
+    local relevant=0 root="$cleanup_code_root/agentsurface"
+    local source="$cleanup_code_root/agentsurface/src/main.ts"
+    local command="$cleanup_home/.local/bin/agentsurface" guide
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-17dc1529b088aad86fab39f5fd2af9bfec53cddc}"
+    for path in \
+        "$command" \
+        "$cleanup_home/.local/share/agentsurface/shims/pi" \
+        "$cleanup_home/.local/state/agentsurface/launches.jsonl" \
+        "$cleanup_home/.local/state/agentsurface/submitted.jsonl" \
+        "$cleanup_home/.local/state/agentsurface/slugs"; do
+        path_exists "$path" && relevant=1
+    done
+    [ "$relevant" -eq 1 ] || return 0
+
+    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
+        || die "AgentSurface retirement gate received an invalid commit"
+    validate_pi_free_checkout \
+        "$root" agentsurface "$source" yes reviewed-ancestor
+    [ "$validated_upstream_sha" = "$retirement_sha" ] \
+        || die "pushed AgentSurface main is not the reviewed Pi retirement commit"
+    validate_exact_deployed_link "$command" "$source" AgentSurface
+    guide=$(HOME="$cleanup_home" "$command" guide --json) \
+        || die "deployed AgentSurface could not report its agent contract"
+    printf '%s\n' "$guide" | jq -e '
+        .ok == true and
+        ([.. | strings | select(. == "pi" or . == "pi_agent")] | length == 0)
+    ' >/dev/null 2>&1 \
+        || die "deployed AgentSurface contract still names the retired Pi harness"
+}
+
+validate_agentchats_deployment() {
+    local relevant=0 root="$cleanup_code_root/agentchats"
+    local source="$cleanup_code_root/agentchats/bin/agentchats"
+    local command="$cleanup_home/.local/bin/agentchats"
+    local cass="$cleanup_home/.local/bin/cass"
+    local raw_helper="$cleanup_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs"
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-9593ffa9ba218f4f329e33943c5fbbd45fe4cba9}"
+    local exclusions stats search raw pending
+    for path in \
+        "$command" "$cass" \
+        "$cleanup_home/.local/state/agentchats/pi-retirement-v1.pending.json" \
+        "$cleanup_home/Library/Application Support/com.coding-agent-search.coding-agent-search"; do
+        path_exists "$path" && relevant=1
+    done
+    [ "$relevant" -eq 1 ] || return 0
+
+    validate_pi_free_checkout "$root" agentchats "$source"
+    [ "$validated_upstream_sha" = "$retirement_sha" ] \
+        || die "pushed AgentChats main is not the reviewed Pi retirement commit"
+    validate_exact_deployed_link "$command" "$source" AgentChats
+    assert_inside_home "$cass"
+    path_exists "$cass" && [ -x "$cass" ] \
+        || die "required Cass command is missing after AgentChats retirement: $cass"
+    validate_owned_regular_file \
+        "$raw_helper" "AgentChats raw-mirror retirement helper" "$root" >/dev/null
+
+    exclusions=$(HOME="$cleanup_home" "$cass" sources agents list --json) \
+        || die "Cass could not report retired connector exclusions"
+    printf '%s\n' "$exclusions" \
+        | jq -e '.disabled_agents | type == "array" and index("pi_agent") != null' \
+            >/dev/null 2>&1 \
+        || die "Cass has not persistently disabled its retired pi_agent connector"
+    stats=$(HOME="$cleanup_home" "$cass" stats --json) \
+        || die "Cass could not report retired connector archive counts"
+    printf '%s\n' "$stats" \
+        | jq -e '(.by_agent | type == "array") and ([.by_agent[] | select(.agent == "pi_agent") | .count] | add // 0) == 0' \
+            >/dev/null 2>&1 \
+        || die "Cass still reports indexed pi_agent archive rows"
+    search=$(HOME="$cleanup_home" "$cass" search "" --robot --agent pi_agent --limit 1) \
+        || die "Cass could not prove zero retired connector search hits"
+    printf '%s\n' "$search" \
+        | jq -e '.count == 0' >/dev/null 2>&1 \
+        || die "Cass still serves retired pi_agent search hits"
+    raw=$(HOME="$cleanup_home" /usr/bin/env node "$raw_helper" --dry-run) \
+        || die "AgentChats could not prove retired raw-mirror state"
+    printf '%s\n' "$raw" \
+        | jq -e '.pending_transaction == false and .manifest_count == 0 and .blob_count == 0' \
+            >/dev/null 2>&1 \
+        || die "Cass still has pending or captured pi_agent raw-mirror state"
+    pending=$(HOME="$cleanup_home" /usr/bin/env node "$raw_helper" --pending-status) \
+        || die "AgentChats could not prove its retired connector rebuild receipt"
+    printf '%s\n' "$pending" \
+        | jq -e '.pending == false' >/dev/null 2>&1 \
+        || die "AgentChats still has a pending retired connector rebuild receipt"
+}
+
+validate_pi_free_herdr_config() {
+    local config="$cleanup_home/.config/herdr/config.toml" before after
+    path_exists "$config" || return 0
+    assert_inside_home "$config"
+    [ -f "$config" ] && [ ! -L "$config" ] \
+        || die "refusing unsafe live Herdr config during Pi retirement: $config"
+    before=$(content_proof "$config") \
+        || die "could not prove the live Herdr config before its Pi audit"
+    if LC_ALL=C grep -Eq '(^|[^A-Za-z0-9_])([Pp][Ii])([^A-Za-z0-9_]|$)' "$config"; then
+        die "live Herdr config still names the retired Pi harness: $config"
+    fi
+    after=$(content_proof "$config") \
+        || die "could not re-prove the live Herdr config after its Pi audit"
+    [ "$before" = "$after" ] \
+        || die "live Herdr config changed during its Pi audit: $config"
+}
+
+validate_pi_free_deployments() {
+    validate_codex_swap_deployment
+    validate_agentlaunch_deployment
+    validate_agentsurface_deployment
+    validate_agentchats_deployment
+    validate_pi_free_herdr_config
+}
+
+assert_no_live_pi_processes() {
+    local ps_bin="${AGENTSTART_TEST_PI_PS_BIN:-/bin/ps}" listing matches
+    [ -f "$ps_bin" ] && [ ! -L "$ps_bin" ] && [ -x "$ps_bin" ] \
+        || die "could not resolve a safe process-list command: $ps_bin"
+    listing=$($ps_bin -axo pid=,comm=,args=) \
+        || die "could not enumerate live processes before retired Pi cleanup"
+    [ "${#listing}" -le 16777216 ] \
+        || die "live process inventory exceeded the safe retirement bound"
+    matches=$(printf '%s\n' "$listing" | /usr/bin/perl -Mstrict -Mwarnings -e '
+        my ($self, $home) = @ARGV;
+        while (my $line = <STDIN>) {
+            chomp $line;
+            next if $line =~ /^\s*\z/;
+            $line =~ /^\s*([0-9]+)\s+(\S+)\s+(.*)\z/
+                or die "malformed process row: $line\n";
+            my ($pid, $comm, $args) = ($1, $2, $3);
+            next if $pid == $self;
+            my ($first) = $args =~ /^\s*(?:"([^"]+)"|'"'"'([^'"'"']+)'"'"'|(\S+))/;
+            $first = defined($1) ? $1 : defined($2) ? $2 : $3;
+            my $retired = $comm eq "pi" || $comm =~ m{(?:^|/)pi\z}
+                || (defined($first) && ($first eq "pi" || $first =~ m{/pi\z}))
+                || $comm eq "pi-viewer" || $comm =~ m{(?:^|/)pi-viewer\z}
+                || (defined($first) && ($first eq "pi-viewer" || $first =~ m{/pi-viewer\z}))
+                || $comm eq "pi-mcp-adapter" || $comm =~ m{(?:^|/)pi-mcp-adapter\z}
+                || (defined($first) && ($first eq "pi-mcp-adapter" || $first =~ m{/pi-mcp-adapter\z}))
+                || $args =~ m{(?:^|\s)(?:\S*/)?pi-viewer(?:/bin/pi-viewer\.(?:ts|js))?(?:\s|\z)}
+                || index($args, "$home/.nvm/versions/node/") >= 0
+                    && $args =~ m{/lib/node_modules/\@(?:earendil-works|mariozechner)/pi-coding-agent(?:/|\s|\z)}
+                || $args =~ /--x-harness(?:=|\s+)pi(?:\s|\z)/
+                || $args =~ /(?:^|\s)codex-swap(?:\s+\S+)*\s+pi\s+run(?:\s|\z)/
+                || $args =~ /(?:^|\s)(?:\S*\/)?herdr-agent-tab(?:\s+\S+)*\s+pi(?:\s|\z)/;
+            print "$line\n" if $retired;
+        }
+    ' "$$" "$cleanup_home") \
+        || die "could not parse the live process inventory"
+    [ -z "$matches" ] \
+        || die "a live retired Pi process blocks cleanup: $matches"
+}
+
+assert_single_git_worktree() {
+    local repository="$1" expected="$2" description="$3" worktrees
+    worktrees=$(GIT_OPTIONAL_LOCKS=0 git -C "$repository" worktree list --porcelain \
+        | /usr/bin/awk '/^worktree / { print substr($0, 10) }') \
+        || die "could not enumerate $description worktrees: $repository"
+    [ "$worktrees" = "$expected" ] \
+        || die "$description still has a linked worktree: $repository"
+}
+
+assert_no_local_git_refs() {
+    local repository="$1" expected_branch="$2" description="$3"
+    local published_branch="${4:-}" ref refs local_sha remote_sha
+    refs=$(GIT_OPTIONAL_LOCKS=0 git -C "$repository" \
+        for-each-ref --format='%(refname)' | LC_ALL=C sort) \
+        || die "could not enumerate $description refs: $repository"
+    while IFS= read -r ref; do
+        [ -n "$ref" ] || continue
+        case "$ref" in
+            "refs/heads/$expected_branch"|refs/remotes/*) ;;
+            "refs/heads/$published_branch")
+                [ -n "$published_branch" ] \
+                    || die "$description has a local-only Git ref that deletion would lose: $ref"
+                local_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$repository" rev-parse "$ref") \
+                    || die "could not resolve $description local ref: $ref"
+                remote_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$repository" \
+                    rev-parse "refs/remotes/origin/$published_branch" 2>/dev/null) \
+                    || die "$description local ref has no matching pushed origin ref: $ref"
+                [ "$local_sha" = "$remote_sha" ] \
+                    || die "$description local ref is not equal to its pushed origin ref: $ref"
+                ;;
+            *) die "$description has a local-only Git ref that deletion would lose: $ref" ;;
+        esac
+    done <<<"$refs"
+}
+
+validate_pi_viewer_checkout() {
+    local checkout="$cleanup_home/code/pi-viewer" status ignored origin head upstream
+    local nested="$cleanup_home/code/pi-viewer/pi"
+    local module="$cleanup_home/code/pi-viewer/.git/modules/pi"
+    local nested_origin nested_upstream common nested_status nested_ignored
+    local nested_head nested_tracking ignored_path ignored_count=0
+    path_exists "$checkout" || return 0
+    capture_claim_state "$checkout"
+    [ -d "$checkout" ] && [ ! -L "$checkout" ] \
+        || die "refusing unsafe retired pi-viewer checkout: $checkout"
+    validate_pi_viewer_tombstone "$checkout"
+    [ -d "$checkout/.git" ] && [ ! -L "$checkout/.git" ] \
+        || die "retired pi-viewer tombstone is not its canonical Git checkout: $checkout"
+    [ ! -e "$checkout/.gitmodules" ] && [ ! -L "$checkout/.gitmodules" ] \
+        || die "retired pi-viewer checkout unexpectedly retains .gitmodules: $checkout"
+    origin=$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" remote get-url origin 2>/dev/null) \
+        || die "retired pi-viewer checkout has no origin: $checkout"
+    [ "$(normalize_github_remote "$origin")" = possibilities/pi-viewer ] \
+        || die "retired pi-viewer checkout has a foreign origin: $checkout"
+    [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" symbolic-ref --short HEAD 2>/dev/null)" = main ] \
+        || die "retired pi-viewer checkout is not on its retired main branch: $checkout"
+    head=$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" rev-parse HEAD 2>/dev/null) \
+        || die "retired pi-viewer checkout has no HEAD: $checkout"
+    upstream=$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" rev-parse \
+        --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) \
+        || die "retired pi-viewer checkout has no pushed upstream: $checkout"
+    [ "$upstream" = origin/main ] \
+        && [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" rev-parse '@{upstream}')" = "$head" ] \
+        || die "retired pi-viewer checkout is not equal to pushed origin/main: $checkout"
+    GIT_OPTIONAL_LOCKS=0 git -C "$checkout" diff --quiet --ignore-submodules=none -- \
+        || die "retired pi-viewer checkout has tracked worktree changes: $checkout"
+    GIT_OPTIONAL_LOCKS=0 git -C "$checkout" diff --cached --quiet --ignore-submodules=none -- \
+        || die "retired pi-viewer checkout has staged changes: $checkout"
+    [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" ls-files | LC_ALL=C sort)" = $'LICENSE\nREADME.md' ] \
+        && [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" ls-tree -r --name-only HEAD | LC_ALL=C sort)" = $'LICENSE\nREADME.md' ] \
+        || die "retired pi-viewer checkout has an unexpected tracked tree: $checkout"
+    ignored=$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" ls-files \
+        --others --ignored --exclude-standard) \
+        || die "could not enumerate ignored retired pi-viewer files: $checkout"
+    [ -z "$ignored" ] \
+        || die "retired pi-viewer checkout has ignored local state: $ignored"
+    assert_single_git_worktree "$checkout" "$checkout" "retired pi-viewer checkout"
+    assert_no_local_git_refs "$checkout" main "retired pi-viewer checkout"
+
+    status=$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" \
+        status --porcelain=v1 --untracked-files=all) \
+        || die "could not enumerate retired pi-viewer worktree state: $checkout"
+    if path_exists "$nested" || path_exists "$module" \
+        || GIT_OPTIONAL_LOCKS=0 git -C "$checkout" config --local --get submodule.pi.url >/dev/null 2>&1 \
+        || GIT_OPTIONAL_LOCKS=0 git -C "$checkout" config --local --get submodule.pi.active >/dev/null 2>&1; then
+        [ "$status" = '?? pi/' ] \
+            || die "retired pi-viewer checkout has foreign untracked state: $checkout"
+        [ -d "$nested" ] && [ ! -L "$nested" ] \
+            && [ -f "$nested/.git" ] && [ ! -L "$nested/.git" ] \
+            && [ "$(cat "$nested/.git")" = 'gitdir: ../.git/modules/pi' ] \
+            || die "retired nested Pi checkout has an unknown Git link: $nested"
+        [ -d "$module" ] && [ ! -L "$module" ] \
+            || die "retired nested Pi module store is missing or unsafe: $module"
+        [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" config --local --get submodule.pi.url)" = 'git@github.com:possibilities/pi.git' ] \
+            && [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$checkout" config --local --get submodule.pi.active)" = true ] \
+            || die "retired pi-viewer submodule configuration changed: $checkout/.git/config"
+        nested_status=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" \
+            status --porcelain=v1 --untracked-files=all) \
+            || die "could not inspect retired nested Pi checkout: $nested"
+        [ -z "$nested_status" ] \
+            || die "retired nested Pi checkout has local changes: $nested"
+        nested_ignored=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" ls-files \
+            --others --ignored --exclude-standard) \
+            || die "could not enumerate ignored retired nested Pi files: $nested"
+        [ "${#nested_ignored}" -le 4194304 ] \
+            || die "retired nested Pi ignored-state inventory exceeded the safe byte bound"
+        while IFS= read -r ignored_path; do
+            [ -n "$ignored_path" ] || continue
+            ignored_count=$((ignored_count + 1))
+            [ "$ignored_count" -le 65536 ] \
+                || die "retired nested Pi ignored-state inventory exceeded the safe line-count bound"
+            [ "${#ignored_path}" -le 4096 ] \
+                || die "retired nested Pi ignored-state inventory returned an overlong path"
+            if [[ "$ignored_path" =~ (^|/)node_modules/ ]]; then
+                continue
+            fi
+            die "retired nested Pi checkout has foreign ignored local state: $ignored_path"
+        done <<<"$nested_ignored"
+        [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" symbolic-ref --short HEAD 2>/dev/null)" = pi-viewer ] \
+            || die "retired nested Pi checkout is not on its owned branch: $nested"
+        nested_head=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" rev-parse HEAD 2>/dev/null) \
+            || die "retired nested Pi checkout has no HEAD: $nested"
+        nested_tracking=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" rev-parse \
+            --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null) \
+            || die "retired nested Pi checkout has no pushed upstream: $nested"
+        [ "$nested_tracking" = origin/pi-viewer ] \
+            && [ "$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" rev-parse '@{upstream}')" = "$nested_head" ] \
+            || die "retired nested Pi checkout is not equal to pushed origin/pi-viewer: $nested"
+        common=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" rev-parse --absolute-git-dir 2>/dev/null) \
+            || die "could not resolve retired nested Pi module storage: $nested"
+        common=$(cd -P -- "$common" && pwd) \
+            || die "could not canonicalize retired nested Pi module storage: $nested"
+        [ "$common" = "$module" ] \
+            || die "retired nested Pi checkout escapes its owned module store: $nested"
+        # Git reports a submodule's primary worktree through its administrative
+        # module store. The .git link and --show-toplevel proof above bind that
+        # store back to the only allowed public nested checkout.
+        assert_single_git_worktree "$nested" "$module" "retired nested Pi checkout"
+        assert_no_local_git_refs \
+            "$nested" pi-viewer "retired nested Pi checkout" main
+        nested_origin=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" remote get-url origin 2>/dev/null) \
+            || die "retired nested Pi checkout has no origin: $nested"
+        [ "$(normalize_github_remote "$nested_origin")" = possibilities/pi ] \
+            || die "retired nested Pi checkout has a foreign origin: $nested"
+        if nested_upstream=$(GIT_OPTIONAL_LOCKS=0 git -C "$nested" remote get-url upstream 2>/dev/null); then
+            [ "$(normalize_github_remote "$nested_upstream")" = earendil-works/pi ] \
+                || die "retired nested Pi checkout has a foreign upstream: $nested"
+        fi
+    else
+        [ -z "$status" ] \
+            || die "retired pi-viewer checkout has foreign untracked state: $checkout"
+    fi
+    register_claim pi-viewer-checkout "$checkout" "$captured_identity" "$captured_proof"
+}
+
+validate_managed_plugin_cache() {
+    local disposition="$1" target_id="$2" cache_root="$3"
+    local plugin version manifest owned found_plugin=0 found_version
+    path_exists "$cache_root" || return 0
+    capture_claim_state "$cache_root"
+    [ -d "$cache_root" ] && [ ! -L "$cache_root" ] \
+        || die "refusing unsafe AgentStart plugin cache: $cache_root"
+
+    for plugin in "$cache_root"/*; do
+        path_exists "$plugin" || continue
+        [ -d "$plugin" ] && [ ! -L "$plugin" ] \
+            || die "refusing foreign AgentStart plugin cache occupant: $plugin"
+        case "${plugin##*/}" in
+            agent|agentstart-core) ;;
+            *) die "refusing foreign AgentStart plugin cache occupant: $plugin" ;;
+        esac
+        found_plugin=1
+        found_version=0
+        for version in "$plugin"/*; do
+            path_exists "$version" || continue
+            [ -d "$version" ] && [ ! -L "$version" ] \
+                || die "refusing unsafe AgentStart plugin cache version: $version"
+            found_version=1
+            owned=0
+            for manifest in \
+                "$version/.claude-plugin/plugin.json" \
+                "$version/.codex-plugin/plugin.json"; do
+                [ -f "$manifest" ] && [ ! -L "$manifest" ] || continue
+                if jq -e --arg name "${plugin##*/}" '.name == $name' "$manifest" >/dev/null 2>&1; then
+                    owned=1
+                fi
+            done
+            [ "$owned" -eq 1 ] \
+                || die "AgentStart plugin cache identity mismatch: $version"
+        done
+        [ "$found_version" -eq 1 ] \
+            || die "AgentStart plugin cache has no proved version: $plugin"
+    done
+    [ "$found_plugin" -eq 1 ] \
+        || die "AgentStart plugin cache has no proved plugin: $cache_root"
+    case "$disposition" in
+        claim)
+            register_claim "$target_id" "$cache_root" "$captured_identity" "$captured_proof"
+            ;;
+        retain)
+            assert_no_retired_pi_reference_tree "$cache_root"
+            [ "$(path_identity "$cache_root")" = "$captured_identity" ] \
+                && [ "$(content_proof "$cache_root")" = "$captured_proof" ] \
+                || die "retained AgentStart plugin cache changed during validation: $cache_root"
+            ;;
+        *) die "unknown AgentStart plugin cache disposition: $disposition" ;;
+    esac
+}
+
+process_retired_jsonl() {
+    local path="$1" schema="$2" mode="$3" hook='' result jq_bin
+    path_exists "$path" || { printf '0\n'; return 0; }
+    assert_inside_home "$path"
+    jq_bin=$(command -v jq)
+    if [ "$mode" = redact ] && [ -n "${AGENTSTART_TEST_PI_JSONL_REDACT_HOOK:-}" ]; then
+        hook=$AGENTSTART_TEST_PI_JSONL_REDACT_HOOK
+        [ -f "$hook" ] && [ ! -L "$hook" ] && [ -x "$hook" ] \
+            || die "JSONL redaction test hook is not a safe executable"
+    fi
+
+    # One no-follow descriptor owns schema validation, row selection, and
+    # byte-preserving redaction. The path is checked against that descriptor
+    # after fsync, so a rename/replacement cannot make old offsets apply to a
+    # new file. Producers may still append: existing offsets stay stable and
+    # every pass revalidates the complete current inode.
+    result=$(/usr/bin/perl - "$path" "$schema" "$mode" "$hook" "$jq_bin" \
+        "$cleanup_home" "$(id -u)" <<'PERL'
+use strict;
+use warnings;
+use bytes;
+use Fcntl qw(:DEFAULT :mode SEEK_SET);
+use IO::Handle;
+use IPC::Open3;
+use JSON::PP qw(decode_json);
+use Symbol qw(gensym);
+
+my ($path, $schema, $mode, $hook, $jq_bin, $home, $expected_uid) = @ARGV;
+my %filters = (
+    agentlaunch => q{
+        all(.[];
+            type == "object" and
+            (.at | type == "string") and
+            (.project | type == "string") and
+            (.harness | type == "string" and (. == "claude" or . == "codex" or . == "pi")) and
+            (.model | type == "string") and
+            (.effort | type == "string") and
+            (.worktree | type == "boolean") and
+            (.priming == null or (.priming | type == "string")) and
+            (.focus | type == "boolean")
+        )
+    },
+    'agentsurface-launches' => q{
+        all(.[];
+            type == "object" and
+            (.at | type == "string") and
+            (.project | type == "string") and
+            (.harness | type == "string" and (. == "claude" or . == "codex" or . == "pi")) and
+            (.worktree | type == "boolean") and
+            (.branch == null or (.branch | type == "string")) and
+            (.workspace | type == "string") and
+            (.agent | type == "string") and
+            ((has("named") | not) or (.named | type == "boolean"))
+        )
+    },
+    'agentsurface-submitted' => q{
+        all(.[];
+            type == "object" and
+            (.at | type == "string") and
+            (.plan | type == "object") and
+            (.plan.harness | type == "string" and (. == "claude" or . == "codex" or . == "pi"))
+        )
+    },
+);
+exists $filters{$schema} or die "unknown retired JSONL schema: $schema\n";
+$mode eq 'validate' || $mode eq 'redact' or die "unknown JSONL mode: $mode\n";
+
+my $flags = ($mode eq 'redact' ? O_RDWR : O_RDONLY) | O_NOFOLLOW;
+
+sub open_anchored {
+    my ($flags) = @_;
+    index($path, "$home/") == 0 or die "$path escapes cleanup home\n";
+    my @parts = split m{/}, substr($path, length($home) + 1), -1;
+    @parts && !grep { $_ eq '' || $_ eq '.' || $_ eq '..' } @parts
+        or die "unsafe shared-state path $path\n";
+    my $name = pop @parts;
+    sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        or die "open cleanup home for $path: $!\n";
+    my @opened = stat($directory);
+    @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+        or die "unsafe cleanup home descriptor for $path\n";
+    chdir($directory) or die "chdir cleanup home for $path: $!\n";
+    for my $component (@parts) {
+        sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open shared-state parent component $component for $path: $!\n";
+        @opened = stat($next);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe shared-state parent component $component for $path\n";
+        chdir($next) or die "chdir shared-state parent component $component for $path: $!\n";
+        close $directory or die "close shared-state parent component for $path: $!\n";
+        $directory = $next;
+    }
+    sysopen(my $file, $name, $flags)
+        or die "open $path without following links: $!\n";
+    return $file;
+}
+
+my $handle = open_anchored($flags);
+binmode $handle;
+my @opened = stat($handle);
+@opened && S_ISREG($opened[2]) or die "$path is not a regular file\n";
+$opened[4] == $expected_uid or die "$path is not owned by the cleanup user\n";
+$opened[3] == 1 or die "$path has another hard-link name\n";
+
+sub assert_public_identity {
+    my $current = open_anchored(O_RDONLY | O_NOFOLLOW);
+    my @named = stat($current);
+    @named && $named[0] == $opened[0] && $named[1] == $opened[1]
+        or die "$path changed while its descriptor was active\n";
+    close $current or die "close current public $path: $!\n";
+}
+
+assert_public_identity();
+
+sub read_current {
+    sysseek($handle, 0, SEEK_SET) >= 0 or die "seek $path: $!\n";
+    my $content = '';
+    while (1) {
+        my $read = sysread($handle, my $chunk, 65536);
+        defined $read or die "read $path: $!\n";
+        last if $read == 0;
+        $content .= $chunk;
+    }
+    return $content;
+}
+
+sub validate_content {
+    my ($content) = @_;
+    my $stderr = gensym;
+    my $pid = open3(my $input, my $output, $stderr, $jq_bin, '-s', '-e', $filters{$schema});
+    binmode $input;
+    print {$input} $content or die "write jq input for $path: $!\n";
+    close $input or die "close jq input for $path: $!\n";
+    local $/;
+    my $ignored = <$output> // '';
+    my $error = <$stderr> // '';
+    waitpid($pid, 0);
+    $? == 0 or die "schema validation failed for $path: $error";
+}
+
+sub scan_targets {
+    my ($content) = @_;
+    validate_content($content);
+    my @targets;
+    my $offset = 0;
+    while ($content =~ /.*?(?:\r\n|\n|\z)/gs) {
+        my $line = $&;
+        last if $line eq '';
+        my $length = length($line);
+        my $body = $line;
+        $body =~ s/\r?\n\z//;
+        if ($body =~ /\S/) {
+            my $row = decode_json($body);
+            my $harness = $schema eq 'agentsurface-submitted'
+                ? $row->{plan}->{harness}
+                : $row->{harness};
+            push @targets, [$offset, $length, length($line) - length($body)]
+                if $harness eq 'pi';
+        }
+        $offset += $length;
+    }
+    return @targets;
+}
+
+sub assert_unchanged_prefix {
+    my ($expected) = @_;
+    my $current = read_current();
+    length($current) >= length($expected)
+        && substr($current, 0, length($expected)) eq $expected
+        or die "$path changed existing bytes during redaction\n";
+    validate_content($current);
+    assert_public_identity();
+}
+
+sub assert_target_bytes {
+    my ($content, $offset, $length) = @_;
+    sysseek($handle, $offset, SEEK_SET) >= 0 or die "seek $path: $!\n";
+    my $current = '';
+    while (length($current) < $length) {
+        my $read = sysread($handle, my $chunk, $length - length($current));
+        defined $read && $read > 0 or die "read current target bytes from $path: $!\n";
+        $current .= $chunk;
+    }
+    $current eq substr($content, $offset, $length)
+        or die "$path target bytes changed during redaction\n";
+}
+
+my $total = 0;
+while (1) {
+    my $content = read_current();
+    my @targets = scan_targets($content);
+    if ($mode eq 'validate') {
+        $total += scalar @targets;
+        last;
+    }
+    last if !@targets;
+
+    if (length($hook)) {
+        system {$hook} $hook, $path, $schema;
+        $? == 0 or die "JSONL redaction test hook failed for $path\n";
+    }
+    assert_unchanged_prefix($content);
+    for my $target (@targets) {
+        my ($offset, $length, $newline_length) = @$target;
+        my $replacement = (' ' x ($length - $newline_length));
+        $replacement .= substr($content, $offset + $length - $newline_length, $newline_length)
+            if $newline_length;
+        assert_target_bytes($content, $offset, $length);
+        assert_public_identity();
+        sysseek($handle, $offset, SEEK_SET) >= 0 or die "seek $path: $!\n";
+        my $written = 0;
+        while ($written < length($replacement)) {
+            my $count = syswrite($handle, $replacement, length($replacement) - $written, $written);
+            defined $count && $count > 0 or die "write $path: $!\n";
+            $written += $count;
+        }
+    }
+    $handle->sync() or die "fsync $path: $!\n";
+    $total += scalar @targets;
+}
+
+$handle->sync() or die "fsync $path: $!\n" if $mode eq 'redact';
+assert_public_identity();
+close $handle or die "close $path: $!\n";
+print "$total\n";
+PERL
+    ) || die "refusing malformed or foreign JSONL state, or a changed path identity: $path"
+    printf '%s\n' "$result"
+}
+
+validate_retired_jsonl() {
+    process_retired_jsonl "$1" "$2" validate >/dev/null
+}
+
+redact_retired_jsonl() {
+    local path="$1" schema="$2" total
+    path_exists "$path" || return 0
+    total=$(process_retired_jsonl "$path" "$schema" redact)
+    if [ "$total" -gt 0 ]; then
+        printf 'Redacted %s typed Pi row(s) in place from %s.\n' "$total" "$path"
+    fi
+}
+
+agentlaunch_draft="$cleanup_home/.local/state/agentlaunch/form-draft.json"
+
+validate_agentlaunch_draft() {
+    local harness
+    path_exists "$agentlaunch_draft" || return 0
+    capture_claim_state "$agentlaunch_draft"
+    [ -f "$agentlaunch_draft" ] && [ ! -L "$agentlaunch_draft" ] \
+        || die "refusing unsafe AgentLaunch draft: $agentlaunch_draft"
+    jq -e '
+        type == "object" and
+        (.prompt | type == "string") and
+        (.project | type == "string") and
+        (.worktree | type == "boolean") and
+        (.harness | type == "string" and (. == "claude" or . == "codex" or . == "pi")) and
+        (.model | type == "string") and
+        (.effort | type == "string") and
+        (.priming | type == "string")
+    ' "$agentlaunch_draft" >/dev/null 2>&1 \
+        || die "refusing malformed or foreign AgentLaunch draft: $agentlaunch_draft"
+    harness=$(jq -r '.harness' "$agentlaunch_draft")
+    if [ "$harness" = pi ]; then
+        register_claim agentlaunch-draft "$agentlaunch_draft" "$captured_identity" "$captured_proof"
+    fi
+}
+
+herdr_status="$cleanup_home/.local/state/herdr/agent-detection/status.toml"
+
+process_herdr_status() {
+    local mode="$1" hook='' result
+    path_exists "$herdr_status" || { printf '0\n'; return 0; }
+    assert_inside_home "$herdr_status"
+    if [ "$mode" = redact ] && [ -n "${AGENTSTART_TEST_PI_HERDR_REDACT_HOOK:-}" ]; then
+        hook=$AGENTSTART_TEST_PI_HERDR_REDACT_HOOK
+        [ -f "$hook" ] && [ ! -L "$hook" ] && [ -x "$hook" ] \
+            || die "Herdr redaction test hook is not a safe executable"
+    fi
+    result=$(/usr/bin/perl - "$herdr_status" "$mode" "$hook" \
+        "$cleanup_home" "$(id -u)" <<'PERL'
+use strict;
+use warnings;
+use bytes;
+use Fcntl qw(:DEFAULT :mode SEEK_SET);
+use IO::Handle;
+
+my ($path, $mode, $hook, $home, $expected_uid) = @ARGV;
+$mode eq 'validate' || $mode eq 'redact' or die "unknown Herdr status mode: $mode\n";
+my $flags = ($mode eq 'redact' ? O_RDWR : O_RDONLY) | O_NOFOLLOW;
+
+sub open_anchored {
+    my ($flags) = @_;
+    index($path, "$home/") == 0 or die "$path escapes cleanup home\n";
+    my @parts = split m{/}, substr($path, length($home) + 1), -1;
+    @parts && !grep { $_ eq '' || $_ eq '.' || $_ eq '..' } @parts
+        or die "unsafe shared-state path $path\n";
+    my $name = pop @parts;
+    sysopen(my $directory, $home, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+        or die "open cleanup home for $path: $!\n";
+    my @opened = stat($directory);
+    @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+        or die "unsafe cleanup home descriptor for $path\n";
+    chdir($directory) or die "chdir cleanup home for $path: $!\n";
+    for my $component (@parts) {
+        sysopen(my $next, $component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            or die "open shared-state parent component $component for $path: $!\n";
+        @opened = stat($next);
+        @opened && S_ISDIR($opened[2]) && $opened[4] == $expected_uid
+            or die "unsafe shared-state parent component $component for $path\n";
+        chdir($next) or die "chdir shared-state parent component $component for $path: $!\n";
+        close $directory or die "close shared-state parent component for $path: $!\n";
+        $directory = $next;
+    }
+    sysopen(my $file, $name, $flags)
+        or die "open $path without following links: $!\n";
+    return $file;
+}
+
+my $handle = open_anchored($flags);
+binmode $handle;
+my @opened = stat($handle);
+@opened && S_ISREG($opened[2]) or die "$path is not a regular file\n";
+$opened[4] == $expected_uid or die "$path is not owned by the cleanup user\n";
+$opened[3] == 1 or die "$path has another hard-link name\n";
+
+sub assert_public_identity {
+    my $current = open_anchored(O_RDONLY | O_NOFOLLOW);
+    my @named = stat($current);
+    @named && $named[0] == $opened[0] && $named[1] == $opened[1]
+        or die "$path changed while its descriptor was active\n";
+    close $current or die "close current public $path: $!\n";
+}
+
+assert_public_identity();
+
+sub read_current {
+    sysseek($handle, 0, SEEK_SET) >= 0 or die "seek $path: $!\n";
+    my $content = '';
+    while (1) {
+        my $read = sysread($handle, my $chunk, 65536);
+        defined $read or die "read $path: $!\n";
+        last if $read == 0;
+        $content .= $chunk;
+    }
+    return $content;
+}
+
+sub scan_block {
+    my ($content) = @_;
+    my (@lines, @offsets);
+    my $offset = 0;
+    while ($content =~ /.*?(?:\r\n|\n|\z)/gs) {
+        my $line = $&;
+        last if $line eq '';
+        push @lines, $line;
+        push @offsets, $offset;
+        $offset += length($line);
+    }
+    my @blocks;
+    for (my $i = 0; $i < @lines; $i += 1) {
+        my $body = $lines[$i];
+        $body =~ s/\r?\n\z//;
+        next unless $body eq '[agents.pi]';
+        my $j = $i + 1;
+        my ($versions, $checks, $results) = (0, 0, 0);
+        while ($j < @lines) {
+            my $candidate = $lines[$j];
+            $candidate =~ s/\r?\n\z//;
+            last if $candidate =~ /^\[/;
+            if ($candidate =~ /^\s*\z/) {
+                # whitespace inside the owned block is harmless
+            } elsif ($candidate =~ /^cached_version = "[^"]+"\z/) {
+                $versions += 1;
+            } elsif ($candidate =~ /^last_checked_unix = [0-9]+\z/) {
+                $checks += 1;
+            } elsif ($candidate =~ /^last_result = "[^"]+"\z/) {
+                $results += 1;
+            } else {
+                die "changed [agents.pi] cache block in $path\n";
+            }
+            $j += 1;
+        }
+        $versions == 1 && $checks == 1 && $results == 1
+            or die "changed [agents.pi] cache block in $path\n";
+        my $end = $j < @offsets ? $offsets[$j] : length($content);
+        push @blocks, [$offsets[$i], $end - $offsets[$i]];
+    }
+    @blocks <= 1 or die "duplicate [agents.pi] cache blocks in $path\n";
+    return @blocks;
+}
+
+sub assert_unchanged_prefix {
+    my ($expected) = @_;
+    my $current = read_current();
+    length($current) >= length($expected)
+        && substr($current, 0, length($expected)) eq $expected
+        or die "$path changed existing bytes during redaction\n";
+    scan_block($current);
+    assert_public_identity();
+}
+
+sub assert_block_bytes {
+    my ($content, $offset, $length) = @_;
+    sysseek($handle, $offset, SEEK_SET) >= 0 or die "seek $path: $!\n";
+    my $current = '';
+    while (length($current) < $length) {
+        my $read = sysread($handle, my $chunk, $length - length($current));
+        defined $read && $read > 0 or die "read current block bytes from $path: $!\n";
+        $current .= $chunk;
+    }
+    $current eq substr($content, $offset, $length)
+        or die "$path block bytes changed during redaction\n";
+}
+
+my $total = 0;
+while (1) {
+    my $content = read_current();
+    my @blocks = scan_block($content);
+    if ($mode eq 'validate') {
+        $total += scalar @blocks;
+        last;
+    }
+    last if !@blocks;
+    if (length($hook)) {
+        system {$hook} $hook, $path;
+        $? == 0 or die "Herdr redaction test hook failed for $path\n";
+    }
+    assert_unchanged_prefix($content);
+    for my $block (@blocks) {
+        my ($offset, $length) = @$block;
+        my $replacement = substr($content, $offset, $length);
+        $replacement =~ s/[^\r\n]/ /g;
+        assert_block_bytes($content, $offset, $length);
+        assert_public_identity();
+        sysseek($handle, $offset, SEEK_SET) >= 0 or die "seek $path: $!\n";
+        my $written = 0;
+        while ($written < length($replacement)) {
+            my $count = syswrite($handle, $replacement, length($replacement) - $written, $written);
+            defined $count && $count > 0 or die "write $path: $!\n";
+            $written += $count;
+        }
+    }
+    $handle->sync() or die "fsync $path: $!\n";
+    $total += scalar @blocks;
+}
+
+$handle->sync() or die "fsync $path: $!\n" if $mode eq 'redact';
+assert_public_identity();
+close $handle or die "close $path: $!\n";
+print "$total\n";
+PERL
+    ) || die "could not safely process Herdr agent-detection status: $herdr_status"
+    printf '%s\n' "$result"
+}
+
+validate_herdr_status() {
+    process_herdr_status validate >/dev/null
+}
+
+remove_herdr_status_block() {
+    local total
+    path_exists "$herdr_status" || return 0
+    total=$(process_herdr_status redact)
+    if [ "$total" -gt 0 ]; then
+        printf 'Removed retired [agents.pi] cache block in place from %s.\n' "$herdr_status"
+    fi
+}
+
+pi_sessions_root="$cleanup_home/.pi/agent/sessions"
+slug_root="$cleanup_home/.local/state/agentsurface/slugs"
+
+validate_pi_slug_records() {
+    local transcript name key session_id header slug active_root collision
+    local transcript_listing slug_listing collision_listing
+    if path_exists "$pi_sessions_root"; then
+        assert_inside_home "$pi_sessions_root"
+        [ -d "$pi_sessions_root" ] && [ ! -L "$pi_sessions_root" ] \
+            || die "refusing unsafe native Pi session root: $pi_sessions_root"
+        collect_find_nul "native Pi transcripts" "$pi_sessions_root" -name '*.jsonl'
+        transcript_listing=$find_listing
+        while IFS= read -r -d '' transcript; do
+            [ -f "$transcript" ] && [ ! -L "$transcript" ] \
+                || die "refusing unsafe native Pi transcript: $transcript"
+            name=${transcript##*/}
+            printf '%s\n' "$name" \
+                | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}Z_[A-Za-z0-9._-]+\.jsonl$' \
+                || die "native Pi transcript has an unknown filename contract: $transcript"
+            key=${name%.jsonl}
+            session_id=${key#*_}
+            IFS= read -r header <"$transcript" \
+                || die "native Pi transcript has no session header: $transcript"
+            printf '%s\n' "$header" \
+                | jq -e --arg id "$session_id" \
+                    'type == "object" and .type == "session" and .id == $id' \
+                    >/dev/null 2>&1 \
+                || die "native Pi transcript session identity mismatch: $transcript"
+        done <"$transcript_listing"
+        discard_find_listing "$transcript_listing"
+    fi
+    if path_exists "$slug_root"; then
+        assert_inside_home "$slug_root"
+        [ -d "$slug_root" ] && [ ! -L "$slug_root" ] \
+            || die "refusing unsafe AgentSurface slug root: $slug_root"
+    else
+        return 0
+    fi
+
+    # Pi's native transcript basename is distinct from Claude and Codex. Scan
+    # the slug inventory itself so an orphan left after an earlier partial
+    # source-store cleanup is still found.
+    collect_find_nul "AgentSurface slug inventory" \
+        "$slug_root" -mindepth 1 -maxdepth 1
+    slug_listing=$find_listing
+    while IFS= read -r -d '' slug; do
+        key=${slug##*/}
+        printf '%s\n' "$key" \
+            | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}Z_[A-Za-z0-9._-]+$' \
+            || continue
+        capture_claim_state "$slug"
+        [ -f "$slug" ] && [ ! -L "$slug" ] \
+            || die "refusing unsafe Pi-shaped AgentSurface slug: $slug"
+        if [ "$(wc -l <"$slug" | tr -d '[:space:]')" -ne 1 ] \
+            || [ "$(wc -c <"$slug" | tr -d '[:space:]')" -gt 65 ] \
+            || ! grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' "$slug"; then
+            die "Pi-shaped AgentSurface slug has an unknown value shape: $slug"
+        fi
+
+        name="$key.jsonl"
+        for active_root in \
+            "$cleanup_home/.claude/projects" \
+            "$cleanup_home/.codex/sessions" \
+            "$cleanup_home/.codex/archived_sessions"; do
+            path_exists "$active_root" || continue
+            assert_inside_home "$active_root"
+            [ -d "$active_root" ] && [ ! -L "$active_root" ] \
+                || die "refusing unsafe active transcript root while proving slug ownership: $active_root"
+            collect_find_nul "active transcript collisions for $name" \
+                "$active_root" -name "$name"
+            collision_listing=$find_listing
+            collision=
+            IFS= read -r -d '' collision <"$collision_listing" || true
+            discard_find_listing "$collision_listing"
+            [ -z "$collision" ] \
+                || die "AgentSurface slug key collides with an active harness transcript: $collision"
+        done
+        register_claim "agentsurface-slug:$key" "$slug" "$captured_identity" "$captured_proof"
+    done <"$slug_listing"
+    discard_find_listing "$slug_listing"
+}
+
+assert_no_pi_slug_records() {
+    local slug key listing
+    path_exists "$slug_root" || return 0
+    assert_inside_home "$slug_root"
+    [ -d "$slug_root" ] && [ ! -L "$slug_root" ] \
+        || die "refusing unsafe AgentSurface slug root during the final audit: $slug_root"
+    collect_find_nul "AgentSurface slug final audit" \
+        "$slug_root" -mindepth 1 -maxdepth 1
+    listing=$find_listing
+    while IFS= read -r -d '' slug; do
+        key=${slug##*/}
+        if printf '%s\n' "$key" \
+            | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{3}Z_[A-Za-z0-9._-]+$'; then
+            die "Pi-shaped AgentSurface slug remains after cleanup: $slug"
+        fi
+    done <"$listing"
+    discard_find_listing "$listing"
+}
+
+retired_npm_root="$cleanup_home/.npm"
+retired_npm_cache_root="$retired_npm_root/_cacache"
+retired_npm_cache_keys=()
+retired_npm_bin=''
+retired_npm_cache_key_count=0
+retired_npm_root_identity=''
+retired_npm_cache_identity=''
+
+is_retired_npm_cache_key() {
+    local key="$1" prefix remainder package suffix base archive
+    prefix='make-fetch-happen:request-cache:https://registry.npmjs.org/'
+    case "$key" in
+        "$prefix"*) remainder=${key#"$prefix"} ;;
+        *) return 1 ;;
+    esac
+    case "$remainder" in
+        */-/*)
+            package=${remainder%%/-/*}
+            suffix=${remainder#"$package"}
+            ;;
+        *)
+            package=$remainder
+            suffix=
+            ;;
+    esac
+    case "$package" in
+        @earendil-works/pi-*|@earendil-works%2fpi-*)
+            base=${package#@earendil-works/}
+            base=${base#@earendil-works%2f}
+            [[ "$base" =~ ^pi-[a-z0-9][a-z0-9-]*$ ]] || return 1
+            ;;
+        @mariozechner/pi-coding-agent|@mariozechner%2fpi-coding-agent)
+            base=pi-coding-agent
+            ;;
+        @maxedapps/pi-subagents-herdr|@maxedapps%2fpi-subagents-herdr)
+            base=pi-subagents-herdr
+            ;;
+        pi-subagents|pi-mcp-adapter)
+            base=$package
+            ;;
+        *) return 1 ;;
+    esac
+    [ -n "$suffix" ] || return 0
+    case "$suffix" in
+        "/-/$base-"*) archive=${suffix#"/-/$base-"} ;;
+        *) return 1 ;;
+    esac
+    [[ "$archive" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]*\.tgz$ ]]
+}
+
+capture_retired_npm_cache_identity() {
+    assert_inside_home "$retired_npm_root"
+    assert_inside_home "$retired_npm_cache_root"
+    [ -d "$retired_npm_root" ] && [ ! -L "$retired_npm_root" ] \
+        || die "refusing unsafe npm root: $retired_npm_root"
+    [ -d "$retired_npm_cache_root" ] && [ ! -L "$retired_npm_cache_root" ] \
+        || die "refusing unsafe npm cache root: $retired_npm_cache_root"
+    retired_npm_root_identity=$(path_identity "$retired_npm_root") \
+        || die "could not identify the npm root"
+    retired_npm_cache_identity=$(path_identity "$retired_npm_cache_root") \
+        || die "could not identify the npm cache root"
+}
+
+assert_retired_npm_cache_identity() {
+    [ -n "$retired_npm_root_identity" ] \
+        && [ -n "$retired_npm_cache_identity" ] \
+        || die "npm cache identity was not captured"
+    [ -d "$retired_npm_root" ] && [ ! -L "$retired_npm_root" ] \
+        && [ "$(path_identity "$retired_npm_root")" = "$retired_npm_root_identity" ] \
+        || die "npm root changed during retired cache cleanup: $retired_npm_root"
+    [ -d "$retired_npm_cache_root" ] && [ ! -L "$retired_npm_cache_root" ] \
+        && [ "$(path_identity "$retired_npm_cache_root")" = "$retired_npm_cache_identity" ] \
+        || die "npm cache root changed during retired cache cleanup: $retired_npm_cache_root"
+}
+
+run_retired_npm_cache() {
+    local status current_root current_cache
+    assert_retired_npm_cache_identity
+    set +e
+    (
+        cd -P -- "$retired_npm_root" || exit 90
+        [ "$(pwd -P)" = "$retired_npm_root" ] || exit 91
+        current_root=$(stat -f '%d:%i' .) || exit 92
+        current_cache=$(stat -f '%d:%i' ./_cacache) || exit 93
+        [ "$current_root" = "$retired_npm_root_identity" ] || exit 94
+        [ "$current_cache" = "$retired_npm_cache_identity" ] || exit 95
+        HOME="$cleanup_home" npm_config_cache=. "$retired_npm_bin" "$@"
+    )
+    status=$?
+    set -e
+    assert_retired_npm_cache_identity
+    return "$status"
+}
+
+enumerate_retired_npm_cache() {
+    local listing key cache_status line_count=0 key_count=0
+    retired_npm_cache_keys=()
+    retired_npm_cache_key_count=0
+    path_exists "$retired_npm_cache_root" || return 0
+    if [ -z "$retired_npm_root_identity" ] || [ -z "$retired_npm_cache_identity" ]; then
+        capture_retired_npm_cache_identity
+    else
+        assert_retired_npm_cache_identity
+    fi
+    if [ -z "$retired_npm_bin" ]; then
+        retired_npm_bin="${AGENTSTART_PI_CLEANUP_NPM_BIN:-$(command -v npm || true)}"
+    fi
+    [ -n "$retired_npm_bin" ] && [ -x "$retired_npm_bin" ] \
+        && [ ! -d "$retired_npm_bin" ] \
+        || die "npm is required to remove retired Pi registry cache keys"
+    if ! listing=$(
+        cache_status=0
+        run_retired_npm_cache cache ls || cache_status=$?
+        printf '\036'
+        exit "$cache_status"
+    ); then
+        die "npm cache enumeration failed before retired Pi cleanup"
+    fi
+    case "$listing" in
+        *$'\036') listing=${listing%$'\036'} ;;
+        *) die "npm cache enumeration lost its bounded output sentinel" ;;
+    esac
+    [ "${#listing}" -le 4194304 ] \
+        || die "npm cache enumeration exceeded the safe retirement byte bound"
+    while IFS= read -r key || [ -n "$key" ]; do
+        line_count=$((line_count + 1))
+        [ "$line_count" -le 65536 ] \
+            || die "npm cache enumeration exceeded the safe line-count bound"
+        [ -n "$key" ] || continue
+        [ "${#key}" -le 4096 ] \
+            || die "npm cache enumeration returned an overlong key"
+        is_retired_npm_cache_key "$key" || continue
+        key_count=$((key_count + 1))
+        [ "$key_count" -le 512 ] \
+            || die "npm cache enumeration exceeded the safe retired-key bound"
+        retired_npm_cache_keys[retired_npm_cache_key_count]="$key"
+        retired_npm_cache_key_count=$((retired_npm_cache_key_count + 1))
+    done < <(printf '%s' "$listing")
+}
+
+retired_npm_cache_contains() {
+    local expected="$1" current index
+    for ((index = 0; index < retired_npm_cache_key_count; index += 1)); do
+        current=${retired_npm_cache_keys[$index]}
+        [ "$current" != "$expected" ] || return 0
+    done
+    return 1
+}
+
+clean_retired_npm_cache() {
+    local key removed=0 index initial_count
+    local -a initial_keys
+    enumerate_retired_npm_cache
+    [ "$retired_npm_cache_key_count" -gt 0 ] || return 0
+    initial_count=$retired_npm_cache_key_count
+    for ((index = 0; index < initial_count; index += 1)); do
+        initial_keys[index]=${retired_npm_cache_keys[$index]}
+    done
+    for ((index = 0; index < initial_count; index += 1)); do
+        key=${initial_keys[$index]}
+        if run_retired_npm_cache cache clean --force -- "$key" >/dev/null 2>&1; then
+            removed=$((removed + 1))
+            continue
+        fi
+        # A cache writer may have removed this exact key after enumeration.
+        # That is already the desired state; every other failure remains fatal.
+        enumerate_retired_npm_cache
+        retired_npm_cache_contains "$key" \
+            && die "npm refused to clean a still-present retired Pi cache key: $key"
+    done
+    enumerate_retired_npm_cache
+    [ "$retired_npm_cache_key_count" -eq 0 ] \
+        || die "retired Pi npm registry cache keys remain after cleanup"
+    if [ "$removed" -gt 0 ]; then
+        printf 'Removed %s retired Pi npm registry cache key(s).\n' "$removed"
+    fi
+}
+
+nvm_nodes="$cleanup_home/.nvm/versions/node"
+
+validate_nvm_node_roots() {
+    local node_root version
+    if path_exists "$nvm_nodes"; then
+        assert_inside_home "$nvm_nodes"
+        [ -d "$nvm_nodes" ] && [ ! -L "$nvm_nodes" ] \
+            || die "refusing unsafe NVM node root: $nvm_nodes"
+    else
+        return 0
+    fi
+    for node_root in "$nvm_nodes"/*; do
+        path_exists "$node_root" || continue
+        [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+            || die "refusing unsafe NVM version-root occupant: $node_root"
+        version=${node_root##*/}
+        [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || die "refusing unknown NVM version-root name: $node_root"
+    done
+}
+
+preflight_unregistered_pi_commands() {
+    local node_root path_dir candidate previous_ifs
+    for candidate in "$cleanup_home/.local/bin/pi" "$cleanup_home/.bun/bin/pi"; do
+        path_exists "$candidate" \
+            && die "refusing an unregistered Pi command before retirement mutation: $candidate"
+    done
+    validate_nvm_node_roots
+    [ "$cleanup_home" = "$live_home" ] || return 0
+    previous_ifs=$IFS
+    IFS=:
+    for path_dir in $PATH; do
+        [ -n "$path_dir" ] || continue
+        candidate="$path_dir/pi"
+        path_exists "$candidate" || continue
+        case "$candidate" in
+            "$nvm_nodes"/v*.*.*/bin/pi)
+                node_root=${candidate%/bin/pi}
+                [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+                    || die "Pi command on PATH has an unsafe NVM root: $candidate"
+                ;;
+            *) die "an unregistered Pi command is present on PATH before cleanup: $candidate" ;;
+        esac
+    done
+    IFS=$previous_ifs
+}
+
+audit_absent_path() {
+    path_exists "$1" && die "retired Pi path remains after cleanup: $1"
+    return 0
+}
+
+audit_no_retired_pi_commands() {
+    local node_root path_dir previous_ifs
+    audit_absent_path "$cleanup_home/.local/bin/pi"
+    audit_absent_path "$cleanup_home/.bun/bin/pi"
+    validate_nvm_node_roots
+    if [ -d "$nvm_nodes" ] && [ ! -L "$nvm_nodes" ]; then
+        for node_root in "$nvm_nodes"/*; do
+            path_exists "$node_root" || continue
+            [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+                || die "refusing unsafe NVM version-root occupant during the final audit: $node_root"
+            audit_absent_path "$node_root/bin/pi"
+        done
+    elif path_exists "$nvm_nodes"; then
+        die "refusing unsafe NVM node root during the final audit: $nvm_nodes"
+    fi
+    # A hermetic test home shares the caller's real PATH, so only the live-home
+    # run can treat every PATH entry as part of the machine being retired.
+    if [ "$cleanup_home" = "$live_home" ]; then
+        previous_ifs=$IFS
+        IFS=:
+        for path_dir in $PATH; do
+            [ -n "$path_dir" ] || continue
+            path_exists "$path_dir/pi" \
+                && die "a Pi command remains on PATH after cleanup: $path_dir/pi"
+        done
+        IFS=$previous_ifs
+    fi
+}
+
+audit_retired_pi_state() {
+    local node_root count
+    for target in \
+        "$bun_viewer_bin" \
+        "$bun_viewer_package" \
+        "$cleanup_home/code/pi-viewer" \
+        "$cleanup_home/.local/share/agentlaunch/shims/pi" \
+        "$cleanup_home/.local/share/agentsurface/shims/pi" \
+        "$cleanup_home/.claude/plugins/cache/agentstart-managed" \
+        "$cleanup_home/.local/state/herdr/agent-detection/remote/pi.toml" \
+        "$cleanup_home/.local/share/agentstart/pi-subagents" \
+        "$cleanup_home/.local/share/agentstart/resources/pi" \
+        "$cleanup_home/.pi"; do
+        audit_absent_path "$target"
+    done
+    validate_nvm_node_roots
+    if [ -d "$nvm_nodes" ] && [ ! -L "$nvm_nodes" ]; then
+        for node_root in "$nvm_nodes"/*; do
+            path_exists "$node_root" || continue
+            [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+                || die "refusing unsafe NVM version-root occupant during the final audit: $node_root"
+            audit_absent_path "$node_root/bin/pi"
+            audit_absent_path "$node_root/lib/node_modules/@earendil-works/pi-coding-agent"
+            audit_absent_path "$node_root/lib/node_modules/@mariozechner/pi-coding-agent"
+        done
+    elif path_exists "$nvm_nodes"; then
+        die "refusing unsafe NVM node root during the final audit: $nvm_nodes"
+    fi
+    count=$(process_retired_jsonl \
+        "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" agentlaunch validate)
+    [ "$count" -eq 0 ] || die "typed Pi rows remain in AgentLaunch state"
+    count=$(process_retired_jsonl \
+        "$cleanup_home/.local/state/agentsurface/launches.jsonl" agentsurface-launches validate)
+    [ "$count" -eq 0 ] || die "typed Pi rows remain in AgentSurface launch state"
+    count=$(process_retired_jsonl \
+        "$cleanup_home/.local/state/agentsurface/submitted.jsonl" agentsurface-submitted validate)
+    [ "$count" -eq 0 ] || die "typed Pi rows remain in AgentSurface submission state"
+    count=$(process_herdr_status validate)
+    [ "$count" -eq 0 ] || die "the retired [agents.pi] Herdr cache block remains"
+    if path_exists "$agentlaunch_draft"; then
+        jq -e '.harness != "pi"' "$agentlaunch_draft" >/dev/null 2>&1 \
+            || die "a Pi AgentLaunch form draft remains after cleanup"
+    fi
+    assert_no_pi_slug_records
+    enumerate_retired_npm_cache
+    [ "$retired_npm_cache_key_count" -eq 0 ] \
+        || die "retired Pi npm registry cache keys remain after the final audit"
+    validate_managed_plugin_cache retain unused \
+        "$cleanup_home/.codex/plugins/cache/agentstart-managed"
+    validate_pi_free_deployments
+    assert_no_live_pi_processes
+    audit_no_retired_pi_commands
+    audit_absent_path "$legacy_retirement_lock"
+    path_exists "$quarantine_root" \
+        && die "retirement quarantine remains after successful cleanup: $quarantine_root"
+    return 0
+}
+
+# A stale transaction is restore-only. Its item returns to the public path and
+# passes through every ordinary semantic validator below before a new claim can
+# be made; a receipt is never sufficient deletion authority by itself.
+
+preflight_unregistered_pi_commands
+validate_pi_free_deployments
+assert_no_live_pi_processes
+enumerate_retired_npm_cache
+validate_legacy_retirement_lock
+
+validate_managed_shim agentlaunch-shim \
+    "$cleanup_home/.local/share/agentlaunch/shims/pi" \
+    'AgentStart-managed AgentLaunch shim'
+validate_managed_shim agentsurface-shim \
+    "$cleanup_home/.local/share/agentsurface/shims/pi" \
+    '^(# AgentStart-managed agentsurface shim:|# Agentdots-managed agentsurface shim:)'
+
+validate_nvm_node_roots
+if [ -d "$nvm_nodes" ] && [ ! -L "$nvm_nodes" ]; then
+    # Launch paths are registered before packages, so the claim-all barrier
+    # disables every known way to start Pi before any installation tree moves.
+    for node_root in "$nvm_nodes"/*; do
+        path_exists "$node_root" || continue
+        [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+            || die "refusing unsafe NVM version-root occupant: $node_root"
+        validate_global_launcher "$node_root"
+    done
+elif path_exists "$nvm_nodes"; then
+    die "refusing unsafe NVM node root: $nvm_nodes"
+fi
+
+validate_bun_viewer
+
+if [ -d "$nvm_nodes" ] && [ ! -L "$nvm_nodes" ]; then
+    for node_root in "$nvm_nodes"/*; do
+        path_exists "$node_root" || continue
+        [ -d "$node_root" ] && [ ! -L "$node_root" ] \
+            || die "refusing unsafe NVM version-root occupant: $node_root"
+        validate_global_package "$node_root" '@earendil-works/pi-coding-agent'
+        validate_global_package "$node_root" '@mariozechner/pi-coding-agent'
+    done
+fi
+validate_pi_viewer_checkout
+
+# Claude's old marketplace cache is retired with the plugin registration.
+# Codex's cache was just refreshed from the Pi-free fixed resources and stays
+# installed; deleting it here would silently break the managed plugin.
+validate_managed_plugin_cache retain unused \
+    "$cleanup_home/.codex/plugins/cache/agentstart-managed"
+validate_managed_plugin_cache claim claude-plugin-cache \
+    "$cleanup_home/.claude/plugins/cache/agentstart-managed"
+
+validate_retired_jsonl \
+    "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" agentlaunch
+validate_retired_jsonl \
+    "$cleanup_home/.local/state/agentsurface/launches.jsonl" agentsurface-launches
+validate_retired_jsonl \
+    "$cleanup_home/.local/state/agentsurface/submitted.jsonl" agentsurface-submitted
+validate_agentlaunch_draft
+validate_herdr_status
+validate_pi_slug_records
+register_exact_claim herdr-remote-cache \
+    "$cleanup_home/.local/state/herdr/agent-detection/remote/pi.toml"
+register_exact_claim agentstart-pi-subagents \
+    "$cleanup_home/.local/share/agentstart/pi-subagents"
+register_exact_claim agentstart-pi-resources \
+    "$cleanup_home/.local/share/agentstart/resources/pi"
+# The native tree is last: it contains the transcript evidence used to prove
+# Pi-shaped AgentSurface slugs above.
+register_exact_claim native-pi-home "$cleanup_home/.pi"
+
+claim_all_registered_paths
+crash_boundary all-claims-collected
+if [ -n "${AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK:-}" ]; then
+    [ -f "$AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK" ] \
+        && [ ! -L "$AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK" ] \
+        && [ -x "$AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK" ] \
+        || die "post-claim retirement test hook is not a safe executable"
+    "$AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK" "$quarantine_root" "$cleanup_home"
+fi
+revalidate_all_claims
+crash_boundary all-claims-revalidated
+assert_no_live_pi_processes
+revalidate_all_claims
+crash_boundary pre-mutation-claims-revalidated
+
+# Shared producer files stay at their public paths and are redacted through
+# one proved descriptor only after every dedicated path has been claimed and
+# every launch route plus live process has been checked a second time.
+redact_retired_jsonl \
+    "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" agentlaunch
+redact_retired_jsonl \
+    "$cleanup_home/.local/state/agentsurface/launches.jsonl" agentsurface-launches
+redact_retired_jsonl \
+    "$cleanup_home/.local/state/agentsurface/submitted.jsonl" agentsurface-submitted
+remove_herdr_status_block
+clean_retired_npm_cache
+
+revalidate_all_claims
+delete_all_claimed_paths
+
+if [ -n "${AGENTSTART_TEST_PI_FINAL_HOOK:-}" ]; then
+    [ -f "$AGENTSTART_TEST_PI_FINAL_HOOK" ] \
+        && [ ! -L "$AGENTSTART_TEST_PI_FINAL_HOOK" ] \
+        && [ -x "$AGENTSTART_TEST_PI_FINAL_HOOK" ] \
+        || die "final retirement test hook is not a safe executable"
+    "$AGENTSTART_TEST_PI_FINAL_HOOK" "$cleanup_home"
+fi
+
+audit_retired_pi_state
+cleanup_temporary_find_files
+trap - EXIT

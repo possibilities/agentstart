@@ -43,7 +43,6 @@ export default function Home() {
           <div className="transmission-lines" aria-hidden="true">
             <i />
             <i />
-            <i />
           </div>
           <div className="harness-stack">
             <article>
@@ -55,11 +54,6 @@ export default function Home() {
               <span className="harness-index">B</span>
               <div><strong>Codex</strong><small>qualified skills-only plugin</small></div>
               <code>$agent:build</code>
-            </article>
-            <article>
-              <span className="harness-index">C</span>
-              <div><strong>Pi</strong><small>explicit resource paths</small></div>
-              <code>/build</code>
             </article>
           </div>
         </div>

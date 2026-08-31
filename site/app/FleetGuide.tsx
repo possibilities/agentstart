@@ -27,7 +27,6 @@ type AdviceSkill = {
   dialects: {
     claude: string;
     codex: string;
-    pi: string;
   };
 };
 
@@ -257,7 +256,7 @@ export function FleetGuide() {
         <dl className="guide-stats">
           <div><dt>Playbooks</dt><dd>{snapshot.stats.skills}</dd></div>
           <div><dt>Field notes</dt><dd>{snapshot.stats.references}</dd></div>
-          <div><dt>Utilities</dt><dd>{snapshot.stats.utilities}</dd></div>
+          <div><dt>Guidance</dt><dd>{snapshot.stats.guidance}</dd></div>
         </dl>
       </div>
 
@@ -296,34 +295,6 @@ export function FleetGuide() {
               <strong>{item.prompt}</strong>
               <i aria-hidden="true">↘</i>
             </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="utility-section" aria-labelledby="utility-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Quiet machinery</p>
-            <h3 id="utility-title">What the fleet supplies without asking you to read code.</h3>
-          </div>
-          <p>
-            These are session capabilities, not advice documents. Their implementation stays
-            out of the guide.
-          </p>
-        </div>
-        <div className="utility-grid">
-          {snapshot.utilities.map((utility) => (
-            <article key={utility.id}>
-              <header>
-                <span>{utility.harness} utility</span>
-                <small>{utility.fileCount === 1 ? "one implementation file" : `${utility.fileCount} implementation files`}</small>
-              </header>
-              <h4>{utility.title}</h4>
-              <p>{utility.summary}</p>
-              <ul>
-                {utility.capabilities.map((capability) => <li key={capability}>{capability}</li>)}
-              </ul>
-            </article>
           ))}
         </div>
       </section>
@@ -408,7 +379,6 @@ export function FleetGuide() {
                 <dl className="dialect-row" aria-label={`${selectedSkill.title} in each harness`}>
                   <div><dt>Claude</dt><dd><code>{selectedSkill.dialects.claude}</code></dd></div>
                   <div><dt>Codex</dt><dd><code>{selectedSkill.dialects.codex}</code></dd></div>
-                  <div><dt>Pi</dt><dd><code>{selectedSkill.dialects.pi}</code></dd></div>
                 </dl>
               </header>
 

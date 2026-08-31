@@ -91,12 +91,6 @@ type = "shell"
 command = "herdr-agent-tab codex"
 description = "new tab running codex"
 
-[[keys.command]]
-key = "prefix+shift+i"
-type = "shell"
-command = "herdr-agent-tab pi"
-description = "new tab running pi"
-
 # Popup-bound fleet TUIs are pane entrypoints in AgentSurface's linked plugin,
 # which owns their titles and geometry. The usage pane keeps escape-to-quit in
 # its manifest because the TUI itself uses q rather than esc to quit.
