@@ -1189,9 +1189,11 @@ else
 fi
 
 # Retire Pi only after AgentLaunch and AgentSurface have installed their
-# Pi-free producer contracts and AgentChats has removed Cass's indexed/raw
-# evidence. The JSONL cleanup preserves each live log inode, so a final
-# unrelated append cannot be lost to temp-file replacement.
+# Pi-free producer contracts and AgentChats has refreshed Cass. The retirement
+# gate below retains Cass's exclusion, archive-count, and search postconditions
+# after AgentChats removed its completed one-time migration helpers. The JSONL
+# cleanup preserves each live log inode, so a final unrelated append cannot be
+# lost to temp-file replacement.
 printf 'Removing the retired Pi CLI and exact machine state roots.\n'
 "$script_dir/remove-retired-pi" --install
 

@@ -60,7 +60,6 @@ if [ -n "${AGENTSTART_TEST_PI_CODE_ROOT:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-}" ] \
-    || [ -n "${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_FINAL_HOOK:-}" ]; then
     [ "$cleanup_home" != "$live_home" ] \
@@ -1703,26 +1702,23 @@ validate_agentchats_deployment() {
     local source="$cleanup_code_root/agentchats/bin/agentchats"
     local command="$cleanup_home/.local/bin/agentchats"
     local cass="$cleanup_home/.local/bin/cass"
-    local raw_helper="$cleanup_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs"
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA:-bb387cdb1516b14f2f622660f611ed47c14ac3e6}"
-    local exclusions stats search raw pending
+    local pending_receipt="$cleanup_home/.local/state/agentchats/pi-retirement-v1.pending.json"
+    local exclusions stats search
     for path in \
         "$command" "$cass" \
-        "$cleanup_home/.local/state/agentchats/pi-retirement-v1.pending.json" \
+        "$pending_receipt" \
         "$cleanup_home/Library/Application Support/com.coding-agent-search.coding-agent-search"; do
         path_exists "$path" && relevant=1
     done
     [ "$relevant" -eq 1 ] || return 0
 
     validate_pi_free_checkout "$root" agentchats "$source"
-    [ "$validated_upstream_sha" = "$retirement_sha" ] \
-        || die "pushed AgentChats main is not the reviewed Pi retirement commit"
     validate_exact_deployed_link "$command" "$source" AgentChats
     assert_inside_home "$cass"
     path_exists "$cass" && [ -x "$cass" ] \
         || die "required Cass command is missing after AgentChats retirement: $cass"
-    validate_owned_regular_file \
-        "$raw_helper" "AgentChats raw-mirror retirement helper" "$root" >/dev/null
+    ! path_exists "$pending_receipt" \
+        || die "completed AgentChats retirement receipt remains: $pending_receipt"
 
     exclusions=$(HOME="$cleanup_home" "$cass" sources agents list --json) \
         || die "Cass could not report retired connector exclusions"
@@ -1741,17 +1737,6 @@ validate_agentchats_deployment() {
     printf '%s\n' "$search" \
         | jq -e '.count == 0' >/dev/null 2>&1 \
         || die "Cass still serves retired pi_agent search hits"
-    raw=$(HOME="$cleanup_home" /usr/bin/env node "$raw_helper" --dry-run) \
-        || die "AgentChats could not prove retired raw-mirror state"
-    printf '%s\n' "$raw" \
-        | jq -e '.pending_transaction == false and .manifest_count == 0 and .blob_count == 0' \
-            >/dev/null 2>&1 \
-        || die "Cass still has pending or captured pi_agent raw-mirror state"
-    pending=$(HOME="$cleanup_home" /usr/bin/env node "$raw_helper" --pending-status) \
-        || die "AgentChats could not prove its retired connector rebuild receipt"
-    printf '%s\n' "$pending" \
-        | jq -e '.pending == false' >/dev/null 2>&1 \
-        || die "AgentChats still has a pending retired connector rebuild receipt"
 }
 
 validate_pi_free_herdr_config() {

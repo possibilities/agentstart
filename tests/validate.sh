@@ -346,22 +346,6 @@ grep -F 'post-sync hook failed' scripts/sync-skills >/dev/null \
 skip_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-validate.XXXXXX")
 trap 'rm -rf "$skip_test_dir"' EXIT
 
-# A reviewed deployment SHA is a fixture seam only. Even the AgentChats
-# override must never make the live HOME eligible for a test-hook run.
-set +e
-live_agentchats_override_output=$(env -i \
-    HOME="$HOME" PATH="$PATH" \
-    AGENTSTART_PI_CLEANUP_HOME="$HOME" \
-    AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA=fixture-override \
-    "$root/scripts/remove-retired-pi" --install 2>&1)
-live_agentchats_override_status=$?
-set -e
-[ "$live_agentchats_override_status" -ne 0 ] \
-    || fail "retired cleanup accepted an AgentChats SHA override against the live home"
-printf '%s\n' "$live_agentchats_override_output" \
-    | grep -F 'retired Pi test hooks cannot target the live home' >/dev/null \
-    || fail "retired cleanup did not reject an AgentChats SHA override against the live home"
-
 # Bare harness shims route through AgentLaunch, and the recursion sentinel
 # keeps AgentLaunch-managed child processes from entering the shim again.
 shim_home="$skip_test_dir/shim-home"
@@ -752,7 +736,6 @@ mkdir -p \
     "$retired_pi_contract_code_root/agentlaunch/src" \
     "$retired_pi_contract_code_root/agentsurface/src" \
     "$retired_pi_contract_code_root/agentchats/bin" \
-    "$retired_pi_contract_code_root/agentchats/scripts" \
     "$retired_pi_contract_code_root/codex-swap/src/cli"
 retired_pi_contract_code_root=$(cd -P -- "$retired_pi_contract_code_root" && pwd)
 retired_pi_lock_assert="$retired_pi_contract_code_root/assert-no-retirement-lock-fd"
@@ -802,35 +785,12 @@ set -euo pipefail
 "$AGENTSTART_TEST_PI_LOCK_ASSERT"
 exit 0
 EOF
-cat >"$retired_pi_contract_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs" <<'EOF'
-#!/usr/bin/env node
-import { fstatSync, statSync } from "node:fs";
-const lock = statSync(`${process.env.HOME}/.local/state/agentstart/retirement.lock`);
-for (let fd = 3; fd <= 255; fd += 1) {
-  try {
-    const opened = fstatSync(fd);
-    if (opened.dev === lock.dev && opened.ino === lock.ino) {
-      throw new Error(`deployment proof inherited retirement lock fd ${fd}`);
-    }
-  } catch (error) {
-    if (error?.code !== "EBADF") throw error;
-  }
-}
-if (process.argv[2] === "--dry-run") {
-  console.log(JSON.stringify({pending_transaction: false, manifest_count: 0, blob_count: 0}));
-} else if (process.argv[2] === "--pending-status") {
-  console.log(JSON.stringify({pending: false}));
-} else {
-  process.exitCode = 64;
-}
-EOF
 printf '%s\n' 'export const retirementFixture = true;' \
     >"$retired_pi_contract_code_root/codex-swap/src/cli/main.ts"
 chmod +x \
     "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
     "$retired_pi_contract_code_root/agentsurface/src/main.ts" \
-    "$retired_pi_contract_code_root/agentchats/bin/agentchats" \
-    "$retired_pi_contract_code_root/agentchats/scripts/retire-pi-raw-mirror.mjs"
+    "$retired_pi_contract_code_root/agentchats/bin/agentchats"
 for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; do
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" init -q -b main
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
@@ -870,9 +830,6 @@ printf 'fixture rollback\n' >"$retired_pi_contract_code_root/codex-swap/.cma-bac
 printf 'fixture proxy\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js"
 printf 'fixture selector\n' \
     >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js"
-retired_pi_contract_agentchats_retirement_sha=$(git -C \
-    "$retired_pi_contract_code_root/agentchats" rev-parse HEAD)
-export AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA="$retired_pi_contract_agentchats_retirement_sha"
 for retired_pi_contract_repo in agentlaunch agentsurface; do
     printf '%s\n' 'protected local contract fixture' \
         >"$retired_pi_contract_code_root/$retired_pi_contract_repo/protected-contract"
@@ -945,6 +902,29 @@ esac
 EOF
     chmod +x "$cass_fixture"
 }
+
+# AgentChats removed its completed one-time migration helpers after a7dd713.
+# AgentStart retains only the durable Cass postconditions, including refusal
+# when the old retry receipt says that migration did not finish.
+pending_agentchats_home="$skip_test_dir/pending-agentchats-retirement-home"
+mkdir -p \
+    "$pending_agentchats_home/.pi" \
+    "$pending_agentchats_home/.local/state/agentchats"
+install_retired_pi_agentchats_contract "$pending_agentchats_home"
+printf '%s\n' '{"version":1,"pending":true}' \
+    >"$pending_agentchats_home/.local/state/agentchats/pi-retirement-v1.pending.json"
+set +e
+pending_agentchats_output=$(AGENTSTART_PI_CLEANUP_HOME="$pending_agentchats_home" \
+    "$root/scripts/remove-retired-pi" --install 2>&1)
+pending_agentchats_status=$?
+set -e
+[ "$pending_agentchats_status" -ne 0 ] \
+    || fail "retired cleanup accepted the completed AgentChats retry receipt"
+printf '%s\n' "$pending_agentchats_output" \
+    | grep -F 'completed AgentChats retirement receipt remains' >/dev/null \
+    || fail "retired cleanup did not explain the stale AgentChats retry receipt"
+[ -d "$pending_agentchats_home/.pi" ] \
+    || fail "retired cleanup mutated Pi state before refusing the AgentChats retry receipt"
 
 make_retired_pi_claim_fixture() {
     local fixture_home="$1"
