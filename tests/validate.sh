@@ -861,6 +861,15 @@ export AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA="$retired_pi_contract_agen
 retired_pi_contract_codex_swap_sha=$(git -C \
     "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
 export AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA="$retired_pi_contract_codex_swap_sha"
+# This mirrors the operator-owned rollback backup in the live codex-swap
+# checkout. The retirement gate must preserve this exact, proved exception
+# while continuing to reject every other untracked working-tree path.
+mkdir -p \
+    "$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime"
+printf 'fixture rollback\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/rotation.js"
+printf 'fixture proxy\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js"
+printf 'fixture selector\n' \
+    >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js"
 retired_pi_contract_agentchats_retirement_sha=$(git -C \
     "$retired_pi_contract_code_root/agentchats" rev-parse HEAD)
 export AGENTSTART_TEST_PI_AGENTCHATS_RETIREMENT_SHA="$retired_pi_contract_agentchats_retirement_sha"
@@ -989,9 +998,9 @@ EOF
 wrong_codex_swap_remote_home="$skip_test_dir/wrong-codex-swap-retirement-remote-home"
 mkdir -p "$wrong_codex_swap_remote_home/.pi"
 install_retired_pi_codex_swap_contract "$wrong_codex_swap_remote_home"
-git -C "$retired_pi_contract_code_root/codex-swap" commit -q --allow-empty \
-    -m 'Wrong pushed codex-swap fixture'
-wrong_codex_swap_sha=$(git -C "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
+wrong_codex_swap_tree=$(git -C "$retired_pi_contract_code_root/codex-swap" write-tree)
+wrong_codex_swap_sha=$(printf '%s\n' 'Wrong pushed codex-swap fixture' \
+    | git -C "$retired_pi_contract_code_root/codex-swap" commit-tree "$wrong_codex_swap_tree")
 git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
     refs/remotes/origin/main "$wrong_codex_swap_sha"
 set +e

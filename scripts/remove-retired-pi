@@ -1421,6 +1421,38 @@ validate_owned_regular_file() {
     printf '%s\n' "$mode"
 }
 
+# codex-swap's 2.10.0 rollout left one operator-owned rollback backup in the
+# checkout. It is not part of the repository and must survive this retirement,
+# but every other working-tree change remains a hard stop. Keep the allowance
+# exact: a different backup name, an extra file, or a changed owner/content is
+# not evidence of the known rollback and must still block cleanup.
+validate_codex_swap_owned_backup() {
+    local root="$1" status="$2"
+    local backup="$root/.cma-backup-pre-2.10.0-20260831-160414"
+    local expected relative path
+    expected=$(printf '%s\n' \
+        '?? .cma-backup-pre-2.10.0-20260831-160414/rotation.js' \
+        '?? .cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js' \
+        '?? .cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js')
+    [ "$status" = "$expected" ] \
+        || die "required Pi-free codex-swap checkout has unexpected untracked state: $root"
+    [ -d "$backup" ] && [ ! -L "$backup" ] \
+        || die "known codex-swap rollback backup is not a safe directory: $backup"
+    [ "$(stat -f '%u' "$backup")" = "$(id -u)" ] \
+        || die "known codex-swap rollback backup is not owned by the effective user: $backup"
+    content_proof "$backup" "$root" >/dev/null \
+        || die "known codex-swap rollback backup failed its ownership/content proof: $backup"
+    for relative in \
+        .cma-backup-pre-2.10.0-20260831-160414/rotation.js \
+        .cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js \
+        .cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js; do
+        path="$root/$relative"
+        [ -f "$path" ] && [ ! -L "$path" ] \
+            || die "known codex-swap rollback backup file is not safe: $path"
+        validate_owned_regular_file "$path" "known codex-swap rollback backup file" "$root" >/dev/null
+    done
+}
+
 validate_pi_free_checkout() {
     local root="$1" repository="$2" source="$3" executable="${4:-yes}"
     local upstream_policy="${5:-exact}"
@@ -1450,8 +1482,13 @@ validate_pi_free_checkout() {
         || die "required Pi-free $repository checkout does not track origin/main: $root"
     status=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" status --porcelain=v1 --untracked-files=all) \
         || die "could not prove the required Pi-free $repository working tree: $root"
-    [ -z "$status" ] \
-        || die "required Pi-free $repository checkout is not clean: $root"
+    if [ -n "$status" ]; then
+        if [ "$repository" = codex-swap ]; then
+            validate_codex_swap_owned_backup "$root" "$status"
+        else
+            die "required Pi-free $repository checkout is not clean: $root"
+        fi
+    fi
     validated_checkout_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" rev-parse --verify HEAD 2>/dev/null) \
         || die "required Pi-free $repository checkout has no HEAD: $root"
     [[ "$validated_checkout_sha" =~ ^[0-9a-f]{40}$ ]] \
@@ -1463,8 +1500,12 @@ validate_pi_free_checkout() {
         || die "required Pi-free $repository checkout has an invalid pushed main commit: $root"
     case "$upstream_policy" in
         exact)
-            [ "$validated_upstream_sha" = "$validated_checkout_sha" ] \
-                || die "required Pi-free $repository checkout is not equal to its pushed main ref: $root"
+            if [ "$validated_upstream_sha" != "$validated_checkout_sha" ]; then
+                if [ "$repository" = codex-swap ]; then
+                    die "pushed codex-swap main is not the reviewed Pi scrub commit"
+                fi
+                die "required Pi-free $repository checkout is not equal to its pushed main ref: $root"
+            fi
             ;;
         reviewed-ancestor)
             GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
@@ -1531,8 +1572,14 @@ validate_codex_swap_deployment() {
         || die "codex-swap retirement gate received an invalid commit"
 
     validate_pi_free_checkout "$root" codex-swap "$source" no
-    [ "$validated_upstream_sha" = "$retirement_sha" ] \
+    GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
+        "$retirement_sha" "$validated_upstream_sha" \
         || die "pushed codex-swap main is not the reviewed Pi scrub commit"
+    if GIT_OPTIONAL_LOCKS=0 git -C "$root" grep -I -n -E \
+        '(^|[^[:alpha:]])pi([^[:alpha:]]|$)|pi-coding-agent|pi-viewer|pi_agent' \
+        -- src scripts/install.sh package.json package-lock.json >/dev/null 2>&1; then
+        die "codex-swap active sources still name the retired Pi harness"
+    fi
     command_mode=$(validate_owned_regular_file "$command" "codex-swap installed command")
     [ "$command_mode" = 755 ] \
         || die "codex-swap installed command is not mode 0755: $command"
