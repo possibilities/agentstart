@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "ok": true,
+  "error": null,
+  "data": {
+    "contract_version": 1,
+    "meta": {
+      "name": "agentboard",
+      "version": "0.1.0",
+      "purpose": "Agent-first planning board: one item type at every granularity, typed relations, computed ready-work, atomic claims.",
+      "audience": "agent"
+    },
+    "guidance": "Start with ready. Claim before working, close when done.",
+    "concepts": {
+      "output_contract": {
+        "envelope": {
+          "schema_version": "number",
+          "ok": "boolean",
+          "error": "{code,message,recovery?} | null",
+          "data": "payload | null"
+        },
+        "exit_codes": {
+          "0": "success",
+          "1": "domain failure",
+          "2": "usage fault"
+        }
+      },
+      "error_codes": [
+        {
+          "code": "existing_topic",
+          "meaning": "An open item already covers that topic.",
+          "recovery": "Supersede or relate; --new to capture anyway."
+        },
+        {
+          "code": "already_claimed",
+          "meaning": "Another agent holds the claim.",
+          "recovery": "Pick another ready item."
+        },
+        {
+          "code": "stale_draft",
+          "meaning": "The board moved since the draft was exported.",
+          "recovery": "Re-export and rebuild."
+        }
+      ],
+      "read_only_commands": [
+        "ready",
+        "get",
+        "groom export"
+      ],
+      "agent_defaults": [
+        "Call ready before asking what to work on."
+      ]
+    },
+    "global_arguments": [
+      {
+        "name": "--json",
+        "type": "boolean",
+        "description": "Stable envelope; preferred for agents.",
+        "aliases": [
+          "-j"
+        ]
+      },
+      {
+        "name": "--db",
+        "type": "string",
+        "description": "Board database.",
+        "format": "path",
+        "direction": "in"
+      }
+    ],
+    "commands": [
+      {
+        "name": "ready",
+        "summary": "List open items with no unfinished blockers",
+        "audience": "agent",
+        "mutates": false,
+        "arguments": []
+      },
+      {
+        "name": "get",
+        "summary": "Show one item",
+        "audience": "agent",
+        "mutates": false,
+        "arguments": [
+          {
+            "name": "ref",
+            "type": "string",
+            "description": "Item, by label or phrase",
+            "positional": true,
+            "required": true,
+            "format": "ref"
+          }
+        ]
+      },
+      {
+        "name": "add",
+        "summary": "Capture an item from spoken words",
+        "audience": "agent",
+        "mutates": true,
+        "arguments": [
+          {
+            "name": "label",
+            "type": "string",
+            "description": "Short speakable name",
+            "positional": true,
+            "required": true
+          },
+          {
+            "name": "--summary",
+            "type": "string",
+            "description": "Longer description"
+          },
+          {
+            "name": "--tag",
+            "type": "string",
+            "description": "Comma-joined tags; not repeatable."
+          },
+          {
+            "name": "--origin",
+            "type": "string",
+            "description": "Who asked",
+            "choices": [
+              "human",
+              "agent"
+            ],
+            "default": "human"
+          },
+          {
+            "name": "--new",
+            "type": "boolean",
+            "description": "Capture despite an existing topic"
+          }
+        ]
+      },
+      {
+        "name": "groom",
+        "summary": "Export a grooming draft, or apply one atomically",
+        "audience": "agent",
+        "subcommands": [
+          {
+            "name": "export",
+            "summary": "Export the current board as a draft",
+            "audience": "agent",
+            "mutates": false,
+            "arguments": []
+          },
+          {
+            "name": "apply",
+            "summary": "Apply a grooming draft atomically",
+            "audience": "agent",
+            "mutates": true,
+            "stdin": {
+              "accepts": "json",
+              "description": "The draft, when no file is given"
+            },
+            "arguments": [
+              {
+                "name": "draft",
+                "type": "string",
+                "description": "Draft file",
+                "positional": true,
+                "format": "path",
+                "direction": "in"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "render",
+        "summary": "Write a self-contained HTML snapshot",
+        "audience": "operator",
+        "mutates": true,
+        "arguments": [
+          {
+            "name": "--out",
+            "type": "string",
+            "description": "Destination file",
+            "format": "path",
+            "direction": "out"
+          }
+        ]
+      }
+    ]
+  }
+}

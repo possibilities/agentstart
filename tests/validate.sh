@@ -293,6 +293,8 @@ bun test tests/supervise.test.ts
     || fail "the schema interpreter is missing; the validator would be mirroring the schema again"
 grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
     || fail "the agent contract validator no longer executes config/agent-contract/schema.json"
+[ -f config/agent-contract/example.json ] \
+    || fail "the agent contract has no worked example for the repositories adopting it"
 bun test tests/agent-contract.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that

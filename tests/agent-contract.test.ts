@@ -111,6 +111,18 @@ describe("the schema is executed, not mirrored", () => {
   });
 });
 
+describe("the worked example", () => {
+  test("config/agent-contract/example.json actually conforms", () => {
+    // It is handed to every repository adopting the contract as the thing to
+    // pattern-match; an example that does not validate teaches the wrong shape
+    // fifteen times.
+    const example = JSON.parse(
+      readFileSync(join(root, "config", "agent-contract", "example.json"), "utf8"),
+    );
+    expect(validateContract(example)).toEqual([]);
+  });
+});
+
 describe("a conformant contract", () => {
   test("accepts the base fixture", () => {
     expect(validateContract(base())).toEqual([]);

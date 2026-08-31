@@ -150,3 +150,19 @@ to choose.
    absence produces a call that looks well-formed and is not.
 5. Add a conformance test in your own repository, and check yourself with
    `agentstart/scripts/validate-agent-contract.ts <cli>`.
+
+## A worked example
+
+`example.json` is a real, validated fragment of what AgentBoard's contract looks
+like: a nested `groom export|apply` group, a read-only leaf addressed by full
+path, an output destination on `render --out`, `stdin` on `groom apply` that is
+not required because an agent has no pipe, and `--json`/`--db` declared once as
+globals. It is a fragment, not the whole 32-command surface — it exists to be
+pattern-matched, not copied.
+
+Check any candidate against it:
+
+```sh
+~/code/agentstart/scripts/validate-agent-contract.ts --file my-contract.json
+~/code/agentstart/scripts/validate-agent-contract.ts agentboard   # once guide emits it
+```
