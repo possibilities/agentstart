@@ -110,6 +110,7 @@ remove_legacy_global_skills() {
         orchestration
         computer-use
         supervisor
+        supervise
     )
     local project skill_dir skill_name previous_names
 
@@ -232,20 +233,20 @@ remove_retired_home_guidance() {
     fi
 }
 
-# A renamed skill leaves its previous directory behind in the fixed resources: the
-# scan discovers the new name and the copy never removes the old one, so both
-# spellings would render into every session. Name each rename's previous
-# spelling here once. A name that any fleet checkout exports again is in
-# service and is left alone. Like every removal here, this belongs to the
-# explicit full installer; the six-hour sync stays additive.
-renamed_pack_skill_names=(
+# A renamed or retired skill leaves its previous directory behind in the fixed
+# resources because the scan is additive. Name those spellings here once. A
+# name that any fleet checkout exports again is in service and is left alone.
+# Like every removal here, this belongs to the explicit full installer; the
+# six-hour sync stays additive.
+retired_pack_skill_names=(
     supervisor
+    supervise
 )
 
-remove_renamed_pack_skills() {
+remove_retired_pack_skills() {
     local name project target in_service
 
-    for name in "${renamed_pack_skill_names[@]}"; do
+    for name in "${retired_pack_skill_names[@]}"; do
         in_service=0
         for project in "$code_root"/agent*/; do
             [ -f "$project/skills/$name/SKILL.md" ] || continue
@@ -260,7 +261,7 @@ remove_renamed_pack_skills() {
         target="$resources_root/skills/$name"
         if [ -d "$target" ]; then
             rm -rf -- "$target"
-            printf 'Removed the renamed skill left in the fixed resources: %s.\n' "$target"
+            printf 'Removed the retired skill left in the fixed resources: %s.\n' "$target"
         fi
     done
 }
@@ -359,11 +360,11 @@ converge_repo_content() {
     # full install has already been through.
     "$script_dir/install-statusline" --install
 
-    # A renamed skill leaves its previous directory behind in the fixed resources,
-    # and the additive sync below would render both spellings into every
+    # A renamed or retired skill leaves its previous directory behind in the
+    # fixed resources, and the additive sync below would keep it in every
     # session. Remove before the sync, never after.
-    printf 'Removing renamed skills left behind in the fixed resources.\n'
-    remove_renamed_pack_skills
+    printf 'Removing retired skills left behind in the fixed resources.\n'
+    remove_retired_pack_skills
 
     # Every agent tool publishes its skills by convention — skills/<name>/
     # inside a checkout named agent* — so they are discovered rather than
@@ -487,7 +488,7 @@ Fixed private fleet resources:
   install hunk-review with --copy into the fixed resources
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the fixed resources
-  remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it
+  remove retired skills left in the fixed resources: supervisor supervise  # full install only; /tend replaces worktree supervision with advisory triage
   remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant
 
 Content convergence (everything below is also scripts/install.sh --content,

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Supervisor"
-  short_description: "Integrate, push, and reap peer worktrees"
-  default_prompt: "Use $supervise to watch peer worktrees, ship ready commits, and reap closed clean worktrees without deleting their branches."

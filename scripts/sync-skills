@@ -72,6 +72,7 @@ retired_skill_names=(
     orchestration
     computer-use
     livekit-simulations
+    supervise
 )
 
 skill_is_retired() {

@@ -131,14 +131,11 @@ tests/remove-retired-agentweb.sh
 tests/remove-retired-capabilities.sh
 [ -x scripts/remove-retired-json-hooks.ts ] \
     || fail "retired JSON hook cleanup helper is not executable"
-for supervise_script in \
-    skills/supervise/scripts/watch.ts \
-    skills/supervise/scripts/integrate.ts \
-    skills/supervise/scripts/reap.ts \
-    skills/supervise/scripts/status.ts; do
-    [ -x "$supervise_script" ] \
-        || fail "supervise helper is not executable: $supervise_script"
-done
+[ ! -e skills/supervise ] \
+    || fail "the retired supervise skill returned"
+sed -n '/^retired_skill_names=(/,/^)/p' scripts/sync-skills \
+    | grep -Fx '    supervise' >/dev/null \
+    || fail "the additive skill sync can restore retired supervise copies"
 
 # The obsolete llm model records stay gone, and the retired Orca overlay must
 # not return as a second harness-configuration path.
@@ -209,7 +206,7 @@ grep -q -- '--content)' scripts/install.sh \
     || fail "install.sh does not accept --content"
 for content_step in remove_retired_home_guidance link_extension_prompts \
     remove_retired_llm_config remove_legacy_global_skills \
-    remove_retired_core_plugin remove_renamed_pack_skills \
+    remove_retired_core_plugin remove_retired_pack_skills \
     link_agent_guidance; do
     [ "$(grep -c "^ *$content_step\$" scripts/install.sh)" -eq 1 ] \
         || fail "content step is called from more than one place: $content_step"
@@ -246,20 +243,14 @@ grep -q '```mermaid' skills/fleet/MAP.md \
 if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
+grep -F '"tend"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
+    || fail "the fleet resource catalog omits tend"
+jq -e '.skills[] | select(.id == "tend")' site/public/fleet-resources.json >/dev/null \
+    || fail "the fleet resource snapshot omits tend"
+if jq -e '.skills[] | select(.id == "supervise")' site/public/fleet-resources.json >/dev/null; then
+    fail "the fleet resource snapshot still publishes supervise"
+fi
 
-# The supervise skill is portable with executable mechanics: its watcher
-# carries the Herdr reconnect/reconcile contract and its integrator guards the
-# exact commit that may move main, while its reaper preserves branch identity.
-# Exercise them against disposable repositories and a fake socket rather than
-# accepting prose-only coverage.
-[ -f skills/supervise/SKILL.md ] \
-    || fail "the supervise skill is missing: skills/supervise/SKILL.md"
-grep -q '^name: supervise$' skills/supervise/SKILL.md \
-    || fail "the supervise skill frontmatter does not name /supervise"
-[ -f skills/supervise/agents/openai.yaml ] \
-    || fail "the supervise skill is missing its agents/openai.yaml manifest"
-grep -q '^disable-model-invocation: true$' skills/supervise/SKILL.md \
-    || fail "the supervise skill is not restricted to explicit invocation"
 # Model invocability is one portable fact in SKILL.md. The common-pack render
 # derives Codex's inverse product field; source manifests must not become a
 # second, independently maintained policy.
@@ -273,11 +264,8 @@ explicit_model_skills=$(
         printf '%s\n' "${skill_dir##*/}"
     done | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//'
 )
-[ "$explicit_model_skills" = "supervise" ] \
+[ -z "$explicit_model_skills" ] \
     || fail "explicit-only skill policy drifted: $explicit_model_skills"
-command -v bun >/dev/null 2>&1 \
-    || fail "bun is required to test the supervise skill's TypeScript helpers"
-bun test tests/supervise.test.ts
 
 # The fleet agent contract: config/agent-contract/schema.json is normative and
 # scripts/validate-agent-contract.ts is its dependency-free enforcement. The two
@@ -2693,7 +2681,7 @@ for required_install in \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
     'remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher' \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
-    'remove renamed skills left in the fixed resources: supervisor  # full install only; the renamed /supervise skill replaces it' \
+    'remove retired skills left in the fixed resources: supervisor supervise  # full install only; /tend replaces worktree supervision with advisory triage' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
@@ -2806,10 +2794,11 @@ grep -F "/\\.claude-swap-backup/sessions/" \
     || fail "installer does not prune stale Claude swap-session Herdr hook definitions"
 printf '%s\n' "$install_plan" | grep -F 'retired livekit-simulations' >/dev/null \
     || fail "installation plan no longer scrubs the retired LiveKit skill"
-# A rename leaves the previous skill directory in the pack, and the additive
-# scan never removes it, so both spellings would reach every session.
-grep -F 'remove_renamed_pack_skills' scripts/install.sh >/dev/null \
-    || fail "installer no longer prunes renamed skills left in the fixed resources"
+# A rename or retirement leaves the previous skill directory in the pack, and
+# the additive scan never removes it, so stale capabilities would reach every
+# session.
+grep -F 'remove_retired_pack_skills' scripts/install.sh >/dev/null \
+    || fail "installer no longer prunes retired skills left in the fixed resources"
 # A second neutral participant proves the plan is convention-driven rather
 # than fitted to the first fixture.
 printf '%s\n' "$install_plan" \

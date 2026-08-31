@@ -41,7 +41,7 @@ flowchart LR
     end
 
     source[agentsource]
-    supervise[agentstart / supervise skill]
+    tend[agentguidance / tend skill]
     board[agentboard]
     wiki[agentwiki]
     chats[cass / agentchats]
@@ -66,8 +66,8 @@ flowchart LR
     usage -->|snapshot --json / select --json [--account]| swap
     usage -->|list --json / recover| claudeSwap
     source -->|read-only agent.list + workspace.list snapshots| herdr
-    supervise -->|peer completion + closed-workspace reap: events.subscribe + agent.list, unix socket| herdr
-    supervise -->|readiness, optional self-wake, completion messages| surface
+    tend -->|inactive-worktree safety: events.subscribe + agent list| herdr
+    tend -->|optional cross-harness self-wake| surface
     brain -->|extraction and discovery| scrape
     scrape -->|stable session; drives| browser
     browser -->|default provider: launch + close over stdio| browse
@@ -134,6 +134,7 @@ flowchart LR
         notify -.->|posts via| notifierCli[terminal-notifier]
         email -.->|reads via| gogCli[gog] & notify
         watchRequests[watch-requests] -.-> notify
+        tend[tend] -.-> notify
     end
 
     watchRequests -.-> chats
@@ -201,7 +202,7 @@ sentence around the match, never from the name alone.
 | codex-swap | codex-multi-auth | exact npm pin, currently 2.10.0. Codex-swap invokes the package-local forced-account wrapper for native Codex runs and resumes. The installer no longer binds the fleet to the patched fork; 2.10.0 carries upstream pinned-retry fixes #682/#683, including the pin-specific pool-token bypass | `codex-swap/package.json`; `codex-swap/src/ndy/bin-resolver.ts`; `codex-swap/scripts/install.sh`; codex-multi-auth PRs #682/#683 |
 | agentusage | claude-swap | `cswap list --json` observes Claude accounts; `cswap recover <slot> --json` repairs due expired tokens; its installer converges the public fork's `main` | `agentusage/src/claude/observe.ts:235`; `src/daemon.ts:78`; `scripts/install-providers.sh` |
 | agentusage | codex-swap | `codex-swap snapshot --json` observes Codex accounts with paced polling; `codex-swap select --json [--account <focused-key>] [--claim]` performs ordinary or focus-pinned main-lane selection, with the provider retaining eligibility and atomic lease ownership | `agentusage/src/codex/observe.ts` (`observeCodex`); `agentusage/src/daemon.ts`; `agentusage/src/balance/codex.ts` (`delegateCodexSelect`) |
-| agentstart `supervise` skill | herdr, agentsurface | its long-lived watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API and reconciles via `agent.list`; candidate readiness, the optional Codex self-wake, and pushed confirmations travel through `agentsurface message`. The guarded integrator mutates only the owning repository's local `main` and `origin/main`. After agent exit and `workspace.closed` correlate, the guarded reaper removes only the exact clean registered worktree, preserves its branch, and appends harness/session/worktree receipts under AgentStart's local state | `agentstart/skills/supervise/SKILL.md`; `agentstart/skills/supervise/scripts/watch.ts`; `agentstart/skills/supervise/scripts/integrate.ts`; `agentstart/skills/supervise/scripts/reap.ts` |
+| agentguidance `tend` skill | herdr, agentsurface | its read-only watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API, queries `herdr agent list` once per survey, and treats every live agent status as ownership that blocks a proposal. Git independently supplies linked-worktree and local-main ancestry state. Optional cross-harness self-wake travels through `agentsurface message`; the woken agent routes human notification through `notify`. Tend emits only removal, catch-up, or inspection minisketches and contains no integration, rebase, removal, branch deletion, or push helper | `agentguidance/skills/tend/SKILL.md`; `agentguidance/skills/tend/scripts/watch.ts`; behavioral coverage in `agentguidance/tests/tend.test.ts` |
 | agentstart | herdr | installs or upgrades the official stable Homebrew formula, then runs `herdr integration install claude\|codex`, links agentsurface's launcher-pane and tab-naming plugin directory with `herdr plugin link`, and renders the version-matched surface skill from `herdr --skill` into the fixed resources. The full installer narrowly removes the retired AgentStart source binary and build state only when its receipt proves ownership; `~/src/herdr` remains research material and has no scheduled update edge | `agentstart/scripts/install.sh` (`install_or_upgrade_formula herdr`, legacy cleanup, `install_herdr_integrations`, `install_herdr_skill`); asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then reloads the default server and every reachable named session; an unavailable server is nonfatal because its next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`, `reload_live_servers`) |
 | agentbrain | agentscrape | evidence pipeline in four argv shapes — `fetch-markdown --markdown`, `fetch-markdown --envelope --allow-private-network --max-content-bytes`, `discover-feed`, `fetch-links --preset x-timeline --limit --max-scrolls` — plus a doctor check; a flag change breaks each shape separately | `agentbrain/src/agentscrape.ts:642,1298-1306,2038,2121-2129`, `src/jobs.ts:736` |
