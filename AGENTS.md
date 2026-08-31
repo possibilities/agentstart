@@ -35,7 +35,8 @@
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. The `fork-rebase-policy` wiki page is the contract.
   `codex-multi-auth` is no longer a managed fork
-  dependency: upstream merged PRs #664 and #665, so codex-swap installs the
+  dependency: upstream merged PRs #664, #665, #682, and #683, and released
+  2.10.0 with the pinned-retry and pool-token fixes, so codex-swap installs the
   exact stock npm pin instead. Its installer keeps the fork behind
   `NDY_FORK_ACTIVE=0` — dormant rather than deleted, which is what makes
   reviving it an edit rather than a rewrite.
