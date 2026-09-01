@@ -136,9 +136,9 @@ tests/remove-retired-capabilities.sh
 sed -n '/^retired_skill_names=(/,/^)/p' scripts/sync-skills \
     | grep -Fx '    supervise' >/dev/null \
     || fail "the additive skill sync can restore retired supervise copies"
-sed -n '/^temporarily_suppressed_skill_names=(/,/^)/p' scripts/sync-skills \
-    | grep -Fx '    chats' >/dev/null \
-    || fail "the additive skill sync can restore the suspended chats skill"
+if grep -q 'temporarily_suppressed_skill_names' scripts/sync-skills; then
+    fail "the skill sync still suppresses a published skill"
+fi
 
 # The obsolete llm model records stay gone, and the retired Orca overlay must
 # not return as a second harness-configuration path.
@@ -253,6 +253,10 @@ jq -e '.skills[] | select(.id == "tend")' site/public/fleet-resources.json >/dev
 if jq -e '.skills[] | select(.id == "supervise")' site/public/fleet-resources.json >/dev/null; then
     fail "the fleet resource snapshot still publishes supervise"
 fi
+grep -F '"chats"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
+    || fail "the fleet resource catalog omits chats"
+jq -e '.skills[] | select(.id == "chats")' site/public/fleet-resources.json >/dev/null \
+    || fail "the fleet resource snapshot omits chats"
 
 # Model invocability is one portable fact in SKILL.md. The common-pack render
 # derives Codex's inverse product field; source manifests must not become a
@@ -2933,6 +2937,12 @@ grep -F 'desktop, terminal-control' skills/fleet/MAP.md >/dev/null \
 grep -F '`attention` — durable human handoff' \
     prompts/agentguidance/TOOLS.md >/dev/null \
     || fail "TOOLS.md does not advertise the Attention skill"
+# shellcheck disable=SC2016 # Backticks name the advertised skill literally.
+grep -F '`chats` — every past Claude Code and Codex session' \
+    prompts/agentguidance/TOOLS.md >/dev/null \
+    || fail "TOOLS.md does not advertise the session history skill"
+grep -F 'board & groom & chats' skills/fleet/MAP.md >/dev/null \
+    || fail "the fleet skill route map omits the chats advertisement"
 
 # Herdr stages the official stable Homebrew formula but must retain the
 # compatible source-built client while the formula is below fleet protocol 21
@@ -3023,6 +3033,9 @@ grep -F 'plugin pane open --plugin agentsurface --entrypoint launch' \
 grep -F 'plugin pane open --plugin agentsurface --entrypoint usage' \
     config/herdr/config.toml >/dev/null \
     || fail "agentusage binding does not open its AgentSurface plugin pane"
+grep -F 'plugin pane open --plugin agentsurface --entrypoint chats' \
+    config/herdr/config.toml >/dev/null \
+    || fail "the session history picker binding does not open its AgentSurface plugin pane"
 grep -F 'HERDR_ACTIVE_PANE_CWD' config/herdr/config.toml >/dev/null \
     || fail "AgentSurface plugin popup does not preserve the active pane cwd"
 for action in pane tab workspace; do
@@ -3281,6 +3294,9 @@ case "$agent_cli_order" in
     *" agentweb "*) fail "agent CLI loop still installs retired agentweb" ;;
 esac
 # shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
+grep -F 'agentchats_root="$code_root/agentchats"' scripts/install.sh >/dev/null \
+    || fail "installer does not own the agentchats installation call"
+# shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
 grep -F 'agentdesk_root="$code_root/agentdesk"' scripts/install.sh >/dev/null \
     || fail "installer does not own the peekaboo installation call"
 # One fleet root, honoured by every script that walks it. A script resolving
@@ -3297,6 +3313,9 @@ for fleet_walker in scripts/install.sh scripts/install-agent-clis \
         fail "$fleet_walker still resolves \$HOME/code directly instead of through code_root"
     fi
 done
+# shellcheck disable=SC2016 # Match the literal invocation in the script.
+grep -F '"$agentchats_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
+    || fail "installer does not invoke the agentchats contract"
 # shellcheck disable=SC2016 # Match the literal invocation in the script.
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke the agentdesk contract"

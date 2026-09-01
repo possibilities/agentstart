@@ -75,25 +75,10 @@ retired_skill_names=(
     supervise
 )
 
-# Session search is being rebuilt over a bounded SQLite index. Keep its old
-# Cass-backed runbook out of managed sessions until the replacement owner
-# removes this temporary suppression and republishes the chats skill.
-temporarily_suppressed_skill_names=(
-    chats
-)
-
 skill_is_retired() {
     local candidate="$1" retired
     for retired in "${retired_skill_names[@]}"; do
         [ "$candidate" = "$retired" ] && return 0
-    done
-    return 1
-}
-
-skill_is_temporarily_suppressed() {
-    local candidate="$1" suppressed
-    for suppressed in "${temporarily_suppressed_skill_names[@]}"; do
-        [ "$candidate" = "$suppressed" ] && return 0
     done
     return 1
 }
@@ -146,7 +131,6 @@ for project in "$code_root"/agent*/; do
     while IFS= read -r skill_name; do
         [ -n "$skill_name" ] || continue
         skill_is_retired "$skill_name" && continue
-        skill_is_temporarily_suppressed "$skill_name" && continue
         skill_names+=("$skill_name")
     done < <(
         for skill_dir in "$project"/skills/*/; do
