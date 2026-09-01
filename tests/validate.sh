@@ -2640,8 +2640,18 @@ grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.s
 # The installation plan embeds the skill sync's own plan, pointed at the
 # fixture tree so the asserted lines are the same on every machine.
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
+
+# Executor initially lands as a standalone GUI. Keep agent registration out of
+# ordinary convergence until the operator explicitly chooses that relationship.
+grep -F 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
+    || fail "the full installer does not converge the Executor desktop cask"
+if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor|executor mcp' \
+    scripts/install.sh; then
+    fail "the Executor desktop install also connects it to an agent harness"
+fi
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
+    'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
@@ -2800,10 +2810,16 @@ if printf '%s\n' "$install_plan" \
     | grep -F '/code/agentdesk"' >/dev/null; then
     fail "installation plan still synchronizes desktop explicitly beside the scan"
 fi
-# The ownership boundary: desktop applications and the GitHub CLI belong to the
-# machine layer, so a cask or gh line here means the seam is leaking back.
-if printf '%s\n' "$install_plan" | grep -Eq -- '--cask|brew install or upgrade gh'; then
-    fail "installation plan crossed the boundary: desktop casks and gh are the machine's"
+# The ownership boundary: general-purpose desktop clients and the GitHub CLI
+# belong to the machine layer. Executor's standalone integration GUI is the
+# one explicit cask exception; any second cask means the seam is leaking back.
+if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
+    | grep -Fv 'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+    >/dev/null; then
+    fail "installation plan contains a desktop cask other than Executor"
+fi
+if printf '%s\n' "$install_plan" | grep -F 'brew install or upgrade gh' >/dev/null; then
+    fail "installation plan crossed the boundary: gh is the machine's"
 fi
 
 # shellcheck disable=SC2016 # Match the literal helper invocations in the script.
@@ -3285,11 +3301,20 @@ done
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke the agentdesk contract"
 
-# The ownership boundary, from this side: nothing here may install a desktop
-# cask, migrate gh credentials, or grow launchd machinery — those are the
-# machine's.
-if grep -Eq -- '--cask' scripts/install.sh scripts/sync-skills; then
-    fail "an AgentStart script crossed the boundary: casks are the machine's"
+# The ownership boundary, from this side: Executor is the only desktop cask
+# this repository may install. Its generic helper may mention the cask flag,
+# but it must have exactly one caller, and the unattended sync may never use it.
+if grep -Eq -- '--cask' scripts/sync-skills; then
+    fail "the unattended sync tried to install a desktop cask"
+fi
+# shellcheck disable=SC2016 # Match the literal generic helper variable.
+if grep -E -- '--cask' scripts/install.sh \
+    | grep -Ev 'executor|"\$cask"' >/dev/null; then
+    fail "an AgentStart script installs a desktop cask other than Executor"
+fi
+if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 1 ] \
+    || ! grep -Fx 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null; then
+    fail "Executor is not the installer's sole desktop cask"
 fi
 if grep -F 'oauth_token' scripts/install.sh >/dev/null; then
     fail "an AgentStart script crossed the boundary: gh migration is the machine's"

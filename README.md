@@ -54,6 +54,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   own checkout's contract, skipping checkouts that are absent:
 
   - Claude Code and Codex, by their official installers;
+  - the Executor desktop app through its official Homebrew cask, installed as
+    a standalone integration GUI without registering it with any harness;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -85,8 +87,11 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`; the machine's wrapper of the same name delegates
   here.
-AI desktop applications are not here by design: the claude and chatgpt casks
-belong to the machine layer, as does the `gh` credential migration.
+General-purpose AI desktop clients are not here by design: the Claude and
+ChatGPT casks belong to the machine layer, as does the `gh` credential
+migration. Executor is the narrow exception because its integration catalog is
+deeply related to the fleet. AgentStart installs its GUI, but deliberately does
+not register its MCP endpoint with Claude Code, Codex, Fx, or any other harness.
 
 ## Herdr and Ghostty color
 

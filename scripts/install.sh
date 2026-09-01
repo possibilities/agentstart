@@ -33,9 +33,9 @@ usage() {
     cat <<'EOF'
 Usage: scripts/install.sh [--install|--check|--content]
 
-Install the AI command-line tools, harness configuration, and agent skills
-owned by AgentStart. The machine's installer invokes this after converging
-Homebrew and the AI desktop applications; it is also safe to run standalone.
+Install the AI tools, harness configuration, and agent skills owned by
+AgentStart. The machine's installer invokes this after converging the machine
+layer; it is also safe to run standalone.
 
 Options:
   --install  Install or upgrade everything
@@ -430,6 +430,9 @@ fi
 
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
+Desktop integration UI:
+  brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration
+
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
@@ -533,7 +536,28 @@ install_or_upgrade_formula() {
         || die "Homebrew formula verification failed: $formula"
 }
 
+install_or_upgrade_cask() {
+    local cask="$1"
+
+    if "$brew_bin" list --cask --versions "$cask" >/dev/null 2>&1; then
+        # Executor declares auto_updates, so --greedy is required for Homebrew
+        # to converge a newer published cask instead of deferring to the app.
+        "$brew_bin" upgrade --cask --greedy --yes "$cask"
+    else
+        "$brew_bin" install --cask --yes "$cask"
+    fi
+    "$brew_bin" list --cask --versions "$cask" >/dev/null \
+        || die "Homebrew cask verification failed: $cask"
+}
+
 export HOMEBREW_NO_ASK=1
+
+# Executor is a shared integration catalog for the fleet, so its desktop UI is
+# a deliberate toolchain exception to the machine-owned Claude and ChatGPT
+# casks. Installation stops at Executor.app: do not register its MCP endpoint
+# with any harness here. That later connection is an explicit operator choice.
+printf 'Installing or upgrading the Executor desktop app (standalone; no agent connection).\n'
+install_or_upgrade_cask executor
 
 # Keep Claude's vendor staging under macOS's stable cache root. This machine's
 # ~/.cache may be a machine-managed link to removable scratch storage, while

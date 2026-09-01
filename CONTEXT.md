@@ -16,8 +16,12 @@ the rule).
 
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
-extension prompts, and every fixed private fleet resource. The AI *desktop
-applications* are not toolchain; they are Homebrew casks, and the machine's.
+extension prompts, every fixed private fleet resource, and Executor's
+standalone integration GUI. General-purpose AI *desktop clients* are not
+toolchain; the Claude and ChatGPT casks are the machine's. Executor is the
+narrow exception because its shared integration catalog is deeply related to
+the fleet; installing its cask does not register its MCP endpoint with a
+harness.
 _Avoid_: stack, setup.
 
 **Fmx source installation** — Fmx's repository-owned `scripts/install.sh`,
