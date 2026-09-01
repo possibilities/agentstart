@@ -25,7 +25,7 @@ const categoryCatalog = [
     id: "knowledge",
     label: "Find and preserve knowledge",
     description: "Research the web and local archives, then keep conclusions somewhere durable.",
-    skills: ["brain", "chats", "search", "scrape", "wiki", "resource-create", "resource-update"],
+    skills: ["brain", "search", "scrape", "wiki", "resource-create", "resource-update"],
   },
   {
     id: "operate",
@@ -73,7 +73,6 @@ const displayNames = {
   browser: "Browser",
   build: "Build",
   bus: "Agent Bus",
-  chats: "Past Chats",
   collab: "Collaborate",
   desktop: "Desktop",
   email: "Email and Calendar",

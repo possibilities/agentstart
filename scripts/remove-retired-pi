@@ -1701,42 +1701,17 @@ validate_agentchats_deployment() {
     local relevant=0 root="$cleanup_code_root/agentchats"
     local source="$cleanup_code_root/agentchats/bin/agentchats"
     local command="$cleanup_home/.local/bin/agentchats"
-    local cass="$cleanup_home/.local/bin/cass"
     local pending_receipt="$cleanup_home/.local/state/agentchats/pi-retirement-v1.pending.json"
-    local exclusions stats search
     for path in \
-        "$command" "$cass" \
-        "$pending_receipt" \
-        "$cleanup_home/Library/Application Support/com.coding-agent-search.coding-agent-search"; do
+        "$command" "$pending_receipt"; do
         path_exists "$path" && relevant=1
     done
     [ "$relevant" -eq 1 ] || return 0
 
     validate_pi_free_checkout "$root" agentchats "$source"
     validate_exact_deployed_link "$command" "$source" AgentChats
-    assert_inside_home "$cass"
-    path_exists "$cass" && [ -x "$cass" ] \
-        || die "required Cass command is missing after AgentChats retirement: $cass"
     ! path_exists "$pending_receipt" \
         || die "completed AgentChats retirement receipt remains: $pending_receipt"
-
-    exclusions=$(HOME="$cleanup_home" "$cass" sources agents list --json) \
-        || die "Cass could not report retired connector exclusions"
-    printf '%s\n' "$exclusions" \
-        | jq -e '.disabled_agents | type == "array" and index("pi_agent") != null' \
-            >/dev/null 2>&1 \
-        || die "Cass has not persistently disabled its retired pi_agent connector"
-    stats=$(HOME="$cleanup_home" "$cass" stats --json) \
-        || die "Cass could not report retired connector archive counts"
-    printf '%s\n' "$stats" \
-        | jq -e '(.by_agent | type == "array") and ([.by_agent[] | select(.agent == "pi_agent") | .count] | add // 0) == 0' \
-            >/dev/null 2>&1 \
-        || die "Cass still reports indexed pi_agent archive rows"
-    search=$(HOME="$cleanup_home" "$cass" search "" --robot --agent pi_agent --limit 1) \
-        || die "Cass could not prove zero retired connector search hits"
-    printf '%s\n' "$search" \
-        | jq -e '.count == 0' >/dev/null 2>&1 \
-        || die "Cass still serves retired pi_agent search hits"
 }
 
 validate_pi_free_herdr_config() {

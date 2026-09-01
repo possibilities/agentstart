@@ -36,9 +36,10 @@ say when.
 - `groom` — reshaping the plan in bulk: merging duplicates, splitting an
   epic, re-planning. Several board changes at once is `groom`, not
   `board`.
-- `chats` — every past coding-agent session on this machine: load when a
-  bug, error, or decision feels familiar, or to reconstruct what an
-  earlier session did.
+- Session history search is temporarily between implementations. When a past
+  conversation is needed, use ordinary bounded filesystem tools (`rg` first,
+  then `jq` or `sed` on specific matches) against `~/.codex/sessions` and
+  `~/.claude/projects`; never print or scan either archive unboundedly.
 - `bus` — messaging another live agent on this machine's surface: telling
   a peer session something, asking one a question, or replying when a
   message "sent over the agent message bus" arrives. Delivery types into

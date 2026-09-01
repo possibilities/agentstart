@@ -73,7 +73,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     shim, through agentusage's installer;
   - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
     harness integrations and skills;
-  - cass, the fleet launch agents, and finally `sync-skills`.
+  - the fleet launch agents, and finally `sync-skills`.
 
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.

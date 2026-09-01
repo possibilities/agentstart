@@ -499,9 +499,6 @@ EOF
     "$script_dir/remove-retired-agentweb" --check
     printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
-    if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
-        "$code_root/agentchats/scripts/install.sh" --check
-    fi
     "$script_dir/remove-retired-pi" --check
     if [ -f "$code_root/agentdesk/scripts/install.sh" ]; then
         "$code_root/agentdesk/scripts/install.sh" --check
@@ -1169,32 +1166,11 @@ printf "Linking AgentStart's ordered agentbrowse deployment configuration.\n"
 printf "Linking AgentStart's default agentbrowse provider configuration.\n"
 "$script_dir/agent-browser-config" install
 
-# cass — the coding-agent session search CLI — installs by the agentchats
-# checkout's own contract: the upstream checksummed release plus the index
-# over the local Claude Code and Codex session stores. Its chats skill
-# ships through the agent* checkout skill scan like every other tool's. A
-# machine without the checkout skips, like the agent CLIs above; a present
-# checkout that fails to install is a real error.
-agentchats_root="$code_root/agentchats"
-if [ -f "$agentchats_root/scripts/install.sh" ]; then
-    agentchats_status=0
-    "$agentchats_root/scripts/install.sh" --install || agentchats_status=$?
-    if [ "$agentchats_status" -ne 0 ]; then
-        printf 'AgentStart installer: cass install failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or %s/scripts/install.sh --install.\n' \
-            "$agentchats_status" "$agentchats_root" >&2
-        exit "$agentchats_status"
-    fi
-else
-    printf 'AgentStart installer: no agentchats checkout at %s; skipping cass.\n' \
-        "$agentchats_root"
-fi
-
 # Retire Pi only after AgentLaunch and AgentSurface have installed their
-# Pi-free producer contracts and AgentChats has refreshed Cass. The retirement
-# gate below retains Cass's exclusion, archive-count, and search postconditions
-# after AgentChats removed its completed one-time migration helpers. The JSONL
-# cleanup preserves each live log inode, so a final unrelated append cannot be
-# lost to temp-file replacement.
+# Pi-free producer contracts. AgentChats' completed one-time migration receipt
+# remains a refusal gate, but retired session-search implementation details are
+# no longer part of this machine cleanup. The JSONL cleanup preserves each live
+# log inode, so a final unrelated append cannot be lost to temp-file replacement.
 printf 'Removing the retired Pi CLI and exact machine state roots.\n'
 "$script_dir/remove-retired-pi" --install
 

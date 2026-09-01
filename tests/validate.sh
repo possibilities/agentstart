@@ -136,6 +136,9 @@ tests/remove-retired-capabilities.sh
 sed -n '/^retired_skill_names=(/,/^)/p' scripts/sync-skills \
     | grep -Fx '    supervise' >/dev/null \
     || fail "the additive skill sync can restore retired supervise copies"
+sed -n '/^temporarily_suppressed_skill_names=(/,/^)/p' scripts/sync-skills \
+    | grep -Fx '    chats' >/dev/null \
+    || fail "the additive skill sync can restore the suspended chats skill"
 
 # The obsolete llm model records stay gone, and the retired Orca overlay must
 # not return as a second harness-configuration path.
@@ -867,33 +870,14 @@ install_retired_pi_agentsurface_contract() {
 
 install_retired_pi_agentchats_contract() {
     local fixture_home="$1"
-    local cass_fixture="$fixture_home/.local/bin/cass"
     mkdir -p "$fixture_home/.local/bin"
     ln -s "$retired_pi_contract_code_root/agentchats/bin/agentchats" \
         "$fixture_home/.local/bin/agentchats"
-cat >"$cass_fixture" <<'EOF'
-#!/bin/bash
-set -euo pipefail
-"$AGENTSTART_TEST_PI_LOCK_ASSERT"
-case "$*" in
-    'sources agents list --json')
-        printf '%s\n' '{"disabled_agents":["pi_agent"]}'
-        ;;
-    'stats --json')
-        printf '%s\n' '{"by_agent":[{"agent":"claude_code","count":1}]}'
-        ;;
-    'search  --robot --agent pi_agent --limit 1')
-        printf '%s\n' '{"count":0,"hits":[]}'
-        ;;
-    *) exit 64 ;;
-esac
-EOF
-    chmod +x "$cass_fixture"
 }
 
 # AgentChats removed its completed one-time migration helpers after a7dd713.
-# AgentStart retains only the durable Cass postconditions, including refusal
-# when the old retry receipt says that migration did not finish.
+# AgentStart retains refusal when the old retry receipt says that migration did
+# not finish, without coupling the cleanup to a particular search backend.
 pending_agentchats_home="$skip_test_dir/pending-agentchats-retirement-home"
 mkdir -p \
     "$pending_agentchats_home/.pi" \
@@ -3281,9 +3265,6 @@ case "$agent_cli_order" in
     *" agentweb "*) fail "agent CLI loop still installs retired agentweb" ;;
 esac
 # shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
-grep -F 'agentchats_root="$code_root/agentchats"' scripts/install.sh >/dev/null \
-    || fail "installer does not own the cass installation call"
-# shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
 grep -F 'agentdesk_root="$code_root/agentdesk"' scripts/install.sh >/dev/null \
     || fail "installer does not own the peekaboo installation call"
 # One fleet root, honoured by every script that walks it. A script resolving
@@ -3300,9 +3281,6 @@ for fleet_walker in scripts/install.sh scripts/install-agent-clis \
         fail "$fleet_walker still resolves \$HOME/code directly instead of through code_root"
     fi
 done
-# shellcheck disable=SC2016 # Match the literal invocation in the script.
-grep -F '"$agentchats_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke the agentchats contract"
 # shellcheck disable=SC2016 # Match the literal invocation in the script.
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke the agentdesk contract"
