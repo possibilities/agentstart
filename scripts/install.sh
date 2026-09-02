@@ -17,7 +17,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # gate approve the published Integration commit. Ordinary convergence reuses
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
-fx_integration_sha=b2f8a38caf52c13ab1eb2e21637481d2eb0e95f8
+fx_integration_sha=2768915148c927e0fd87cb87c3cf0001af719a39
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -451,7 +451,7 @@ Command-line tools:
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
-  ~/code/fxnk/scripts/install.sh --install --sha b2f8a38caf52c13ab1eb2e21637481d2eb0e95f8  # exact ship-gate-approved Fx Integration consumer pin
+  ~/code/fxnk/scripts/install.sh --install --sha 2768915148c927e0fd87cb87c3cf0001af719a39  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
