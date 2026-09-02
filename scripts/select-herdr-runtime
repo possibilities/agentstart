@@ -62,7 +62,7 @@ server_socket_state() {
 }
 
 mode="${1:-}"
-fleet_minimum_protocol=21
+fleet_minimum_protocol=20
 minimum_protocol="${AGENTSTART_HERDR_MIN_PROTOCOL:-$fleet_minimum_protocol}"
 cutover_allowed="${AGENTSTART_HERDR_ALLOW_CUTOVER:-0}"
 legacy_herdr_bin="${AGENTSTART_LEGACY_HERDR_BIN:-$HOME/.local/bin/herdr}"

@@ -2675,7 +2675,7 @@ for required_install in \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
-    'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 21+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
+    'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
     'herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned' \
     '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
     'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
@@ -2950,7 +2950,7 @@ grep -F 'board & groom & chats' skills/fleet/MAP.md >/dev/null \
     || fail "the fleet skill route map omits the chats advertisement"
 
 # Herdr stages the official stable Homebrew formula but must retain the
-# compatible source-built client while the formula is below fleet protocol 21
+# compatible source-built client while the formula is below fleet protocol 20
 # or any default/named server socket exists. The retired updater is absent,
 # and inactive cutover removes its binary only when the 40-hex receipt,
 # regular-file shape, owner, and write-time all agree.
@@ -2984,8 +2984,8 @@ fi
 # shellcheck disable=SC2016 # Match the exact selector invocation.
 grep -F 'herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr")' scripts/install.sh >/dev/null \
     || fail "installer does not select a safe Herdr runtime after staging Homebrew"
-grep -F 'fleet_minimum_protocol=21' scripts/select-herdr-runtime >/dev/null \
-    || fail "Herdr cutover does not enforce fleet protocol 21"
+grep -F 'fleet_minimum_protocol=20' scripts/select-herdr-runtime >/dev/null \
+    || fail "Herdr cutover does not enforce fleet protocol 20"
 # shellcheck disable=SC2016 # Match the literal configurable protocol expression.
 grep -F '[ "$minimum_protocol" -ge "$fleet_minimum_protocol" ]' scripts/select-herdr-runtime >/dev/null \
     || fail "Herdr cutover allows its protocol floor to be lowered"

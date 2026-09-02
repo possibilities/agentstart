@@ -42,7 +42,7 @@
   reviving it an edit rather than a rewrite.
 - Herdr is moving from AgentStart's retired `~/src/herdr` updater to the
   official stable Homebrew formula. `scripts/select-herdr-runtime` is the
-  cutover guard: stable must speak fleet protocol 21 or newer and every
+  cutover guard: stable must speak fleet protocol 20 or newer and every
   default/named server socket must be absent before the receipt-proved source
   binary is removed. While a socket is present or uncertain, full convergence
   leaves Homebrew's installed bytes unchanged and keeps the compatible client
