@@ -2330,7 +2330,7 @@ mkdir -p \
     "$code_skills_root/agentbus/skills/bus" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
-    "$code_skills_root/agentexample/skills/story" \
+    "$code_skills_root/agentexample/skills/example" \
     "$code_skills_root/agentquiet/src" \
     "$code_skills_root/agentretired/skills/orchestration" \
     "$code_skills_root/notagent/skills/x"
@@ -2338,7 +2338,7 @@ for code_skills_fixture in \
     agentbus/skills/bus \
     agentdemo/skills/demo \
     agentdemo/skills/second \
-    agentexample/skills/story \
+    agentexample/skills/example \
     agentretired/skills/orchestration \
     notagent/skills/x; do
     code_skills_name=${code_skills_fixture##*/}
@@ -2400,7 +2400,7 @@ printf '%s\n' "$sync_plan" \
         >/dev/null \
     || fail "skill sync plan omits the skills discovered in a participating checkout"
 printf '%s\n' "$sync_plan" \
-    | grep -F "npx --yes skills add \"$code_skills_root/agentexample\" --agent claude-code --skill story --global --copy --yes" \
+    | grep -F "npx --yes skills add \"$code_skills_root/agentexample\" --agent claude-code --skill example --global --copy --yes" \
         >/dev/null \
     || fail "skill sync plan omits a second neutral participant"
 if printf '%s\n' "$sync_plan" | grep -Eq 'agentquiet|notagent'; then
@@ -2454,7 +2454,7 @@ fi
 grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentdemo> <--agent> <claude-code> <--skill> <demo> <second> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
     || fail "skill sync did not ship both discovered skills in one invocation"
-grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentexample> <--agent> <claude-code> <--skill> <story> <--global> <--copy> <--yes>" \
+grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentexample> <--agent> <claude-code> <--skill> <example> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
     || fail "skill sync skipped a neutral participant"
 if grep -E 'agentquiet|notagent' "$code_skills_log" >/dev/null; then
@@ -2540,7 +2540,7 @@ grep -F 'model = "fixture-model"' "$fixture_codex_config" >/dev/null \
     || fail "Codex skill policy replaced unrelated configuration"
 grep -F 'name = "unrelated"' "$fixture_codex_config" >/dev/null \
     || fail "Codex skill policy replaced an unrelated skill entry"
-for fixture_skill in bus demo second story; do
+for fixture_skill in bus demo second example; do
     grep -F "name = \"agent:$fixture_skill\"" "$fixture_codex_config" >/dev/null \
         || fail "Codex skill policy omitted the managed $fixture_skill skill"
 done
@@ -2679,7 +2679,7 @@ for required_install in \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
     'remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher' \
     'remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved' \
-    'remove retired skills left in the fixed resources: supervisor supervise  # full install only; /tend replaces worktree supervision with advisory triage' \
+    'remove retired skills left in the fixed resources: supervisor supervise orchestrate prompt resource-create resource-update story watch-requests  # full install only; /tend replaces worktree supervision with advisory triage' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
     'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \

@@ -111,6 +111,12 @@ remove_legacy_global_skills() {
         computer-use
         supervisor
         supervise
+        orchestrate
+        prompt
+        resource-create
+        resource-update
+        story
+        watch-requests
     )
     local project skill_dir skill_name previous_names
 
@@ -241,6 +247,12 @@ remove_retired_home_guidance() {
 retired_pack_skill_names=(
     supervisor
     supervise
+    orchestrate
+    prompt
+    resource-create
+    resource-update
+    story
+    watch-requests
 )
 
 remove_retired_pack_skills() {
@@ -491,7 +503,7 @@ Fixed private fleet resources:
   install hunk-review with --copy into the fixed resources
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the fixed resources
-  remove retired skills left in the fixed resources: supervisor supervise  # full install only; /tend replaces worktree supervision with advisory triage
+  remove retired skills left in the fixed resources: supervisor supervise orchestrate prompt resource-create resource-update story watch-requests  # full install only; /tend replaces worktree supervision with advisory triage
   remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant
 
 Content convergence (everything below is also scripts/install.sh --content,
@@ -1143,15 +1155,15 @@ install_hunk_skill() {
 printf 'Installing the Hunk review skill from the installed binary.\n'
 install_hunk_skill
 
-# The surface skill — herdr is the orchestrator doctrine's reference launch
-# surface — ships inside the herdr binary (`herdr --skill`), so the installed
+# The surface skill — herdr is the fleet's shared launch surface — ships
+# inside the herdr binary (`herdr --skill`), so the installed
 # skill converges with the installed build on every run, exactly like the
 # harness integrations above, and never tracks a different release than the
 # stable formula. The rendered pack lives
 # in a managed state root shaped like a checkout (skills/herdr/) so the same
 # `skills add` mechanism ships it into the fixed private resources. Deliberately
-# not advertised in TOOLS.md: a role skill is named by the orchestrator
-# doctrine, not by the always-on advertisement surface (the
+# not advertised in TOOLS.md: its own trigger covers explicit Herdr work, so
+# it does not spend attention in unrelated conversations (the
 # tool-advertisement-policy wiki page).
 install_herdr_skill() {
     local pack_root="$HOME/.local/share/agentstart/herdr-skill"

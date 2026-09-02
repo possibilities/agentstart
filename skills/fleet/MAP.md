@@ -131,25 +131,21 @@ flowchart LR
     end
 
     subgraph guidanceSkills [agentguidance skills]
-        resource[resource-create / resource-update] -.->|built on| brainCli[agentbrain CLI]
-        story -.->|publishes via| wikiCli[agentwiki CLI]
         notify -.->|posts via| notifierCli[terminal-notifier]
         email -.->|reads via| gogCli[gog] & notify
-        watchRequests[watch-requests] -.-> notify
         tend[tend] -.-> notify
     end
 
-    watchRequests -.-> chats
     bus -.-> notify
     desktop -.-> notify
 
-    tools[TOOLS.md — agentstart prompts, spliced into collab, build, and orchestrate at render] -.-> search & scrape & brain & browser & attention & wiki & board & groom & chats & notify & bus & desktop
+    tools[TOOLS.md — agentstart prompts, spliced into collab and build at render] -.-> search & scrape & brain & browser & attention & wiki & board & groom & chats & notify & bus & desktop
 ```
 
 The TOOLS.md node is the widest fan-out in the fleet and this repository is
 its origin: `agentguidance/scripts/render` splices
 `prompts/agentguidance/TOOLS.md`
-into the collab, build, and orchestrate skills at their
+into the collab and build skills at their
 `<!-- extension-prompt: TOOLS.md -->`
 markers, so those skills route to all advertised tools without
 their templates naming any of them. That is why the tool-advertisement
@@ -288,12 +284,8 @@ per-TUI app-server topology and are no longer needed by this fleet.
 | stateinsurance | attention, browser | the project work-round skill routes bounded questions, document approvals, and exact-target MyMaineConnection interaction to attention while browser owns the stable `mainecare` session, persistent profile, and live-target handoff (`stateinsurance/.claude/skills/stateinsurance/SKILL.md`; `stateinsurance/AGENTS.md`) |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
-| GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab, build, and orchestrate at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
+| GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab and build at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
 | bus | notify | a blocked bus target is waiting on the operator, so a message that matters escalates to a human notification instead of more retries (`agentsurface/skills/bus/SKILL.md`) |
-| orchestrate (agentguidance) | collab, build, herdr | the wielder: collab's contract holds on the conversation thread, and execution leaves as standalone briefs run under build's contract by dispatched workers (`agentguidance/skills/orchestrate/SKILL.md`, `fragments/orchestrator-conduct.md`). Dispatch runs on two lanes: the native facility for work in the orchestrator's own service, and the surface — herdr — for the work itself; the orchestrator rendition binds herdr by name and loads its skill for placement mechanics |
-| resource-create / resource-update (agentguidance) | brain | resources are built from and refreshed against the agentbrain index |
-| story (agentguidance) | wiki | publishes the finished narrative through agentwiki |
-| watch-requests (agentguidance) | chats, notify | the watch diagnoses but never authors: the `chats` skill finds the session that opened the request, `agentchats resume <source_path> --shell` prints its native invocation, and notify carries that command and the steering prompt to the human (`agentguidance/skills/watch-requests/SKILL.md:191,195,232`) |
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
 
 ## Checked and absent
@@ -502,3 +494,13 @@ the picker still enriches rows through `agentsurface conversation describe`,
 and `--x-resume` still carries the session to agentlaunch. TOOLS.md
 re-advertises `chats`, and agentguidance's watch-requests now names
 `agentchats resume <source_path> --shell`.
+Updated 2026-09-01 for the agentguidance skill retirement: orchestrate,
+prompt, resource-create, resource-update, story, and watch-requests are
+deleted at their source, and with them every edge they carried — the
+resource skills' agentbrain dependency, story's agentwiki publication,
+watch-requests' chats and notify routes, and orchestrate's collab, build,
+and herdr wielding. TOOLS.md now splices into collab and build only.
+AgentStart filters all six from the additive sync and removes their
+fixed-resource residue on a full install; the orchestrator dispatch
+vocabulary retired with them, leaving Surface defined only by what tend
+observes.
