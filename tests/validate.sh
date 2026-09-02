@@ -26,12 +26,14 @@ scripts/install-launchagents
 scripts/configure-agentsource-webhooks
 scripts/agentbrowse-config
 scripts/agent-browser-config
+scripts/agent-browser-link.sh
 scripts/fmx-config
 scripts/herdr-config
 scripts/select-herdr-runtime
 tests/validate.sh
 tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
+tests/agent-browser-link.sh
 tests/fmx-config.sh
 tests/herdr-config.sh
 tests/herdr-homebrew-cutover.sh
@@ -70,6 +72,8 @@ done
     || fail "agentbrowse config test is not executable: tests/agentbrowse-config.sh"
 [ -x tests/agent-browser-config.sh ] \
     || fail "agent-browser config test is not executable: tests/agent-browser-config.sh"
+[ -x tests/agent-browser-link.sh ] \
+    || fail "agent-browser link test is not executable: tests/agent-browser-link.sh"
 [ -x tests/fmx-config.sh ] \
     || fail "fmx config test is not executable: tests/fmx-config.sh"
 [ -x tests/herdr-config.sh ] \
@@ -125,6 +129,7 @@ tests/agentbrowse-config.sh
 ' config/agent-browser/config.json >/dev/null \
     || fail "default agent-browser config does not select the agentbrowse provider"
 tests/agent-browser-config.sh
+tests/agent-browser-link.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
 tests/remove-retired-agentweb.sh
@@ -2682,7 +2687,7 @@ for required_install in \
     'remove retired skills left in the fixed resources: supervisor supervise orchestrate prompt resource-create resource-update story watch-requests  # full install only; /tend replaces worktree supervision with advisory triage' \
     'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
-    'ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
+    'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
     'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
@@ -3186,8 +3191,14 @@ if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.s
 fi
 grep -F 'agent_browser_version=0.33.2' scripts/install.sh >/dev/null \
     || fail "installer does not pin the Agentbrowse- and Agentscrape-bound agent-browser build"
-grep -F 'refusing to replace independent file' scripts/install.sh >/dev/null \
+grep -F 'refusing to replace independent file' scripts/agent-browser-link.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
+# shellcheck disable=SC2016 # Match the literal command substitution in the installer.
+grep -F 'agent_browser_npm_prefix=$(npm prefix --global)' scripts/install.sh >/dev/null \
+    || fail "installer does not resolve agent-browser from npm's global prefix"
+# shellcheck disable=SC2016 # Match the literal variable reference in the installer.
+grep -F 'link_agent_browser "$agent_browser_npm_prefix"' scripts/install.sh >/dev/null \
+    || fail "installer does not publish npm's physical agent-browser entrypoint"
 
 # The fleet statusline is one bar in two harness idioms: a render command for
 # Claude and an ordered pick from Codex's fixed item set. Codex has no custom

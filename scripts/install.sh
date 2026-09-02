@@ -52,6 +52,9 @@ die() {
     exit 1
 }
 
+# shellcheck source=/dev/null
+source "$script_dir/agent-browser-link.sh"
+
 find_brew() {
     if command -v brew >/dev/null 2>&1; then
         command -v brew
@@ -468,7 +471,7 @@ Command-line tools:
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
   npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
-  ln -sfn "$(command -v agent-browser)" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
+  ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
   remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
@@ -1044,23 +1047,13 @@ npm install --global "agent-browser@$agent_browser_version"
 # Publish the stable candidate Agentscrape resolves before falling back to PATH.
 # Both consumers run under launchd, whose minimal PATH never reaches a tool
 # installed under a Node version manager, and the version-manager path itself
-# changes with every Node upgrade. This link is the one address that does not.
-link_agent_browser() {
-    local source
-    local target="$HOME/.local/bin/agent-browser"
-
-    source=$(command -v agent-browser) \
-        || die "agent-browser is not on PATH after installing it"
-    if [ -e "$target" ] && [ ! -L "$target" ]; then
-        die "refusing to replace independent file: $target"
-    fi
-    mkdir -p "$HOME/.local/bin"
-    ln -sfn "$source" "$target"
-    [ -x "$target" ] || die "linked agent-browser is not executable: $target"
-}
-
+# changes with every Node upgrade. Resolve npm's physical global entrypoint
+# before replacing the stable address, so a prior stable link cannot select
+# itself through PATH.
 printf 'Linking the stable agent-browser candidate into ~/.local/bin.\n'
-link_agent_browser
+agent_browser_npm_prefix=$(npm prefix --global) \
+    || die "could not resolve npm's global prefix after installing agent-browser"
+link_agent_browser "$agent_browser_npm_prefix"
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
