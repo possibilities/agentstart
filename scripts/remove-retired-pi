@@ -1620,7 +1620,10 @@ validate_agentlaunch_deployment() {
     local source="$cleanup_code_root/agentlaunch/src/main.ts"
     local command="$cleanup_home/.local/bin/agentlaunch"
     local receipt="$cleanup_home/.local/state/agentlaunch/deployed-sha"
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-c22f679198f919c96f52c5d18dc9b0eb09d454c0}"
+    # Re-reviewed after AgentLaunch's contract-derived parser/help merge; the
+    # published command still exposes only Claude/Codex and explicitly refuses
+    # every retired Pi spelling.
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-799fb424358d131801a1a0655260c8202b254088}"
     local receipt_sha receipt_mode catalog rejection
     for path in \
         "$command" "$receipt" \
@@ -1670,7 +1673,9 @@ validate_agentsurface_deployment() {
     local relevant=0 root="$cleanup_code_root/agentsurface"
     local source="$cleanup_code_root/agentsurface/src/main.ts"
     local command="$cleanup_home/.local/bin/agentsurface" guide
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-17dc1529b088aad86fab39f5fd2af9bfec53cddc}"
+    # Re-reviewed after AgentSurface adopted its contract-derived parser/help;
+    # the published contract contains no retired Pi harness authority.
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-cb1c09fd92f5f30ee3484aa60975070885302d43}"
     for path in \
         "$command" \
         "$cleanup_home/.local/share/agentsurface/shims/pi" \
