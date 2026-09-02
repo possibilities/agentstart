@@ -57,6 +57,26 @@ printf '%s\n' 'old projection' >"$retired_root/packs/common/projection"
 run_cleanup --install >/dev/null
 [ ! -e "$retired_root" ] || fail "manifest-owned tree survived cleanup"
 
+# The old renderer can leave only its fixed directory skeleton after another
+# convergence removes the managed files. With no occupant bytes left, that
+# exact shape is safe to retire; an extra directory remains foreign below.
+reset_roots
+mkdir -p "$retired_root/packs/common"
+plan=$(run_cleanup --check)
+printf '%s\n' "$plan" | grep -F 'empty managed skeleton' >/dev/null \
+    || fail "check mode did not identify the empty managed skeleton"
+[ -e "$retired_root" ] || fail "check mode mutated the empty skeleton"
+run_cleanup --install >/dev/null
+[ ! -e "$retired_root" ] || fail "empty managed skeleton survived cleanup"
+
+reset_roots
+mkdir -p "$retired_root/packs/common/foreign"
+if run_cleanup --install >/dev/null 2>&1; then
+    fail "cleanup accepted an extra empty directory"
+fi
+[ -d "$retired_root/packs/common/foreign" ] \
+    || fail "refused cleanup removed the extra empty directory"
+
 # A transition-era residue may have lost the pack manifest. Every remaining
 # path must still match the freshly rendered replacement, with only the exact
 # later invocation-policy trailer allowed on OpenAI manifests.

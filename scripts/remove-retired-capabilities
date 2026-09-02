@@ -1,7 +1,8 @@
 #!/bin/bash
-# Remove the retired capability-pack tree only when its old manifest or every
-# remaining byte proves that AgentStart produced it. The fixed resource set is
-# the replacement and must already be rendered before this helper runs.
+# Remove the retired capability-pack tree only when its old manifest, every
+# remaining byte, or its exact empty directory skeleton proves that AgentStart
+# produced it. The fixed resource set is the replacement and must already be
+# rendered before this helper runs.
 
 set -euo pipefail
 
@@ -17,7 +18,8 @@ usage() {
 Usage: scripts/remove-retired-capabilities [--install|--check]
 
 Remove AgentStart's retired capability-pack tree only when its original
-manifest or an exact fixed-resource comparison proves ownership.
+manifest, exact empty skeleton, or a fixed-resource comparison proves
+ownership.
 EOF
 }
 
@@ -52,6 +54,38 @@ manifest_without_policy_is_managed() {
         || /usr/bin/cmp -s "$scratch_root/current-suffix" \
             "$scratch_root/expected-false"
 }
+
+empty_skeleton_is_managed() (
+    local candidate_root="$1"
+    local path scratch_root
+    local saw_root=0 saw_packs=0 saw_common=0
+
+    [ -d "$candidate_root" ] && [ ! -L "$candidate_root" ] || return 1
+    [ -d "$candidate_root/packs" ] \
+        && [ ! -L "$candidate_root/packs" ] || return 1
+    [ -d "$candidate_root/packs/common" ] \
+        && [ ! -L "$candidate_root/packs/common" ] || return 1
+
+    scratch_root=$(/usr/bin/mktemp -d \
+        "${TMPDIR:-/tmp}/agentstart-capability-proof.XXXXXX") || return 1
+    trap '/bin/rm -rf -- "$scratch_root"' EXIT
+    /usr/bin/find "$candidate_root" -print0 >"$scratch_root/inventory" \
+        || return 1
+
+    while IFS= read -r -d '' path; do
+        [ -d "$path" ] && [ ! -L "$path" ] || return 1
+        case "$path" in
+            "$candidate_root") saw_root=1 ;;
+            "$candidate_root/packs") saw_packs=1 ;;
+            "$candidate_root/packs/common") saw_common=1 ;;
+            *) return 1 ;;
+        esac
+    done <"$scratch_root/inventory"
+
+    [ "$saw_root" -eq 1 ] \
+        && [ "$saw_packs" -eq 1 ] \
+        && [ "$saw_common" -eq 1 ]
+)
 
 skill_residue_is_managed() (
     local candidate_root="$1"
@@ -146,6 +180,8 @@ classify_root() {
                 "$manifest" >/dev/null 2>&1; then
             classification=owned-manifest
         fi
+    elif empty_skeleton_is_managed "$candidate_root"; then
+        classification=owned-empty-skeleton
     elif skill_residue_is_managed "$candidate_root"; then
         classification=owned-residue
     fi
@@ -158,6 +194,7 @@ print_plan() {
     case "$ownership" in
         absent) plan='absent; nothing to remove' ;;
         owned-manifest) plan='would remove (original manifest)' ;;
+        owned-empty-skeleton) plan='would remove (empty managed skeleton)' ;;
         owned-residue) plan='would remove (byte-proved managed residue)' ;;
         foreign) plan='REFUSE — foreign or unproved occupant' ;;
     esac
@@ -318,7 +355,7 @@ fi
 
 classify_root "$quarantine_root"
 case "$classification" in
-    owned-manifest | owned-residue) ;;
+    owned-manifest | owned-empty-skeleton | owned-residue) ;;
     foreign) die "refusing foreign or unproved occupant: $retired_root" ;;
 esac
 
