@@ -60,8 +60,8 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # agentsurface follows agentlaunch: its launcher and its conversation slugs
 # both consume the resolved catalog over `agentlaunch x-catalog`.
 #
-# agentwork follows agentmux: it is a file:../agentmux dependency and its
-# installer refuses without `agentmux` on PATH.
+# agentwork follows agentmux: it is a file:../agentmux dependency. It is a
+# setup (programs for agentmux's parts), not a command; nothing goes on PATH.
 for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
     agentbrain codex-swap agentusage agentlaunch agentsurface agentmux agentwork; do
     tool_root="$code_root/$tool"

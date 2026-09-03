@@ -1,3 +1,5 @@
+setup = ~/code/agentwork
+
 prefix = ctrl+space
 
 harness.claude.command = claude-native
@@ -8,12 +10,11 @@ harness.codex.command = codex-native
 harness.codex.default-model = gpt-5.6-sol
 harness.codex.default-effort = high
 
-tray = agentwork tray
-tray-slot = agentmux screen --text slot
-workspace-pane = agentmux screen --text workspace
-right-tray = agentmux screen --text agent
-
+tray = tray
 tray.visible = true
+tray-slot = agentmux screen --text slot
 tray-slot.visible = false
+workspace-pane = agentmux screen --text workspace
 workspace-pane.visible = false
+right-tray = agentmux screen --text agent
 right-tray.visible = false

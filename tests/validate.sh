@@ -28,7 +28,7 @@ scripts/agentbrowse-config
 scripts/agent-browser-config
 scripts/agent-browser-link.sh
 scripts/fmx-config
-scripts/agentwork-config
+scripts/agentmux-config
 scripts/herdr-config
 scripts/select-herdr-runtime
 tests/validate.sh
@@ -36,7 +36,7 @@ tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/fmx-config.sh
-tests/agentwork-config.sh
+tests/agentmux-config.sh
 tests/herdr-config.sh
 tests/herdr-homebrew-cutover.sh
 tests/agentsource-webhooks.sh
@@ -66,7 +66,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/remove-retired-pi \
     scripts/remove-retired-agentweb \
     scripts/remove-retired-capabilities \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/agentwork-config scripts/herdr-config \
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/agentmux-config scripts/herdr-config \
     scripts/select-herdr-runtime; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
@@ -78,8 +78,8 @@ done
     || fail "agent-browser link test is not executable: tests/agent-browser-link.sh"
 [ -x tests/fmx-config.sh ] \
     || fail "fmx config test is not executable: tests/fmx-config.sh"
-[ -x tests/agentwork-config.sh ] \
-    || fail "agentwork config test is not executable: tests/agentwork-config.sh"
+[ -x tests/agentmux-config.sh ] \
+    || fail "agentmux instance config test is not executable: tests/agentmux-config.sh"
 [ -x tests/herdr-config.sh ] \
     || fail "Herdr config test is not executable: tests/herdr-config.sh"
 [ -x tests/herdr-homebrew-cutover.sh ] \
@@ -3176,7 +3176,7 @@ grep -Fqx 'prefix = "ctrl+space"' config/fmx/config.toml \
 grep -F '"$script_dir/fmx-config" install' scripts/install.sh >/dev/null \
     || fail "installer does not link the fmx config"
 tests/fmx-config.sh
-tests/agentwork-config.sh
+tests/agentmux-config.sh
 
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F 'AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install' scripts/install.sh >/dev/null \

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 die() {
-    printf 'agentwork-config: %s\n' "$*" >&2
+    printf 'agentmux-config: %s\n' "$*" >&2
     exit 1
 }
 
@@ -20,30 +20,30 @@ done
 script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 
-config_source="${AGENTSTART_AGENTWORK_CONFIG_SOURCE:-$repo_root/config/agentwork/instances/default}"
-config_target="${AGENTSTART_AGENTWORK_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentwork/instances/default}"
+config_source="${AGENTSTART_AGENTMUX_CONFIG_SOURCE:-$repo_root/config/agentmux/instances/default}"
+config_target="${AGENTSTART_AGENTMUX_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentmux/instances/default}"
 
 install_config() {
     [ -s "$config_source" ] \
-        || die "agentwork config is missing or empty: $config_source"
+        || die "agentmux instance config is missing or empty: $config_source"
     if [ ! -L "$config_target" ] && [ -e "$config_target" ]; then
-        die "refusing to replace independent agentwork config: $config_target"
+        die "refusing to replace independent agentmux instance config: $config_target"
     fi
 
     mkdir -p -- "$(dirname -- "$config_target")"
     ln -sfn -- "$config_source" "$config_target"
     [ -L "$config_target" ] \
-        || die "agentwork config target is not a link: $config_target"
+        || die "agentmux instance config target is not a link: $config_target"
     cmp -s -- "$config_source" "$config_target" \
-        || die "linked agentwork config does not resolve to $config_source: $config_target"
+        || die "linked agentmux instance config does not resolve to $config_source: $config_target"
 }
 
 usage() {
     cat <<'EOF'
-Usage: agentwork-config <command>
+Usage: agentmux-config <command>
 
 Commands:
-  install   Link AgentStart's agentwork config into the XDG config directory
+  install   Link AgentStart's agentmux instance config into the XDG config directory
 EOF
 }
 
