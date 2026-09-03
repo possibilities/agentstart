@@ -12,20 +12,24 @@ harness.codex.default-effort = high
 
 left.command = tray
 left.description = The agent list
+left.needs-agents = true
 left.visible = true
 left.width = 26
 
 drawer.command = agentmux screen --text drawer
 drawer.description =
+drawer.needs-agents = false
 drawer.visible = false
 drawer.height = 8
 
 dock.command = agentmux screen --text dock
 dock.description =
+dock.needs-agents = false
 dock.visible = false
 dock.width = 40
 
 right.command = agentmux screen --text right
 right.description =
+right.needs-agents = false
 right.visible = false
 right.width = 40
