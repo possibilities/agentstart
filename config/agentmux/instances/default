@@ -12,9 +12,13 @@ harness.codex.default-effort = high
 
 tray = tray
 tray.visible = true
+tray.width = 26
 tray-slot = agentmux screen --text slot
 tray-slot.visible = false
+tray-slot.height = 8
 workspace-pane = agentmux screen --text workspace
 workspace-pane.visible = false
+workspace-pane.width = 40
 right-tray = agentmux screen --text agent
 right-tray.visible = false
+right-tray.width = 40
