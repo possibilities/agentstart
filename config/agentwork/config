@@ -1,0 +1,6 @@
+instance = default
+
+tray = agentwork tray
+tray-slot = agentmux screen --text slot
+workspace-pane = agentmux screen --text workspace
+right-tray = agentmux screen --text agent

@@ -468,6 +468,7 @@ Command-line tools:
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
   scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
+  scripts/agentwork-config install  # link the operator's agentwork part-to-TUI config; agentwork itself installs in the fleet CLI loop
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
   npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
@@ -1200,6 +1201,12 @@ printf "Linking AgentStart's ordered agentbrowse deployment configuration.\n"
 "$script_dir/agentbrowse-config" install
 printf "Linking AgentStart's default agentbrowse provider configuration.\n"
 "$script_dir/agent-browser-config" install
+
+# agentwork reads its config and never writes it, so the operator's
+# part-to-TUI map stays linked to AgentStart's tracked copy. After the fleet
+# CLI loop, which installs agentwork itself.
+printf "Linking AgentStart's agentwork configuration.\n"
+"$script_dir/agentwork-config" install
 
 # agentchats — the coding-agent session search CLI — installs by the
 # agentchats checkout's own contract: the editable CLI link plus the local
