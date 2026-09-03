@@ -4,10 +4,8 @@ prefix: ctrl+space
 directories:
   code:
     path: ~/code
-    description: ""
   worktrees:
     path: ~/worktrees
-    description: ""
 
 harnesses:
   claude:
