@@ -19,7 +19,8 @@ die() {
 # only the harness; every other token remains native harness input and reaches
 # AgentLaunch unchanged. A managed launch carries AGENTLAUNCH_LAUNCH=1 so a
 # descendant that resolves the same PATH falls through to the real binary.
-# AGENTLAUNCH_SHIM_BYPASS=1 is the explicit operator escape hatch.
+# The paired `<harness>-native` command is the explicit operator escape hatch;
+# AGENTLAUNCH_SHIM_BYPASS=1 remains its lower-level mechanism.
 shim_dir="$HOME/.local/share/agentlaunch/shims"
 
 command -v agentlaunch >/dev/null 2>&1 ||
@@ -59,6 +60,19 @@ exec agentlaunch --x-harness $harness "\$@"
 EOF
     chmod 0755 "$shim"
     printf 'Installed shim: %s\n' "$shim"
+
+    native_shim="$shim_dir/$harness-native"
+    cat >"$native_shim" <<EOF
+#!/usr/bin/env bash
+# AgentStart-managed AgentLaunch native shim: $harness-native bypasses the
+# fleet launch policy and execs the real $harness binary. Regenerate with
+# agentstart/scripts/install-agentlaunch-shims; do not edit in place.
+set -euo pipefail
+shim_dir=\$(cd -- "\$(dirname -- "\${BASH_SOURCE[0]}")" && pwd -P)
+AGENTLAUNCH_SHIM_BYPASS=1 exec "\$shim_dir/$harness" "\$@"
+EOF
+    chmod 0755 "$native_shim"
+    printf 'Installed native shim: %s\n' "$native_shim"
 done
 
 # shellcheck disable=SC2016 # The backticks are display text, not an expansion.

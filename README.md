@@ -85,7 +85,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   never removes a skill from a compatibility root or restarts services.
   `--check` prints the plan.
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
-  `claude`/`codex`; the machine's wrapper of the same name delegates
+  `claude`/`codex`, plus `claude-native`/`codex-native` escape hatches to the
+  original harness binaries; the machine's wrapper of the same name delegates
   here.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential

@@ -346,8 +346,9 @@ grep -F 'post-sync hook failed' scripts/sync-skills >/dev/null \
 skip_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-validate.XXXXXX")
 trap 'rm -rf "$skip_test_dir"' EXIT
 
-# Bare harness shims route through AgentLaunch, and the recursion sentinel
-# keeps AgentLaunch-managed child processes from entering the shim again.
+# Bare harness shims route through AgentLaunch, the recursion sentinel keeps
+# AgentLaunch-managed child processes from entering the shim again, and the
+# named native shims give the operator an explicit route to the real binary.
 shim_home="$skip_test_dir/shim-home"
 shim_bin="$skip_test_dir/shim-bin"
 shim_real_bin="$skip_test_dir/shim-real-bin"
@@ -373,11 +374,21 @@ HOME="$shim_home" \
     "$root/scripts/install-agentlaunch-shims" >/dev/null
 for shim_harness in claude codex; do
     shim="$shim_home/.local/share/agentlaunch/shims/$shim_harness"
+    native_shim="$shim_home/.local/share/agentlaunch/shims/$shim_harness-native"
     [ -x "$shim" ] || fail "AgentLaunch shim is missing or not executable: $shim"
+    [ -x "$native_shim" ] || fail "AgentLaunch native shim is missing or not executable: $native_shim"
     grep -F "AgentStart-managed AgentLaunch shim" "$shim" >/dev/null \
         || fail "AgentLaunch shim is missing its ownership marker: $shim"
     grep -F "exec agentlaunch --x-harness $shim_harness" "$shim" >/dev/null \
         || fail "AgentLaunch shim does not route $shim_harness through agentlaunch"
+    grep -F "AgentStart-managed AgentLaunch native shim" "$native_shim" >/dev/null \
+        || fail "AgentLaunch native shim is missing its ownership marker: $native_shim"
+    native_output=$(
+        PATH="$shim_home/.local/share/agentlaunch/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+            "$native_shim" --version
+    )
+    [ "$native_output" = "real $shim_harness <--version>" ] \
+        || fail "AgentLaunch native shim did not route to the real $shim_harness: $native_output"
 done
 shim_output=$(
     AGENTLAUNCH_LAUNCH='' AGENTLAUNCH_SHIM_BYPASS='' \
