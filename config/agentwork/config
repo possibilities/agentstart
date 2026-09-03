@@ -4,3 +4,8 @@ tray = agentwork tray
 tray-slot = agentmux screen --text slot
 workspace-pane = agentmux screen --text workspace
 right-tray = agentmux screen --text agent
+
+tray.visible = true
+tray-slot.visible = false
+workspace-pane.visible = false
+right-tray.visible = false
