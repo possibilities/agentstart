@@ -1,6 +1,14 @@
 setup = ~/code/agentwork
 prefix = ctrl+space
 
+[directory code]
+path = ~/code
+description =
+
+[directory worktrees]
+path = ~/worktrees
+description =
+
 [harness claude]
 command = claude-native
 default-model = opus-1m
