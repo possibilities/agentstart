@@ -20,8 +20,8 @@ done
 script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 
-config_source="${AGENTSTART_AGENTWORK_CONFIG_SOURCE:-$repo_root/config/agentwork/config}"
-config_target="${AGENTSTART_AGENTWORK_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentwork/config}"
+config_source="${AGENTSTART_AGENTWORK_CONFIG_SOURCE:-$repo_root/config/agentwork/instances/default}"
+config_target="${AGENTSTART_AGENTWORK_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentwork/instances/default}"
 
 install_config() {
     [ -s "$config_source" ] \

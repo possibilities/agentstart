@@ -13,7 +13,7 @@ fail() {
 }
 
 source_config="$test_root/source"
-target_config="$test_root/home/.config/agentwork/config"
+target_config="$test_root/home/.config/agentwork/instances/default"
 cat >"$source_config" <<'EOF2'
 instance = default
 tray = agentwork tray
@@ -50,10 +50,16 @@ fi
 # The tracked config names the Tray app for the Tray column and a command for
 # every other part, so a fresh machine shows something on each surface.
 for key in tray tray-slot workspace-pane right-tray; do
-    grep -Eq "^$key = [^[:space:]]" "$root/config/agentwork/config" \
+    grep -Eq "^$key = [^[:space:]]" "$root/config/agentwork/instances/default" \
         || fail "tracked agentwork config has no command for $key"
 done
-grep -Fqx 'tray = agentwork tray' "$root/config/agentwork/config" \
+grep -Fqx 'tray = agentwork tray' "$root/config/agentwork/instances/default" \
     || fail "tracked agentwork config does not put the Tray app in the Tray column"
+# The same file is agentmux's config for the instance, so the operator's
+# prefix and harness defaults live here and nowhere else.
+grep -Fqx 'prefix = ctrl+space' "$root/config/agentwork/instances/default" \
+    || fail "tracked agentwork config does not carry the operator's agentmux prefix"
+grep -Fq 'instance = ' "$root/config/agentwork/instances/default" \
+    && fail "tracked agentwork config names an instance; the file's name is the instance"
 
 printf 'agentwork-config tests passed\n'

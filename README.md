@@ -118,10 +118,12 @@ checkout skips it.
 schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
 their prefix.
 
-`scripts/agentwork-config install` links `config/agentwork/config` into
-`~/.config/agentwork/config`: which TUI runs on each agentmux part. agentwork
-reads it and never writes it; agentwork and agentmux install in the fleet CLI
-loop.
+`scripts/agentwork-config install` links `config/agentwork/instances/default`
+into `~/.config/agentwork/instances/default`: the default agentmux instance's
+config, which TUI runs on each part and whether it is shown, plus agentmux's
+own keys (prefix, harness defaults), which agentmux reads from the same file.
+agentwork reads it and never writes it; agentwork and agentmux install in the
+fleet CLI loop.
 
 `scripts/agentbrowse-config install` links the locked version-2 deployment into
 `~/.config/agentbrowse/config.json`: Artbird first, then an already-enabled
