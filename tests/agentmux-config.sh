@@ -16,7 +16,9 @@ source_config="$test_root/source"
 target_config="$test_root/home/.config/agentmux/instances/default"
 cat >"$source_config" <<'EOF2'
 setup = /nowhere
-left.command = tray
+
+[panel left]
+command = tray
 EOF2
 
 export HOME="$test_root/home"
@@ -49,11 +51,21 @@ fi
 
 # The tracked config names the tray app for the left panel and a command for
 # every other panel, so a fresh machine shows something on each surface.
+# A panel's command is the `command = ...` line inside its [panel NAME]
+# section, so the check reads section by section.
+section_has() {
+    awk -v header="[panel $1]" -v want="$2" '
+        $0 == header { inside = 1; next }
+        /^\[/ { inside = 0 }
+        inside && $0 ~ want { found = 1 }
+        END { exit !found }
+    ' "$root/config/agentmux/instances/default"
+}
 for panel in left drawer dock right; do
-    grep -Eq "^$panel\.command = [^[:space:]]" "$root/config/agentmux/instances/default" \
-        || fail "tracked agentmux instance config has no command for $panel"
+    section_has "$panel" '^command = [^[:space:]]' \
+        || fail "tracked agentmux instance config has no command for the $panel panel"
 done
-grep -Fqx 'left.command = tray' "$root/config/agentmux/instances/default" \
+section_has left '^command = tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"
 grep -Fqx 'setup = ~/code/agentwork' "$root/config/agentmux/instances/default" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"

@@ -1,35 +1,40 @@
 setup = ~/code/agentwork
-
 prefix = ctrl+space
 
-harness.claude.command = claude-native
-harness.claude.default-model = opus-1m
-harness.claude.default-effort = xhigh
+[harness claude]
+command = claude-native
+default-model = opus-1m
+default-effort = xhigh
 
-harness.codex.command = codex-native
-harness.codex.default-model = gpt-5.6-sol
-harness.codex.default-effort = high
+[harness codex]
+command = codex-native
+default-model = gpt-5.6-sol
+default-effort = high
 
-left.command = tray
-left.description = The agent list
-left.needs-agents = true
-left.visible = true
-left.width = 26
+[panel left]
+command = tray
+description = The agent list
+needs-agents = true
+visible = true
+width = 26
 
-drawer.command = agentmux screen --text drawer
-drawer.description =
-drawer.needs-agents = false
-drawer.visible = false
-drawer.height = 8
+[panel drawer]
+command = agentmux screen --text drawer
+description =
+needs-agents = false
+visible = false
+height = 8
 
-dock.command = agentmux screen --text dock
-dock.description =
-dock.needs-agents = false
-dock.visible = false
-dock.width = 40
+[panel dock]
+command = agentmux screen --text dock
+description =
+needs-agents = false
+visible = false
+width = 40
 
-right.command = agentmux screen --text right
-right.description =
-right.needs-agents = false
-right.visible = false
-right.width = 40
+[panel right]
+command = agentmux screen --text right
+description =
+needs-agents = false
+visible = false
+width = 40
