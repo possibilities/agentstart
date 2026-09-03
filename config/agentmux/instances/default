@@ -10,15 +10,18 @@ harness.codex.command = codex-native
 harness.codex.default-model = gpt-5.6-sol
 harness.codex.default-effort = high
 
-tray = tray
+tray.command = tray
 tray.visible = true
 tray.width = 26
-tray-slot = agentmux screen --text slot
-tray-slot.visible = false
-tray-slot.height = 8
-workspace-pane = agentmux screen --text workspace
-workspace-pane.visible = false
-workspace-pane.width = 40
-right-tray = agentmux screen --text agent
-right-tray.visible = false
-right-tray.width = 40
+
+drawer.command = agentmux screen --text drawer
+drawer.visible = false
+drawer.height = 8
+
+canvas.command = agentmux screen --text canvas
+canvas.visible = false
+canvas.width = 40
+
+rail.command = agentmux screen --text rail
+rail.visible = false
+rail.width = 40
