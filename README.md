@@ -118,8 +118,8 @@ checkout skips it.
 schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
 their prefix.
 
-`scripts/agentmux-config install` links `config/agentmux/instances/default`
-into `~/.config/agentmux/instances/default`: the default agentmux instance's
+`scripts/agentmux-config install` links `config/agentmux/instances/default.yaml`
+into `~/.config/agentmux/instances/default.yaml`: the default agentmux instance's
 config, in agentmux's grammar: the prefix, the harness defaults, the setup
 (`~/code/agentwork`, whose `bin/tray` is the agent list), and a section per
 panel (left, left drawer, dock, right) saying which program runs there and whether

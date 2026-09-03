@@ -20,8 +20,8 @@ done
 script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 
-config_source="${AGENTSTART_AGENTMUX_CONFIG_SOURCE:-$repo_root/config/agentmux/instances/default}"
-config_target="${AGENTSTART_AGENTMUX_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentmux/instances/default}"
+config_source="${AGENTSTART_AGENTMUX_CONFIG_SOURCE:-$repo_root/config/agentmux/instances/default.yaml}"
+config_target="${AGENTSTART_AGENTMUX_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/agentmux/instances/default.yaml}"
 
 install_config() {
     [ -s "$config_source" ] \

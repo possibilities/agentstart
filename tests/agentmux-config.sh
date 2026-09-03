@@ -13,12 +13,12 @@ fail() {
 }
 
 source_config="$test_root/source"
-target_config="$test_root/home/.config/agentmux/instances/default"
+target_config="$test_root/home/.config/agentmux/instances/default.yaml"
 cat >"$source_config" <<'EOF2'
-setup = /nowhere
-
-[panel left]
-command = tray
+setup: /nowhere
+panels:
+  left:
+    command: tray
 EOF2
 
 export HOME="$test_root/home"
@@ -51,29 +51,32 @@ fi
 
 # The tracked config names the tray app for the left panel and a command for
 # every other panel, so a fresh machine shows something on each surface.
-# A panel's command is the `command = ...` line inside its [panel NAME]
-# section, so the check reads section by section.
-section_has() {
-    awk -v header="[panel $1]" -v want="$2" '
-        $0 == header { inside = 1; next }
-        /^\[/ { inside = 0 }
+# The file is YAML: a panel's command is the `command:` line indented under
+# its name under `panels:`, so the check reads entry by entry.
+tracked="$root/config/agentmux/instances/default.yaml"
+panel_has() {
+    awk -v panel="  $1:" -v want="$2" '
+        /^panels:/ { block = 1; next }
+        block && /^[^ ]/ { block = 0 }
+        block && $0 == panel { inside = 1; next }
+        block && /^  [^ ]/ { inside = 0 }
         inside && $0 ~ want { found = 1 }
         END { exit !found }
-    ' "$root/config/agentmux/instances/default"
+    ' "$tracked"
 }
 for panel in left drawer dock right; do
-    section_has "$panel" '^command = [^[:space:]]' \
+    panel_has "$panel" '^    command: [^[:space:]]' \
         || fail "tracked agentmux instance config has no command for the $panel panel"
 done
-section_has left '^command = tray$' \
+panel_has left '^    command: tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"
-grep -Fqx 'setup = ~/code/agentwork' "$root/config/agentmux/instances/default" \
+grep -Fqx 'setup: ~/code/agentwork' "$tracked" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"
 # The same file is agentmux's config for the instance, so the operator's
 # prefix and harness defaults live here and nowhere else.
-grep -Fqx 'prefix = ctrl+space' "$root/config/agentmux/instances/default" \
+grep -Fqx 'prefix: ctrl+space' "$tracked" \
     || fail "tracked agentmux instance config does not carry the operator's agentmux prefix"
-grep -Fq 'instance = ' "$root/config/agentmux/instances/default" \
+grep -Eq '^instance:' "$tracked" \
     && fail "tracked agentmux instance config names an instance; the file's name is the instance"
 
 printf 'agentmux-config tests passed\n'
