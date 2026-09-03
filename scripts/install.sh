@@ -189,14 +189,14 @@ remove_retired_capability_resources() {
     "$script_dir/remove-retired-capabilities" --install
 }
 
-configure_shadcn_mcp() {
-    printf 'Configuring the shadcn registry MCP server for Codex.\n'
+remove_ambient_mcp_servers() {
+    printf 'Removing shadcn and retired LiveKit MCP servers from ambient Codex configuration.\n'
     codex mcp remove shadcn >/dev/null 2>&1 || true
-    codex mcp add shadcn -- npx shadcn@latest mcp
+    codex mcp remove livekit-docs >/dev/null 2>&1 || true
 
-    printf 'Configuring the shadcn registry MCP server for Claude Code.\n'
+    printf 'Removing shadcn and retired LiveKit MCP servers from ambient Claude Code configuration.\n'
     claude mcp remove --scope user shadcn >/dev/null 2>&1 || true
-    claude mcp add --scope user shadcn -- npx shadcn@latest mcp
+    claude mcp remove --scope user livekit-docs >/dev/null 2>&1 || true
 }
 
 # AgentStart owns one guidance slot for each managed harness. Link both to the
@@ -477,8 +477,7 @@ Command-line tools:
   remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
 
 Agent documentation:
-  codex mcp add shadcn -- npx shadcn@latest mcp
-  claude mcp add --scope user shadcn -- npx shadcn@latest mcp
+  remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources
   native skills list
 
 Agent guidance:
@@ -493,6 +492,7 @@ Agent guidance:
 
 Fixed private fleet resources:
   install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
+  render shadcn as a managed-session MCP server; render no LiveKit MCP or skill
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
@@ -587,6 +587,11 @@ XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code" \
 printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
+
+# Ambient MCP cleanup depends only on the two freshly converged harness CLIs.
+# Keep it ahead of independent fleet gates so a blocked binary install cannot
+# leave retired or newly session-scoped servers active in naked harnesses.
+remove_ambient_mcp_servers
 
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:
@@ -1068,8 +1073,6 @@ if [ -f "$retired_fmx_release" ] \
 elif [ -e "$retired_fmx_release" ]; then
     printf 'Preserving independent occupant at retired Fmx release path: %s.\n' "$retired_fmx_release"
 fi
-
-configure_shadcn_mcp
 
 printf 'Removing retired AgentSurface, AgentBus, and Orca harness integrations.\n'
 retired_integrations_status=0

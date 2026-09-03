@@ -13,7 +13,7 @@ case "$1" in
   render the fixed private fleet resource set under ~/.local/share/agentstart/resources
   narrow vendor provider-origin guidance to retained Claude/Codex values
   derive and audit Codex invocation policy from portable skill frontmatter
-  render one session-only Claude plugin named agent (/agent:<skill>)
+  render one session-only Claude plugin named agent (/agent:<skill>) with the shadcn MCP server
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   persistently disable every agent:<skill> outside managed Codex sessions
   leave retired-path and ambient-link cleanup to the explicit full installer
@@ -36,10 +36,17 @@ invocation_policy_renderer="$script_dir/render-skill-invocation-policy"
 claude_plugin_root="$resources_root/claude/agent"
 marketplace_root="$resources_root/codex-marketplace"
 managed_names="$resources_root/managed-skills.txt"
+mcp_servers="$resources_root/mcp-servers.json"
 
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 [ -x "$invocation_policy_renderer" ] || die "skill invocation policy renderer is unavailable"
+/usr/bin/jq -e '
+    (.mcpServers | type == "object") and
+    (.mcpServers | keys == ["shadcn"]) and
+    .mcpServers.shadcn == {"command":"npx","args":["shadcn@latest","mcp"]}
+' "$template_root/mcp-servers.json" >/dev/null \
+    || die "the fixed MCP resource must contain only the shadcn stdio server"
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
@@ -87,7 +94,9 @@ trap 'rm -rf -- "$render_root"' EXIT
 next_claude="$render_root/claude/agent"
 mkdir -p "$next_claude/.claude-plugin"
 cp "$template_root/claude-plugin.json" "$next_claude/.claude-plugin/plugin.json"
+cp "$template_root/mcp-servers.json" "$next_claude/.mcp.json"
 cp -R "$skills_root" "$next_claude/skills"
+cp "$template_root/mcp-servers.json" "$render_root/mcp-servers.json"
 
 next_marketplace="$render_root/codex-marketplace"
 next_codex="$next_marketplace/plugins/agent"
@@ -119,6 +128,7 @@ rm -rf -- "$claude_plugin_root" "$marketplace_root"
 mkdir -p "$(dirname "$claude_plugin_root")" "$(dirname "$marketplace_root")"
 mv "$next_claude" "$claude_plugin_root"
 mv "$next_marketplace" "$marketplace_root"
+mv "$render_root/mcp-servers.json" "$mcp_servers"
 
 # Disable names before registering refreshed plugin content: a newly added
 # skill must never be ambiently visible for even one successful convergence.

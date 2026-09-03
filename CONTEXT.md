@@ -63,9 +63,9 @@ never move on this path).
 
 **Fleet resources** — the one fixed private set under
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,
-canonical guidance, the session-only Claude plugin, and the globally installed
-but inert Codex skills-only plugin. Every
-managed AgentLaunch session receives the skills; there are no
+canonical guidance, the session-only shadcn MCP server, the session-only Claude
+plugin, and the globally installed but inert Codex skills-only plugin. Every
+managed AgentLaunch session receives the skills and shadcn; there are no
 selectable packs. _Avoid_: capability pack, common pack, projection.
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin

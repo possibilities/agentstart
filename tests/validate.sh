@@ -138,9 +138,14 @@ tests/remove-retired-capabilities.sh
     || fail "retired JSON hook cleanup helper is not executable"
 [ ! -e skills/supervise ] \
     || fail "the retired supervise skill returned"
+[ ! -e skills/livekit-simulations ] \
+    || fail "the retired LiveKit skill returned"
 sed -n '/^retired_skill_names=(/,/^)/p' scripts/sync-skills \
     | grep -Fx '    supervise' >/dev/null \
     || fail "the additive skill sync can restore retired supervise copies"
+sed -n '/^retired_skill_names=(/,/^)/p' scripts/sync-skills \
+    | grep -Fx '    livekit-simulations' >/dev/null \
+    || fail "the additive skill sync can restore the retired LiveKit skill"
 if grep -q 'temporarily_suppressed_skill_names' scripts/sync-skills; then
     fail "the skill sync still suppresses a published skill"
 fi
@@ -164,6 +169,11 @@ for manifest in config/resources/*.json; do
 done
 /usr/bin/jq -e '.name == "agent"' config/resources/claude-plugin.json >/dev/null \
     || fail "Claude fleet plugin has the wrong name"
+/usr/bin/jq -e '
+    (.mcpServers | keys == ["shadcn"]) and
+    .mcpServers.shadcn == {"command":"npx","args":["shadcn@latest","mcp"]}
+' config/resources/mcp-servers.json >/dev/null \
+    || fail "fixed MCP resources are not exactly the managed shadcn server"
 /usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
     config/resources/codex-plugin.json >/dev/null \
     || fail "Codex fleet plugin is not strictly skills-only"
@@ -2494,6 +2504,12 @@ grep -F 'retained fleet harnesses (`claude-code`, `codex`)' \
     || fail "fixed-resource rendering did not narrow PLANNOTATOR_ORIGIN to Claude/Codex"
 [ -f "$fixture_claude_root/.claude-plugin/plugin.json" ] \
     || fail "skill sync did not render the Claude fleet plugin"
+[ -f "$fixture_resources_root/mcp-servers.json" ] \
+    || fail "skill sync did not render the canonical managed MCP resource"
+cmp -s config/resources/mcp-servers.json "$fixture_resources_root/mcp-servers.json" \
+    || fail "canonical managed MCP resources drifted during rendering"
+cmp -s "$fixture_resources_root/mcp-servers.json" "$fixture_claude_root/.mcp.json" \
+    || fail "Claude's session-only MCP resource drifted from the canonical copy"
 [ -f "$fixture_codex_root/.codex-plugin/plugin.json" ] \
     || fail "skill sync did not render the Codex fleet plugin"
 # shellcheck disable=SC2016 # Match the literal Codex plugin-qualified skill reference.
@@ -2658,6 +2674,18 @@ if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor|executor mcp' \
     scripts/install.sh; then
     fail "the Executor desktop install also connects it to an agent harness"
 fi
+if grep -Ei '(codex|claude) mcp add.*(shadcn|livekit)|(shadcn|livekit).*mcp add' \
+    scripts/install.sh; then
+    fail "the full installer still registers shadcn or LiveKit ambiently"
+fi
+for removed_mcp in \
+    'codex mcp remove shadcn' \
+    'codex mcp remove livekit-docs' \
+    'claude mcp remove --scope user shadcn' \
+    'claude mcp remove --scope user livekit-docs'; do
+    grep -F "$removed_mcp" scripts/install.sh >/dev/null \
+        || fail "the full installer no longer removes ambient MCP registration: $removed_mcp"
+done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
@@ -2691,14 +2719,14 @@ for required_install in \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
     'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
-    'codex mcp add shadcn -- npx shadcn@latest mcp' \
-    'claude mcp add --scope user shadcn -- npx shadcn@latest mcp' \
+    'remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources' \
     'native skills list' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
+    'render shadcn as a managed-session MCP server; render no LiveKit MCP or skill' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \

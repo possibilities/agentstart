@@ -65,7 +65,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
-  - the shadcn MCP registration for Codex and Claude Code;
+  - the session-only shadcn MCP resource loaded by AgentLaunch, plus removal
+    of ambient shadcn and retired LiveKit MCP registrations;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
