@@ -122,7 +122,7 @@ their prefix.
 into `~/.config/agentmux/instances/default`: the default agentmux instance's
 config, in agentmux's grammar: the prefix, the harness defaults, the setup
 (`~/code/agentwork`, whose `bin/tray` is the agent list), and a section per
-part (Tray, Drawer, Canvas, Rail) saying which program runs there and whether
+panel (left, left drawer, dock, right) saying which program runs there and whether
 it starts shown. agentmux reads it at start and never
 writes it. agentmux and agentwork install in the fleet CLI loop; agentwork
 puts nothing on PATH.

@@ -16,7 +16,7 @@ source_config="$test_root/source"
 target_config="$test_root/home/.config/agentmux/instances/default"
 cat >"$source_config" <<'EOF2'
 setup = /nowhere
-tray.command = tray
+left.command = tray
 EOF2
 
 export HOME="$test_root/home"
@@ -47,14 +47,14 @@ if AGENTSTART_AGENTMUX_CONFIG_TARGET="$empty_target" "$helper" install >/dev/nul
 fi
 [ -f "$empty_target" ] && [ ! -L "$empty_target" ] || fail "independent empty agentmux instance config changed"
 
-# The tracked config names the Tray app for the Tray and a command for
-# every other part, so a fresh machine shows something on each surface.
-for part in tray drawer canvas rail; do
-    grep -Eq "^$part\.command = [^[:space:]]" "$root/config/agentmux/instances/default" \
-        || fail "tracked agentmux instance config has no command for $part"
+# The tracked config names the tray app for the left panel and a command for
+# every other panel, so a fresh machine shows something on each surface.
+for panel in left drawer dock right; do
+    grep -Eq "^$panel\.command = [^[:space:]]" "$root/config/agentmux/instances/default" \
+        || fail "tracked agentmux instance config has no command for $panel"
 done
-grep -Fqx 'tray.command = tray' "$root/config/agentmux/instances/default" \
-    || fail "tracked agentmux instance config does not put the Tray app in the Tray"
+grep -Fqx 'left.command = tray' "$root/config/agentmux/instances/default" \
+    || fail "tracked agentmux instance config does not put the tray app in the left panel"
 grep -Fqx 'setup = ~/code/agentwork' "$root/config/agentmux/instances/default" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"
 # The same file is agentmux's config for the instance, so the operator's
