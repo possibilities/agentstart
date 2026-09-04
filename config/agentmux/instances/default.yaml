@@ -6,6 +6,8 @@ directories:
     path: ~/code
   worktrees:
     path: ~/worktrees
+  source:
+    path: ~/source
 
 harnesses:
   claude:
