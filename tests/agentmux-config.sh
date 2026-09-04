@@ -64,7 +64,7 @@ panel_has() {
         END { exit !found }
     ' "$tracked"
 }
-for panel in left drawer dock right; do
+for panel in left bottom_drawer dock right; do
     panel_has "$panel" '^    ' \
         || fail "tracked agentmux instance config has no entry for the $panel panel"
 done
