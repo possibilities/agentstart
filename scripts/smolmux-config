@@ -3,7 +3,7 @@
 set -euo pipefail
 
 die() {
-    printf 'fmx-config: %s\n' "$*" >&2
+    printf 'smolmux-config: %s\n' "$*" >&2
     exit 1
 }
 
@@ -20,30 +20,30 @@ done
 script_dir=$(cd -P -- "$(dirname -- "$script_path")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 
-config_source="${AGENTSTART_FMX_CONFIG_SOURCE:-$repo_root/config/fmx/config.toml}"
-config_target="${AGENTSTART_FMX_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/fmx/config.toml}"
+config_source="${AGENTSTART_SMOLMUX_CONFIG_SOURCE:-$repo_root/config/smolmux/config.toml}"
+config_target="${AGENTSTART_SMOLMUX_CONFIG_TARGET:-${XDG_CONFIG_HOME:-$HOME/.config}/smolmux/config.toml}"
 
 install_config() {
     [ -s "$config_source" ] \
-        || die "fmx config is missing or empty: $config_source"
+        || die "smolmux config is missing or empty: $config_source"
     if [ ! -L "$config_target" ] && [ -e "$config_target" ]; then
-        die "refusing to replace independent fmx config: $config_target"
+        die "refusing to replace independent smolmux config: $config_target"
     fi
 
     mkdir -p -- "$(dirname -- "$config_target")"
     ln -sfn -- "$config_source" "$config_target"
     [ -L "$config_target" ] \
-        || die "fmx config target is not a link: $config_target"
+        || die "smolmux config target is not a link: $config_target"
     cmp -s -- "$config_source" "$config_target" \
-        || die "linked fmx config does not resolve to $config_source: $config_target"
+        || die "linked smolmux config does not resolve to $config_source: $config_target"
 }
 
 usage() {
     cat <<'EOF'
-Usage: fmx-config <command>
+Usage: smolmux-config <command>
 
 Commands:
-  install   Link AgentStart's fmx config into the XDG config directory
+  install   Link AgentStart's smolmux config into the XDG config directory
 EOF
 }
 
