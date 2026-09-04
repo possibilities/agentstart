@@ -311,6 +311,14 @@ does not re-suspect them:
   edge remains. AgentVoice uses its resident Codex App Server and its own
   control attachments; Herdr remains independently used elsewhere in the
   fleet (retired and checked 2026-09-04).
+- AgentVoice → AgentStart managed resource inventory: no runtime read of
+  `managed-skills.txt` or `AGENTSTART_RESOURCES_ROOT`, and no automatic
+  `skills.config` enablement remains. Codex owns skill discovery and policy;
+  explicit operator config still passes through. AgentStart's installation
+  relationship with AgentVoice and their developer fleet conventions remain
+  unchanged (`agentvoice/src/core/params.ts`, `agentvoice/src/core/runtime.ts`,
+  `agentvoice/docs/adr/0007-defer-skill-policy-to-codex.md`; retired and checked
+  2026-09-04).
 
 Last verified: 2026-08-09, twice — an initial first-hand sweep, then an
 independent second sweep that removed two false routing edges (own-`search`
