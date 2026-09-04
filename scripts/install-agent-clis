@@ -37,11 +37,11 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # prefixes the shim directory. Installing the CLI does not install the shims —
 # that stays a deliberate `scripts/install-agentlaunch-shims`.
 #
-# codex-swap owns its own command now, and agentusage has stopped writing a
-# competing shim for it, so the command has exactly one owner. It runs before
-# agentusage to keep the provider layer installed before the observer that
-# reads it. Its own installer binds the exact stock codex-multi-auth npm pin;
-# no fork checkout participates in this loop.
+# codex-swap and grok-swap own their own commands now, and agentusage does not
+# write competing shims for them, so each command has exactly one owner. They
+# run before agentusage to keep both provider layers installed before the
+# observer that reads them. Codex-swap's own installer binds the exact stock
+# codex-multi-auth npm pin; no fork checkout participates in this loop.
 #
 # Agentscrape no longer consults Agentweb's origin/session conduit. An explicit
 # stable session maps through the configured agent-browser provider to an
@@ -63,7 +63,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # agentwork follows agentmux: it is a file:../agentmux dependency. It is a
 # setup (programs for agentmux's parts), not a command; nothing goes on PATH.
 for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain codex-swap agentusage agentlaunch agentsurface agentmux agentwork; do
+    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

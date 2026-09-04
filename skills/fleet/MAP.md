@@ -29,6 +29,7 @@ flowchart LR
         usage[agentusage]
         claudeSwap[claude-swap]
         swap[codex-swap]
+        grokSwap[grok-swap]
     end
 
     subgraph research [Research pipeline]
@@ -67,6 +68,7 @@ flowchart LR
     launch -->|managed launch| codex
     swap --> codex
     usage -->|snapshot --json / select --json [--account]| swap
+    usage -->|observe --json / select --json [--account] [--reserve-seconds]| grokSwap
     usage -->|list --json / recover| claudeSwap
     source -->|read-only agent.list + workspace.list snapshots| herdr
     tend -->|inactive-worktree safety: events.subscribe + agent list| herdr
@@ -95,13 +97,14 @@ flowchart LR
     machine ==>|scripts/install.sh --install, sync-skills| start
     start ==>|Homebrew cask; standalone GUI, no harness registration| executor[Executor]
     start ==>|official installers| harnesses[Claude Code / Codex]
+    start ==>|official Homebrew cask; standalone CLI/TUI, no launch integration| grok[Grok Build]
     start ==>|pinned minimal binary + managed agent-terminal runtime + version-matched skills| plannotator[Plannotator]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
     start ==>|repository-owned source installer + exact Fx and Companion pins| smolmuxInstall[smolmux / smolmux-mcp]
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
-    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / agentusage / agentlaunch / agentsurface / agentchats / peekaboo]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / grok-swap / agentusage / agentlaunch / agentsurface / agentchats / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     skills ==>|fixed session skills + shadcn MCP| launch
     launch ==>|synthetic agent plugin with skills + shadcn MCP| claude
@@ -173,11 +176,13 @@ sentence around the match, never from the name alone.
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
 | agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
+| agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
 | agentstart | agentusage | `install-agent-clis` invokes the checkout's `scripts/install.sh --install`, which installs the claude-swap provider before installing the observer. It no longer writes a `codex-swap` shim, and no longer maintains the fork — both have one owner now | `agentstart/scripts/install-agent-clis`; `agentusage/scripts/install-providers.sh` |
 | agentusage | cswax | `scripts/install-providers.sh` invokes `~/code/cswax/scripts/install.sh --install --published` and does nothing else about the claude-swap fork. It previously rebased, gated, and force-pushed `integration` on every unattended converge; that moved to the workshop on 2026-08-25 | `agentusage/scripts/install-providers.sh`; `cswax/MAINTAIN.md` (Consumer); asserted by `cswax/tests/validate.sh` |
 | cswax | claude-swap | binds `~/src/claude-swap` to a published `fork/integration` commit and installs it with `uv tool install --force`, refusing a foreign fork remote, a dirty tree, or an unpublished commit, and reporting when integration trails upstream. `/maintain` separately composes the carry heads, gates, and publishes | `cswax/scripts/install.sh`; `cswax/MAINTAIN.md`; `cswax/scripts/reconcile-branches.sh` |
 | agentstart | codex-swap | `install-agent-clis` invokes `scripts/install.sh --install`, which writes the `codex-swap` command as a source shim into the checkout and installs the exact stock codex-multi-auth npm pin | `agentstart/scripts/install-agent-clis`; `codex-swap/scripts/install.sh` |
+| agentstart | grok-swap | `install-agent-clis` invokes the checkout's `scripts/install.sh --install` immediately before agentusage, so the observer's Grok provider subprocess is present before observation starts. Grok-swap owns account storage, billing observation, and selection; it does not activate the separately installed Grok Build harness, and AgentStart adds no separate service | `agentstart/scripts/install-agent-clis`; `grok-swap/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` |
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, securely creates or preserves the private webhook secret, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit. The explicit `configure-agentsource-webhooks --apply` path discovers this node's Funnel origin and calls `agentsource webhook-configure` to reconcile signed hooks; ordinary install only runs its non-mutating, agent-oriented diagnostic | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/configure-agentsource-webhooks`; `agentsource/scripts/install.sh`; `agentsource/src/cli.ts` |
 | agentsource | herdr | each observation scan invokes `herdr agent list` and `herdr workspace list` exactly once, concurrently. Workspace checkout metadata associates agents first, with the agent cwd as a deterministic fallback; unavailable or malformed Herdr output degrades only agent presence and never makes the Git scan fail | `agentsource/src/herdr.ts` (`readHerdrSnapshot`, `attachAgentPresence`); `agentsource/src/git.ts` (`scanProjects`) |
@@ -207,6 +212,7 @@ sentence around the match, never from the name alone.
 | codex-swap | codex-multi-auth | exact npm pin, currently 2.10.0. Codex-swap invokes the package-local forced-account wrapper for native Codex runs and resumes. The installer no longer binds the fleet to the patched fork; 2.10.0 carries upstream pinned-retry fixes #682/#683, including the pin-specific pool-token bypass | `codex-swap/package.json`; `codex-swap/src/ndy/bin-resolver.ts`; `codex-swap/scripts/install.sh`; codex-multi-auth PRs #682/#683 |
 | agentusage | claude-swap | `cswap list --json` observes Claude accounts; `cswap recover <slot> --json` repairs due expired tokens; its installer converges the public fork's `main` | `agentusage/src/claude/observe.ts:235`; `src/daemon.ts:78`; `scripts/install-providers.sh` |
 | agentusage | codex-swap | `codex-swap snapshot --json` observes Codex accounts with paced polling; `codex-swap select --json [--account <focused-key>] [--claim]` performs ordinary or focus-pinned main-lane selection, with the provider retaining eligibility and atomic lease ownership | `agentusage/src/codex/observe.ts` (`observeCodex`); `agentusage/src/daemon.ts`; `agentusage/src/balance/codex.ts` (`delegateCodexSelect`) |
+| agentusage | grok-swap | `grok-swap observe --json` observes every managed xAI account and `grok-swap select --json [--account <focused-key>] [--reserve-seconds <seconds>]` performs ordinary or focus-pinned selection. Agentusage renders the returned billing facts and delegates eligibility, scoring, and reservation ownership to the provider; it never reads Grok credentials itself | `agentusage/src/grok/observe.ts` (`observeGrok`); `agentusage/src/daemon.ts`; `agentusage/src/balance/grok.ts` (`delegateGrokSelect`) |
 | agentguidance `tend` skill | herdr, agentsurface | its read-only watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API, queries `herdr agent list` once per survey, and treats every live agent status as ownership that blocks a proposal. Git independently supplies linked-worktree and local-main ancestry state. Optional cross-harness self-wake travels through `agentsurface message`; the woken agent routes human notification through `notify`. Tend emits only removal, catch-up, or inspection minisketches and contains no integration, rebase, removal, branch deletion, or push helper | `agentguidance/skills/tend/SKILL.md`; `agentguidance/skills/tend/scripts/watch.ts`; behavioral coverage in `agentguidance/tests/tend.test.ts` |
 | agentstart | herdr | installs or upgrades the official stable Homebrew formula, then runs `herdr integration install claude\|codex`, links agentsurface's launcher-pane and tab-naming plugin directory with `herdr plugin link`, and renders the version-matched surface skill from `herdr --skill` into the fixed resources. The full installer narrowly removes the retired AgentStart source binary and build state only when its receipt proves ownership; `~/src/herdr` remains research material and has no scheduled update edge | `agentstart/scripts/install.sh` (`install_or_upgrade_formula herdr`, legacy cleanup, `install_herdr_integrations`, `install_herdr_skill`); asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then reloads the default server and every reachable named session; an unavailable server is nonfatal because its next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`, `reload_live_servers`) |
@@ -239,6 +245,7 @@ sentence around the match, never from the name alone.
 
 | Binary | Version | Why | Evidence |
 | --- | --- | --- | --- |
+| Grok Build | official stable Homebrew cask | Homebrew verifies the signed release artifact and gives the native CLI/TUI one managed update path. The installation deliberately stops before AgentLaunch, Herdr, or grok-swap credential activation | `agentstart/scripts/install.sh`; Homebrew cask `grok-build`; asserted by `agentstart/tests/validate.sh` |
 | Plannotator | 0.27.9 | the CLI, its `install-runtime agent-terminal` contract, and its core skills move as one pinned release. AgentStart deliberately uses the minimal vendor install to avoid ambient harness integrations, then restores the separately managed runtime through the verified binary | `agentstart/scripts/install.sh` (`plannotator_version` and runtime invocation); `agentstart/tests/validate.sh` |
 | agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
@@ -520,3 +527,11 @@ direct-call example follows `agent_launch_claude`, and attached Sheet Events
 invoke unified `agent_message` with a one-recipient `names` list through the
 Hub. Delivery requires `results[0].ok`; an unavailable or unsuccessful Message
 tool leaves the Event pending and does not affect MCP Event notifications.
+Updated 2026-09-04 for grok-swap: AgentStart installs its checkout contract
+immediately before AgentUsage, which observes Grok billing and delegates
+multi-account selection and short-lived reservations to the provider. There is
+deliberately no AgentLaunch or fleet-service edge yet.
+Updated again 2026-09-04 for Grok Build: AgentStart installs the official
+stable Homebrew cask so the native `grok` CLI/TUI is available for direct
+experimentation and account-specific model discovery. It does not connect the
+harness to grok-swap, AgentLaunch, or Herdr.

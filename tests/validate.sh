@@ -2670,10 +2670,12 @@ grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.s
 # fixture tree so the asserted lines are the same on every machine.
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
 
-# Executor initially lands as a standalone GUI. Keep agent registration out of
-# ordinary convergence until the operator explicitly chooses that relationship.
+# Executor initially lands as a standalone GUI. Grok Build lands as a native
+# CLI/TUI without AgentLaunch or Herdr integration.
 grep -F 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Executor desktop cask"
+grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
+    || fail "the full installer does not converge the Grok Build cask"
 if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor|executor mcp' \
     scripts/install.sh; then
     fail "the Executor desktop install also connects it to an agent harness"
@@ -2693,6 +2695,7 @@ done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+    'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
@@ -2852,12 +2855,14 @@ if printf '%s\n' "$install_plan" \
     fail "installation plan still synchronizes desktop explicitly beside the scan"
 fi
 # The ownership boundary: general-purpose desktop clients and the GitHub CLI
-# belong to the machine layer. Executor's standalone integration GUI is the
-# one explicit cask exception; any second cask means the seam is leaking back.
+# belong to the machine layer. Executor's standalone integration GUI and Grok
+# Build's CLI-only package are the two explicit cask exceptions.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
-    | grep -Fv 'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+    | grep -Fv \
+        -e 'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+        -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     >/dev/null; then
-    fail "installation plan contains a desktop cask other than Executor"
+    fail "installation plan contains an unowned Homebrew cask"
 fi
 if printf '%s\n' "$install_plan" | grep -F 'brew install or upgrade gh' >/dev/null; then
     fail "installation plan crossed the boundary: gh is the machine's"
@@ -3317,17 +3322,17 @@ grep -F '"$script_dir/remove-retired-pi" --install' scripts/install.sh >/dev/nul
     || fail "full installer does not run the exact-target Pi retirement cleanup"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells its balance contract), and codex-swap must precede agentusage
-# so balance observes the command owner codex-swap itself installed.
+# launcher shells its balance contract), and codex-swap plus grok-swap must
+# precede agentusage so balance observes the command owners they install.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
+    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
@@ -3364,20 +3369,22 @@ grep -F '"$agentchats_root/scripts/install.sh" --install' scripts/install.sh >/d
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke the agentdesk contract"
 
-# The ownership boundary, from this side: Executor is the only desktop cask
-# this repository may install. Its generic helper may mention the cask flag,
-# but it must have exactly one caller, and the unattended sync may never use it.
+# The ownership boundary, from this side: Executor is the only desktop cask,
+# and Grok Build is the only CLI-only cask this repository may install. The
+# generic helper may mention the cask flag, but it must have exactly those two
+# callers, and the unattended sync may never use it.
 if grep -Eq -- '--cask' scripts/sync-skills; then
-    fail "the unattended sync tried to install a desktop cask"
+    fail "the unattended sync tried to install a Homebrew cask"
 fi
 # shellcheck disable=SC2016 # Match the literal generic helper variable.
 if grep -E -- '--cask' scripts/install.sh \
-    | grep -Ev 'executor|"\$cask"' >/dev/null; then
-    fail "an AgentStart script installs a desktop cask other than Executor"
+    | grep -Ev 'executor|grok-build|"\$cask"' >/dev/null; then
+    fail "an AgentStart script installs an unowned Homebrew cask"
 fi
-if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 1 ] \
-    || ! grep -Fx 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null; then
-    fail "Executor is not the installer's sole desktop cask"
+if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 2 ] \
+    || ! grep -Fx 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
+    || ! grep -Fx 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null; then
+    fail "the installer does not own exactly the Executor and Grok Build casks"
 fi
 if grep -F 'oauth_token' scripts/install.sh >/dev/null; then
     fail "an AgentStart script crossed the boundary: gh migration is the machine's"

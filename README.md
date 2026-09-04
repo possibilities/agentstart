@@ -53,7 +53,9 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install.sh --install` — the whole AI toolchain, each piece by its
   own checkout's contract, skipping checkouts that are absent:
 
-  - Claude Code and Codex, by their official installers;
+  - Claude Code and Codex, by their official installers, plus the official
+    Homebrew cask for the standalone Grok Build CLI/TUI (without AgentLaunch
+    or Herdr integration yet);
   - the Executor desktop app through its official Homebrew cask, installed as
     a standalone integration GUI without registering it with any harness;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
@@ -90,9 +92,10 @@ flags, and skip-versus-fail semantics are load-bearing:
   here.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
-migration. Executor is the narrow exception because its integration catalog is
-deeply related to the fleet. AgentStart installs its GUI, but deliberately does
-not register its MCP endpoint with Claude Code, Codex, Fx, or any other harness.
+migration. Executor is the narrow desktop exception because its integration
+catalog is deeply related to the fleet. Grok Build is a separate CLI-only cask
+exception because it is an AI harness. AgentStart installs both, but deliberately
+does not register Executor's MCP endpoint or add Grok to AgentLaunch or Herdr.
 
 ## Herdr and Ghostty color
 
