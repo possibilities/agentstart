@@ -1624,10 +1624,10 @@ validate_agentlaunch_deployment() {
     local source="$cleanup_code_root/agentlaunch/src/main.ts"
     local command="$cleanup_home/.local/bin/agentlaunch"
     local receipt="$cleanup_home/.local/state/agentlaunch/deployed-sha"
-    # Re-reviewed after AgentLaunch's contract-derived parser/help merge; the
-    # published command still exposes only Claude/Codex and explicitly refuses
-    # every retired Pi spelling.
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-799fb424358d131801a1a0655260c8202b254088}"
+    # Re-reviewed after AgentLaunch added managed-session shadcn wiring and
+    # adopted the source-root convention; the published command still exposes
+    # only Claude/Codex and explicitly refuses every retired Pi spelling.
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-1dd9b24f427274f18c8d8aa0a8c59f25c59067ab}"
     local receipt_sha receipt_mode catalog rejection
     for path in \
         "$command" "$receipt" \
