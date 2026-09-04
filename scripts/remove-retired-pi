@@ -1570,7 +1570,11 @@ validate_codex_swap_deployment() {
     [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
         || die "codex-swap retirement gate received an invalid commit"
 
-    validate_pi_free_checkout "$root" codex-swap "$source" no
+    # codex-swap can carry newer pushed work and clean local work above it.
+    # Prove both ancestry links before trusting the separately reviewed
+    # scrub commit and the current Pi-free source audit below.
+    validate_pi_free_checkout \
+        "$root" codex-swap "$source" no reviewed-ancestor
     GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
         "$retirement_sha" "$validated_upstream_sha" \
         || die "pushed codex-swap main is not the reviewed Pi scrub commit"

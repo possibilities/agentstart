@@ -832,9 +832,29 @@ export AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA="$retired_pi_contract_agent
 retired_pi_contract_agentsurface_retirement_sha=$(git -C \
     "$retired_pi_contract_code_root/agentsurface" rev-parse HEAD)
 export AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA="$retired_pi_contract_agentsurface_retirement_sha"
-retired_pi_contract_codex_swap_sha=$(git -C \
+retired_pi_contract_codex_swap_retirement_sha=$(git -C \
     "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
-export AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA="$retired_pi_contract_codex_swap_sha"
+export AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA="$retired_pi_contract_codex_swap_retirement_sha"
+# Model the live checkout precisely: pushed main has advanced beyond the
+# reviewed scrub, and one clean local commit sits above pushed main. The gate
+# must prove reviewed scrub -> pushed main -> deployed checkout rather than
+# pinning an old tip or accepting an unrelated latest commit.
+printf '%s\n' 'safe pushed contract fixture' \
+    >"$retired_pi_contract_code_root/codex-swap/pushed-contract"
+git -C "$retired_pi_contract_code_root/codex-swap" add pushed-contract
+git -C "$retired_pi_contract_code_root/codex-swap" \
+    commit -q -m 'Safe pushed post-scrub fixture'
+retired_pi_contract_codex_swap_pushed_sha=$(git -C \
+    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
+git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
+    refs/remotes/origin/main "$retired_pi_contract_codex_swap_pushed_sha"
+printf '%s\n' 'protected local contract fixture' \
+    >"$retired_pi_contract_code_root/codex-swap/protected-contract"
+git -C "$retired_pi_contract_code_root/codex-swap" add protected-contract
+git -C "$retired_pi_contract_code_root/codex-swap" \
+    commit -q -m 'Protected local contract fixture'
+retired_pi_contract_codex_swap_checkout_sha=$(git -C \
+    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
 # This mirrors the operator-owned rollback backup in the live codex-swap
 # checkout. The retirement gate must preserve this exact, proved exception
 # while continuing to reject every other untracked working-tree path.
@@ -967,9 +987,9 @@ EOF
     git -C "$checkout" config branch.main.merge refs/heads/main
 }
 
-# Protected local contract commits may sit above a reviewed, pushed retirement
-# commit, but moving either remote-tracking main away from that exact reviewed
-# commit must block cleanup before dedicated state is touched.
+# Protected local contract commits may sit above pushed main, and pushed main
+# may sit above a reviewed retirement commit. A remote ref outside that proved
+# ancestry chain must still block cleanup before dedicated state is touched.
 wrong_codex_swap_remote_home="$skip_test_dir/wrong-codex-swap-retirement-remote-home"
 mkdir -p "$wrong_codex_swap_remote_home/.pi"
 install_retired_pi_codex_swap_contract "$wrong_codex_swap_remote_home"
@@ -984,13 +1004,13 @@ wrong_codex_swap_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_codex_swap_r
 wrong_codex_swap_remote_status=$?
 set -e
 git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/heads/main "$retired_pi_contract_codex_swap_sha"
+    refs/heads/main "$retired_pi_contract_codex_swap_checkout_sha"
 git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/remotes/origin/main "$retired_pi_contract_codex_swap_sha"
+    refs/remotes/origin/main "$retired_pi_contract_codex_swap_pushed_sha"
 [ "$wrong_codex_swap_remote_status" -ne 0 ] \
     || fail "retired Pi cleanup accepted the wrong pushed codex-swap commit"
 printf '%s\n' "$wrong_codex_swap_remote_output" \
-    | grep -F 'pushed codex-swap main is not the reviewed Pi scrub commit' >/dev/null \
+    | grep -F 'required Pi-free codex-swap checkout does not contain its pushed main ref' >/dev/null \
     || fail "retired Pi cleanup did not explain the wrong codex-swap remote refusal"
 [ -d "$wrong_codex_swap_remote_home/.pi" ] \
     || fail "retired Pi cleanup mutated state with the wrong codex-swap remote"
