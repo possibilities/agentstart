@@ -62,8 +62,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
     with its version-matched bundled skill;
-  - smolmux's repository-owned source installer, given fxnk's exact gated Fx
-    build, plus the generated live Herdr config and linked smolmux key config;
+  - smolmux's repository-owned source installer and pinned Companion, plus the
+    generated live Herdr config and linked smolmux key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
@@ -110,10 +110,10 @@ check`, atomically replaces the live file, and asks a running server to reload.
 It is rendered rather than linked because Herdr writes its own keys into that
 file, and neither checkout may become program-written state.
 
-Smolmux installs through `~/code/smolmux/scripts/install.sh`, its canonical consumer
-path. AgentStart passes the Fx binary fxnk built from its gated Integration pin
-and the exact SHA; Smolmux owns the editable `smolmux` and `smolmux-mcp` commands, private
-`smolmux-fx`, pinned Companion, and doctor check. A machine without the smolmux
+Smolmux installs through `~/code/smolmux/scripts/install.sh`, its canonical
+consumer path. Smolmux owns the editable `smolmux` command, pinned Companion,
+and doctor check. It runs arbitrary commands and no longer owns an Fx pin,
+`smolmux-fx`, or an agent-specific MCP command. A machine without the smolmux
 checkout skips it.
 
 `scripts/smolmux-config install` links `config/smolmux/config.toml` into

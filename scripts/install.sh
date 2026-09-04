@@ -467,7 +467,7 @@ Command-line tools:
   initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
   herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
-  ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux and smolmux-mcp plus exact source-built smolmux-fx and smolmux-zmx pins; reuses AgentStart's already-gated Fx build
+  ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
@@ -996,29 +996,16 @@ install_herdr_plugins() {
 
 install_herdr_plugins
 
-# smolmux owns its consumer and operator source installation. AgentStart delegates
-# the editable commands and both exact native pins to that entrypoint, passing the
-# Fx binary fxnk just built only after proving smolmux names the same Integration
-# commit. A machine without the checkout skips; a present checkout that fails
-# to install is a real error.
+# smolmux owns its consumer and operator source installation. AgentStart
+# delegates the editable command, exact Companion pin, and doctor verification
+# to that entrypoint. Smolmux sessions run arbitrary commands and own no Fx pin.
+# A machine without the checkout skips; a present checkout that fails to install
+# is a real error.
 smolmux_root="$code_root/smolmux"
 if [ -f "$smolmux_root/package.json" ]; then
-    [ -f "$smolmux_root/fx.json" ] \
-        || die "smolmux checkout has no fx.json; update $smolmux_root"
-    smolmux_fx_sha=$(jq -r '.commit' "$smolmux_root/fx.json") \
-        || die "smolmux's fx.json is not valid JSON"
-    [ "$smolmux_fx_sha" = "$fx_integration_sha" ] \
-        || die "smolmux pins Fx $smolmux_fx_sha, but AgentStart pins $fx_integration_sha"
-    development_fx="$HOME/.local/bin/fx"
-    [ -x "$development_fx" ] \
-        || die "fxnk did not install an executable $development_fx"
     [ -x "$smolmux_root/scripts/install.sh" ] \
         || die "smolmux checkout has no executable scripts/install.sh; update $smolmux_root"
     printf 'Installing smolmux through its canonical source installer.\n'
-    SMOLMUX_FX_BINARY="$development_fx" \
-    SMOLMUX_FX_COMMIT="$fx_integration_sha" \
-    SMOLMUX_FX_CHECKOUT="$HOME/src/fx" \
-    SMOLMUX_COMPANION_CHECKOUT="$HOME/src/zmx" \
     SMOLMUX_INSTALL_BIN_DIR="$HOME/.local/bin" \
         "$smolmux_root/scripts/install.sh" --install \
         || die "smolmux source installation failed"

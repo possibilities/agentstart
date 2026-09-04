@@ -88,11 +88,11 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
-- Smolmux installation: invoke `~/code/smolmux/scripts/install.sh --install`, passing
-  the exact Fx binary the fxnk installer just built together with its proved
-  Integration SHA. Smolmux owns the consumer path, editable Bun commands (`smolmux`
-  and `smolmux-mcp`), private `smolmux-fx`, pinned Companion, and doctor verification.
-  AgentStart owns only fleet ordering and the exact-pin equality check.
+- Smolmux installation: invoke `~/code/smolmux/scripts/install.sh --install`.
+  Smolmux owns that consumer path, the editable `smolmux` command, its pinned
+  Companion, and doctor verification. AgentStart owns only fleet ordering and
+  the shared install directory; Smolmux sessions run arbitrary commands and
+  have no Fx pin or agent-specific MCP command.
 - A new fleet tool: add the checkout to the `install-agent-clis` loop if it
   has a CLI installer, and note the ordering constraint in the comment there
   if it has one. The `agent*` skills scan needs nothing. A loop member's

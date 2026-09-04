@@ -2712,7 +2712,7 @@ for required_install in \
     'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
     'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
     'herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned' \
-    '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux and smolmux-mcp plus exact source-built smolmux-fx and smolmux-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
+    '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
@@ -2762,9 +2762,9 @@ done
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "the full installer does not delegate to Smolmux's source installer"
-# shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F 'SMOLMUX_FX_COMMIT="$fx_integration_sha"' scripts/install.sh >/dev/null \
-    || fail "the Smolmux source install is not bound to AgentStart's Fx pin"
+if grep -Eq 'SMOLMUX_FX_|smolmux-fx|fx\.json' scripts/install.sh; then
+    fail "the installer still assigns Fx or agent-specific ownership to Smolmux"
+fi
 grep -F 'Preserving independent occupant at retired Smolmux release path' scripts/install.sh >/dev/null \
     || fail "the installer does not preserve an independent retired-path occupant"
 
@@ -3158,15 +3158,12 @@ theme_manager_refs=$(grep -R -Eih 'tinty|tinted-theming|base16|base24|chalk' \
     || fail "the retired Tinty configuration is still in the checkout"
 [ ! -e scripts/herdr-tinty ] \
     || fail "the retired herdr-tinty helper is still in the checkout"
-# Smolmux owns the editable commands, both native pins, and doctor verification in its
-# canonical source installer. AgentStart proves the pin and passes fxnk's exact
-# source build instead of reproducing those steps.
-# shellcheck disable=SC2016 # Match literal installer variables.
-grep -F '[ "$smolmux_fx_sha" = "$fx_integration_sha" ]' scripts/install.sh >/dev/null \
-    || fail "installer does not bind editable smolmux to its exact Fx pin"
-# shellcheck disable=SC2016 # Match literal installer variables.
-grep -F 'SMOLMUX_FX_BINARY="$development_fx"' scripts/install.sh >/dev/null \
-    || fail "installer does not reuse fxnk's source-built Fx for smolmux-fx"
+# Smolmux owns its editable command, exact Companion pin, and doctor verification
+# in its canonical source installer. AgentStart supplies only the shared binary
+# destination and does not restore Smolmux's retired agent/Fx ownership.
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F 'SMOLMUX_INSTALL_BIN_DIR="$HOME/.local/bin"' scripts/install.sh >/dev/null \
+    || fail "installer does not give Smolmux the shared binary destination"
 # shellcheck disable=SC2016 # Match literal installer variables.
 grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke smolmux's canonical source installer"
