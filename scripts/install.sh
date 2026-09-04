@@ -445,8 +445,9 @@ fi
 
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
-Desktop integration UI:
+Homebrew casks:
   brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration
+  brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration
 
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
@@ -559,8 +560,8 @@ install_or_upgrade_cask() {
     local cask="$1"
 
     if "$brew_bin" list --cask --versions "$cask" >/dev/null 2>&1; then
-        # Executor declares auto_updates, so --greedy is required for Homebrew
-        # to converge a newer published cask instead of deferring to the app.
+        # --greedy keeps casks that declare their own update behavior under
+        # AgentStart's Homebrew convergence instead of deferring to the app.
         "$brew_bin" upgrade --cask --greedy --yes "$cask"
     else
         "$brew_bin" install --cask --yes "$cask"
@@ -577,6 +578,13 @@ export HOMEBREW_NO_ASK=1
 # with any harness here. That later connection is an explicit operator choice.
 printf 'Installing or upgrading the Executor desktop app (standalone; no agent connection).\n'
 install_or_upgrade_cask executor
+
+# Grok Build's official Homebrew cask installs its signed release binary as
+# both `grok` and the vendor's `agent` alias. Keep this phase to the native
+# CLI/TUI itself: grok-swap deliberately does not activate harness credentials,
+# and AgentLaunch and Herdr do not support Grok sessions yet.
+printf 'Installing or upgrading the Grok Build CLI/TUI (standalone; no fleet launch integration).\n'
+install_or_upgrade_cask grok-build
 
 # Keep Claude's vendor staging under macOS's stable cache root. This machine's
 # ~/.cache may be a machine-managed link to removable scratch storage, while
