@@ -3317,17 +3317,17 @@ grep -F '"$script_dir/remove-retired-pi" --install' scripts/install.sh >/dev/nul
     || fail "full installer does not run the exact-target Pi retirement cleanup"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells its balance contract), and codex-swap must precede agentusage
-# so balance observes the command owner codex-swap itself installed.
+# launcher shells its balance contract), and codex-swap plus grok-swap must
+# precede agentusage so balance observes the command owners they install.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain codex-swap agentusage agentlaunch agentsurface; do
+    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
