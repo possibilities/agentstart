@@ -307,6 +307,10 @@ does not re-suspect them:
   or pinned-binary edge remains after the Agentscrape migration. Remaining
   mentions are the one-time ownership-guarded retirement path and dated
   historical update notes (checked 2026-08-29).
+- AgentVoice → Herdr: no runtime, config, installation, service, or skill-routing
+  edge remains. AgentVoice uses its resident Codex App Server and its own
+  control attachments; Herdr remains independently used elsewhere in the
+  fleet (retired and checked 2026-09-04).
 
 Last verified: 2026-08-09, twice — an initial first-hand sweep, then an
 independent second sweep that removed two false routing edges (own-`search`
