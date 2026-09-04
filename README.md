@@ -36,7 +36,7 @@ believing any of this.
     the fixed private resources and linked from there into the Claude Code and
     Codex global slots. Advice belongs in the extension prompts.
 - `config/` — harness configuration and resource manifests, the
-  agent-browser, Herdr, and fmx operator configs, and the launchd templates for
+  agent-browser, Herdr, and smolmux operator configs, and the launchd templates for
   fleet services AgentStart owns.
 - `skills/` — skills this checkout exports through the agent* scan, like any
   other fleet repo. `fleet/` is the dependency map of the whole ecosystem.
@@ -60,8 +60,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
     with its version-matched bundled skill;
-  - fmx's repository-owned source installer, given fxnk's exact gated Fx
-    build, plus the generated live Herdr config and linked fmx key config;
+  - smolmux's repository-owned source installer, given fxnk's exact gated Fx
+    build, plus the generated live Herdr config and linked smolmux key config;
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
@@ -107,14 +107,14 @@ check`, atomically replaces the live file, and asks a running server to reload.
 It is rendered rather than linked because Herdr writes its own keys into that
 file, and neither checkout may become program-written state.
 
-Fmx installs through `~/code/fmx/scripts/install.sh`, its canonical consumer
+Smolmux installs through `~/code/smolmux/scripts/install.sh`, its canonical consumer
 path. AgentStart passes the Fx binary fxnk built from its gated Integration pin
-and the exact SHA; Fmx owns the editable `fmx` and `fmx-mcp` commands, private
-`fmx-fx`, pinned Companion, and doctor check. A machine without the fmx
+and the exact SHA; Smolmux owns the editable `smolmux` and `smolmux-mcp` commands, private
+`smolmux-fx`, pinned Companion, and doctor check. A machine without the smolmux
 checkout skips it.
 
-`scripts/fmx-config install` links `config/fmx/config.toml` into
-`~/.config/fmx/config.toml`. fmx does not write that file, and its `[keys]`
+`scripts/smolmux-config install` links `config/smolmux/config.toml` into
+`~/.config/smolmux/config.toml`. smolmux does not write that file, and its `[keys]`
 schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
 their prefix.
 

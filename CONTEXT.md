@@ -24,11 +24,11 @@ the fleet; installing its cask does not register its MCP endpoint with a
 harness.
 _Avoid_: stack, setup.
 
-**Fmx source installation** — Fmx's repository-owned `scripts/install.sh`,
+**Smolmux source installation** — Smolmux's repository-owned `scripts/install.sh`,
 which AgentStart invokes with fxnk's exact already-gated Fx source build. It is
-the same path consumers use, links the human `fmx` and agent-facing `fmx-mcp`
+the same path consumers use, links the human `smolmux` and agent-facing `smolmux-mcp`
 commands, and publishes no binary artifacts.
-_Avoid_: release path, bucket installer, AgentStart-owned Fmx installer.
+_Avoid_: release path, bucket installer, AgentStart-owned Smolmux installer.
 
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart
 passes to fxnk's installer after that commit has passed fxnk's Local

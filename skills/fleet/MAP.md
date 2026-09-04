@@ -48,7 +48,7 @@ flowchart LR
     herdr[herdr — the surface]
     herdrConfig[agentstart / herdr-config]
     surface[agentsurface]
-    fmx[fmx / fmx-mcp]
+    smolmux[smolmux / smolmux-mcp]
     collab[agentcollab]
     mux[agentmux]
 
@@ -78,10 +78,10 @@ flowchart LR
     jobsearch -->|bounded attention create| attention
     board -->|publish --kind render| wiki
     chats -.->|indexes session stores| harnesses
-    harnesses -->|MCP stdio: orientation, creation, UI, and semantic Work tools| fmx
+    harnesses -->|MCP stdio: orientation, creation, UI, and semantic Work tools| smolmux
     harnesses -->|MCP stdio: tools generated from each CLI's own agent contract| contractServers[agentboard / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentbrowse]
     harnesses -->|managed-session MCP stdio: component registry| shadcn[shadcn]
-    fmx -->|authenticated per-Agent Work socket: snapshot, queue, steer, interrupt, and queue edits| fx
+    smolmux -->|authenticated per-Agent Work socket: snapshot, queue, steer, interrupt, and queue edits| fx
     collab -->|sheet calls can launch Agents; Hub invokes agent_message for attached Event Messages| mux
 ```
 
@@ -97,7 +97,7 @@ flowchart LR
     start ==>|official installers| harnesses[Claude Code / Codex]
     start ==>|pinned minimal binary + managed agent-terminal runtime + version-matched skills| plannotator[Plannotator]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
-    start ==>|repository-owned source installer + exact Fx and Companion pins| fmxInstall[fmx / fmx-mcp]
+    start ==>|repository-owned source installer + exact Fx and Companion pins| smolmuxInstall[smolmux / smolmux-mcp]
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
@@ -191,13 +191,13 @@ sentence around the match, never from the name alone.
 | agentlaunch | Claude Code / Codex | loads the one fixed resource set. Claude receives the synthetic `agent` plugin with skills and shadcn; native Codex `run`, `resume`, `exec`, and `review` name-enable every qualified `$agent:<skill>` and inject the same shadcn MCP definition through session config, remaining inside codex-swap's ordinary account pin. Utility and unmanaged harness invocations receive neither resource. AgentLaunch owns no App Server, Unix socket, remote TUI, fake provider, projection, or receipt; native Codex therefore owns linked-worktree trust and the complete session lifecycle | `agentlaunch/src/resources.ts`; `agentlaunch/src/launch.ts`; `agentlaunch/docs/adr/0030-use-fixed-resources-with-native-codex.md` |
 | Claude Code / Codex | shadcn | managed model sessions start `npx shadcn@latest mcp` over stdio from AgentStart's fixed resource definition. Claude discovers it through the session-only plugin; AgentLaunch translates the same definition into Codex session overrides. Naked harnesses have no shadcn registration, and LiveKit is not part of the fixed set | `agentstart/config/resources/mcp-servers.json`; `agentstart/scripts/render-capabilities`; `agentlaunch/src/resources.ts`; asserted by both repositories' resource tests |
 | agentstart | fxnk | invokes `~/code/fxnk/scripts/install.sh --install --sha <pin>` as the required Fx harness installation contract. The tracked Fx Integration consumer pin is an exact commit already approved by fxnk's Local development gate and ship gate; ordinary AgentStart convergence reuses it and never promotes a moving remote tip | `agentstart/scripts/install.sh`, asserted by `agentstart/tests/validate.sh`; `fxnk/scripts/install.sh`; `fxnk/MAINTAIN.md` (Consumer) |
-| fxnk | Fx | binds `~/src/fx` to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. AgentStart reuses those exact bytes as fmx's separate development `fmx-fx`, without another compilation. Fx's repo-local `/maintain` skill separately rebases, gates, and publishes integration | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/skills/maintain/SKILL.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
-| agentstart | fmx | proves Fmx's Fx pin equals AgentStart's ship-gate-approved Integration pin, then delegates the entire consumer installation to Fmx's repository-owned `scripts/install.sh`: the editable `fmx` and `fmx-mcp` Bun commands, a distinct `fmx-fx` copied from fxnk's exact already-gated source build, the exact source-built `fmx-zmx` Companion pin, and `fmx doctor`. AgentStart then links the tracked operator config into `~/.config/fmx/config.toml`; fmx's key schema stays a strict subset of Herdr's and uses the same `ctrl+space` prefix. Fmx publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (fmx block); `fmx/scripts/install.sh`; `fmx/scripts/local-gate.sh`; `fmx/scripts/install-companion.sh`; `fmx/.github/workflows/ci.yml`; `agentstart/config/fmx/config.toml`; `agentstart/scripts/fmx-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/fmx-config.sh` |
-| Claude Code / Codex / Fx | fmx | an MCP host starts `fmx-mcp` over stdio for the complete eleven-tool agent automation surface. The server resolves the caller's Home and Agent identity for each request, reaches the live Runtime through one private request/response connection, and exposes no CLI control command, Runtime event stream, prompt-paste path, or wait tool | `fmx/src/mcp.ts`; `fmx/src/mcp-server.ts`; `fmx/src/runtime-client.ts`; `fmx/docs/agent-integration.md`; `fmx/docs/runtime-bridge.md` |
+| fxnk | Fx | binds `~/src/fx` to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. AgentStart reuses those exact bytes as smolmux's separate development `smolmux-fx`, without another compilation. Fx's repo-local `/maintain` skill separately rebases, gates, and publishes integration | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/skills/maintain/SKILL.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
+| agentstart | smolmux | proves Smolmux's Fx pin equals AgentStart's ship-gate-approved Integration pin, then delegates the entire consumer installation to Smolmux's repository-owned `scripts/install.sh`: the editable `smolmux` and `smolmux-mcp` Bun commands, a distinct `smolmux-fx` copied from fxnk's exact already-gated source build, the exact source-built `smolmux-zmx` Companion pin, and `smolmux doctor`. AgentStart then links the tracked operator config into `~/.config/smolmux/config.toml`; smolmux's key schema stays a strict subset of Herdr's and uses the same `ctrl+space` prefix. Smolmux publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (smolmux block); `smolmux/scripts/install.sh`; `smolmux/scripts/local-gate.sh`; `smolmux/scripts/install-companion.sh`; `smolmux/.github/workflows/ci.yml`; `agentstart/config/smolmux/config.toml`; `agentstart/scripts/smolmux-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/smolmux-config.sh` |
+| Claude Code / Codex / Fx | smolmux | an MCP host starts `smolmux-mcp` over stdio for the complete eleven-tool agent automation surface. The server resolves the caller's Home and Agent identity for each request, reaches the live Runtime through one private request/response connection, and exposes no CLI control command, Runtime event stream, prompt-paste path, or wait tool | `smolmux/src/mcp.ts`; `smolmux/src/mcp-server.ts`; `smolmux/src/runtime-client.ts`; `smolmux/docs/agent-integration.md`; `smolmux/docs/runtime-bridge.md` |
 | Claude Code / Codex / Fx | agentboard / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentbrowse | an MCP host starts `<cli> mcp` over stdio and receives tools GENERATED from that CLI's own agent contract — never a hand-written tool list, so a command added to the contract becomes a tool with no further edit. Each server runs inside the CLI process and dispatches through its own command table: no subprocess, no argv round trip. Only `audience: agent` leaves are exposed, which makes the CLI's owner — not the consumer — the one who decides what an agent may call. The mapping is fixed once in `agentstart/config/agent-contract/MCP.md` rather than invented seven times | `agentstart/config/agent-contract/MCP.md`; `agentboard/src/mcp-tools.ts` (the reference the other six copy); each repository's `src/mcp.ts`, `src/mcp-server.ts`, `src/mcp-tools.ts` and its stdio handshake test |
 | agentcollab | agentmux | the Sheet spec language names `mcp__agentmux__agent_launch_claude` as its direct-call example, so a generated Sheet can launch an Agent without another reasoning turn. When `collab_attach` names an Agent, the Sheet sends each matching human Event through its Hub as one visible-CC `mcp__agentmux__agent_message` call with `{ names: [agent], message }`; delivery succeeds only after the Hub decodes the MCP result and observes `results[0].ok === true`, otherwise the Event stays pending in `collab_events`. Renaming either tool, changing the Message argument shape, or removing the per-recipient result breaks this integration while the MCP notification stream remains independent | `agentcollab/src/prompt.ts` (`mcp__agentmux__agent_launch_claude` call example); `agentcollab/src/server.ts` (`DEFAULT_MESSAGE_TOOL`, `detectMessaging`, `Collab.sendEvent`); behavioral coverage in `agentcollab/test/server.test.ts`; callee contracts in `agentmux/src/protocol.ts` (`agent.launch_claude`, `agent.message`) |
 | agentstart | every `agent*` CLI | owns `config/agent-contract/schema.json`, the one machine-readable self-description each CLI publishes as `<cli> guide --json`, and `scripts/validate-agent-contract.ts`, which EXECUTES that schema rather than restating it. `--agent-help`, `--agent-teaser`, and `--help` are renders of the contract, not second authorships beside it; thirteen of sixteen CLIs go further and derive their argument parser from it, so a declared flag and an accepted flag cannot disagree. Each repository owns its own conformance test and resolves the validator through AgentStart's checkout | `agentstart/config/agent-contract/{schema.json,README.md,MCP.md,example.json}`; `agentstart/scripts/validate-agent-contract.ts`; `agentstart/scripts/json-schema-subset.ts`; asserted by `agentstart/tests/agent-contract.test.ts` and each repository's own contract test |
-| fmx | Fx | every semantic Work read or mutation crosses Fx's authenticated per-Agent Unix socket: snapshot, queue, steer, interrupt, update, delete, and resume. Fmx mints and persists the endpoint identity and token when it creates the Agent; Fx owns native admission order and the authoritative post-operation snapshot. Agents predating this binding deliberately cannot acquire it retroactively | `fmx/src/fx-environment.ts`; `fmx/src/fx-work-control.ts`; `fmx/src/agent-manifest.ts`; `fx/src/core/control/work_control.zig`; `fx/src/core/app/app_work_control_runtime.zig` |
+| smolmux | Fx | every semantic Work read or mutation crosses Fx's authenticated per-Agent Unix socket: snapshot, queue, steer, interrupt, update, delete, and resume. Smolmux mints and persists the endpoint identity and token when it creates the Agent; Fx owns native admission order and the authoritative post-operation snapshot. Agents predating this binding deliberately cannot acquire it retroactively | `smolmux/src/fx-environment.ts`; `smolmux/src/fx-work-control.ts`; `smolmux/src/agent-manifest.ts`; `fx/src/core/control/work_control.zig`; `fx/src/core/app/app_work_control_runtime.zig` |
 | agentstart | Hunk | installs or upgrades the Homebrew formula, resolves the version-matched `hunk-review` skill through `hunk skill path hunk-review`, and copies that bundled skill into the fixed resources. It deliberately never installs the skill from GitHub head, which could teach a newer session API than the local binary accepts | `agentstart/scripts/install.sh` (`install_hunk_skill`), asserted by `agentstart/tests/validate.sh`; `hunk/src/core/run/paths.ts` (`resolveBundledSkillPath`) |
 | agentsurface plugin | agentusage | the shared Herdr plugin's `usage` pane entrypoint runs `escape-to-quit agentusage` in a titled 80% popup. AgentStart's `prefix+u` binding opens the entrypoint instead of duplicating an untitled generic popup | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml` |
 | agentlaunch | agentusage | `agentusage balance claude\|codex --json` chooses a balanced account. Real Codex launches add `--claim`; dry runs do not reserve capacity | `agentlaunch/src/balance.ts` (`balanceClaude`, `balanceCodexFamily`) |
@@ -244,7 +244,7 @@ sentence around the match, never from the name alone.
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
 | zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
-| Fx | `2768915148c927e0fd87cb87c3cf0001af719a39` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable fmx install requires the same pin and receives a byte-identical `fmx-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
+| Fx | `2768915148c927e0fd87cb87c3cf0001af719a39` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater. The editable smolmux install requires the same pin and receives a byte-identical `smolmux-fx` copy | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
 | herdr | official stable Homebrew formula, fleet protocol 21 minimum | AgentStart installs or upgrades the formula only while every default/named server socket is proved inactive; otherwise it preserves the installed client bytes. Before cutover it also preserves the compatible source-built client and its build evidence while stable is too old or explicit `AGENTSTART_HERDR_ALLOW_CUTOVER=1` authorization is absent. Only that deliberately authorized inactive run performs the receipt-proved cleanup. Once no legacy binary or evidence remains, ordinary convergence recognizes Homebrew as authoritative, while subsequent formula upgrades require the same explicit inactive-run authorization; a clean machine with neither legacy state nor a formula installs stable normally | `agentstart/scripts/install.sh`; `agentstart/scripts/select-herdr-runtime`; behavioral coverage in `agentstart/tests/herdr-homebrew-cutover.sh` |
 
 The managed claude-swap fork rebases its **`integration` branch** onto upstream on every
@@ -263,14 +263,14 @@ zmx and claude-swap forks are owned by workshop repositories (`fxnk`, `zmax`,
 `cswax`) instead of an installer: each workshop's `MAINTAIN.md` is that fork's
 contract, the shared `maintain` skill (agentguidance) is the cycle, and the
 workshop's consumer step binds the result — fxnk's installer, zmax's move of
-fmx's Companion pin, cswax's `uv tool install`. The `fork-rebase-policy` wiki
+smolmux's Companion pin, cswax's `uv tool install`. The `fork-rebase-policy` wiki
 page is the overview of the arrangement.
 
 | Fork | Integration branch | Owner | Gate |
 | --- | --- | --- | --- |
 | `~/src/claude-swap` | `integration` | `cswax` via `/maintain` and `scripts/install.sh --install`, called by `agentusage/scripts/install-providers.sh` | all three of upstream's CI jobs (Ubuntu, macOS, macOS keychain contract), plus the fork's CI green on the exact candidate |
 | `~/src/fx` | `integration` | `fxnk` via `/maintain` and `scripts/install.sh --install --sha` | fxnk's exact-SHA Local development gate and ship gate |
-| `~/src/zmx` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `fmx/companion.json`) | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, fmx's suite against it |
+| `~/src/zmx` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `smolmux/companion.json`) | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, smolmux's suite against it |
 
 Codex-swap no longer binds `~/src/codex-multi-auth`: it uses the exact stock
 npm pin. Open upstream PRs #664 and #665 address helper cleanup for the retired
@@ -415,8 +415,8 @@ static provider-instance URL is part of this edge.
 Updated again 2026-08-27 after a stale Bun-global `agentbrowse` shadowed the
 managed link: the provider command now resolves `~/.local/bin/agentbrowse`
 through `$HOME` rather than relying on `PATH` order.
-Updated 2026-08-28 for the local Fmx release path: AgentStart installs one
-serialized Mac builder that reuses Fmx's repository-owned gates for native
+Updated 2026-08-28 for the local Smolmux release path: AgentStart installs one
+serialized Mac builder that reuses Smolmux's repository-owned gates for native
 arm64 and Rosetta x86_64, combines only completed hosted Linux artifacts, and
 keeps hosted-run cancellation, public Blob verification, latest-only pruning,
 and exact tagging behind the explicit publication command.
@@ -472,8 +472,8 @@ agent-browser session, which the configured Agentbrowse provider maps to a
 durable Browser profile. Agentbrowse and Agentattention own browser automation,
 authentication persistence, and human handoff; the external agent-browser pin
 remains unchanged and immutable to this phase.
-Updated again 2026-08-29 for fmx's MCP-only automation surface: MCP hosts start
-the eleven-tool stdio server, fmx forwards semantic Work operations through
+Updated again 2026-08-29 for smolmux's MCP-only automation surface: MCP hosts start
+the eleven-tool stdio server, smolmux forwards semantic Work operations through
 Fx's authenticated per-Agent socket, and the former CLI control, duplex Bus,
 prompt-paste, wait, and event-stream paths have no runtime edge left in the
 fleet.

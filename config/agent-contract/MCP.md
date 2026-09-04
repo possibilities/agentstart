@@ -132,5 +132,5 @@ the drift this project exists to prevent.
 ## Dependency
 
 `@modelcontextprotocol/sdk` pinned at `1.30.0` — the fleet's existing pin, in
-fmx and agentutils. `McpServer` plus `StdioServerTransport`; follow fmx's
+smolmux and agentutils. `McpServer` plus `StdioServerTransport`; follow smolmux's
 `src/mcp.ts` and `src/mcp-server.ts` for house shape.

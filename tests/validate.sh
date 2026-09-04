@@ -27,7 +27,7 @@ scripts/configure-agentsource-webhooks
 scripts/agentbrowse-config
 scripts/agent-browser-config
 scripts/agent-browser-link.sh
-scripts/fmx-config
+scripts/smolmux-config
 scripts/agentmux-config
 scripts/herdr-config
 scripts/select-herdr-runtime
@@ -35,7 +35,7 @@ tests/validate.sh
 tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
-tests/fmx-config.sh
+tests/smolmux-config.sh
 tests/agentmux-config.sh
 tests/herdr-config.sh
 tests/herdr-homebrew-cutover.sh
@@ -66,7 +66,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/remove-retired-pi \
     scripts/remove-retired-agentweb \
     scripts/remove-retired-capabilities \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/fmx-config scripts/agentmux-config scripts/herdr-config \
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/herdr-config \
     scripts/select-herdr-runtime; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
@@ -76,8 +76,8 @@ done
     || fail "agent-browser config test is not executable: tests/agent-browser-config.sh"
 [ -x tests/agent-browser-link.sh ] \
     || fail "agent-browser link test is not executable: tests/agent-browser-link.sh"
-[ -x tests/fmx-config.sh ] \
-    || fail "fmx config test is not executable: tests/fmx-config.sh"
+[ -x tests/smolmux-config.sh ] \
+    || fail "smolmux config test is not executable: tests/smolmux-config.sh"
 [ -x tests/agentmux-config.sh ] \
     || fail "agentmux instance config test is not executable: tests/agentmux-config.sh"
 [ -x tests/herdr-config.sh ] \
@@ -2709,8 +2709,8 @@ for required_install in \
     'brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization' \
     'initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy' \
     'herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned' \
-    '~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
-    'scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator'"'"'s Ctrl-Space prefix' \
+    '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux and smolmux-mcp plus exact source-built smolmux-fx and smolmux-zmx pins; reuses AgentStart'"'"'s already-gated Fx build' \
+    'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
     'remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete' \
     'remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations' \
@@ -2722,7 +2722,7 @@ for required_install in \
     'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
-    'remove AgentStart'"'"'s retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant' \
+    'remove AgentStart'"'"'s retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant' \
     'remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources' \
     'native skills list' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
@@ -2757,12 +2757,12 @@ for required_install in \
 done
 
 # shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F '"$fmx_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
-    || fail "the full installer does not delegate to Fmx's source installer"
+grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
+    || fail "the full installer does not delegate to Smolmux's source installer"
 # shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F 'FMX_FX_COMMIT="$fx_integration_sha"' scripts/install.sh >/dev/null \
-    || fail "the Fmx source install is not bound to AgentStart's Fx pin"
-grep -F 'Preserving independent occupant at retired Fmx release path' scripts/install.sh >/dev/null \
+grep -F 'SMOLMUX_FX_COMMIT="$fx_integration_sha"' scripts/install.sh >/dev/null \
+    || fail "the Smolmux source install is not bound to AgentStart's Fx pin"
+grep -F 'Preserving independent occupant at retired Smolmux release path' scripts/install.sh >/dev/null \
     || fail "the installer does not preserve an independent retired-path occupant"
 
 # shellcheck disable=SC2016 # Match the literal per-user cache root.
@@ -3153,29 +3153,29 @@ theme_manager_refs=$(grep -R -Eih 'tinty|tinted-theming|base16|base24|chalk' \
     || fail "the retired Tinty configuration is still in the checkout"
 [ ! -e scripts/herdr-tinty ] \
     || fail "the retired herdr-tinty helper is still in the checkout"
-# Fmx owns the editable commands, both native pins, and doctor verification in its
+# Smolmux owns the editable commands, both native pins, and doctor verification in its
 # canonical source installer. AgentStart proves the pin and passes fxnk's exact
 # source build instead of reproducing those steps.
 # shellcheck disable=SC2016 # Match literal installer variables.
-grep -F '[ "$fmx_fx_sha" = "$fx_integration_sha" ]' scripts/install.sh >/dev/null \
-    || fail "installer does not bind editable fmx to its exact Fx pin"
+grep -F '[ "$smolmux_fx_sha" = "$fx_integration_sha" ]' scripts/install.sh >/dev/null \
+    || fail "installer does not bind editable smolmux to its exact Fx pin"
 # shellcheck disable=SC2016 # Match literal installer variables.
-grep -F 'FMX_FX_BINARY="$development_fx"' scripts/install.sh >/dev/null \
-    || fail "installer does not reuse fxnk's source-built Fx for fmx-fx"
+grep -F 'SMOLMUX_FX_BINARY="$development_fx"' scripts/install.sh >/dev/null \
+    || fail "installer does not reuse fxnk's source-built Fx for smolmux-fx"
 # shellcheck disable=SC2016 # Match literal installer variables.
-grep -F '"$fmx_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke fmx's canonical source installer"
+grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
+    || fail "installer does not invoke smolmux's canonical source installer"
 if grep -F 'Dcompanion' scripts/install.sh >/dev/null; then
-    fail "installer builds the Companion by hand instead of through fmx's script"
+    fail "installer builds the Companion by hand instead of through smolmux's script"
 fi
-# fmx's config is linked because fmx does not mutate it; both the tracked source
+# smolmux's config is linked because smolmux does not mutate it; both the tracked source
 # and the installer stay pinned to the same Ctrl-Space prefix used by Herdr.
-grep -Fqx 'prefix = "ctrl+space"' config/fmx/config.toml \
-    || fail "fmx config does not use the operator's Ctrl-Space prefix"
+grep -Fqx 'prefix = "ctrl+space"' config/smolmux/config.toml \
+    || fail "smolmux config does not use the operator's Ctrl-Space prefix"
 # shellcheck disable=SC2016 # Match the literal installer variable.
-grep -F '"$script_dir/fmx-config" install' scripts/install.sh >/dev/null \
-    || fail "installer does not link the fmx config"
-tests/fmx-config.sh
+grep -F '"$script_dir/smolmux-config" install' scripts/install.sh >/dev/null \
+    || fail "installer does not link the smolmux config"
+tests/smolmux-config.sh
 tests/agentmux-config.sh
 
 # shellcheck disable=SC2016 # Match the literal installer variables.

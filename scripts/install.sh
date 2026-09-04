@@ -466,8 +466,8 @@ Command-line tools:
   initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
   herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
-  ~/code/fmx/scripts/install.sh --install  # canonical consumer path: editable fmx and fmx-mcp plus exact source-built fmx-fx and fmx-zmx pins; reuses AgentStart's already-gated Fx build
-  scripts/fmx-config install  # link the Herdr-compatible fmx key subset with the operator's Ctrl-Space prefix
+  ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux and smolmux-mcp plus exact source-built smolmux-fx and smolmux-zmx pins; reuses AgentStart's already-gated Fx build
+  scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
@@ -475,7 +475,7 @@ Command-line tools:
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
-  remove AgentStart's retired ~/.local/bin/fmx-release-local helper  # preserve an independent occupant
+  remove AgentStart's retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant
 
 Agent documentation:
   remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources
@@ -988,41 +988,41 @@ install_herdr_plugins() {
 
 install_herdr_plugins
 
-# fmx owns its consumer and operator source installation. AgentStart delegates
+# smolmux owns its consumer and operator source installation. AgentStart delegates
 # the editable commands and both exact native pins to that entrypoint, passing the
-# Fx binary fxnk just built only after proving fmx names the same Integration
+# Fx binary fxnk just built only after proving smolmux names the same Integration
 # commit. A machine without the checkout skips; a present checkout that fails
 # to install is a real error.
-fmx_root="$code_root/fmx"
-if [ -f "$fmx_root/package.json" ]; then
-    [ -f "$fmx_root/fx.json" ] \
-        || die "fmx checkout has no fx.json; update $fmx_root"
-    fmx_fx_sha=$(jq -r '.commit' "$fmx_root/fx.json") \
-        || die "fmx's fx.json is not valid JSON"
-    [ "$fmx_fx_sha" = "$fx_integration_sha" ] \
-        || die "fmx pins Fx $fmx_fx_sha, but AgentStart pins $fx_integration_sha"
+smolmux_root="$code_root/smolmux"
+if [ -f "$smolmux_root/package.json" ]; then
+    [ -f "$smolmux_root/fx.json" ] \
+        || die "smolmux checkout has no fx.json; update $smolmux_root"
+    smolmux_fx_sha=$(jq -r '.commit' "$smolmux_root/fx.json") \
+        || die "smolmux's fx.json is not valid JSON"
+    [ "$smolmux_fx_sha" = "$fx_integration_sha" ] \
+        || die "smolmux pins Fx $smolmux_fx_sha, but AgentStart pins $fx_integration_sha"
     development_fx="$HOME/.local/bin/fx"
     [ -x "$development_fx" ] \
         || die "fxnk did not install an executable $development_fx"
-    [ -x "$fmx_root/scripts/install.sh" ] \
-        || die "fmx checkout has no executable scripts/install.sh; update $fmx_root"
-    printf 'Installing fmx through its canonical source installer.\n'
-    FMX_FX_BINARY="$development_fx" \
-    FMX_FX_COMMIT="$fx_integration_sha" \
-    FMX_FX_CHECKOUT="$HOME/src/fx" \
-    FMX_COMPANION_CHECKOUT="$HOME/src/zmx" \
-    FMX_INSTALL_BIN_DIR="$HOME/.local/bin" \
-        "$fmx_root/scripts/install.sh" --install \
-        || die "fmx source installation failed"
+    [ -x "$smolmux_root/scripts/install.sh" ] \
+        || die "smolmux checkout has no executable scripts/install.sh; update $smolmux_root"
+    printf 'Installing smolmux through its canonical source installer.\n'
+    SMOLMUX_FX_BINARY="$development_fx" \
+    SMOLMUX_FX_COMMIT="$fx_integration_sha" \
+    SMOLMUX_FX_CHECKOUT="$HOME/src/fx" \
+    SMOLMUX_COMPANION_CHECKOUT="$HOME/src/zmx" \
+    SMOLMUX_INSTALL_BIN_DIR="$HOME/.local/bin" \
+        "$smolmux_root/scripts/install.sh" --install \
+        || die "smolmux source installation failed"
 else
-    printf 'AgentStart installer: no fmx checkout at %s; skipping fmx.\n' \
-        "$fmx_root"
+    printf 'AgentStart installer: no smolmux checkout at %s; skipping smolmux.\n' \
+        "$smolmux_root"
 fi
 
-# fmx never writes its configuration, so its Herdr-compatible key subset can
+# smolmux never writes its configuration, so its Herdr-compatible key subset can
 # stay linked directly to AgentStart's tracked operator configuration.
-printf "Linking AgentStart's fmx configuration.\n"
-"$script_dir/fmx-config" install
+printf "Linking AgentStart's smolmux configuration.\n"
+"$script_dir/smolmux-config" install
 
 # Herdr's live configuration is rendered rather than linked, because Herdr
 # writes its own keys into it and neither checkout may become program-written
@@ -1065,14 +1065,14 @@ command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
 # Remove only the helper shape AgentStart installed. The operator's general
 # file-backed Vercel login is independent account state and is left untouched.
-retired_fmx_release="$HOME/.local/bin/fmx-release-local"
-if [ -f "$retired_fmx_release" ] \
-    && grep -F 'repo=possibilities/fmx' "$retired_fmx_release" >/dev/null \
-    && grep -F 'fmx-release-local build --run-id' "$retired_fmx_release" >/dev/null; then
-    rm -f "$retired_fmx_release"
-    printf 'Removed retired AgentStart Fmx release helper: %s.\n' "$retired_fmx_release"
-elif [ -e "$retired_fmx_release" ]; then
-    printf 'Preserving independent occupant at retired Fmx release path: %s.\n' "$retired_fmx_release"
+retired_smolmux_release="$HOME/.local/bin/smolmux-release-local"
+if [ -f "$retired_smolmux_release" ] \
+    && grep -F 'repo=possibilities/smolmux' "$retired_smolmux_release" >/dev/null \
+    && grep -F 'smolmux-release-local build --run-id' "$retired_smolmux_release" >/dev/null; then
+    rm -f "$retired_smolmux_release"
+    printf 'Removed retired AgentStart Smolmux release helper: %s.\n' "$retired_smolmux_release"
+elif [ -e "$retired_smolmux_release" ]; then
+    printf 'Preserving independent occupant at retired Smolmux release path: %s.\n' "$retired_smolmux_release"
 fi
 
 printf 'Removing retired AgentSurface, AgentBus, and Orca harness integrations.\n'
