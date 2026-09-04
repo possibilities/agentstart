@@ -49,10 +49,10 @@ if AGENTSTART_AGENTMUX_CONFIG_TARGET="$empty_target" "$helper" install >/dev/nul
 fi
 [ -f "$empty_target" ] && [ ! -L "$empty_target" ] || fail "independent empty agentmux instance config changed"
 
-# The tracked config names the tray app for the left panel and a command for
-# every other panel, so a fresh machine shows something on each surface.
-# The file is YAML: a panel's command is the `command:` line indented under
-# its name under `panels:`, so the check reads entry by entry.
+# The tracked config puts the tray app in the left panel; the other panels
+# name no command and show agentmux's placeholder. The file is YAML: a
+# panel's command is the `command:` line indented under its name under
+# `panels:`, so the check reads entry by entry.
 tracked="$root/config/agentmux/instances/default.yaml"
 panel_has() {
     awk -v panel="  $1:" -v want="$2" '
@@ -65,8 +65,8 @@ panel_has() {
     ' "$tracked"
 }
 for panel in left drawer dock right; do
-    panel_has "$panel" '^    command: [^[:space:]]' \
-        || fail "tracked agentmux instance config has no command for the $panel panel"
+    panel_has "$panel" '^    ' \
+        || fail "tracked agentmux instance config has no entry for the $panel panel"
 done
 panel_has left '^    command: tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"

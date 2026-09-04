@@ -27,19 +27,16 @@ panels:
     visible: true
     width: 26
   drawer:
-    command: agentmux screen --text drawer
     description: ""
     needs-agents: false
     visible: false
     height: 8
   dock:
-    command: agentmux screen --text dock
     description: ""
     needs-agents: false
     visible: false
     width: 40
   right:
-    command: agentmux screen --text right
     description: ""
     needs-agents: false
     visible: false
