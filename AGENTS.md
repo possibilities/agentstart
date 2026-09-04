@@ -21,16 +21,19 @@
   service with two owners has them racing to render it. A fleet checkout
   ships the code; this repository decides that it is present and when it
   runs. Nothing outside this repository installs a fleet component.
-- Two outside projects are managed fork dependencies, each under the `~/src`
-  convention with our fork as the `fork` remote and bound at its `integration`
-  branch — every patch carried, merged, and the only ref an installer builds.
+- Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
+  the original repository as `upstream` and our optional fork as `fork`.
+  Managed fork dependencies bind their `integration` branch — every patch
+  carried, merged, and the only ref an installer builds.
   A patch offered upstream lives on its own branch beside it. `claude-swap` is
-  owned by agentusage's `scripts/install-providers.sh`; it is not in the
-  `install-agent-clis` loop, which is why that loop runs agentusage before
-  agentlaunch. Fx's fork lifecycle and integration installer are owned by
+  owned by `~/code/cswax` and consumed through agentusage's
+  `scripts/install-providers.sh`; it is not in the `install-agent-clis` loop,
+  which is why that loop runs agentusage before agentlaunch. Fx's fork
+  lifecycle and integration installer are owned by
   `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
   with its tracked, ship-gate-approved Integration pin as the harness
-  installation contract instead of reaching into `~/src/fx`. fxnk installs
+  installation contract instead of reaching into
+  `~/source/vercel-labs--fx`. fxnk installs
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. The `fork-rebase-policy` wiki page is the contract.
@@ -40,7 +43,7 @@
   exact stock npm pin instead. Its installer keeps the fork behind
   `NDY_FORK_ACTIVE=0` — dormant rather than deleted, which is what makes
   reviving it an edit rather than a rewrite.
-- Herdr is moving from AgentStart's retired `~/src/herdr` updater to the
+- Herdr is moving from AgentStart's retired source updater to the
   official stable Homebrew formula. `scripts/select-herdr-runtime` is the
   cutover guard: stable must speak fleet protocol 20 or newer and every
   default/named server socket must be absent before the receipt-proved source

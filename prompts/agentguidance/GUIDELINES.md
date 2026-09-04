@@ -1,9 +1,10 @@
 ## Guidelines
 
-- In someone else's checkout (`~/src`), orient before working: confirm the
-  branch is the one the task means — the default, or our fork's branch when
-  we carry patches — then pull and fast-forward. A genuinely diverged
-  branch is reported, not resolved in passing.
+- In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
+  working: verify `upstream` names the original repository, `fork` names our
+  optional fork, and the branch is the one the task means — the default, or
+  our fork's branch when we carry patches — then pull and fast-forward. A
+  genuinely diverged branch is reported, not resolved in passing.
 - A fork we patch is owned by a workshop repository (`fxnk` for Fx, `zmax`
   for zmx): its `MAINTAIN.md` is the contract for that fork, `/maintain` the
   procedure, and `integration` the only ref a consumer binds — through the
