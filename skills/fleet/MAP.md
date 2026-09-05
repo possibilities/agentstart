@@ -54,8 +54,6 @@ flowchart LR
     voice[agentvoice]
 
     voice -->|owned stock app-server child, native stdio| codex
-    voice -->|optional account selection| usage
-    voice -->|optional selection fallback and profile onboarding inventory| swap
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -178,7 +176,6 @@ sentence around the match, never from the name alone.
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
 | agentvoice | Codex | owns an unmodified `codex app-server --enable realtime_conversation --listen stdio://` child for each foreground TUI launch, using native thread list/read/start/resume and realtime RPCs. It supplies no custom worker tools, report/follow-up turns, tool callbacks or thread archival/deletion; Codex owns native tools/subagents and voice handoffs. Saved retired worker calls receive a failed tool result and a visible retirement notice without rewriting history. Voice launch requires --allow-full-access; main conversations require effective dangerFullAccess/never in native start/resume/settings responses. Unsupported human interaction receives a native refusal or JSON-RPC error and a visible TUI notice, never automatic consent. Explicit --fast additionally reads effective config and the paginated model catalog, enables only the thread-local Fast gate, and validates tier responses; --no-fast requests standard. Quit ends owned work and closes the child; no resident service or separate Server remains | `agentvoice/src/main.ts`; `agentvoice/src/core/attach.ts` (`appServerArgv`, `AppServerConnection`); `agentvoice/src/core/runtime.ts`; `agentvoice/src/core/full-access.ts`; `agentvoice/src/core/service-tier.ts`; `agentvoice/docs/adr/0009-one-foreground-workspace.md` |
-| agentvoice | agentusage / codex-swap | opt-in `accounts.balance` selects via `agentusage balance codex --json`, falling back to `codex-swap select --json`; profile onboarding reads `codex-swap accounts --json`. Rotation replaces only the app-owned child at idle, not a launchd job. Account selection remains separate from native history selection | `agentvoice/src/core/accounts.ts` (`selectAccount`, `listPoolAccounts`); `agentvoice/src/core/runtime.ts` (`pickAccount`, `maybeRotate`) |
 | agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
@@ -325,6 +322,14 @@ does not re-suspect them:
   remain unchanged (`agentvoice/src/core/params.ts`, `agentvoice/src/core/runtime.ts`,
   `agentvoice/docs/adr/0007-defer-skill-policy-to-codex.md`; retired and checked
   2026-09-04).
+- AgentVoice → agentusage / codex-swap: account selection, pool inventory,
+  profile onboarding/reconciliation and quota-triggered child replacement are
+  removed. The stock Codex child inherits CODEX_HOME unchanged; native Codex
+  owns authentication/config/history. Retired accounts commands/config fail
+  clearly; existing credentials, profiles and shared-state links remain on disk
+  (`agentvoice/src/main.ts`, `agentvoice/src/core/config.ts`,
+  `agentvoice/src/core/runtime.ts`, `agentvoice/tests/account-retirement.test.ts`;
+  retired and checked 2026-09-04).
 - AgentStart → AgentVoice installer: no current invocation in
   `agentstart/scripts/install-agent-clis`. AgentVoice's standalone
   `bun run cli:install` exists, but fleet wiring and actual installation remain
