@@ -1,5 +1,4 @@
 setup: ~/code/agentwork
-prefix: ctrl+space
 
 directories:
   code:
