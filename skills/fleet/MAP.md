@@ -52,6 +52,7 @@ flowchart LR
     collab[agentcollab]
     mux[agentmux]
     voice[agentvoice]
+    roles[agentroles]
     grok[agentgrok]
     grokCli[grok — Grok Build CLI]
     hub[xAI Computer Hub]
@@ -59,7 +60,10 @@ flowchart LR
     grok -->|token refresh: runs the CLI's own read-only command when the login is expired| grokCli
     grok -->|WebSocket bot_client: bot.* verbs, bot.command relay to the user's Grok Bot box| hub
 
-    voice -->|owned stock app-server child, native stdio| codex
+    voice -->|owned stock app-server child, native stdio; role skills via skills/extraRoots/set, role MCPs via per-thread config| codex
+    roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --plugin-dir on a cache-rendered plugin| claude
+    roles -->|-c model_instructions_file / developer_instructions / mcp_servers.* and plugins.<role>@agentroles.enabled on an inert installed plugin| codex
+    roles -->|--role <dir>| voice
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -110,7 +114,7 @@ flowchart LR
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
-    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / peekaboo]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     start ==>|repository-owned editable command installer + native audio build; no launch/service/config| voiceInstall[agentvoice]
     skills ==>|fixed session skills + shadcn MCP| launch
@@ -184,7 +188,11 @@ sentence around the match, never from the name alone.
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
 | agentstart | agentvoice | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: prerequisite checks, clean-source/frozen dependency install, staged native audio build, ownership-checked atomic editable command link and deployed-SHA receipt. A missing checkout skips; a present broken checkout fails. No voice launch, service, Codex configuration, skill enablement or account wrapper is installed; actual deployment remains a separately approved action | `agentstart/scripts/install-agent-clis`; `agentvoice/scripts/install.sh`; `agentvoice/scripts/install.ts`; `agentvoice/scripts/build-native.ts`; both repositories' isolated installer tests |
-| agentvoice | Codex | owns an unmodified `codex app-server --enable realtime_conversation --listen stdio://` child for each foreground TUI launch, using native thread list/read/start/resume and realtime RPCs. It supplies no custom worker tools, report/follow-up turns, tool callbacks or thread archival/deletion; Codex owns native tools/subagents and voice handoffs. Saved retired worker calls receive a failed tool result and a visible retirement notice without rewriting history. Voice launch requires --allow-full-access; main conversations require effective dangerFullAccess/never in native start/resume/settings responses. Unsupported human interaction receives a native refusal or JSON-RPC error and a visible TUI notice, never automatic consent. Explicit --fast additionally reads effective config and the paginated model catalog, enables only the thread-local Fast gate, and validates tier responses; --no-fast requests standard. Quit ends owned work and closes the child; no resident service or separate Server remains | `agentvoice/src/main.ts`; `agentvoice/src/core/attach.ts` (`appServerArgv`, `AppServerConnection`); `agentvoice/src/core/runtime.ts`; `agentvoice/src/core/full-access.ts`; `agentvoice/src/core/service-tier.ts`; `agentvoice/docs/adr/0009-one-foreground-workspace.md` |
+| agentvoice | Codex | owns an unmodified `codex app-server --enable realtime_conversation --listen stdio://` child for each foreground TUI launch, using native thread list/read/start/resume and realtime RPCs. It supplies no custom worker tools, report/follow-up turns, tool callbacks or thread archival/deletion; Codex owns native tools/subagents and voice handoffs. Saved retired worker calls receive a failed tool result and a visible retirement notice without rewriting history. Voice launch requires --allow-full-access; main conversations require effective dangerFullAccess/never in native start/resume/settings responses. Unsupported human interaction receives a native refusal or JSON-RPC error and a visible TUI notice, never automatic consent. Explicit --fast additionally reads effective config and the paginated model catalog, enables only the thread-local Fast gate, and validates tier responses; --no-fast requests standard. Quit ends owned work and closes the child; no resident service or separate Server remains. A `--role` directory adds process-local skill roots through `skills/extraRoots/set` right after `initialize` and its `mcp.json` servers through per-thread `mcp_servers` config; nothing is written under CODEX_HOME | `agentvoice/src/main.ts`; `agentvoice/src/core/attach.ts` (`appServerArgv`, `AppServerConnection`); `agentvoice/src/core/runtime.ts`; `agentvoice/src/core/role.ts`; `agentvoice/src/core/full-access.ts`; `agentvoice/src/core/service-tier.ts`; `agentvoice/docs/adr/0009-one-foreground-workspace.md`; `agentvoice/docs/adr/0014-roles.md` |
+| agentroles | Claude Code | delivers a role directory to one `claude` invocation through PATH (so the AgentLaunch shim still applies): `--system-prompt-file` or `--append-system-prompt-file`, `--mcp-config <role>/mcp.json`, and `--plugin-dir` on a skills-only plugin rendered fresh under `~/.cache/agentroles/claude/<role>/`. The child also receives `AGENTROLES_ROLE`/`AGENTROLES_NAME`; the harness exit code is returned unchanged | `agentroles/src/main.ts` (`deliver`); `agentroles/src/deliver/claude.ts`; `agentroles/src/render.ts`; `agentroles/src/exec.ts`; `agentroles/README.md` |
+| agentroles | Codex | delivers a role to one `codex` invocation as `-c` overrides with TOML values: `model_instructions_file` or `developer_instructions`, one `mcp_servers.<name>` per translated `mcp.json` server, and `plugins.<role>@agentroles.enabled=true`. Overrides follow `exec`/`review` or `resume <id>`, mirroring AgentLaunch, and never touch `skills.config`, which the shim owns. `agentroles install <role>` is the one Codex-state write: it renders the role as a skills-only plugin in the local `agentroles` marketplace, runs `codex plugin marketplace add` once and `codex plugin remove`/`add`, then persists the plugin disabled through `config/value/write` on a `codex app-server` child | `agentroles/src/deliver/codex.ts`; `agentroles/src/codex-plugin.ts`; `agentroles/src/app-server.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0001-roles-are-directories-delivered-by-argv.md` |
+| agentroles | agentvoice | passes `--role <dir>` and nothing else; AgentVoice reads the directory itself because only its process can register skill roots on the child it owns | `agentroles/src/deliver/agentvoice.ts`; `agentvoice/src/core/role.ts` |
+| agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action | `agentstart/scripts/install-agent-clis`; `agentroles/scripts/install.sh` |
 | agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
@@ -331,10 +339,12 @@ does not re-suspect them:
 - AgentVoice → AgentStart managed resource inventory: no runtime read of
   `managed-skills.txt` or `AGENTSTART_RESOURCES_ROOT`, and no automatic
   `skills.config` enablement remains. Codex owns skill discovery and policy;
-  explicit operator config still passes through. Developer fleet conventions
+  explicit operator config still passes through. Role skills (`--role`) use
+  process-local extra roots on the owned child, not `skills.config` or plugin
+  changes. Developer fleet conventions
   remain unchanged (`agentvoice/src/core/params.ts`, `agentvoice/src/core/runtime.ts`,
   `agentvoice/docs/adr/0007-defer-skill-policy-to-codex.md`; retired and checked
-  2026-09-04).
+  2026-09-04; roles added 2026-09-05, `agentvoice/docs/adr/0014-roles.md`).
 - AgentVoice → agentusage / codex-swap: account selection, pool inventory,
   profile onboarding/reconciliation and quota-triggered child replacement are
   removed. The stock Codex child inherits CODEX_HOME unchanged; native Codex

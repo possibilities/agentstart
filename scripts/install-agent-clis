@@ -69,8 +69,13 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # AgentVoice needs stock Codex and a C compiler, provisioned by the outer
 # installer. Its contract installs only the editable command and native audio;
 # it starts no voice session/service and adds no AgentLaunch or skill policy.
+#
+# agentroles follows agentvoice: it runs claude, codex and agentvoice through
+# PATH and passes agentvoice --role, but installs nothing for any of them. Its
+# own `install` command is a user action that writes Codex plugin state, never
+# part of this loop.
 for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentmux agentwork; do
+    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentroles agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"
