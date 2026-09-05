@@ -1624,10 +1624,11 @@ validate_agentlaunch_deployment() {
     local source="$cleanup_code_root/agentlaunch/src/main.ts"
     local command="$cleanup_home/.local/bin/agentlaunch"
     local receipt="$cleanup_home/.local/state/agentlaunch/deployed-sha"
-    # Re-reviewed after AgentLaunch added managed-session shadcn wiring and
-    # adopted the source-root convention; the published command still exposes
-    # only Claude/Codex and explicitly refuses every retired Pi spelling.
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-1dd9b24f427274f18c8d8aa0a8c59f25c59067ab}"
+    # Re-reviewed after AgentLaunch added managed-session shadcn wiring,
+    # adopted the source-root convention, and added gpt-6-astra to its Codex
+    # catalog; the published command still exposes only Claude/Codex and
+    # explicitly refuses every retired Pi spelling.
+    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-c4bb316de2e8bd6fe03295f3a3889defff4052ed}"
     local receipt_sha receipt_mode catalog rejection
     for path in \
         "$command" "$receipt" \
