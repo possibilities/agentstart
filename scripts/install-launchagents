@@ -44,6 +44,7 @@ SERVICES=(
     "agentattention.server|agentattention|server.log|resident"
     "agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered"
     "agentsource.receiver|agentsource|receiver.log|resident"
+    "agentsource.notifier|agentsource|notifier.log|resident"
     "agentwiki.server|agentwiki|server.log|resident"
 )
 

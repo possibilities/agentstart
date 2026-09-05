@@ -3456,6 +3456,7 @@ agentusage.observer|agentusage|observer.log|resident
 agentattention.server|agentattention|server.log|resident
 agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered
 agentsource.receiver|agentsource|receiver.log|resident
+agentsource.notifier|agentsource|notifier.log|resident
 agentwiki.server|agentwiki|server.log|resident'
 for entry in $expected_services; do
     grep -Fq "\"$entry\"" scripts/install-launchagents \
@@ -3515,6 +3516,12 @@ done < <(sed -n 's/^ *"\([a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagent
 
 grep -Fq '<string>webhook-daemon</string>' config/launchd/agentsource.receiver.plist \
     || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
+grep -Fq '<string>notify-daemon</string>' config/launchd/agentsource.notifier.plist \
+    || fail "Agentsource notifier does not enter through the installed notify-daemon subcommand"
+# The notifier posts through terminal-notifier, which only the Homebrew prefix
+# provides; a plist that hand-built PATH without it would run and never post.
+grep -Fq '<string>__PATH__</string>' config/launchd/agentsource.notifier.plist \
+    || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
 grep -Fq '<string>serve</string>' config/launchd/agentattention.server.plist \
     || fail "Agentattention server does not enter through the installed serve subcommand"
 if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/agentattention.server.plist; then
