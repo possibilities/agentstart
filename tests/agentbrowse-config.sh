@@ -19,6 +19,9 @@ cp "$root/config/agentbrowse/config.json" "$source_config"
 export HOME="$test_root/home"
 export AGENTSTART_AGENTBROWSE_CONFIG_SOURCE="$source_config"
 export AGENTSTART_AGENTBROWSE_CONFIG_TARGET="$target_config"
+# The fixture loader stands in for the agentbrowse checkout so the probe runs
+# the same way on every machine, with or without a real checkout beside it.
+export AGENTSTART_AGENTBROWSE_CHECKOUT="$root/tests/fixtures/agentbrowse-checkout"
 
 "$helper" install
 [ -L "$target_config" ] || fail "install did not link the agentbrowse config"
@@ -29,7 +32,7 @@ cmp -s "$source_config" "$target_config" \
     (.backends | map(.id)) == ["artbird", "apple-container-local"] and
     .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
     (.backends[1] | has("video") | not) and
-    .backends[1].maxTargets == 1000 and
+    .backends[1].maxTargets == 1 and
     .backends[1].accessMode == "loopback" and
     .backends[1].cpus == 2 and
     .backends[1].memory == "6G" and
@@ -69,6 +72,25 @@ for drift_filter in \
     [ ! -e "$drifted_target" ] && [ ! -L "$drifted_target" ] \
         || fail "a refused capture policy still linked a config: $drift_filter"
 done
+
+# A config the deployed CLI's own loader rejects is refused before it is
+# linked, and the refusal carries the loader's reason. This is the drift that
+# took the browser fleet down on 2026-09-05: the tracked config ran ahead of the
+# deployed agentbrowse, whose Apple backend still requires exactly one target.
+ahead_source="$test_root/ahead-source.json"
+ahead_target="$test_root/ahead-home/.config/agentbrowse/config.json"
+/usr/bin/jq '.backends[1].maxTargets = 1000' "$root/config/agentbrowse/config.json" >"$ahead_source"
+if ahead_output=$(AGENTSTART_AGENTBROWSE_CONFIG_SOURCE="$ahead_source" \
+    AGENTSTART_AGENTBROWSE_CONFIG_TARGET="$ahead_target" \
+    "$helper" install 2>&1); then
+    fail "a config the deployed loader rejects was linked"
+fi
+printf '%s\n' "$ahead_output" | grep -F 'deployed agentbrowse rejects the tracked config' >/dev/null \
+    || fail "loader refusal did not say the deployed CLI rejects the config: $ahead_output"
+printf '%s\n' "$ahead_output" | grep -F 'maxTargets must be 1' >/dev/null \
+    || fail "loader refusal did not carry the loader's reason: $ahead_output"
+[ ! -e "$ahead_target" ] && [ ! -L "$ahead_target" ] \
+    || fail "a config the deployed loader rejects still linked"
 
 # The one known hand-written version-1 config migrates deliberately.
 legacy_target="$test_root/legacy-home/.config/agentbrowse/config.json"

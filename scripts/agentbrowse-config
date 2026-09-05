@@ -23,6 +23,29 @@ repo_root=$(cd -P -- "$script_dir/.." && pwd)
 config_source="${AGENTSTART_AGENTBROWSE_CONFIG_SOURCE:-$repo_root/config/agentbrowse/config.json}"
 config_target="${AGENTSTART_AGENTBROWSE_CONFIG_TARGET:-$HOME/.config/agentbrowse/config.json}"
 jq_bin="${AGENTSTART_JQ_BIN:-/usr/bin/jq}"
+agentbrowse_checkout="${AGENTSTART_AGENTBROWSE_CHECKOUT:-$HOME/code/agentbrowse}"
+bun_bin="${AGENTSTART_BUN_BIN:-$(command -v bun 2>/dev/null || true)}"
+loader_probe="$script_dir/agentbrowse-config-probe.ts"
+
+# The tracked config and the deployed CLI arrive by separate steps, so they can
+# drift apart. On 2026-09-05 the config declared an Apple backend shape the
+# deployed loader still rejected: the provider refused its own config, every
+# browser-backed fetch on the machine failed within a second, agentbrain burned
+# its item-retry budget on each saved link and blocked it, and only its
+# stranded-job count noticed. Parsing the config with the deployed checkout's
+# loader turns that drift into an install failure that names the reason. A
+# machine without the checkout or bun has nothing to be incompatible with yet.
+probe_deployed_loader() {
+    local loader="$agentbrowse_checkout/config/deployment.ts"
+    local verdict
+
+    [ -f "$loader" ] || return 0
+    [ -n "$bun_bin" ] && [ -x "$bun_bin" ] || return 0
+    [ -f "$loader_probe" ] || die "loader probe is missing: $loader_probe"
+    if ! verdict=$("$bun_bin" "$loader_probe" "$loader" "$config_source" 2>&1); then
+        die "the deployed agentbrowse rejects the tracked config; align the config with the checkout before linking: $verdict"
+    fi
+}
 
 validate_config() {
     [ -x "$jq_bin" ] || die "jq is required to validate the agentbrowse config: $jq_bin"
@@ -57,7 +80,7 @@ validate_config() {
             "id": "apple-container-local",
             "type": "apple-container",
             "command": "/usr/local/bin/container",
-            "maxTargets": 1000,
+            "maxTargets": 1,
             "cpus": 2,
             "memory": "6G",
             "accessMode": "loopback"
@@ -109,6 +132,7 @@ is_known_version_one_config() {
 }
 
 install_config() {
+    probe_deployed_loader
     validate_config
     if [ -L "$config_target" ]; then
         [ -e "$config_target" ] || die "refusing to replace broken agentbrowse config link: $config_target"

@@ -104,7 +104,7 @@ done
     (.backends | map(.id)) == ["artbird", "apple-container-local"] and
     .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
     (.backends[1] | has("video") | not) and
-    .backends[1].maxTargets == 1000 and
+    .backends[1].maxTargets == 1 and
     .backends[1].accessMode == "loopback" and
     .backends[1].cpus == 2 and
     .backends[1].memory == "6G" and
