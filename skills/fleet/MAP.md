@@ -579,3 +579,13 @@ Updated again 2026-09-04 for Smolmux's arbitrary-command contract: the retired
 agent MCP, Fx pin, private Fx binary, and Work-control edge left the active
 graph. AgentStart now delegates only the editable `smolmux` command, its exact
 Companion pin, and doctor verification to Smolmux's source installer.
+
+### Hypeman browser runtime
+
+| Caller | Dependency | Contract | Evidence |
+|---|---|---|---|
+| agentbrowse | Hypeman API | Authenticated instance/image/volume lifecycle; explicit configured backend URL and token file. Launch never starts the host service or prepares an image. | `agentbrowse/cli/hypeman-backend.ts`; `agentbrowse/config/deployment.ts` |
+| agentbrowse | agentbrowse-infra on artbird | SSH invokes the installed `agentbrowse-hypeman network-sync` command after instance creation/start/deletion to reconcile private CDP and WebRTC forwarding. | `agentbrowse/cli/hypeman-backend.ts`; `agentbrowse-infra/bin/agentbrowse-hypeman` |
+| agentbrowse-infra | Hypeman 0.3.0 | Explicit setup verifies platform archive digests; manual service lifecycle preserves profile volumes. macOS uses system Python for a loopback TCP/UDP relay; Linux uses an owned nftables table. | `agentbrowse-infra/bin/agentbrowse-hypeman`; `agentbrowse-infra/bin/hypeman-relay.py` |
+| artbird | agentbrowse-infra | Optional Ansible playbook installs the shared lifecycle command and Linux host prerequisites. | `artbird/ansible/playbooks/hypeman.yml`; `artbird/ansible/roles/hypeman/tasks/main.yml` |
+| agentbrowse | Apple loopback relay | Optional `accessMode: loopback` uses the explicitly enabled system-Python TCP service in infrastructure; guest WebRTC remains direct. | `agentbrowse/cli/apple-backend.ts`; `agentbrowse-infra/bin/apple-relay.py` |
