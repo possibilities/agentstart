@@ -312,6 +312,7 @@ grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
 [ -f config/agent-contract/example.json ] \
     || fail "the agent contract has no worked example for the repositories adopting it"
 bun test tests/agent-contract.test.ts
+bun test tests/install-agent-clis.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
 # only ever runs green in a unit test is a validator nobody has actually used.
@@ -2714,6 +2715,7 @@ for removed_mcp in \
 done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
+    '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable voice TUI + native audio build only; no launch, services or prompt/skill configuration' \
     'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
@@ -3349,7 +3351,7 @@ esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok; do
+    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

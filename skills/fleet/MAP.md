@@ -112,6 +112,7 @@ flowchart LR
     start ==>|npm pin| browser[agent-browser]
     start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse-infra / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / codex-swap / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / peekaboo]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
+    start ==>|repository-owned editable command installer + native audio build; no launch/service/config| voiceInstall[agentvoice]
     skills ==>|fixed session skills + shadcn MCP| launch
     launch ==>|synthetic agent plugin with skills + shadcn MCP| claude
     launch ==>|native codex-swap run/resume + qualified skill and shadcn MCP enables| codex
@@ -182,6 +183,7 @@ sentence around the match, never from the name alone.
 
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
+| agentstart | agentvoice | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: prerequisite checks, clean-source/frozen dependency install, staged native audio build, ownership-checked atomic editable command link and deployed-SHA receipt. A missing checkout skips; a present broken checkout fails. No voice launch, service, Codex configuration, skill enablement or account wrapper is installed; actual deployment remains a separately approved action | `agentstart/scripts/install-agent-clis`; `agentvoice/scripts/install.sh`; `agentvoice/scripts/install.ts`; `agentvoice/scripts/build-native.ts`; both repositories' isolated installer tests |
 | agentvoice | Codex | owns an unmodified `codex app-server --enable realtime_conversation --listen stdio://` child for each foreground TUI launch, using native thread list/read/start/resume and realtime RPCs. It supplies no custom worker tools, report/follow-up turns, tool callbacks or thread archival/deletion; Codex owns native tools/subagents and voice handoffs. Saved retired worker calls receive a failed tool result and a visible retirement notice without rewriting history. Voice launch requires --allow-full-access; main conversations require effective dangerFullAccess/never in native start/resume/settings responses. Unsupported human interaction receives a native refusal or JSON-RPC error and a visible TUI notice, never automatic consent. Explicit --fast additionally reads effective config and the paginated model catalog, enables only the thread-local Fast gate, and validates tier responses; --no-fast requests standard. Quit ends owned work and closes the child; no resident service or separate Server remains | `agentvoice/src/main.ts`; `agentvoice/src/core/attach.ts` (`appServerArgv`, `AppServerConnection`); `agentvoice/src/core/runtime.ts`; `agentvoice/src/core/full-access.ts`; `agentvoice/src/core/service-tier.ts`; `agentvoice/docs/adr/0009-one-foreground-workspace.md` |
 | agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
@@ -340,13 +342,12 @@ does not re-suspect them:
   (`agentvoice/src/main.ts`, `agentvoice/src/core/config.ts`,
   `agentvoice/src/core/runtime.ts`, `agentvoice/tests/account-retirement.test.ts`;
   retired and checked 2026-09-04).
-- AgentStart → AgentVoice installer: no current invocation in
-  `agentstart/scripts/install-agent-clis`. AgentVoice's standalone
-  `bun run cli:install` exists, but fleet wiring and actual installation remain
-  explicitly deferred. Legacy claims that this was wired were stale (checked
-  2026-09-04). Phone discovery/pairing, Tailscale/dns-sd lookup, Android packaging
+- AgentVoice → phone/services: phone discovery/pairing, Tailscale/dns-sd lookup, Android packaging
   and AgentVoice launchd management are retired from active AgentVoice source;
   previously installed services and private state are not removed by that cut.
+
+AgentStart → AgentVoice installer wiring landed in source on 2026-09-04;
+verification used disposable checkouts/destinations. No live installation was run.
 
 Last verified: 2026-08-09, twice — an initial first-hand sweep, then an
 independent second sweep that removed two false routing edges (own-`search`
