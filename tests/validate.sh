@@ -2724,7 +2724,7 @@ for required_install in \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/code/fxnk/scripts/install.sh --install --sha e1b20262ba4b3392c8a848069e9c3fa0c69fd0a1  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/code/fxnk/scripts/install.sh --install --sha ca773013b48be68451ed363f168f0a3251e50db2  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
