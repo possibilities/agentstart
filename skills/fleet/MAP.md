@@ -51,6 +51,11 @@ flowchart LR
     surface[agentsurface]
     collab[agentcollab]
     mux[agentmux]
+    voice[agentvoice]
+
+    voice -->|owned stock app-server child, native stdio| codex
+    voice -->|optional account selection| usage
+    voice -->|optional selection fallback and profile onboarding inventory| swap
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -172,6 +177,8 @@ sentence around the match, never from the name alone.
 
 | Caller | Callee | What | Evidence |
 | --- | --- | --- | --- |
+| agentvoice | Codex | owns an unmodified `codex app-server --enable realtime_conversation --listen stdio://` child for each foreground TUI launch, using native thread list/read/start/resume and realtime RPCs. Quit ends owned work and closes the child; no resident service or separate Server remains | `agentvoice/src/core/attach.ts` (`appServerArgv`, `AppServerConnection`); `agentvoice/src/core/runtime.ts`; `agentvoice/docs/adr/0009-one-foreground-workspace.md` |
+| agentvoice | agentusage / codex-swap | opt-in `accounts.balance` selects via `agentusage balance codex --json`, falling back to `codex-swap select --json`; profile onboarding reads `codex-swap accounts --json`. Rotation replaces only the app-owned child at idle, not a launchd job. Account selection remains separate from native history selection | `agentvoice/src/core/accounts.ts` (`selectAccount`, `listPoolAccounts`); `agentvoice/src/core/runtime.ts` (`pickAccount`, `maybeRotate`) |
 | agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
@@ -308,17 +315,23 @@ does not re-suspect them:
   mentions are the one-time ownership-guarded retirement path and dated
   historical update notes (checked 2026-08-29).
 - AgentVoice → Herdr: no runtime, config, installation, service, or skill-routing
-  edge remains. AgentVoice uses its resident Codex App Server and its own
-  control attachments; Herdr remains independently used elsewhere in the
+  edge remains. AgentVoice uses an owned stock Codex child over native stdio;
+  no service or control attachment remains. Herdr is independently used elsewhere in the
   fleet (retired and checked 2026-09-04).
 - AgentVoice → AgentStart managed resource inventory: no runtime read of
   `managed-skills.txt` or `AGENTSTART_RESOURCES_ROOT`, and no automatic
   `skills.config` enablement remains. Codex owns skill discovery and policy;
-  explicit operator config still passes through. AgentStart's installation
-  relationship with AgentVoice and their developer fleet conventions remain
-  unchanged (`agentvoice/src/core/params.ts`, `agentvoice/src/core/runtime.ts`,
+  explicit operator config still passes through. Developer fleet conventions
+  remain unchanged (`agentvoice/src/core/params.ts`, `agentvoice/src/core/runtime.ts`,
   `agentvoice/docs/adr/0007-defer-skill-policy-to-codex.md`; retired and checked
   2026-09-04).
+- AgentStart → AgentVoice installer: no current invocation in
+  `agentstart/scripts/install-agent-clis`. AgentVoice's standalone
+  `bun run cli:install` exists, but fleet wiring and actual installation remain
+  explicitly deferred. Legacy claims that this was wired were stale (checked
+  2026-09-04). Phone discovery/pairing, Tailscale/dns-sd lookup, Android packaging
+  and AgentVoice launchd management are retired from active AgentVoice source;
+  previously installed services and private state are not removed by that cut.
 
 Last verified: 2026-08-09, twice — an initial first-hand sweep, then an
 independent second sweep that removed two false routing edges (own-`search`
