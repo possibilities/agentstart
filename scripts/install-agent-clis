@@ -62,8 +62,12 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 #
 # agentwork follows agentmux: it is a file:../agentmux dependency. It is a
 # setup (programs for agentmux's parts), not a command; nothing goes on PATH.
+#
+# agentgrok has no install-order relationship with any fleet tool. At runtime
+# it reads the Grok Build CLI's login and shells out to `grok models` to renew
+# it; the `grok` cask is installed by scripts/install.sh, not by this loop.
 for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentmux agentwork; do
+    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -f "$tool_root/scripts/install.sh" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

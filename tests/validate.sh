@@ -3349,7 +3349,7 @@ esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface; do
+    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

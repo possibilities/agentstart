@@ -73,7 +73,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, agentboard, agentbrowse-infra, agentbrowse, agentattention,
-    agentsearch, agentkeys, codex-swap, agentusage, and agentlaunch CLIs;
+    agentsearch, agentkeys, codex-swap, agentusage, agentlaunch, and agentgrok
+    CLIs;
   - the public `possibilities/claude-swap` fork and the codex-swap provider
     shim, through agentusage's installer;
   - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
