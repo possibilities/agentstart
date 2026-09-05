@@ -1,18 +1,15 @@
 [keys]
 prefix = "ctrl+space"
-# alt+1/2 went to the agents panel; tabs keep prefix+p/n and take the free
-# end of the number row. tmux's M-1/M-2 still switch windows there, so the
-# two multiplexers no longer mirror on these two keys — accepted on purpose.
-previous_tab = ["prefix+p", "alt+8"]
-next_tab = ["prefix+n", "alt+9"]
+previous_tab = ["prefix+p", "alt+1"]
+next_tab = ["prefix+n", "alt+2"]
 
 # Cycle the agents panel, in the panel's own order (agent_panel_sort below,
-# so the attention queue). A repeated motion, so it holds alt and varies only
-# the last key; it took the 1/2 slot from tabs because cycling agents is the
-# more frequent motion on this surface, and 1 up / 2 down is where the hand
-# already goes.
-previous_agent = "alt+1"
-next_agent = "alt+2"
+# so the attention queue). Direct, not through the prefix: it is a repeated
+# motion, so hold ctrl+shift and vary only the last key, j down and k up as
+# everywhere else here. Free on every layer, and off the alt number row that
+# tabs, workspaces, and goto already mirror from tmux.
+previous_agent = "ctrl+shift+k"
+next_agent = "ctrl+shift+j"
 next_workspace = "alt+5"
 previous_workspace = "alt+6"
 
