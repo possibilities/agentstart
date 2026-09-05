@@ -25,7 +25,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
 
       # validate.sh runs shellcheck only when it is present and says nothing
       # when it is not, so an absent binary would silently drop the lint
