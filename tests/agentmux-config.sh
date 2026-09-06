@@ -72,10 +72,10 @@ panel_has left '^    command: tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"
 grep -Fqx 'setup: ~/code/agentwork' "$tracked" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"
-# The same file is agentmux's config for the instance, so the operator's
-# prefix and harness defaults live here and nowhere else.
-grep -Fqx 'prefix: ctrl+space' "$tracked" \
-    || fail "tracked agentmux instance config does not carry the operator's agentmux prefix"
+# The operator removed the prefix override; leave selection to agentmux.
+if grep -Eq '^prefix:' "$tracked"; then
+    fail "tracked agentmux instance config overrides the agentmux prefix"
+fi
 grep -Eq '^instance:' "$tracked" \
     && fail "tracked agentmux instance config names an instance; the file's name is the instance"
 

@@ -51,6 +51,8 @@ flowchart LR
     surface[agentsurface]
     collab[agentcollab]
     mux[agentmux]
+    smolmux[smolmux]
+    work[agentwork Tray]
     voice[agentvoice]
     roles[agentroles]
     grok[agentgrok]
@@ -95,6 +97,8 @@ flowchart LR
     harnesses -->|MCP stdio: tools generated from each CLI's own agent contract| contractServers[agentboard / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentbrowse / agentgrok]
     harnesses -->|managed-session MCP stdio: component registry| shadcn[shadcn]
     collab -->|sheet calls can launch Agents; Hub invokes agent_message for attached Event Messages| mux
+    mux -->|private Runtime: lifecycle commands, event.subscribe + state.get over duplex UDS| smolmux
+    work -->|agentmux/client: observe snapshot + filtered events, agent.show| mux
 ```
 
 ## Install and service layer
@@ -221,6 +225,8 @@ sentence around the match, never from the name alone.
 | agentgrok | grok (Grok Build CLI) | reuses the CLI's login at `$GROK_HOME/auth.json` as the hub bearer token, and when it is expired or within 90 s of it runs the refresh command — `grok models` by default, `AGENTGROK_REFRESH_COMMAND` to override — so the CLI renews its own file under its own lock, then reads it again. agentgrok never writes `auth.json`; `AGENTGROK_TOKEN` bypasses the CLI entirely. A change to the CLI's login file layout or to `grok models` needing interaction breaks every agentgrok call once the token expires | `agentgrok/src/auth.ts` (`resolveCredential`, `spawnRefresh`); `agentgrok/docs/adr/0002-token-refresh-shells-out-to-the-grok-cli.md`; pinned by `agentgrok/test/auth.test.ts` |
 | agentgrok | xAI Computer Hub (external, `wss://computer-hub.grok.com/v1/tools`) | one WebSocket per command as `?role=bot_client`: hello, then JSON-RPC `bot.roster`, `bot.status`, `bot.vncDescriptor`, `bot.transcript.offbox`, `bot.usage`, `bot.subscribe`/`unsubscribe`, and `bot.command` relaying one of the hub's 43 allowlisted gateway commands to the user's Grok Bot box; `bot.event` notifications carry `hub:turn_finished`. The hub answers 400 without the role parameter, which the protocol crate does not document. Not a fleet edge — recorded because it is the whole product | `agentgrok/src/hub.ts`, `agentgrok/src/relay.ts`; wire shapes from `xai-org/grok-build` `crates/common/xai-tool-protocol/src/bot_relay.rs`; `agentgrok/docs/adr/0001-the-hub-relay-is-the-transport.md` |
 | agentcollab | agentmux | the Sheet spec language names `mcp__agentmux__agent_launch_claude` as its direct-call example, so a generated Sheet can launch an Agent without another reasoning turn. When `collab_attach` names an Agent, the Sheet sends each matching human Event through its Hub as one visible-CC `mcp__agentmux__agent_message` call with `{ names: [agent], message }`; delivery succeeds only after the Hub decodes the MCP result and observes `results[0].ok === true`, otherwise the Event stays pending in `collab_events`. Renaming either tool, changing the Message argument shape, or removing the per-recipient result breaks this integration while the MCP notification stream remains independent | `agentcollab/src/prompt.ts` (`mcp__agentmux__agent_launch_claude` call example); `agentcollab/src/server.ts` (`DEFAULT_MESSAGE_TOOL`, `detectMessaging`, `Collab.sendEvent`); behavioral coverage in `agentcollab/test/server.test.ts`; callee contracts in `agentmux/src/protocol.ts` (`agent.launch_claude`, `agent.message`) |
+| agentmux | smolmux | starts and stops its private named Runtime through the CLI, then uses the duplex Unix API for terminal control and `event.subscribe` plus `state.get` observation. Smolmux 0.8.0 or newer supplies the lifetime/generation/sequence envelope; reconnect replaces the cached projection while transient notices remain independent of snapshot watermarks. Changing the CLI, socket protocol, or native session identity breaks terminal control and Runtime recovery | `agentmux/src/smolmux.ts` (`smolmuxArgv`, `startSmolmux`, `MIN_SMOLMUX_VERSION`); `agentmux/src/daemon.ts` (`connectRuntime`, `recoverRuntime`); `smolmux/events.schema.json`; real recovery coverage in `agentmux/test/instance.e2e.test.ts` |
+| agentwork Tray | agentmux | imports `agentmux/client` and `agentmux/protocol` from the sibling package, observes the current snapshot and filtered Agent/theme/stop events over the duplex Unix socket, and sends `agent.show` when a row is pressed. Disconnect clears the displayed projection until reconnect; changing the package exports, snapshot, or event contract breaks the Tray | `agentwork/package.json`; `agentwork/src/tui/tray.ts` (`runTray`); `agentmux/src/api-client.ts` (`observe`); `agentmux/events.schema.json` |
 | agentstart | every `agent*` CLI | owns `config/agent-contract/schema.json`, the one machine-readable self-description each CLI publishes as `<cli> guide --json`, and `scripts/validate-agent-contract.ts`, which EXECUTES that schema rather than restating it. `--agent-help`, `--agent-teaser`, and `--help` are renders of the contract, not second authorships beside it; thirteen of sixteen CLIs go further and derive their argument parser from it, so a declared flag and an accepted flag cannot disagree. Each repository owns its own conformance test and resolves the validator through AgentStart's checkout | `agentstart/config/agent-contract/{schema.json,README.md,MCP.md,example.json}`; `agentstart/scripts/validate-agent-contract.ts`; `agentstart/scripts/json-schema-subset.ts`; asserted by `agentstart/tests/agent-contract.test.ts` and each repository's own contract test |
 | agentstart | Hunk | installs or upgrades the Homebrew formula, resolves the version-matched `hunk-review` skill through `hunk skill path hunk-review`, and copies that bundled skill into the fixed resources. It deliberately never installs the skill from GitHub head, which could teach a newer session API than the local binary accepts | `agentstart/scripts/install.sh` (`install_hunk_skill`), asserted by `agentstart/tests/validate.sh`; `hunk/src/core/run/paths.ts` (`resolveBundledSkillPath`) |
 | agentsurface plugin | agentusage | the shared Herdr plugin's `usage` pane entrypoint runs `escape-to-quit agentusage` in a titled 80% popup. AgentStart's `prefix+u` binding opens the entrypoint instead of duplicating an untitled generic popup | `agentsurface/plugin/herdr-plugin.toml`; `agentstart/config/herdr/config.toml` |
@@ -597,6 +603,12 @@ green/red flip of any registered project's primary branch. It is the fleet's
 one CI notification regime; fxnk's Full CI watcher keeps its verdict ledger
 and escalates only what it cannot classify, a missing run, or an overdue
 verdict.
+
+Updated 2026-09-05 for the shared fleet event API: verified the existing
+Agentmux-to-Smolmux Runtime dependency and Agentwork Tray-to-Agentmux consumer.
+Both use singular `event.subscribe` plus `state.get`, typed event envelopes,
+and repo-local `events.schema.json` catalogs; AgentVoice and Agentsource share
+that wire convention without introducing a runtime catalog service.
 
 ### Hypeman browser runtime
 
