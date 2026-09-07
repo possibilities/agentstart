@@ -22,7 +22,7 @@
   ships the code; this repository decides that it is present and when it
   runs. AgentVoice is the explicit exception: its approved default-server
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
-  `dev.agentvoice.default`, including plist rendering and service lifecycle.
+  `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
   or registration. Nothing outside these installer contracts installs a fleet component.
 - Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
