@@ -91,7 +91,9 @@ flags, and skip-versus-fail semantics are load-bearing:
   `--check` prints the plan.
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`; the machine's wrapper of the same name delegates
-  here.
+  here. The full installer also converges them. Codex runtime calls receive
+  [invocation profiles](config/codex/README.md) copied from Funk's personal
+  defaults, with temporary cwd/project trust and the normal Codex home intact.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
 migration. Executor is the narrow cask exception because the cask supplies the

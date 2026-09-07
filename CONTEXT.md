@@ -43,6 +43,12 @@ _Avoid_: latest Fx, Fx version, integration tip.
 Skills install into harnesses; AgentLaunch shims balance their bare
 launches. _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
+**Codex invocation profile** — A private, uniquely named native profile copied
+from Funk's authored preferences for one Codex runtime process. AgentStart's
+shim adds trust for the effective cwd and project root, retains the existing
+Codex home, and removes the profile when the child exits.
+_Avoid_: temporary Codex home, config sync, trust database.
+
 **Extension prompts** — the operator's `SYSTEM.md`, `GUIDELINES.md`, and
 `TOOLS.md` under `prompts/agentguidance/`, linked into
 `~/.config/agentguidance` and rendered by agentguidance into the

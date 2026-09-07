@@ -103,6 +103,12 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
+- Personal Codex preferences are the authored-source exception:
+  `~/code/funk/config/harnesses/codex.toml`. AgentStart still owns installation
+  and the invocation profile (`scripts/codex-invocation`), invoked by its Codex
+  shim after account selection. Never link the live config to Funk or copy
+  trust/auth/plugin state into the authored file. `config/codex/README.md`
+  defines precedence, cleanup, bypasses, and the native-profile contract.
 - Smolmux installation: invoke `~/code/smolmux/scripts/install.sh --install`.
   Smolmux owns that consumer path, the editable `smolmux` command, its pinned
   Companion, and doctor verification. AgentStart owns only fleet ordering and
