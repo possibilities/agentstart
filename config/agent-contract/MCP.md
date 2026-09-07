@@ -93,10 +93,23 @@ A command that spends money or quota says that too, in the first sentence.
 
 ## Results
 
-Return the CLI's own envelope. `ok: false` becomes a tool error whose message
+Return the CLI's own JSON object in `structuredContent` and as a standalone
+JSON text content block. This preserves the same envelope for native MCP
+clients and aggregators that forward content but omit structured error data.
+Keep plain-text results (Markdown, for example) as text; do not invent an
+envelope around them. Keep diagnostic notes separate from the JSON payload.
+
+`ok: false` becomes a tool error with `isError: true`. Its first text block
 leads with `error.code`, then the message, then `recovery` when the contract
-gives one — the recovery line is the difference between a caller that retries
-correctly and one that retries identically.
+gives one. The envelope goes in `structuredContent` and a separate JSON text
+block, so a caller can recover its fields without slicing JSON out of prose.
+Preserve the tool's own error vocabulary and recovery. A classified failure
+without a CLI envelope exposes those fields as a structured `error` object;
+usage faults that have no domain code remain plain tool errors.
+
+The `guide` agent tool must keep shared guidance and defaults accessible on
+demand: aggregators do not necessarily forward server `instructions`. Native
+workflow skills remain available through the harness's skill discovery.
 
 ## Stopping
 
