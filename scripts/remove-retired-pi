@@ -57,9 +57,6 @@ if [ -n "${AGENTSTART_TEST_PI_CODE_ROOT:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_JSONL_REDACT_HOOK:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_HERDR_REDACT_HOOK:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_FIND_BIN:-}" ] \
-    || [ -n "${AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA:-}" ] \
-    || [ -n "${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-}" ] \
-    || [ -n "${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_AFTER_CLAIMS_HOOK:-}" ] \
     || [ -n "${AGENTSTART_TEST_PI_FINAL_HOOK:-}" ]; then
     [ "$cleanup_home" != "$live_home" ] \
@@ -1500,13 +1497,10 @@ validate_pi_free_checkout() {
     case "$upstream_policy" in
         exact)
             if [ "$validated_upstream_sha" != "$validated_checkout_sha" ]; then
-                if [ "$repository" = codex-swap ]; then
-                    die "pushed codex-swap main is not the reviewed Pi scrub commit"
-                fi
                 die "required Pi-free $repository checkout is not equal to its pushed main ref: $root"
             fi
             ;;
-        reviewed-ancestor)
+        contains-upstream)
             GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
                 "$validated_upstream_sha" "$validated_checkout_sha" \
                 || die "required Pi-free $repository checkout does not contain its pushed main ref: $root"
@@ -1553,7 +1547,6 @@ validate_codex_swap_deployment() {
     local source="$cleanup_code_root/codex-swap/src/cli/main.ts"
     local command="$cleanup_home/.local/bin/codex-swap"
     local receipt="$cleanup_home/.local/state/codex-swap/install-receipt"
-    local retirement_sha="${AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA:-0c2d70b92aaf851f6582f0672180d325313c3140}"
     local receipt_mode command_mode expected_receipt node_path
     if [ "$cleanup_home" = "$live_home" ]; then
         relevant=1
@@ -1567,17 +1560,10 @@ validate_codex_swap_deployment() {
         done
     fi
     [ "$relevant" -eq 1 ] || return 0
-    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
-        || die "codex-swap retirement gate received an invalid commit"
-
-    # codex-swap can carry newer pushed work and clean local work above it.
-    # Prove both ancestry links before trusting the separately reviewed
-    # scrub commit and the current Pi-free source audit below.
+    # Verify the current deployed checkout and audit its active source for Pi.
+    # No historical commit is an authority for deleting current machine state.
     validate_pi_free_checkout \
-        "$root" codex-swap "$source" no reviewed-ancestor
-    GIT_OPTIONAL_LOCKS=0 git -C "$root" merge-base --is-ancestor \
-        "$retirement_sha" "$validated_upstream_sha" \
-        || die "pushed codex-swap main is not the reviewed Pi scrub commit"
+        "$root" codex-swap "$source" no contains-upstream
     if GIT_OPTIONAL_LOCKS=0 git -C "$root" grep -I -n -E \
         '(^|[^[:alpha:]])pi([^[:alpha:]]|$)|pi-coding-agent|pi-viewer|pi_agent' \
         -- src scripts/install.sh package.json package-lock.json >/dev/null 2>&1; then
@@ -1624,11 +1610,6 @@ validate_agentlaunch_deployment() {
     local source="$cleanup_code_root/agentlaunch/src/main.ts"
     local command="$cleanup_home/.local/bin/agentlaunch"
     local receipt="$cleanup_home/.local/state/agentlaunch/deployed-sha"
-    # Re-reviewed after AgentLaunch added managed-session shadcn wiring,
-    # adopted the source-root convention, and added gpt-6-astra to its Codex
-    # catalog; the published command still exposes only Claude/Codex and
-    # explicitly refuses every retired Pi spelling.
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA:-c4bb316de2e8bd6fe03295f3a3889defff4052ed}"
     local receipt_sha receipt_mode catalog rejection
     for path in \
         "$command" "$receipt" \
@@ -1639,12 +1620,8 @@ validate_agentlaunch_deployment() {
     done
     [ "$relevant" -eq 1 ] || return 0
 
-    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
-        || die "AgentLaunch retirement gate received an invalid commit"
     validate_pi_free_checkout \
-        "$root" agentlaunch "$source" yes reviewed-ancestor
-    [ "$validated_upstream_sha" = "$retirement_sha" ] \
-        || die "pushed AgentLaunch main is not the reviewed Pi retirement commit"
+        "$root" agentlaunch "$source" yes contains-upstream
     validate_exact_deployed_link "$command" "$source" AgentLaunch
     receipt_mode=$(validate_owned_regular_file "$receipt" "AgentLaunch deployed-SHA receipt")
     [ "$receipt_mode" = 600 ] \
@@ -1678,9 +1655,6 @@ validate_agentsurface_deployment() {
     local relevant=0 root="$cleanup_code_root/agentsurface"
     local source="$cleanup_code_root/agentsurface/src/main.ts"
     local command="$cleanup_home/.local/bin/agentsurface" guide
-    # Re-reviewed after AgentSurface adopted its contract-derived parser/help;
-    # the published contract contains no retired Pi harness authority.
-    local retirement_sha="${AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA:-cb1c09fd92f5f30ee3484aa60975070885302d43}"
     for path in \
         "$command" \
         "$cleanup_home/.local/share/agentsurface/shims/pi" \
@@ -1691,12 +1665,8 @@ validate_agentsurface_deployment() {
     done
     [ "$relevant" -eq 1 ] || return 0
 
-    [[ "$retirement_sha" =~ ^[0-9a-f]{40}$ ]] \
-        || die "AgentSurface retirement gate received an invalid commit"
     validate_pi_free_checkout \
-        "$root" agentsurface "$source" yes reviewed-ancestor
-    [ "$validated_upstream_sha" = "$retirement_sha" ] \
-        || die "pushed AgentSurface main is not the reviewed Pi retirement commit"
+        "$root" agentsurface "$source" yes contains-upstream
     validate_exact_deployed_link "$command" "$source" AgentSurface
     guide=$(HOME="$cleanup_home" "$command" guide --json) \
         || die "deployed AgentSurface could not report its agent contract"

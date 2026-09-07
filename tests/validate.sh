@@ -782,9 +782,14 @@ set -euo pipefail
 "$AGENTSTART_TEST_PI_LOCK_ASSERT"
 case "$*" in
     'x-catalog --x-json')
+        if [ "${AGENTSTART_TEST_PI_BAD_CONTRACT:-}" = agentlaunch-catalog ]; then
+            printf '%s\n' '{"ok":true,"data":{"harnesses":[{"harness":"pi"}]}}'
+            exit 0
+        fi
         printf '%s\n' '{"ok":true,"data":{"harnesses":[{"harness":"claude"},{"harness":"codex"}]}}'
         ;;
     '--x-harness pi --x-dry-run')
+        [ "${AGENTSTART_TEST_PI_BAD_CONTRACT:-}" != agentlaunch-accepts-pi ] || exit 0
         printf '%s\n' 'harness "pi" is retired; choose claude or codex' >&2
         exit 2
         ;;
@@ -796,6 +801,10 @@ cat >"$retired_pi_contract_code_root/agentsurface/src/main.ts" <<'EOF'
 set -euo pipefail
 "$AGENTSTART_TEST_PI_LOCK_ASSERT"
 [ "${1:-} ${2:-}" = 'guide --json' ] || exit 64
+if [ "${AGENTSTART_TEST_PI_BAD_CONTRACT:-}" = agentsurface-guide ]; then
+    printf '%s\n' '{"ok":true,"data":{"harness":"pi"}}'
+    exit 0
+fi
 printf '%s\n' '{"ok":true,"data":{"contract":"fixture"}}'
 EOF
 cat >"$retired_pi_contract_code_root/agentchats/bin/agentchats" <<'EOF'
@@ -818,6 +827,8 @@ for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; 
         config user.name Fixture
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
         remote add origin "git@github.com:possibilities/$retired_pi_contract_repo.git"
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        commit -q --allow-empty -m 'Initial fixture'
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" add .
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
         commit -q -m 'Pi-free deployment fixture'
@@ -830,20 +841,10 @@ for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; 
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
         config branch.main.merge refs/heads/main
 done
-retired_pi_contract_agentlaunch_retirement_sha=$(git -C \
-    "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD)
 export AGENTSTART_TEST_PI_CODE_ROOT="$retired_pi_contract_code_root"
-export AGENTSTART_TEST_PI_AGENTLAUNCH_RETIREMENT_SHA="$retired_pi_contract_agentlaunch_retirement_sha"
-retired_pi_contract_agentsurface_retirement_sha=$(git -C \
-    "$retired_pi_contract_code_root/agentsurface" rev-parse HEAD)
-export AGENTSTART_TEST_PI_AGENTSURFACE_RETIREMENT_SHA="$retired_pi_contract_agentsurface_retirement_sha"
-retired_pi_contract_codex_swap_retirement_sha=$(git -C \
-    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
-export AGENTSTART_TEST_PI_CODEX_SWAP_RETIREMENT_SHA="$retired_pi_contract_codex_swap_retirement_sha"
-# Model the live checkout precisely: pushed main has advanced beyond the
-# reviewed scrub, and one clean local commit sits above pushed main. The gate
-# must prove reviewed scrub -> pushed main -> deployed checkout rather than
-# pinning an old tip or accepting an unrelated latest commit.
+# Model ordinary updates: upstream advances and one clean local commit sits
+# above it. Cleanup proves installation identity and current Pi-free behavior,
+# without any known historical retirement commit.
 printf '%s\n' 'safe pushed contract fixture' \
     >"$retired_pi_contract_code_root/codex-swap/pushed-contract"
 git -C "$retired_pi_contract_code_root/codex-swap" add pushed-contract
@@ -869,7 +870,18 @@ printf 'fixture rollback\n' >"$retired_pi_contract_code_root/codex-swap/.cma-bac
 printf 'fixture proxy\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js"
 printf 'fixture selector\n' \
     >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js"
+# The launcher and surface must also tolerate a newer pushed main plus a
+# clean deployed commit above it. Every successful cleanup below uses this
+# chain, so a frozen retirement-tip comparison is a regression.
 for retired_pi_contract_repo in agentlaunch agentsurface; do
+    printf '%s\n' 'safe pushed contract fixture' \
+        >"$retired_pi_contract_code_root/$retired_pi_contract_repo/pushed-contract"
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" add pushed-contract
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
+        commit -q -m 'Safe pushed post-retirement fixture'
+    git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" update-ref \
+        refs/remotes/origin/main \
+        "$(git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" rev-parse HEAD)"
     printf '%s\n' 'protected local contract fixture' \
         >"$retired_pi_contract_code_root/$retired_pi_contract_repo/protected-contract"
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
@@ -992,9 +1004,8 @@ EOF
     git -C "$checkout" config branch.main.merge refs/heads/main
 }
 
-# Protected local contract commits may sit above pushed main, and pushed main
-# may sit above a reviewed retirement commit. A remote ref outside that proved
-# ancestry chain must still block cleanup before dedicated state is touched.
+# An unrelated upstream must still block cleanup before state is touched;
+# this proves the installed checkout belongs to its current upstream.
 wrong_codex_swap_remote_home="$skip_test_dir/wrong-codex-swap-retirement-remote-home"
 mkdir -p "$wrong_codex_swap_remote_home/.pi"
 install_retired_pi_codex_swap_contract "$wrong_codex_swap_remote_home"
@@ -1020,46 +1031,73 @@ printf '%s\n' "$wrong_codex_swap_remote_output" \
 [ -d "$wrong_codex_swap_remote_home/.pi" ] \
     || fail "retired Pi cleanup mutated state with the wrong codex-swap remote"
 
-wrong_agentlaunch_remote_home="$skip_test_dir/wrong-agentlaunch-retirement-remote-home"
-mkdir -p "$wrong_agentlaunch_remote_home/.pi"
-install_retired_pi_agentlaunch_contract "$wrong_agentlaunch_remote_home"
-git -C "$retired_pi_contract_code_root/agentlaunch" \
-    update-ref refs/remotes/origin/main "$retired_pi_contract_agentlaunch_sha"
-set +e
-wrong_agentlaunch_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_agentlaunch_remote_home" \
-    "$root/scripts/remove-retired-pi" --install 2>&1)
-wrong_agentlaunch_remote_status=$?
-set -e
-git -C "$retired_pi_contract_code_root/agentlaunch" update-ref \
-    refs/remotes/origin/main "$retired_pi_contract_agentlaunch_retirement_sha"
-[ "$wrong_agentlaunch_remote_status" -ne 0 ] \
-    || fail "retired Pi cleanup accepted the wrong pushed AgentLaunch commit"
-printf '%s\n' "$wrong_agentlaunch_remote_output" \
-    | grep -F 'pushed AgentLaunch main is not the reviewed Pi retirement commit' >/dev/null \
-    || fail "retired Pi cleanup did not explain the wrong AgentLaunch remote refusal"
-[ -d "$wrong_agentlaunch_remote_home/.pi" ] \
-    || fail "retired Pi cleanup mutated state with the wrong AgentLaunch remote"
+# The same current-upstream identity check applies to both command links.
+for retired_repo in agentlaunch agentsurface; do
+    retired_repo_root="$retired_pi_contract_code_root/$retired_repo"
+    retired_pushed=$(git -C "$retired_repo_root" rev-parse origin/main)
+    ancestry_home="$skip_test_dir/$retired_repo-unrelated-upstream"
+    make_retired_pi_claim_fixture "$ancestry_home"
+    "install_retired_pi_${retired_repo}_contract" "$ancestry_home"
+    wrong_tree=$(git -C "$retired_repo_root" write-tree)
+    wrong_upstream=$(printf '%s\n' 'Unrelated upstream fixture' \
+        | git -C "$retired_repo_root" commit-tree "$wrong_tree")
+    git -C "$retired_repo_root" update-ref refs/remotes/origin/main "$wrong_upstream"
+    set +e
+    ancestry_output=$(AGENTSTART_PI_CLEANUP_HOME="$ancestry_home" \
+        "$root/scripts/remove-retired-pi" --install 2>&1)
+    ancestry_status=$?
+    set -e
+    git -C "$retired_repo_root" update-ref refs/remotes/origin/main "$retired_pushed"
+    [ "$ancestry_status" -ne 0 ] || fail "accepted $retired_repo with unrelated upstream"
+    printf '%s\n' "$ancestry_output" \
+        | grep -F "required Pi-free $retired_repo checkout does not contain its pushed main ref" >/dev/null \
+        || fail "did not explain unrelated upstream: $ancestry_output"
+    [ -f "$ancestry_home/.local/share/agentstart/resources/pi/owned" ] \
+        || fail "upstream refusal mutated dedicated state"
+done
 
-wrong_agentsurface_remote_home="$skip_test_dir/wrong-agentsurface-retirement-remote-home"
-mkdir -p "$wrong_agentsurface_remote_home/.pi"
-install_retired_pi_agentsurface_contract "$wrong_agentsurface_remote_home"
-git -C "$retired_pi_contract_code_root/agentsurface" update-ref \
-    refs/remotes/origin/main \
-    "$(git -C "$retired_pi_contract_code_root/agentsurface" rev-parse HEAD)"
-set +e
-wrong_agentsurface_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_agentsurface_remote_home" \
-    "$root/scripts/remove-retired-pi" --install 2>&1)
-wrong_agentsurface_remote_status=$?
-set -e
-git -C "$retired_pi_contract_code_root/agentsurface" update-ref \
-    refs/remotes/origin/main "$retired_pi_contract_agentsurface_retirement_sha"
-[ "$wrong_agentsurface_remote_status" -ne 0 ] \
-    || fail "retired Pi cleanup accepted the wrong pushed AgentSurface commit"
-printf '%s\n' "$wrong_agentsurface_remote_output" \
-    | grep -F 'pushed AgentSurface main is not the reviewed Pi retirement commit' >/dev/null \
-    || fail "retired Pi cleanup did not explain the wrong AgentSurface remote refusal"
-[ -d "$wrong_agentsurface_remote_home/.pi" ] \
-    || fail "retired Pi cleanup mutated state with the wrong AgentSurface remote"
+# Checkout identity never substitutes for the currently installed behavior or
+# its receipt. These failures must preserve the same deletion candidate.
+for contract_case in agentlaunch-catalog agentlaunch-accepts-pi agentsurface-guide stale-receipt; do
+    contract_home="$skip_test_dir/retired-pi-$contract_case"
+    make_retired_pi_claim_fixture "$contract_home"
+    install_retired_pi_agentlaunch_contract "$contract_home"
+    install_retired_pi_agentsurface_contract "$contract_home"
+    case "$contract_case" in
+        agentlaunch-catalog) expected_refusal='deployed AgentLaunch catalog is not exactly Claude and Codex' ;;
+        agentlaunch-accepts-pi) expected_refusal='deployed AgentLaunch still accepts the retired Pi harness' ;;
+        agentsurface-guide) expected_refusal='deployed AgentSurface contract still names the retired Pi harness' ;;
+        stale-receipt)
+            printf '%s\n' "$(git -C "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD^)" \
+                >"$contract_home/.local/state/agentlaunch/deployed-sha"
+            expected_refusal='AgentLaunch deployed-SHA receipt does not match its Pi-free checkout'
+            ;;
+    esac
+    set +e
+    contract_output=$(AGENTSTART_PI_CLEANUP_HOME="$contract_home" \
+        AGENTSTART_TEST_PI_BAD_CONTRACT="$contract_case" \
+        "$root/scripts/remove-retired-pi" --install 2>&1)
+    contract_status=$?
+    set -e
+    [ "$contract_status" -ne 0 ] || fail "retirement accepted $contract_case"
+    printf '%s\n' "$contract_output" | grep -F "$expected_refusal" >/dev/null \
+        || fail "did not explain $contract_case: $contract_output"
+    [ -f "$contract_home/.local/share/agentstart/resources/pi/owned" ] \
+        || fail "contract refusal mutated dedicated state"
+done
+
+# A valid descendant deployment completes cleanup and remains idempotent even
+# though the installed launcher/surface still make their guards relevant.
+descendant_home="$skip_test_dir/retired-pi-descendant-success"
+make_retired_pi_claim_fixture "$descendant_home"
+install_retired_pi_agentlaunch_contract "$descendant_home"
+install_retired_pi_agentsurface_contract "$descendant_home"
+AGENTSTART_PI_CLEANUP_HOME="$descendant_home" "$root/scripts/remove-retired-pi" --install >/dev/null
+[ ! -e "$descendant_home/.local/share/agentstart/resources/pi" ] \
+    || fail "valid descendant deployment did not finish cleanup"
+AGENTSTART_PI_CLEANUP_HOME="$descendant_home" "$root/scripts/remove-retired-pi" --install >/dev/null
+[ -L "$descendant_home/.local/bin/agentlaunch" ] && [ -L "$descendant_home/.local/bin/agentsurface" ] \
+    || fail "repeat retirement removed an active command"
 
 # Process absence is checked before claims, after the claim-all barrier, and in
 # the final audit. A process appearing at any one of those boundaries must
