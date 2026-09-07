@@ -602,9 +602,9 @@ Updated 2026-09-05 for the Agentsource CI notifier: AgentStart owns a second
 resident Agentsource service, now `io.arthack.agentsource.notify`, which subscribes to the
 receiver's `ci:*` channels and posts one grouped terminal-notifier banner per
 green/red flip of any registered project's primary branch. It is the fleet's
-one CI notification regime; fxnk's Full CI watcher keeps its verdict ledger
-and escalates only what it cannot classify, a missing run, or an overdue
-verdict.
+one CI notification regime. The redundant fxnk-specific Full CI polling job,
+verdict ledger, and heartbeat were retired on 2026-09-06; maintenance now
+inspects hosted runs directly when a result needs diagnosis.
 
 Updated 2026-09-06 for account-wide launch service names: every active fleet
 LaunchAgent moved to `io.arthack.<project>.<verb>`, with marker-guarded
