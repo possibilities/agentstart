@@ -21,6 +21,9 @@ die() {
 # descendant that resolves the same PATH falls through to the real binary.
 # AGENTLAUNCH_SHIM_BYPASS=1 is the explicit operator escape hatch.
 shim_dir="$HOME/.local/share/agentlaunch/shims"
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+codex_invocation="$script_dir/codex-invocation"
+[ -x "$codex_invocation" ] || die "Codex invocation helper is missing: $codex_invocation"
 
 command -v agentlaunch >/dev/null 2>&1 ||
     die "agentlaunch is not on PATH; run ~/code/agentlaunch/scripts/install.sh first"
@@ -28,14 +31,21 @@ command -v agentlaunch >/dev/null 2>&1 ||
 mkdir -p "$shim_dir"
 
 for harness in claude codex; do
+    # shellcheck disable=SC2016 # Expanded by the generated shim at launch time.
+    invocation='exec "$real" "$@"'
+    if [ "$harness" = codex ]; then
+        # %q safely embeds even a checkout path containing shell metacharacters.
+        # shellcheck disable=SC2016 # Expanded by the generated shim at launch time.
+        printf -v invocation 'exec %q "$real" "$@"' "$codex_invocation"
+    fi
     shim="$shim_dir/$harness"
     # apply_patch owns this source file; this heredoc deliberately generates
     # the installed wrappers from one reviewed template.
     cat >"$shim" <<EOF
 #!/usr/bin/env bash
 # AgentStart-managed AgentLaunch shim: bare \`$harness\` uses the fleet launch
-# policy. AGENTLAUNCH_LAUNCH=1 (managed launch) or AGENTLAUNCH_SHIM_BYPASS=1
-# (manual escape) exec the real binary instead. Regenerate with
+# policy. Managed Codex runtime calls use a private invocation profile.
+# AGENTLAUNCH_SHIM_BYPASS=1 is the manual native-binary escape. Regenerate with
 # \`agentstart/scripts/install-agentlaunch-shims\`; do not edit in place.
 set -euo pipefail
 shim_dir=\$(cd -- "\$(dirname -- "\${BASH_SOURCE[0]}")" && pwd -P)
@@ -51,9 +61,13 @@ find_real() {
     done
     return 1
 }
-if [ -n "\${AGENTLAUNCH_LAUNCH:-}" ] || [ -n "\${AGENTLAUNCH_SHIM_BYPASS:-}" ]; then
+if [ -n "\${AGENTLAUNCH_SHIM_BYPASS:-}" ]; then
     real=\$(find_real) || { printf 'AgentLaunch shim: no real $harness on PATH\n' >&2; exit 127; }
     exec "\$real" "\$@"
+fi
+if [ -n "\${AGENTLAUNCH_LAUNCH:-}" ]; then
+    real=\$(find_real) || { printf 'AgentLaunch shim: no real $harness on PATH\n' >&2; exit 127; }
+    $invocation
 fi
 exec agentlaunch --x-harness $harness "\$@"
 EOF

@@ -34,8 +34,8 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # contract and its installer provisions the public claude-swap fork at its
 # `integration` branch — the fleet's fork convention. The shims installer
 # refuses without `agentlaunch` on PATH, and the machine's shell configuration
-# prefixes the shim directory. Installing the CLI does not install the shims —
-# that stays a deliberate `scripts/install-agentlaunch-shims`.
+# prefixes the shim directory. The full installer invokes the separate
+# `scripts/install-agentlaunch-shims` contract after this loop succeeds.
 #
 # codex-swap and grok-swap own their own commands now, and agentusage does not
 # write competing shims for them, so each command has exactly one owner. They

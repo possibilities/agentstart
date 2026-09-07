@@ -453,6 +453,7 @@ Homebrew casks:
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+  scripts/install-agentlaunch-shims  # Codex runtime launches copy Funk preferences into a private native profile with cwd/worktree trust
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
@@ -1241,6 +1242,8 @@ if [ "$agent_clis_status" -ne 0 ]; then
         "$agent_clis_status" >&2
     exit "$agent_clis_status"
 fi
+
+"$script_dir/install-agentlaunch-shims"
 
 # Agentbrowse and agent-browser do not write these configs during normal
 # browsing, so the operator defaults can stay linked directly to AgentStart's
