@@ -168,4 +168,39 @@ if grep -Fq 'AGENTSCRAPE_CONDUIT' "$launch_agents/agentbrain.worker.plist"; then
     fail "Agentbrain worker still carries retired conduit environment"
 fi
 
+install_brain_session() {
+    HOME="$test_home" \
+        XDG_STATE_HOME="$state_dir" \
+        AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
+        AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
+        AGENTSTART_INSTALL_LAUNCHCTL=none \
+        "$root/scripts/install-launchagents" --install
+}
+
+assert_brain_session() {
+    /usr/bin/python3 - "$launch_agents/agentbrain.worker.plist" "$1" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    actual = plistlib.load(handle)["EnvironmentVariables"]["AGENTSCRAPE_BROWSER_SESSION"]
+assert actual == sys.argv[2], (actual, sys.argv[2])
+PYTHON
+}
+
+AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=brain-auth install_brain_session >/dev/null
+assert_brain_session brain-auth
+unset AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION
+install_brain_session >/dev/null
+assert_brain_session brain-auth
+cp "$launch_agents/agentbrain.worker.plist" "$test_root/worker-before.plist"
+for invalid_session in '-bad' 'bad session' 'bad/session' "$(printf '%0129d' 0)"; do
+    if AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION="$invalid_session" install_brain_session >/dev/null 2>&1; then
+        fail "invalid browser session was accepted"
+    fi
+    cmp "$test_root/worker-before.plist" "$launch_agents/agentbrain.worker.plist" \
+        || fail "invalid browser session replaced the installed Worker"
+done
+AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION='' install_brain_session >/dev/null
+assert_brain_session ''
+
 printf 'ok\n'

@@ -63,6 +63,14 @@ comment beside the key:
 - **Conditional installation.** `agentbrain.share` installs only when an
   operator names a bind address; there is no default, by its ADR 0017.
 
+Agentbrain's Worker can reuse a Browser profile authenticated through
+Agentbrowse. Supply `AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=SESSION`
+when installing to pin Agentscrape to that stable session. Subsequent installs
+preserve the installed pin; an explicitly empty value clears it. The session
+name is not a credential. Authentication stays in Agentbrowse's Browser profile.
+Keep that session exclusive to the single resident Worker: another browser
+client navigating it during extraction can change which page is read.
+
 ## Adding a service
 
 Add the template here, add its entry to the manifest in

@@ -147,6 +147,24 @@ if flag in args:
 service_tokens() {
     local label="$1"
     case "$label" in
+        agentbrain.worker)
+            local session
+            if [ -n "${AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION+set}" ]; then
+                session="$AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION"
+            else
+                session="$(preserved_env "$label" AGENTSCRAPE_BROWSER_SESSION)"
+            fi
+            # Agentscrape ignores invalid pins and silently falls back to a
+            # signed-out session; reject them before replacing the service.
+            case "$session" in
+                "") ;;
+                [![:alnum:]]* | *[!a-zA-Z0-9._-]*)
+                    die "invalid Agentbrain browser session: use an alphanumeric first character and only letters, digits, dots, underscores, or hyphens"
+                    ;;
+            esac
+            [ "${#session}" -le 128 ] || die "Agentbrain browser session exceeds 128 characters"
+            printf 'AGENTBRAIN_BROWSER_SESSION=%s\n' "$session"
+            ;;
         agentbrain.share)
             # Agentbrain's ADR 0017: accepting device shares requires naming the
             # tailnet address, and there is no default. With none supplied and
