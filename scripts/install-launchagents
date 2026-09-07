@@ -215,13 +215,6 @@ service_tokens() {
             esac
             printf 'SHARE_HOST=%s\n' "$host"
             ;;
-        io.arthack.agentusage.observe)
-            # Pinned absolutely: the daemon shells both swap tools, and PATH
-            # alone cannot be trusted to reach uv- and nvm-managed binaries.
-            printf 'CSWAP_BIN=%s\n' "$(command -v cswap || printf '%s' "$bin_dir/cswap")"
-            printf 'CODEX_SWAP_BIN=%s\n' \
-                "$(command -v codex-swap || printf '%s' "$bin_dir/codex-swap")"
-            ;;
         io.arthack.agentscrape.process-queue)
             # The directory launchd watches. Agentscrape's CLI enqueues into it
             # and the service drains it, so it is shared state rather than

@@ -162,17 +162,12 @@ fi
 [ -n "$VERSION" ] && out+="${SEP}${D}${VERSION}${R}"
 
 # --- balanced account ---
-# claude-swap pins an account by pointing CLAUDE_CONFIG_DIR at a per-account
-# profile named <n>-<slugified-email>, so the leading number is the account's
-# position in `cswap list` and needs no call back into the swap tools. An
-# unbalanced launch leaves the variable unset and renders no segment.
-if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
-  account="${CLAUDE_CONFIG_DIR##*/}"
-  account="${account%%-*}"
-  case "$account" in
-    "" | *[!0-9]*) ;;
-    *) out+="${SEP}${BLU}claude-${account}${R}" ;;
-  esac
-fi
+# The selected managed identity is independent of the shared native config home.
+case "${AGENTUSAGE_ACCOUNT:-}" in
+  claude-[1-9]*)
+    account="${AGENTUSAGE_ACCOUNT#claude-}"
+    case "$account" in *[!0-9]*) ;; *) out+="${SEP}${BLU}claude-${account}${R}" ;; esac
+    ;;
+esac
 
 printf '%s\n' "$out"

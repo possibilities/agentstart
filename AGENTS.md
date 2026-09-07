@@ -12,9 +12,9 @@
   name.
 - The fleet lives beside this checkout: every `~/code/agent*` checkout
   without exception — including `~/code/agentguidance`, the general guidance
-  skills and their renderer — plus `~/code/codex-swap`, the first-party
-  account-swapping launcher for Codex. Each fleet repo owns its own
-  hardened installer and exports its own skills; AgentStart invokes
+  skills and their renderer. AgentUsage owns Claude/Codex account
+  storage, preparation and the shared proxy; Grok still uses grok-swap. Each
+  fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides that every
   one of them is installed. `install-agent-clis` runs each checkout's own
   installer, and `config/launchd/` defines every fleet service, because a
@@ -37,11 +37,11 @@
   the original repository as `upstream` and our optional fork as `fork`.
   Managed fork dependencies bind their `integration` branch — every patch
   carried, merged, and the only ref an installer builds.
-  A patch offered upstream lives on its own branch beside it. `claude-swap` is
-  owned by `~/code/cswax` and consumed through agentusage's
-  `scripts/install-providers.sh`; it is not in the `install-agent-clis` loop,
-  which is why that loop runs agentusage before agentlaunch. Fx's fork
-  lifecycle and integration installer are owned by
+  A patch offered upstream lives on its own branch beside it. Claude/Codex
+  swap tools are no longer fleet installer dependencies. AgentUsage precedes
+  AgentLaunch, which consumes its prepare contract; the observer/proxy service
+  converges last. Old checkouts, credentials and backups are preserved.
+  Fx's fork lifecycle and integration installer are owned by
   `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
   with its tracked, ship-gate-approved Integration pin as the harness
   installation contract instead of reaching into
@@ -49,12 +49,6 @@
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. The `fork-rebase-policy` wiki page is the contract.
-  `codex-multi-auth` is no longer a managed fork
-  dependency: upstream merged PRs #664, #665, #682, and #683, and released
-  2.10.0 with the pinned-retry and pool-token fixes, so codex-swap installs the
-  exact stock npm pin instead. Its installer keeps the fork behind
-  `NDY_FORK_ACTIVE=0` — dormant rather than deleted, which is what makes
-  reviving it an edit rather than a rewrite.
 - Herdr is moving from AgentStart's retired source updater to the
   official stable Homebrew formula. `scripts/select-herdr-runtime` is the
   cutover guard: stable must speak fleet protocol 20 or newer and every
@@ -76,10 +70,6 @@
   and agentguidance as the home of general doctrine. Changing any of those
   conventions updates that section in every fleet checkout in the same
   change — the uniformity is what keeps twelve copies maintainable.
-  codex-swap is the deliberate exception: a one-way member — the fleet
-  installs it, but it stands alone for anyone outside this machine who
-  wants an account-swapping launcher, so its own guidance does not
-  advertise the fleet back.
 
 ## Fix-forward installation
 

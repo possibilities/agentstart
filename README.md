@@ -77,10 +77,13 @@ flags, and skip-versus-fail semantics are load-bearing:
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, agentboard, agentbrowse-infra, agentbrowse, agentattention,
-    agentsearch, agentkeys, codex-swap, agentusage, agentlaunch, and agentgrok
+    agentsearch, agentkeys, grok-swap, agentusage, agentlaunch, and agentgrok
     CLIs;
-  - the public `possibilities/claude-swap` fork and the codex-swap provider
-    shim, through agentusage's installer;
+  - AgentUsage’s owned Claude/Codex accounts and single proxy through its
+    existing observer daemon; enroll/import accounts before switching balanced
+    consumers, then converge the service after AgentUsage and AgentLaunch.
+    No Claude/Codex swap checkout or command is an installation prerequisite;
+    existing checkouts, backups and credentials are preserved;
   - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
     harness integrations and skills;
   - agentchats, the fleet launch agents, and finally `sync-skills`.
@@ -209,3 +212,8 @@ request full access, debug logs, gpt-6-astra at low effort and the default Agent
 role. Missing or empty local placeholders can be linked; nonempty independent
 configuration and unrelated links are preserved with an error. AgentVoice loads
 settings once per runtime generation; restart its service after changing server defaults.
+
+### Account integration credits
+
+[Credits](CREDITS.md) acknowledge the predecessor account tools and link to
+AgentUsage's source provenance and upstream license notices.

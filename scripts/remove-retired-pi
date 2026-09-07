@@ -1417,38 +1417,6 @@ validate_owned_regular_file() {
     printf '%s\n' "$mode"
 }
 
-# codex-swap's 2.10.0 rollout left one operator-owned rollback backup in the
-# checkout. It is not part of the repository and must survive this retirement,
-# but every other working-tree change remains a hard stop. Keep the allowance
-# exact: a different backup name, an extra file, or a changed owner/content is
-# not evidence of the known rollback and must still block cleanup.
-validate_codex_swap_owned_backup() {
-    local root="$1" status="$2"
-    local backup="$root/.cma-backup-pre-2.10.0-20260831-160414"
-    local expected relative path
-    expected=$(printf '%s\n' \
-        '?? .cma-backup-pre-2.10.0-20260831-160414/rotation.js' \
-        '?? .cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js' \
-        '?? .cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js')
-    [ "$status" = "$expected" ] \
-        || die "required Pi-free codex-swap checkout has unexpected untracked state: $root"
-    [ -d "$backup" ] && [ ! -L "$backup" ] \
-        || die "known codex-swap rollback backup is not a safe directory: $backup"
-    [ "$(stat -f '%u' "$backup")" = "$(id -u)" ] \
-        || die "known codex-swap rollback backup is not owned by the effective user: $backup"
-    content_proof "$backup" "$root" >/dev/null \
-        || die "known codex-swap rollback backup failed its ownership/content proof: $backup"
-    for relative in \
-        .cma-backup-pre-2.10.0-20260831-160414/rotation.js \
-        .cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js \
-        .cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js; do
-        path="$root/$relative"
-        [ -f "$path" ] && [ ! -L "$path" ] \
-            || die "known codex-swap rollback backup file is not safe: $path"
-        validate_owned_regular_file "$path" "known codex-swap rollback backup file" "$root" >/dev/null
-    done
-}
-
 validate_pi_free_checkout() {
     local root="$1" repository="$2" source="$3" executable="${4:-yes}"
     local upstream_policy="${5:-exact}"
@@ -1479,11 +1447,7 @@ validate_pi_free_checkout() {
     status=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" status --porcelain=v1 --untracked-files=all) \
         || die "could not prove the required Pi-free $repository working tree: $root"
     if [ -n "$status" ]; then
-        if [ "$repository" = codex-swap ]; then
-            validate_codex_swap_owned_backup "$root" "$status"
-        else
-            die "required Pi-free $repository checkout is not clean: $root"
-        fi
+        die "required Pi-free $repository checkout is not clean: $root"
     fi
     validated_checkout_sha=$(GIT_OPTIONAL_LOCKS=0 git -C "$root" rev-parse --verify HEAD 2>/dev/null) \
         || die "required Pi-free $repository checkout has no HEAD: $root"
@@ -1540,69 +1504,6 @@ validate_exact_deployed_link() {
         || die "$description command link is not owned: $link"
     [ "$(readlink "$link")" = "$source" ] \
         || die "$description command link does not name the proved checkout: $link"
-}
-
-validate_codex_swap_deployment() {
-    local relevant=0 root="$cleanup_code_root/codex-swap"
-    local source="$cleanup_code_root/codex-swap/src/cli/main.ts"
-    local command="$cleanup_home/.local/bin/codex-swap"
-    local receipt="$cleanup_home/.local/state/codex-swap/install-receipt"
-    local receipt_mode command_mode expected_receipt node_path
-    if [ "$cleanup_home" = "$live_home" ]; then
-        relevant=1
-    else
-        for path in \
-            "$command" "$receipt" \
-            "$cleanup_home/.local/share/agentlaunch/shims/pi" \
-            "$cleanup_home/.local/state/agentlaunch/submitted.jsonl" \
-            "$cleanup_home/.local/state/agentlaunch/form-draft.json"; do
-            path_exists "$path" && relevant=1
-        done
-    fi
-    [ "$relevant" -eq 1 ] || return 0
-    # Verify the current deployed checkout and audit its active source for Pi.
-    # No historical commit is an authority for deleting current machine state.
-    validate_pi_free_checkout \
-        "$root" codex-swap "$source" no contains-upstream
-    if GIT_OPTIONAL_LOCKS=0 git -C "$root" grep -I -n -E \
-        '(^|[^[:alpha:]])pi([^[:alpha:]]|$)|pi-coding-agent|pi-viewer|pi_agent' \
-        -- src scripts/install.sh package.json package-lock.json >/dev/null 2>&1; then
-        die "codex-swap active sources still name the retired Pi harness"
-    fi
-    command_mode=$(validate_owned_regular_file "$command" "codex-swap installed command")
-    [ "$command_mode" = 755 ] \
-        || die "codex-swap installed command is not mode 0755: $command"
-    receipt_mode=$(validate_owned_regular_file "$receipt" "codex-swap install receipt")
-    [ "$receipt_mode" = 600 ] \
-        || die "codex-swap install receipt is not mode 0600: $receipt"
-    expected_receipt=$(printf '%s\n' \
-        'codex-swap-installer-owned:v1' \
-        "root=$root" \
-        "bin=$cleanup_home/.local/bin")
-    [ "$(cat "$receipt")" = "$expected_receipt" ] \
-        && [ "$(wc -l <"$receipt" | tr -d '[:space:]')" -eq 3 ] \
-        || die "codex-swap install receipt does not name the proved deployment"
-    node_path=$(/usr/bin/perl -Mstrict -Mwarnings -e '
-        my ($path, $source) = @ARGV;
-        open(my $handle, "<", $path) or die "open $path: $!\n";
-        my @lines = <$handle>;
-        close $handle or die "close $path: $!\n";
-        chomp @lines;
-        @lines == 3
-            && $lines[0] eq "#!/usr/bin/env bash"
-            && $lines[1] eq "# codex-swap-installer-owned:v1"
-            or die "unknown codex-swap shim header\n";
-        $lines[2] =~ /^exec ([^\s]+) \Q$source\E "\$\@"\z/
-            or die "unknown codex-swap shim exec contract\n";
-        print "$1\n";
-    ' "$command" "$source") \
-        || die "codex-swap installed command does not execute the proved checkout"
-    case "$node_path" in
-        /*) ;;
-        *) die "codex-swap installed command does not name an absolute Node executable" ;;
-    esac
-    [ -x "$node_path" ] && [ ! -d "$node_path" ] \
-        || die "codex-swap installed command names an unavailable Node executable: $node_path"
 }
 
 validate_agentlaunch_deployment() {
@@ -1712,7 +1613,7 @@ validate_pi_free_herdr_config() {
 }
 
 validate_pi_free_deployments() {
-    validate_codex_swap_deployment
+    # AgentUsage owns balanced accounts; codex-swap is no longer a deployed prerequisite.
     validate_agentlaunch_deployment
     validate_agentsurface_deployment
     validate_agentchats_deployment

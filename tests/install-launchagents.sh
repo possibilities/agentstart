@@ -152,6 +152,30 @@ grep -Fq '<!-- foreign prose mentions agentstart-installer-owned: agentweb.broke
     || fail "foreign retired broker plist was changed"
 rm -- "$broker_plist"
 
+# The owned observer renders with its single daemon and no legacy binary
+# pins, even when the invoking environment still contains them.
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentusage"
+chmod +x "$bin_dir/agentusage"
+HOME="$test_home" \
+    XDG_STATE_HOME="$state_dir" \
+    AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
+    AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
+    AGENTSTART_INSTALL_LAUNCHCTL=none \
+    AGENTUSAGE_CSWAP_BIN=/obsolete/cswap \
+    AGENTUSAGE_CODEX_SWAP_BIN=/obsolete/codex-swap \
+    "$root/scripts/install-launchagents" --install >/dev/null
+/usr/bin/python3 - "$launch_agents/io.arthack.agentusage.observe.plist" "$bin_dir/agentusage" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2], "daemon", "run"]
+env = value.get("EnvironmentVariables", {})
+assert "AGENTUSAGE_CSWAP_BIN" not in env
+assert "AGENTUSAGE_CODEX_SWAP_BIN" not in env
+PYTHON
+rm -- "$bin_dir/agentusage" "$launch_agents/io.arthack.agentusage.observe.plist"
+
 # Agentbrain is rendered with no conduit environment even when obsolete
 # override variables are present in the caller.
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentbrain"

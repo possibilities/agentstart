@@ -30,18 +30,10 @@ die() {
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 
-# agentusage precedes agentlaunch because the launcher shells its balance
-# contract and its installer provisions the public claude-swap fork at its
-# `integration` branch — the fleet's fork convention. The shims installer
-# refuses without `agentlaunch` on PATH, and the machine's shell configuration
-# prefixes the shim directory. The full installer invokes the separate
-# `scripts/install-agentlaunch-shims` contract after this loop succeeds.
-#
-# codex-swap and grok-swap own their own commands now, and agentusage does not
-# write competing shims for them, so each command has exactly one owner. They
-# run before agentusage to keep both provider layers installed before the
-# observer that reads them. Codex-swap's own installer binds the exact stock
-# codex-multi-auth npm pin; no fork checkout participates in this loop.
+# Agentusage precedes AgentLaunch: it owns Claude/Codex accounts, prepares native
+# authentication, and serves leases in its existing daemon. Grok-swap remains
+# its separate Grok adapter. No Claude/Codex swap repository is required.
+# The full installer invokes install-agentlaunch-shims after this loop.
 #
 # Agentscrape no longer consults Agentweb's origin/session conduit. An explicit
 # stable session maps through the configured agent-browser provider to an
@@ -72,7 +64,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentroles agentmux agentwork; do
+    agentbrain grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentroles agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

@@ -779,8 +779,7 @@ retired_pi_contract_code_root="$skip_test_dir/retired-pi-contract-code"
 mkdir -p \
     "$retired_pi_contract_code_root/agentlaunch/src" \
     "$retired_pi_contract_code_root/agentsurface/src" \
-    "$retired_pi_contract_code_root/agentchats/bin" \
-    "$retired_pi_contract_code_root/codex-swap/src/cli"
+    "$retired_pi_contract_code_root/agentchats/bin"
 retired_pi_contract_code_root=$(cd -P -- "$retired_pi_contract_code_root" && pwd)
 retired_pi_lock_assert="$retired_pi_contract_code_root/assert-no-retirement-lock-fd"
 cat >"$retired_pi_lock_assert" <<'EOF'
@@ -838,13 +837,11 @@ set -euo pipefail
 "$AGENTSTART_TEST_PI_LOCK_ASSERT"
 exit 0
 EOF
-printf '%s\n' 'export const retirementFixture = true;' \
-    >"$retired_pi_contract_code_root/codex-swap/src/cli/main.ts"
 chmod +x \
     "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
     "$retired_pi_contract_code_root/agentsurface/src/main.ts" \
     "$retired_pi_contract_code_root/agentchats/bin/agentchats"
-for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; do
+for retired_pi_contract_repo in agentlaunch agentsurface agentchats; do
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" init -q -b main
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" \
         config user.email fixture@example.invalid
@@ -867,34 +864,6 @@ for retired_pi_contract_repo in agentlaunch agentsurface agentchats codex-swap; 
         config branch.main.merge refs/heads/main
 done
 export AGENTSTART_TEST_PI_CODE_ROOT="$retired_pi_contract_code_root"
-# Model ordinary updates: upstream advances and one clean local commit sits
-# above it. Cleanup proves installation identity and current Pi-free behavior,
-# without any known historical retirement commit.
-printf '%s\n' 'safe pushed contract fixture' \
-    >"$retired_pi_contract_code_root/codex-swap/pushed-contract"
-git -C "$retired_pi_contract_code_root/codex-swap" add pushed-contract
-git -C "$retired_pi_contract_code_root/codex-swap" \
-    commit -q -m 'Safe pushed post-scrub fixture'
-retired_pi_contract_codex_swap_pushed_sha=$(git -C \
-    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
-git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/remotes/origin/main "$retired_pi_contract_codex_swap_pushed_sha"
-printf '%s\n' 'protected local contract fixture' \
-    >"$retired_pi_contract_code_root/codex-swap/protected-contract"
-git -C "$retired_pi_contract_code_root/codex-swap" add protected-contract
-git -C "$retired_pi_contract_code_root/codex-swap" \
-    commit -q -m 'Protected local contract fixture'
-retired_pi_contract_codex_swap_checkout_sha=$(git -C \
-    "$retired_pi_contract_code_root/codex-swap" rev-parse HEAD)
-# This mirrors the operator-owned rollback backup in the live codex-swap
-# checkout. The retirement gate must preserve this exact, proved exception
-# while continuing to reject every other untracked working-tree path.
-mkdir -p \
-    "$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime"
-printf 'fixture rollback\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/rotation.js"
-printf 'fixture proxy\n' >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime-rotation-proxy.js"
-printf 'fixture selector\n' \
-    >"$retired_pi_contract_code_root/codex-swap/.cma-backup-pre-2.10.0-20260831-160414/runtime/rotation-account-selection.js"
 # The launcher and surface must also tolerate a newer pushed main plus a
 # clean deployed commit above it. Every successful cleanup below uses this
 # chain, so a frozen retirement-tip comparison is a regression.
@@ -917,27 +886,8 @@ done
 retired_pi_contract_agentlaunch_sha=$(git -C \
     "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD)
 
-install_retired_pi_codex_swap_contract() {
-    local fixture_home="$1"
-    fixture_home=$(cd -P -- "$fixture_home" && pwd)
-    mkdir -p "$fixture_home/.local/bin" "$fixture_home/.local/state/codex-swap"
-    cat >"$fixture_home/.local/bin/codex-swap" <<EOF
-#!/usr/bin/env bash
-# codex-swap-installer-owned:v1
-exec /usr/bin/true $retired_pi_contract_code_root/codex-swap/src/cli/main.ts "\$@"
-EOF
-    chmod 755 "$fixture_home/.local/bin/codex-swap"
-    cat >"$fixture_home/.local/state/codex-swap/install-receipt" <<EOF
-codex-swap-installer-owned:v1
-root=$retired_pi_contract_code_root/codex-swap
-bin=$fixture_home/.local/bin
-EOF
-    chmod 600 "$fixture_home/.local/state/codex-swap/install-receipt"
-}
-
 install_retired_pi_agentlaunch_contract() {
     local fixture_home="$1"
-    install_retired_pi_codex_swap_contract "$fixture_home"
     mkdir -p "$fixture_home/.local/bin" "$fixture_home/.local/state/agentlaunch"
     ln -s "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
         "$fixture_home/.local/bin/agentlaunch"
@@ -1029,32 +979,25 @@ EOF
     git -C "$checkout" config branch.main.merge refs/heads/main
 }
 
-# An unrelated upstream must still block cleanup before state is touched;
-# this proves the installed checkout belongs to its current upstream.
-wrong_codex_swap_remote_home="$skip_test_dir/wrong-codex-swap-retirement-remote-home"
-mkdir -p "$wrong_codex_swap_remote_home/.pi"
-install_retired_pi_codex_swap_contract "$wrong_codex_swap_remote_home"
-wrong_codex_swap_tree=$(git -C "$retired_pi_contract_code_root/codex-swap" write-tree)
-wrong_codex_swap_sha=$(printf '%s\n' 'Wrong pushed codex-swap fixture' \
-    | git -C "$retired_pi_contract_code_root/codex-swap" commit-tree "$wrong_codex_swap_tree")
-git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/remotes/origin/main "$wrong_codex_swap_sha"
-set +e
-wrong_codex_swap_remote_output=$(AGENTSTART_PI_CLEANUP_HOME="$wrong_codex_swap_remote_home" \
-    "$root/scripts/remove-retired-pi" --install 2>&1)
-wrong_codex_swap_remote_status=$?
-set -e
-git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/heads/main "$retired_pi_contract_codex_swap_checkout_sha"
-git -C "$retired_pi_contract_code_root/codex-swap" update-ref \
-    refs/remotes/origin/main "$retired_pi_contract_codex_swap_pushed_sha"
-[ "$wrong_codex_swap_remote_status" -ne 0 ] \
-    || fail "retired Pi cleanup accepted the wrong pushed codex-swap commit"
-printf '%s\n' "$wrong_codex_swap_remote_output" \
-    | grep -F 'required Pi-free codex-swap checkout does not contain its pushed main ref' >/dev/null \
-    || fail "retired Pi cleanup did not explain the wrong codex-swap remote refusal"
-[ -d "$wrong_codex_swap_remote_home/.pi" ] \
-    || fail "retired Pi cleanup mutated state with the wrong codex-swap remote"
+# Retired account wrappers are no longer prerequisites for Pi cleanup.
+if grep -q 'validate_codex_swap_deployment' "$root/scripts/remove-retired-pi"; then
+    fail "Pi cleanup still requires the retired Codex account wrapper"
+fi
+
+# Converge Pi retirement with the current consumers and no legacy account
+# checkout, command or install receipt. This exercises the actual cleanup path.
+no_swap_home="$skip_test_dir/retired-pi-no-swap-home"
+make_retired_pi_claim_fixture "$no_swap_home"
+install_retired_pi_agentlaunch_contract "$no_swap_home"
+install_retired_pi_agentsurface_contract "$no_swap_home"
+install_retired_pi_agentchats_contract "$no_swap_home"
+[ ! -e "$retired_pi_contract_code_root/codex-swap" ] \
+    && [ ! -e "$no_swap_home/.local/bin/codex-swap" ] \
+    || fail "no-swap fixture accidentally provisions the retired wrapper"
+AGENTSTART_PI_CLEANUP_HOME="$no_swap_home" \
+    "$root/scripts/remove-retired-pi" --install >/dev/null
+[ ! -e "$no_swap_home/.local/share/agentstart/resources/pi" ] \
+    || fail "Pi cleanup failed to converge without codex-swap"
 
 # The same current-upstream identity check applies to both command links.
 for retired_repo in agentlaunch agentsurface; do
@@ -3452,17 +3395,16 @@ grep -F '"$script_dir/remove-retired-pi" --install' scripts/install.sh >/dev/nul
     || fail "full installer does not run the exact-target Pi retirement cleanup"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells its balance contract), and codex-swap plus grok-swap must
-# precede agentusage so balance observes the command owners they install.
+# launcher shells prepare), and grok-swap precedes agentusage for Grok observation.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain grok-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice; do
+    agentscrape agentbrain grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
@@ -3472,6 +3414,15 @@ case "$agent_cli_order" in
     *" agentbus "*) fail "agent CLI loop still installs retired agentbus" ;;
     *" agentweb "*) fail "agent CLI loop still installs retired agentweb" ;;
 esac
+case "$agent_cli_order" in
+    *" codex-swap "* | *" cswax "*) fail "agent CLI installer still depends on retired account stores" ;;
+esac
+if grep -E 'CSWAP_BIN|CODEX_SWAP_BIN' config/launchd/io.arthack.agentusage.observe.plist scripts/install-launchagents; then
+    fail "AgentUsage daemon still binds retired account wrappers"
+fi
+account_bar=$(printf '{}\n' | AGENTUSAGE_ACCOUNT=claude-7 CLAUDE_CONFIG_DIR=/shared/native config/statusline/claude-statusline.sh)
+printf '%s' "$account_bar" | grep -F 'claude-7' >/dev/null || fail "Claude statusline lost managed identity"
+
 # shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
 grep -F 'agentchats_root="$code_root/agentchats"' scripts/install.sh >/dev/null \
     || fail "installer does not own the agentchats installation call"
