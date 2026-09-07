@@ -27,7 +27,12 @@
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
-  or registration. Nothing outside these installer contracts installs a fleet component.
+  or registration. Executor is the vendor-service exception: its Homebrew cask
+  supplies the signed CLI, and `executor service install` is the sole owner of
+  `sh.executor.daemon`, including plist rendering and lifecycle. AgentStart
+  delegates after installing the cask, with `$HOME/.local/bin` on `PATH`, and
+  must not add a competing launchd template or rely on the desktop sidecar.
+  Nothing outside these installer contracts installs a fleet component.
 - Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
   the original repository as `upstream` and our optional fork as `fork`.
   Managed fork dependencies bind their `integration` branch — every patch

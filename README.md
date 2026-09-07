@@ -56,8 +56,9 @@ flags, and skip-versus-fail semantics are load-bearing:
   - Claude Code and Codex, by their official installers, plus the official
     Homebrew cask for the standalone Grok Build CLI/TUI (without AgentLaunch
     or Herdr integration yet);
-  - the Executor desktop app through its official Homebrew cask, installed as
-    a standalone integration GUI without registering it with any harness;
+  - Executor through its official Homebrew cask, whose signed CLI installs and
+    converges Executor's own login-started background service so the catalog
+    serves without the desktop app; no harness registration is performed;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -93,10 +94,13 @@ flags, and skip-versus-fail semantics are load-bearing:
   here.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
-migration. Executor is the narrow desktop exception because its integration
-catalog is deeply related to the fleet. Grok Build is a separate CLI-only cask
-exception because it is an AI harness. AgentStart installs both, but deliberately
-does not register Executor's MCP endpoint or add Grok to AgentLaunch or Herdr.
+migration. Executor is the narrow cask exception because the cask supplies the
+signed CLI for its fleet-related integration catalog. AgentStart delegates the
+`sh.executor.daemon` lifecycle to that CLI's supported service installer; the
+desktop app is neither launched nor required to keep the server alive. Grok
+Build is a separate CLI-only cask exception because it is an AI harness.
+AgentStart installs both, but deliberately does not register Executor's MCP
+endpoint or add Grok to AgentLaunch or Herdr.
 
 ## Herdr and Ghostty color
 

@@ -2733,10 +2733,30 @@ grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.s
 # fixture tree so the asserted lines are the same on every machine.
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
 
-# Executor initially lands as a standalone GUI. Grok Build lands as a native
+# Executor's cask supplies the signed CLI, which must then own its supervised
+# service without any AgentStart-rendered plist. Grok Build lands as a native
 # CLI/TUI without AgentLaunch or Herdr integration.
 grep -F 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
-    || fail "the full installer does not converge the Executor desktop cask"
+    || fail "the full installer does not converge the Executor cask"
+grep -F 'executor_bin="/Applications/Executor.app/Contents/Resources/executor/executor"' \
+    scripts/install.sh >/dev/null \
+    || fail "the Executor service installer does not use the cask's signed CLI"
+# shellcheck disable=SC2016 # Match the literal vendor CLI variable invocation.
+grep -F '"$executor_bin" service install' scripts/install.sh >/dev/null \
+    || fail "the full installer does not delegate Executor service ownership"
+# shellcheck disable=SC2016 # Match the literal per-user PATH assertion.
+grep -F '*":$HOME/.local/bin:"*)' scripts/install.sh >/dev/null \
+    || fail "the Executor service convergence does not verify the fleet command path"
+# shellcheck disable=SC2016 # Match the literal postcondition message.
+grep -F 'Executor service PATH still omits $HOME/.local/bin after vendor installation' \
+    scripts/install.sh >/dev/null \
+    || fail "the Executor service convergence does not enforce the installed PATH postcondition"
+# shellcheck disable=SC2016 # Match the literal vendor CLI variable invocation.
+grep -F '"$executor_bin" service status' scripts/install.sh >/dev/null \
+    || fail "the Executor service convergence does not verify the installed service"
+if rg -n 'sh\.executor\.daemon' config/launchd scripts/install-launchagents >/dev/null; then
+    fail "AgentStart renders a competing Executor service instead of delegating to its CLI"
+fi
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
 if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor|executor mcp' \
@@ -2758,7 +2778,8 @@ done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
-    'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+    'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration' \
+    '/Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
@@ -2919,11 +2940,11 @@ if printf '%s\n' "$install_plan" \
     fail "installation plan still synchronizes desktop explicitly beside the scan"
 fi
 # The ownership boundary: general-purpose desktop clients and the GitHub CLI
-# belong to the machine layer. Executor's standalone integration GUI and Grok
-# Build's CLI-only package are the two explicit cask exceptions.
+# belong to the machine layer. Executor's cask-backed supervised catalog and
+# Grok Build's CLI-only package are the two explicit cask exceptions.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
     | grep -Fv \
-        -e 'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
+        -e 'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration' \
         -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     >/dev/null; then
     fail "installation plan contains an unowned Homebrew cask"
@@ -3451,6 +3472,11 @@ if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 2 ] \
     || ! grep -Fx 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null; then
     fail "the installer does not own exactly the Executor and Grok Build casks"
 fi
+executor_cask_line=$(grep -n '^install_or_upgrade_cask executor$' scripts/install.sh | cut -d: -f1)
+executor_service_line=$(grep -n '^install_executor_service$' scripts/install.sh | cut -d: -f1)
+[ -n "$executor_cask_line" ] && [ -n "$executor_service_line" ] \
+    && [ "$executor_service_line" -gt "$executor_cask_line" ] \
+    || fail "Executor's supervised service must converge after its cask"
 if grep -F 'oauth_token' scripts/install.sh >/dev/null; then
     fail "an AgentStart script crossed the boundary: gh migration is the machine's"
 fi

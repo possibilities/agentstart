@@ -446,7 +446,8 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Homebrew casks:
-  brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration
+  brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration
+  /Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs
   brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration
 
 Command-line tools:
@@ -572,14 +573,64 @@ install_or_upgrade_cask() {
         || die "Homebrew cask verification failed: $cask"
 }
 
+install_executor_service() {
+    local executor_bin="/Applications/Executor.app/Contents/Resources/executor/executor"
+    local executor_service_plist="$HOME/Library/LaunchAgents/sh.executor.daemon.plist"
+    local installed_path=''
+
+    [ -x "$executor_bin" ] \
+        || die "Executor cask did not install its CLI at $executor_bin"
+
+    # Executor owns this plist and its lifecycle. Its installer normally
+    # no-ops when the current version is already serving, so force a supported
+    # uninstall/install only when an older unit captured a PATH that cannot
+    # resolve the fleet's per-user commands. Never edit the vendor plist.
+    if [ -f "$executor_service_plist" ]; then
+        installed_path=$(
+            /usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PATH' \
+                "$executor_service_plist" 2>/dev/null || true
+        )
+        case ":$installed_path:" in
+            *":$HOME/.local/bin:"*)
+                ;;
+            *)
+                printf 'Reinstalling Executor service whose PATH omits the fleet command directory.\n'
+                "$executor_bin" service uninstall \
+                    || die "Executor service uninstall failed while repairing PATH"
+                ;;
+        esac
+    fi
+
+    printf 'Installing or refreshing Executor as an OS-supervised background service.\n'
+    "$executor_bin" service install \
+        || die "Executor supervised service installation failed"
+
+    installed_path=$(
+        /usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PATH' \
+            "$executor_service_plist" 2>/dev/null || true
+    )
+    case ":$installed_path:" in
+        *":$HOME/.local/bin:"*)
+            ;;
+        *)
+            die "Executor service PATH still omits $HOME/.local/bin after vendor installation"
+            ;;
+    esac
+
+    "$executor_bin" service status \
+        || die "Executor supervised service is not healthy after installation"
+}
+
 export HOMEBREW_NO_ASK=1
 
-# Executor is a shared integration catalog for the fleet, so its desktop UI is
-# a deliberate toolchain exception to the machine-owned Claude and ChatGPT
-# casks. Installation stops at Executor.app: do not register its MCP endpoint
-# with any harness here. That later connection is an explicit operator choice.
-printf 'Installing or upgrading the Executor desktop app (standalone; no agent connection).\n'
+# Executor is a shared integration catalog for the fleet. The cask supplies
+# its signed CLI binary, but the desktop sidecar is not the runtime owner:
+# delegate sh.executor.daemon to Executor's own service installer so it starts
+# at login with the fleet PATH and serves without the GUI. Do not register its
+# MCP endpoint with any harness here; that remains an explicit operator choice.
+printf 'Installing or upgrading the Executor distribution.\n'
 install_or_upgrade_cask executor
+install_executor_service
 
 # Grok Build's official Homebrew cask installs its signed release binary as
 # both `grok` and the vendor's `agent` alias. Keep this phase to the native

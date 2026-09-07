@@ -109,7 +109,7 @@ flowchart LR
     start[agentstart]
 
     machine ==>|scripts/install.sh --install, sync-skills| start
-    start ==>|Homebrew cask; standalone GUI, no harness registration| executor[Executor]
+    start ==>|Homebrew cask + vendor-owned supervised service; no harness registration| executor[Executor]
     start ==>|official installers| harnesses[Claude Code / Codex]
     start ==>|official Homebrew cask; standalone CLI/TUI, no launch integration| grok[Grok Build]
     start ==>|pinned minimal binary + managed agent-terminal runtime + version-matched skills| plannotator[Plannotator]
@@ -198,7 +198,7 @@ sentence around the match, never from the name alone.
 | agentroles | Codex | delivers a role to one `codex` invocation as `-c` overrides with TOML values: `model_instructions_file` or `developer_instructions`, one `mcp_servers.<name>` per translated `mcp.json` server, and `plugins.<role>@agentroles.enabled=true`. Overrides follow `exec`/`review` or `resume <id>`, mirroring AgentLaunch, and never touch `skills.config`, which the shim owns. `agentroles install <role>` is the one Codex-state write: it renders the role as a skills-only plugin in the local `agentroles` marketplace, runs `codex plugin marketplace add` once and `codex plugin remove`/`add`, then persists the plugin disabled through `config/value/write` on a `codex app-server` child | `agentroles/src/deliver/codex.ts`; `agentroles/src/codex-plugin.ts`; `agentroles/src/app-server.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0001-roles-are-directories-delivered-by-argv.md` |
 | agentroles | agentvoice | passes `--role <dir>` and nothing else; AgentVoice reads the directory itself because only its process can register skill roots on the child it owns | `agentroles/src/deliver/agentvoice.ts`; `agentvoice/src/core/role.ts` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action | `agentstart/scripts/install-agent-clis`; `agentroles/scripts/install.sh` |
-| agentstart | Executor | installs or upgrades the official Homebrew cask so the local integration GUI is available, but performs no MCP or harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
+| agentstart | Executor | installs or upgrades the official Homebrew cask for its signed CLI, then delegates `sh.executor.daemon` rendering, takeover, and lifecycle to `executor service install`. The supervised server starts at login with AgentStart's fleet-aware `PATH` and serves the shared catalog without the desktop sidecar. AgentStart never renders a competing plist and performs no harness registration; connecting Claude Code, Codex, Fx, or another agent remains a later explicit operator choice | `agentstart/scripts/install.sh`; Executor's `service install` contract; asserted by `agentstart/tests/validate.sh`; Homebrew cask `executor` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
 | agentstart | agentusage | `install-agent-clis` invokes the checkout's `scripts/install.sh --install`, which installs the claude-swap provider before installing the observer. It no longer writes a `codex-swap` shim, and no longer maintains the fork — both have one owner now | `agentstart/scripts/install-agent-clis`; `agentusage/scripts/install-providers.sh` |
@@ -632,3 +632,9 @@ prebuilt builder image, launchd/systemd service recovery and private relays.
 AgentStart no longer installs agentbrowse-infra. Artbird owns generic host setup;
 its old runtime roles are removed. Funk no longer installs Docker CLI/Buildx or
 Apple container. Explicit migration/retirement commands retain source profiles.
+
+Updated 2026-09-07 for Executor's headless cutover: AgentStart still obtains
+the signed CLI from the official cask, then delegates the `sh.executor.daemon`
+plist and lifecycle to `executor service install`. The vendor service, not the
+desktop sidecar, owns the catalog and captures the fleet command path; harness
+registration remains an explicit operator choice.
