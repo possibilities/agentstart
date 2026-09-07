@@ -16,6 +16,8 @@
 		<string>__HOME__</string>
 		<key>PATH</key>
 		<string>__PATH__</string>
+		<key>AGENTSCRAPE_BROWSER_SESSION</key>
+		<string>__AGENTBRAIN_BROWSER_SESSION__</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

@@ -201,4 +201,52 @@ printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.doctor' | grep -
 printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.share' | grep -F 'optional' >/dev/null \
     || fail "status treated an unconfigured share ingress as unhealthy"
 
+install_brain_session() {
+    HOME="$test_home" \
+        XDG_STATE_HOME="$state_dir" \
+        AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
+        AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
+        AGENTSTART_INSTALL_LAUNCHCTL=none \
+        "$root/scripts/install-launchagents" --install
+}
+
+assert_brain_session() {
+    /usr/bin/python3 - "$launch_agents/io.arthack.agentbrain.work.plist" "$1" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    actual = plistlib.load(handle)["EnvironmentVariables"]["AGENTSCRAPE_BROWSER_SESSION"]
+assert actual == sys.argv[2], (actual, sys.argv[2])
+PYTHON
+}
+
+AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=brain-auth install_brain_session >/dev/null
+assert_brain_session brain-auth
+unset AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION
+install_brain_session >/dev/null
+assert_brain_session brain-auth
+cp "$launch_agents/io.arthack.agentbrain.work.plist" "$test_root/worker-before.plist"
+for invalid_session in '-bad' 'bad session' 'bad/session' "$(printf '%0129d' 0)"; do
+    if AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION="$invalid_session" install_brain_session >/dev/null 2>&1; then
+        fail "invalid browser session was accepted"
+    fi
+    cmp "$test_root/worker-before.plist" "$launch_agents/io.arthack.agentbrain.work.plist" \
+        || fail "invalid browser session replaced the installed Worker"
+done
+
+# If the browser-session feature was installed immediately before the label
+# migration, the new service keeps its pin from that exact predecessor.
+sed \
+    -e 's/agentstart-installer-owned: io\.arthack\.agentbrain\.work\.v1/agentstart-installer-owned: agentbrain.worker.v1/' \
+    -e 's#<string>io\.arthack\.agentbrain\.work</string>#<string>agentbrain.worker</string>#' \
+    "$launch_agents/io.arthack.agentbrain.work.plist" \
+    >"$launch_agents/agentbrain.worker.plist"
+rm "$launch_agents/io.arthack.agentbrain.work.plist"
+install_brain_session >/dev/null
+assert_brain_session brain-auth
+rm "$launch_agents/agentbrain.worker.plist"
+
+AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION='' install_brain_session >/dev/null
+assert_brain_session ''
+
 printf 'ok\n'
