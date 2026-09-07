@@ -21,8 +21,8 @@ mkdir -p "$fake_bin" "$code_root" "$launch_agents" "$install_bin" \
 
 printf '%064d\n' 0 >"$home/.config/agentsource/github-webhook-secret"
 chmod 600 "$home/.config/agentsource/github-webhook-secret"
-cat >"$launch_agents/agentsource.receiver.plist" <<'EOF'
-<!-- agentstart-installer-owned: agentsource.receiver.v1 -->
+cat >"$launch_agents/io.arthack.agentsource.receive.plist" <<'EOF'
+<!-- agentstart-installer-owned: io.arthack.agentsource.receive.v1 -->
 EOF
 
 cat >"$fake_bin/tailscale" <<'EOF'

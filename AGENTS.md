@@ -109,14 +109,14 @@ Where things go:
   own `audience` and `mutates`, so the CLI's owner — not a downstream consumer
   — decides which verbs are for agents. A second hand-written agent help is
   the failure mode this replaces, not a fallback it tolerates.
-- A new long-running fleet service: a noun-role template in `config/launchd/`,
+- A new long-running fleet service: a verb-named template in `config/launchd/`,
   an entry with its explicit lifecycle (`resident`, `periodic`, or
   `queue-triggered`) in the manifest at the top of
   `scripts/install-launchagents`, and assertions in `tests/validate.sh`.
   `config/launchd/README.md` is the
   contract — what every service shares and what is deliberately
-  per-service. Labels are bare `<tool>.<service>`; a reverse-DNS label is a
-  machine service and does not belong here.
+  per-service. Labels use `io.arthack.<project>.<verb>`; the exact ownership
+  marker, not the namespace, decides what this installer may replace.
 - A fleet TUI bound to a Herdr popup: always add a pane entrypoint to the
   `agentsurface` plugin, then bind the key to `herdr plugin pane open`. The
   tool continues to own its TUI; the shared plugin owns the popup title and

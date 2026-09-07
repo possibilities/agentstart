@@ -11,7 +11,8 @@ state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
 agentsource_bin="$bin_dir/agentsource"
 secret_file="${AGENTSTART_AGENTSOURCE_SECRET_FILE:-$HOME/.config/agentsource/github-webhook-secret}"
 origin_receipt="${AGENTSTART_AGENTSOURCE_ORIGIN_RECEIPT:-$state_root/agentstart/agentsource-webhook-origin}"
-receiver_plist="$launch_agents_dir/agentsource.receiver.plist"
+receiver_label=io.arthack.agentsource.receive
+receiver_plist="$launch_agents_dir/$receiver_label.plist"
 receiver_proxy=http://127.0.0.1:8787
 
 usage() {
@@ -97,13 +98,13 @@ funnel_can_converge() {
 
 receiver_is_installed() {
     [ -f "$receiver_plist" ] && [ ! -L "$receiver_plist" ] &&
-        grep -Fq 'agentstart-installer-owned: agentsource.receiver.v1' "$receiver_plist"
+        grep -Fq "agentstart-installer-owned: $receiver_label.v1" "$receiver_plist"
 }
 
 receiver_is_running() {
     [ -n "$launchctl_bin" ] && [ -n "$curl_bin" ] || return 1
     local service response
-    service=$("$launchctl_bin" print "gui/$(id -u)/agentsource.receiver" 2>/dev/null) || return 1
+    service=$("$launchctl_bin" print "gui/$(id -u)/$receiver_label" 2>/dev/null) || return 1
     printf '%s\n' "$service" | grep -Eq '^[[:space:]]*state = running$' || return 1
     response=$("$curl_bin" --disable --noproxy '*' --silent --show-error --max-time 2 \
         http://127.0.0.1:8787/ 2>/dev/null) || return 1
@@ -180,9 +181,9 @@ check_configuration() {
         findings="${findings}  - The private webhook secret file is missing or unsafe.\n"
     fi
     if ! receiver_is_installed; then
-        findings="${findings}  - The agentsource.receiver fleet service is not installed.\n"
+        findings="${findings}  - The $receiver_label fleet service is not installed.\n"
     elif ! receiver_is_running; then
-        findings="${findings}  - The agentsource.receiver service or its loopback listener is not running.\n"
+        findings="${findings}  - The $receiver_label service or its loopback listener is not running.\n"
     fi
     if origin=$(tailscale_origin); then
         if ! funnel_is_ready "$origin"; then

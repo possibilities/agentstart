@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentsource.notifier.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentsource.receive.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentsource.notifier</string>
-	<!-- The receiver's subscriber for people: one grouped macOS notification
-	     whenever a project's primary branch flips between green and red. The
-	     socket and the verdict state file both derive from HOME, so the
-	     subcommand takes no arguments here. -->
+	<string>io.arthack.agentsource.receive</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>notify-daemon</string>
+		<string>webhook-daemon</string>
+		<string>--port</string>
+		<string>8787</string>
+		<string>--secret-file</string>
+		<string>__SECRET_FILE__</string>
 	</array>
-	<!-- PATH must reach terminal-notifier in the Homebrew prefix. -->
+	<!-- The credential stays in its private file. launchctl print may expose
+	     every argument and environment value, so the plist names only its path. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
@@ -24,11 +25,8 @@
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>
-	<!-- Resident: it reconnects to the receiver itself, so launchd only has
-	     to keep the process alive. -->
 	<key>KeepAlive</key>
 	<true/>
-	<!-- Nobody waits on it; a banner a few seconds late is still a banner. -->
 	<key>ProcessType</key>
 	<string>Background</string>
 	<key>Umask</key>

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentbrain.doctor.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentbrain.doctor.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentbrain.doctor</string>
+	<string>io.arthack.agentbrain.doctor</string>
 	<!-- Admission acknowledges a submission long before extraction decides
 	     whether it succeeded, so a stranded job has no request left to fail and
 	     no reader watching the ledger. This is the reader: it runs the same

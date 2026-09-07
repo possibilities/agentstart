@@ -5,8 +5,9 @@
 # Every long-running service in the agent* fleet is defined by a template in
 # config/launchd/ and installed from here. The fleet checkouts ship the code;
 # this script decides when that code runs. The machine layer keeps its own
-# services under reverse-DNS labels and its own launchd/ directory — the bare
-# <tool>.<service> label is what marks a service as the fleet's.
+# services in its own launchd/ directory. Every service this repository owns
+# uses io.arthack.<project>.<verb>; ownership still comes from the exact marker,
+# never from the namespace alone.
 #
 # config/launchd/README.md is the contract: what every service shares, what is
 # deliberately per-service, and why.
@@ -18,6 +19,7 @@
 set -euo pipefail
 
 check_only=0
+status_only=0
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 source_dir="$repo_root/config/launchd"
@@ -31,21 +33,21 @@ render_temp=""
 # Every service in the fleet, in install order:
 #   label | tool/program basename | log basename | lifecycle
 #
-# Labels name the service's role. Lifecycle is launchd's execution shape, not
-# part of that role: resident jobs use KeepAlive, periodic jobs use an interval,
-# and queue-triggered jobs combine a directory trigger with a fallback cadence.
+# Labels name the action the service performs. Lifecycle is launchd's execution
+# shape: resident jobs use KeepAlive, periodic jobs use an interval, and
+# queue-triggered jobs combine a directory trigger with a fallback cadence.
 # Every service enters through its tool's one public binary and an explicit
 # subcommand; the fleet does not grow parallel *d executables.
 SERVICES=(
-    "agentbrain.worker|agentbrain|worker.log|resident"
-    "agentbrain.share|agentbrain|share.log|resident"
-    "agentbrain.doctor|agentbrain|doctor.log|periodic"
-    "agentusage.observer|agentusage|observer.log|resident"
-    "agentattention.server|agentattention|server.log|resident"
-    "agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered"
-    "agentsource.receiver|agentsource|receiver.log|resident"
-    "agentsource.notifier|agentsource|notifier.log|resident"
-    "agentwiki.server|agentwiki|server.log|resident"
+    "io.arthack.agentbrain.work|agentbrain|worker.log|resident"
+    "io.arthack.agentbrain.share|agentbrain|share.log|resident"
+    "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
+    "io.arthack.agentusage.observe|agentusage|observer.log|resident"
+    "io.arthack.agentattention.serve|agentattention|server.log|resident"
+    "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
+    "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
+    "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
+    "io.arthack.agentwiki.serve|agentwiki|server.log|resident"
 )
 
 # Label replacements that the full installer converges atomically. These are
@@ -54,10 +56,19 @@ SERVICES=(
 # here should remember the previous spelling.
 legacy_agentattention_label="com.$(id -un).agentattention"
 LABEL_REPLACEMENTS=(
-    "agentusage.observer|agentusage.daemon"
-    "agentattention.server|$legacy_agentattention_label"
-    "agentscrape.queue-processor|agentscrape.process-queue"
-    "agentwiki.server|agentwiki.serve"
+    "io.arthack.agentbrain.work|agentbrain.worker"
+    "io.arthack.agentbrain.share|agentbrain.share"
+    "io.arthack.agentbrain.doctor|agentbrain.doctor"
+    "io.arthack.agentusage.observe|agentusage.observer"
+    "io.arthack.agentusage.observe|agentusage.daemon"
+    "io.arthack.agentattention.serve|agentattention.server"
+    "io.arthack.agentattention.serve|$legacy_agentattention_label"
+    "io.arthack.agentscrape.process-queue|agentscrape.queue-processor"
+    "io.arthack.agentscrape.process-queue|agentscrape.process-queue"
+    "io.arthack.agentsource.receive|agentsource.receiver"
+    "io.arthack.agentsource.notify|agentsource.notifier"
+    "io.arthack.agentwiki.serve|agentwiki.server"
+    "io.arthack.agentwiki.serve|agentwiki.serve"
 )
 
 # agentwiki's two loopback origins. Named here rather than left to the CLI's
@@ -67,13 +78,14 @@ AGENTWIKI_ARTIFACT_PORT="${AGENTSTART_INSTALL_AGENTWIKI_ARTIFACT_PORT:-7778}"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/install-launchagents [--install|--check]
+Usage: scripts/install-launchagents [--install|--check|--status]
 
 Install the fleet's launch agents from config/launchd/.
 
 Options:
   --install  Install or converge every fleet service
   --check    Print the plan without changing the system
+  --status   Report installed state, last exit, and log size without changes
 EOF
 }
 
@@ -147,7 +159,7 @@ if flag in args:
 service_tokens() {
     local label="$1"
     case "$label" in
-        agentbrain.share)
+        io.arthack.agentbrain.share)
             # Agentbrain's ADR 0017: accepting device shares requires naming the
             # tailnet address, and there is no default. With none supplied and
             # none already installed, the ingress is simply not installed.
@@ -162,6 +174,7 @@ service_tokens() {
             else
                 host="$(tailnet_address)"
                 [ -n "$host" ] || host="$(preserved_arg "$label" --host)"
+                [ -n "$host" ] || host="$(preserved_arg "$(replacement_label "$label")" --host)"
             fi
             case "$host" in
                 "" | none) return 10 ;;
@@ -178,14 +191,14 @@ service_tokens() {
             esac
             printf 'SHARE_HOST=%s\n' "$host"
             ;;
-        agentusage.observer)
+        io.arthack.agentusage.observe)
             # Pinned absolutely: the daemon shells both swap tools, and PATH
             # alone cannot be trusted to reach uv- and nvm-managed binaries.
             printf 'CSWAP_BIN=%s\n' "$(command -v cswap || printf '%s' "$bin_dir/cswap")"
             printf 'CODEX_SWAP_BIN=%s\n' \
                 "$(command -v codex-swap || printf '%s' "$bin_dir/codex-swap")"
             ;;
-        agentscrape.queue-processor)
+        io.arthack.agentscrape.process-queue)
             # The directory launchd watches. Agentscrape's CLI enqueues into it
             # and the service drains it, so it is shared state rather than
             # service configuration, and it is derived the same way the CLI
@@ -193,11 +206,11 @@ service_tokens() {
             printf 'QUEUE=%s\n' \
                 "${XDG_DATA_HOME:-$HOME/.local/share}/agentscrape/queue"
             ;;
-        agentsource.receiver)
+        io.arthack.agentsource.receive)
             printf 'SECRET_FILE=%s\n' \
                 "${AGENTSTART_AGENTSOURCE_SECRET_FILE:-$HOME/.config/agentsource/github-webhook-secret}"
             ;;
-        agentwiki.server)
+        io.arthack.agentwiki.serve)
             printf 'PORT=%s\n' "$AGENTWIKI_PORT"
             printf 'ARTIFACT_PORT=%s\n' "$AGENTWIKI_ARTIFACT_PORT"
             ;;
@@ -237,7 +250,7 @@ legacy_replacement_ownership() {
     local new_label="$1" old_label="$2" plist owner
     plist="$launch_agents_dir/$old_label.plist"
 
-    if [ "$new_label" != agentattention.server ] ||
+    if [ "$new_label" != io.arthack.agentattention.serve ] ||
         [ "$old_label" != "$legacy_agentattention_label" ]; then
         printf 'foreign'
         return 0
@@ -284,14 +297,17 @@ PYTHON
     fi
 }
 
-replacement_label() {
+replacement_labels() {
     local new_label="$1" replacement
     for replacement in "${LABEL_REPLACEMENTS[@]}"; do
         if [ "$(field "$replacement" 1)" = "$new_label" ]; then
             field "$replacement" 2
-            return 0
         fi
     done
+}
+
+replacement_label() {
+    replacement_labels "$1" | sed -n '1p'
 }
 
 render_plist() {
@@ -354,7 +370,7 @@ PYTHON
 # Reload rather than restart-in-place: launchd caches the plist it bootstrapped,
 # so a rewritten file does nothing until the label is booted out and back in.
 reload_service() {
-    local label="$1" plist="$2" old_label="$3" old_ownership="$4"
+    local label="$1" plist="$2" old_labels="$3"
     launchctl_available || {
         note "installed $label (launchctl unavailable; not loaded)"
         return 0
@@ -369,30 +385,46 @@ reload_service() {
             waited=$((waited + 1))
         done
     fi
-    local old_target="" old_plist=""
-    if [ -n "$old_label" ]; then
+    local old_label old_target old_plist old_ownership
+    while IFS= read -r old_label; do
+        [ -n "$old_label" ] || continue
         old_target="gui/$(id -u)/$old_label"
         old_plist="$launch_agents_dir/$old_label.plist"
+        old_ownership="$(plist_ownership "$old_label")"
+        if [ "$old_ownership" = foreign ]; then
+            old_ownership="$(legacy_replacement_ownership "$label" "$old_label")"
+        fi
+        { [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; } || continue
         if "$launchctl_bin" print "$old_target" >/dev/null 2>&1; then
             "$launchctl_bin" bootout "$old_target" >/dev/null 2>&1 ||
                 die "failed to stop replaced service $old_label"
         fi
-    fi
+    done <<EOF
+$old_labels
+EOF
     "$launchctl_bin" bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1 ||
         {
             # Preserve service availability if launchd rejects the replacement.
-            # The old plist is removed only after the new label is live.
-            if [ -n "$old_plist" ] && [ -f "$old_plist" ] &&
-                { [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; }; then
+            # Old plists are removed only after the new label is live.
+            while IFS= read -r old_label; do
+                [ -n "$old_label" ] || continue
+                old_plist="$launch_agents_dir/$old_label.plist"
+                [ -f "$old_plist" ] || continue
                 "$launchctl_bin" bootstrap "gui/$(id -u)" "$old_plist" >/dev/null 2>&1 || true
-            fi
+            done <<EOF
+$old_labels
+EOF
             die "failed to load $label; inspect: launchctl print $target"
         }
-    if [ -n "$old_plist" ] &&
-        { [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; }; then
+    while IFS= read -r old_label; do
+        [ -n "$old_label" ] || continue
+        old_plist="$launch_agents_dir/$old_label.plist"
+        [ -f "$old_plist" ] || continue
         rm -- "$old_plist"
         note "replaced $old_label with $label"
-    fi
+    done <<EOF
+$old_labels
+EOF
     note "installed and loaded $label"
 }
 
@@ -417,16 +449,23 @@ install_service() {
 
     local ownership
     ownership="$(plist_ownership "$label")"
-    local old_label old_ownership=absent
-    old_label="$(replacement_label "$label")"
-    if [ -n "$old_label" ]; then
+    local old_label old_ownership old_labels owned_old_labels=""
+    old_labels="$(replacement_labels "$label")"
+    while IFS= read -r old_label; do
+        [ -n "$old_label" ] || continue
         old_ownership="$(plist_ownership "$old_label")"
         if [ "$old_ownership" = foreign ]; then
             old_ownership="$(legacy_replacement_ownership "$label" "$old_label")"
         fi
         [ "$old_ownership" != foreign ] ||
             die "refusing to replace a legacy service this installer does not own: $launch_agents_dir/$old_label.plist"
-    fi
+        if [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; then
+            owned_old_labels="${owned_old_labels}${owned_old_labels:+
+}$old_label"
+        fi
+    done <<EOF
+$old_labels
+EOF
 
     local tokens status=0
     tokens="$(service_tokens "$label")" || status=$?
@@ -448,8 +487,8 @@ install_service() {
             adopt) plan="adopt from ${label%%.*}" ;;
             foreign) plan="REFUSE — not ours to replace" ;;
         esac
-        if [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; then
-            plan="replace $old_label"
+        if [ -n "$owned_old_labels" ]; then
+            plan="replace $(printf '%s' "$owned_old_labels" | tr '\n' ',')"
         fi
         printf '  %-28s %-18s %-22s %s\n' "$label" "$lifecycle" "$plan" "$program"
         return 0
@@ -466,7 +505,7 @@ install_service() {
     [ -e "$log" ] || : >"$log"
     chmod 600 "$log"
     render_plist "$label" "$program" "$log" "$destination" "$tokens"
-    reload_service "$label" "$destination" "$old_label" "$old_ownership"
+    reload_service "$label" "$destination" "$owned_old_labels"
 }
 
 # Agentweb is retired, but a previously installed broker may still be loaded.
@@ -516,10 +555,71 @@ retire_agentweb_broker() {
     note "removed retired owned service $label"
 }
 
+status_services() {
+    local failures=0 entry label tool log_name lifecycle program plist target
+    local ownership service state pid last_exit log log_bytes
+    printf 'Fleet launch service status (%s):\n' "$launch_agents_dir"
+    for entry in "${SERVICES[@]}"; do
+        label="$(field "$entry" 1)"
+        tool="$(field "$entry" 2)"
+        log_name="$(field "$entry" 3)"
+        lifecycle="$(field "$entry" 4)"
+        program="$bin_dir/$tool"
+        plist="$launch_agents_dir/$label.plist"
+        log="$state_root/$tool/$log_name"
+        if [ ! -x "$program" ]; then
+            printf '  %-42s %-15s %s\n' "$label" skipped "no $program"
+            continue
+        fi
+        ownership="$(plist_ownership "$label")"
+        if [ "$ownership" = absent ] && [ "$label" = io.arthack.agentbrain.share ]; then
+            printf '  %-42s %-15s %s\n' "$label" optional 'not configured'
+            continue
+        fi
+        if [ "$ownership" != ours ]; then
+            printf '  %-42s %-15s ownership=%s\n' "$label" FAIL "$ownership"
+            failures=$((failures + 1))
+            continue
+        fi
+        if ! launchctl_available; then
+            printf '  %-42s %-15s %s\n' "$label" unknown 'launchctl unavailable'
+            failures=$((failures + 1))
+            continue
+        fi
+        target="gui/$(id -u)/$label"
+        if ! service=$("$launchctl_bin" print "$target" 2>/dev/null); then
+            printf '  %-42s %-15s %s\n' "$label" FAIL 'not loaded'
+            failures=$((failures + 1))
+            continue
+        fi
+        state=$(printf '%s\n' "$service" | sed -n 's/^[[:space:]]*state = //p' | sed -n '1p')
+        pid=$(printf '%s\n' "$service" | sed -n 's/^[[:space:]]*pid = //p' | sed -n '1p')
+        last_exit=$(printf '%s\n' "$service" | sed -n 's/^[[:space:]]*last exit code = //p' | sed -n '1p')
+        log_bytes=0
+        if [ -f "$log" ]; then
+            log_bytes=$(stat -f %z "$log" 2>/dev/null || stat -c %s "$log" 2>/dev/null || printf 0)
+        fi
+        if [ "$lifecycle" = resident ] && [ "$state" != running ]; then
+            printf '  %-42s %-15s state=%s last_exit=%s log_bytes=%s\n' \
+                "$label" FAIL "${state:-unknown}" "${last_exit:-unknown}" "$log_bytes"
+            failures=$((failures + 1))
+        elif [ -n "$last_exit" ] && [ "$last_exit" != 0 ] && [ "$last_exit" != '(never exited)' ]; then
+            printf '  %-42s %-15s state=%s pid=%s last_exit=%s log_bytes=%s\n' \
+                "$label" FAIL "${state:-unknown}" "${pid:--}" "$last_exit" "$log_bytes"
+            failures=$((failures + 1))
+        else
+            printf '  %-42s %-15s state=%s pid=%s last_exit=%s log_bytes=%s\n' \
+                "$label" ok "${state:-unknown}" "${pid:--}" "${last_exit:-unknown}" "$log_bytes"
+        fi
+    done
+    return "$failures"
+}
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --install) check_only=0 ;;
-        --check) check_only=1 ;;
+        --install) check_only=0; status_only=0 ;;
+        --check) check_only=1; status_only=0 ;;
+        --status) check_only=0; status_only=1 ;;
         -h | --help)
             usage
             exit 0
@@ -533,6 +633,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -d "$source_dir" ] || die "missing template directory: $source_dir"
+
+if [ "$status_only" -eq 1 ]; then
+    status_services
+    exit $?
+fi
 
 if [ "$check_only" -eq 1 ]; then
     printf 'Fleet launch agents (%s):\n' "$launch_agents_dir"

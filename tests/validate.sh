@@ -342,10 +342,14 @@ if grep -rn "$home_literal" $hygiene_paths 2>/dev/null; then
     fail "a literal home-directory path assumes an account name; resolve from \$HOME instead"
 fi
 # The same rule for the operator's account name, which is knowable at runtime
-# and therefore never needs to be written down.
+# and therefore never belongs in a path or machine-specific value. The
+# account-wide `io.arthack.*` launch service namespace is an explicit naming
+# contract, not a runtime account assumption.
 operator_account=$(id -un)
 # shellcheck disable=SC2086 # $hygiene_paths is a deliberate list of targets.
-if grep -rn "$operator_account" $hygiene_paths 2>/dev/null; then
+if grep -rn "$operator_account" $hygiene_paths 2>/dev/null \
+    | grep -vF 'io.arthack.' \
+    | grep -vF 'io\.arthack\.'; then
     fail "the operator's account name is spelled in the repository; resolve it at runtime"
 fi
 [ -s LICENSE ] || fail "public repository is missing its LICENSE"
@@ -3409,13 +3413,12 @@ fi
 if grep -F 'oauth_token' scripts/install.sh >/dev/null; then
     fail "an AgentStart script crossed the boundary: gh migration is the machine's"
 fi
-# launchd is split rather than wholly the machine's: a bare <tool>.<service>
-# label is a fleet service and this repository owns it; a reverse-DNS label is
-# the machine's. The boundary that remains is the naming, so
-# what is tested is that nothing here installs a machine-shaped service.
-if grep -Eq '<string>(com|org|net)\.' config/launchd/*.plist; then
-    fail "an AgentStart launch agent used a reverse-DNS label: machine services are not ours"
-fi
+# launchd is split by exact installer ownership, not by namespace. Every fleet
+# service still uses the account-wide launch service label grammar.
+for template in config/launchd/*.plist; do
+    grep -Eq '<string>io\.arthack\.[a-z0-9-]+\.[a-z0-9-]+</string>' "$template" \
+        || fail "an AgentStart launch agent does not use io.arthack.<project>.<verb>: $template"
+done
 # The updater path stays unattended-safe: sync-skills runs every six hours with
 # no sudo and no service restarts, so it must never reach launchd.
 if grep -Eq 'launchctl|\.plist' scripts/sync-skills; then
@@ -3449,15 +3452,15 @@ grep -Fq "local label=agentweb.broker" scripts/install-launchagents \
 grep -Fq "agentstart-installer-owned: agentweb.broker.v1" scripts/install-launchagents \
     || fail "retired broker cleanup does not require the exact ownership marker"
 
-expected_services='agentbrain.worker|agentbrain|worker.log|resident
-agentbrain.share|agentbrain|share.log|resident
-agentbrain.doctor|agentbrain|doctor.log|periodic
-agentusage.observer|agentusage|observer.log|resident
-agentattention.server|agentattention|server.log|resident
-agentscrape.queue-processor|agentscrape|queue-processor.log|queue-triggered
-agentsource.receiver|agentsource|receiver.log|resident
-agentsource.notifier|agentsource|notifier.log|resident
-agentwiki.server|agentwiki|server.log|resident'
+expected_services='io.arthack.agentbrain.work|agentbrain|worker.log|resident
+io.arthack.agentbrain.share|agentbrain|share.log|resident
+io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
+io.arthack.agentusage.observe|agentusage|observer.log|resident
+io.arthack.agentattention.serve|agentattention|server.log|resident
+io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
+io.arthack.agentsource.receive|agentsource|receiver.log|resident
+io.arthack.agentsource.notify|agentsource|notifier.log|resident
+io.arthack.agentwiki.serve|agentwiki|server.log|resident'
 for entry in $expected_services; do
     grep -Fq "\"$entry\"" scripts/install-launchagents \
         || fail "launch agent manifest omits canonical entry: $entry"
@@ -3512,27 +3515,27 @@ done
 while IFS= read -r label; do
     [ -f "config/launchd/$label.plist" ] \
         || fail "manifest names a service with no template: $label"
-done < <(sed -n 's/^ *"\([a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagents)
+done < <(sed -n 's/^ *"\(io\.arthack\.[a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagents)
 
-grep -Fq '<string>webhook-daemon</string>' config/launchd/agentsource.receiver.plist \
+grep -Fq '<string>webhook-daemon</string>' config/launchd/io.arthack.agentsource.receive.plist \
     || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
-grep -Fq '<string>notify-daemon</string>' config/launchd/agentsource.notifier.plist \
+grep -Fq '<string>notify-daemon</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not enter through the installed notify-daemon subcommand"
 # The notifier posts through terminal-notifier, which only the Homebrew prefix
 # provides; a plist that hand-built PATH without it would run and never post.
-grep -Fq '<string>__PATH__</string>' config/launchd/agentsource.notifier.plist \
+grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
-grep -Fq '<string>serve</string>' config/launchd/agentattention.server.plist \
+grep -Fq '<string>serve</string>' config/launchd/io.arthack.agentattention.serve.plist \
     || fail "Agentattention server does not enter through the installed serve subcommand"
-if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/agentattention.server.plist; then
+if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/io.arthack.agentattention.serve.plist; then
     fail "Agentattention server rendered a credential-shaped environment variable"
 fi
-grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/agentsource.receiver.plist \
+grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/io.arthack.agentsource.receive.plist \
     || fail "Agentsource receiver does not name the private secret by path"
-grep -A1 -F '<string>--port</string>' config/launchd/agentsource.receiver.plist \
+grep -A1 -F '<string>--port</string>' config/launchd/io.arthack.agentsource.receive.plist \
     | grep -Fq '<string>8787</string>' \
     || fail "Agentsource receiver does not pin its Funnel-coupled HTTP port"
-if grep -Eq '<key>[^<]*SECRET[^<]*</key>' config/launchd/agentsource.receiver.plist; then
+if grep -Eq '<key>[^<]*SECRET[^<]*</key>' config/launchd/io.arthack.agentsource.receive.plist; then
     fail "Agentsource receiver rendered a credential-shaped environment variable"
 fi
 

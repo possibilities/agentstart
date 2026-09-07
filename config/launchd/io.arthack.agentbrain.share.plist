@@ -1,38 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentusage.observer.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentbrain.share.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentusage.observer</string>
+	<string>io.arthack.agentbrain.share</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>daemon</string>
-		<string>run</string>
+		<string>share</string>
+		<string>serve</string>
+		<!-- The bind address is never defaulted into this template. Agentbrain's
+		     ADR 0017 requires naming the tailnet address to accept device shares,
+		     so the installer renders one the operator supplied and installs no
+		     service at all when they supplied none. -->
+		<string>--host</string>
+		<string>__SHARE_HOST__</string>
 	</array>
-	<!-- The swap binaries are pinned absolutely because launchd does not source
-	     shell rc files, so PATH alone cannot be trusted to reach uv- and
-	     nvm-managed tools. Neither is a credential. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
 		<string>__HOME__</string>
 		<key>PATH</key>
 		<string>__PATH__</string>
-		<key>AGENTUSAGE_CSWAP_BIN</key>
-		<string>__CSWAP_BIN__</string>
-		<key>AGENTUSAGE_CODEX_SWAP_BIN</key>
-		<string>__CODEX_SWAP_BIN__</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
-	<!-- Standard, not Background: balance callers block on observation
-	     freshness, and Background QoS is starved first under contention. -->
+	<!-- Background: an ingress waiting on a share nobody has sent yet. -->
 	<key>ProcessType</key>
-	<string>Standard</string>
+	<string>Background</string>
 	<key>Umask</key>
 	<integer>63</integer>
 	<key>ThrottleInterval</key>

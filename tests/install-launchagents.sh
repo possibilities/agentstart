@@ -63,7 +63,7 @@ run_check() {
 plan=$(run_check)
 printf '%s\n' "$plan" | grep -F "replace $legacy_label" >/dev/null \
     || fail "exact legacy Agentattention service was not recognized"
-[ ! -e "$launch_agents/agentattention.server.plist" ] \
+[ ! -e "$launch_agents/io.arthack.agentattention.serve.plist" ] \
     || fail "check mode wrote the replacement plist"
 
 /usr/bin/python3 - "$legacy_plist" <<'PYTHON'
@@ -161,11 +161,44 @@ HOME="$test_home" \
     AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
     AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
     AGENTSTART_INSTALL_LAUNCHCTL=none \
+    AGENTSTART_INSTALL_SHARE_HOST=none \
     AGENTSTART_INSTALL_CONDUIT_SOCKET=/obsolete/socket \
     AGENTSTART_INSTALL_CONDUIT_TOKEN_FILE=/obsolete/token \
     "$root/scripts/install-launchagents" --install >/dev/null
-if grep -Fq 'AGENTSCRAPE_CONDUIT' "$launch_agents/agentbrain.worker.plist"; then
+if grep -Fq 'AGENTSCRAPE_CONDUIT' "$launch_agents/io.arthack.agentbrain.work.plist"; then
     fail "Agentbrain worker still carries retired conduit environment"
 fi
+
+# Status is owner-provided and read-only. It reports lifecycle state and log
+# bytes from one launchctl read per installed service, while a deliberately
+# unconfigured share ingress remains optional rather than unhealthy.
+status_launchctl="$test_root/status-launchctl"
+cat >"$status_launchctl" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+[ "$1" = print ] || exit 1
+case "$2" in
+    */io.arthack.agentbrain.work | */io.arthack.agentattention.serve)
+        printf 'state = running\npid = 42\n'
+        ;;
+    */io.arthack.agentbrain.doctor)
+        printf 'state = waiting\nlast exit code = 0\n'
+        ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$status_launchctl"
+status_output=$(HOME="$test_home" \
+    XDG_STATE_HOME="$state_dir" \
+    AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
+    AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
+    AGENTSTART_INSTALL_LAUNCHCTL="$status_launchctl" \
+    "$root/scripts/install-launchagents" --status)
+printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.work' | grep -F 'state=running' | grep -F 'log_bytes=0' >/dev/null \
+    || fail "status omitted the running Agentbrain worker or its log size"
+printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.doctor' | grep -F 'state=waiting' | grep -F 'last_exit=0' >/dev/null \
+    || fail "status omitted the healthy periodic doctor"
+printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.share' | grep -F 'optional' >/dev/null \
+    || fail "status treated an unconfigured share ingress as unhealthy"
 
 printf 'ok\n'

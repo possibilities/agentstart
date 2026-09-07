@@ -89,6 +89,11 @@ This repository is itself a participant (the `fleet` skill). _Avoid_:
 registered, enrolled (there is no registry — the convention is the whole
 interface).
 
+**Launch service label** — An account-owned launchd identifier shaped as
+`io.arthack.<project>.<verb>`. It names the project and the action performed;
+an exact installer marker separately proves which repository may replace or
+retire it. _Avoid_: noun-role label, ownership namespace.
+
 **Model invocation policy** — the portable fact recorded by
 `disable-model-invocation` in a skill's `SKILL.md` frontmatter; absent or false
 means model-invocable. The fixed-resource render derives Codex's inverse

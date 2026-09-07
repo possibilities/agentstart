@@ -1,22 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentbrain.share.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentsource.notify.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentbrain.share</string>
+	<string>io.arthack.agentsource.notify</string>
+	<!-- The receiver's subscriber for people: one grouped macOS notification
+	     whenever a project's primary branch flips between green and red. The
+	     socket and the verdict state file both derive from HOME, so the
+	     subcommand takes no arguments here. -->
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>share</string>
-		<string>serve</string>
-		<!-- The bind address is never defaulted into this template. Agentbrain's
-		     ADR 0017 requires naming the tailnet address to accept device shares,
-		     so the installer renders one the operator supplied and installs no
-		     service at all when they supplied none. -->
-		<string>--host</string>
-		<string>__SHARE_HOST__</string>
+		<string>notify-daemon</string>
 	</array>
+	<!-- PATH must reach terminal-notifier in the Homebrew prefix. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
@@ -26,9 +24,11 @@
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>
+	<!-- Resident: it reconnects to the receiver itself, so launchd only has
+	     to keep the process alive. -->
 	<key>KeepAlive</key>
 	<true/>
-	<!-- Background: an ingress waiting on a share nobody has sent yet. -->
+	<!-- Nobody waits on it; a banner a few seconds late is still a banner. -->
 	<key>ProcessType</key>
 	<string>Background</string>
 	<key>Umask</key>

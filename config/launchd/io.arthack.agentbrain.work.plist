@@ -1,21 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentsource.receiver.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentbrain.work.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentsource.receiver</string>
+	<string>io.arthack.agentbrain.work</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>webhook-daemon</string>
-		<string>--port</string>
-		<string>8787</string>
-		<string>--secret-file</string>
-		<string>__SECRET_FILE__</string>
+		<string>worker</string>
 	</array>
-	<!-- The credential stays in its private file. launchctl print may expose
-	     every argument and environment value, so the plist names only its path. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
@@ -27,6 +21,7 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
+	<!-- Background: ingestion is work nobody is waiting on. -->
 	<key>ProcessType</key>
 	<string>Background</string>
 	<key>Umask</key>

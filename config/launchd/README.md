@@ -6,18 +6,17 @@ longer installs its own service; it ships the code, and this repository decides
 when that code runs.
 
 The machine layer keeps its own services and its own `launchd/` directory.
-The split is the label: a bare `<tool>.<service>` label is a fleet service
-and lives here; a reverse-DNS label is the machine's.
+Namespace does not decide ownership: the exact marker does. Every service we
+own still uses the same account-wide naming grammar.
 
 ## What is standardized
 
 The frame is identical for every service, and deviating from it is a bug:
 
-- **Label** — `<tool>.<service>`, matching the file name exactly.
-- **Service names are noun roles** — `worker`, `share`, `doctor`, `observer`,
-  `broker`, `queue-processor`, `receiver`, and `server`. A label says what responsibility
-  the process owns; `daemon`, `serve`, and command spellings do not leak into
-  the label.
+- **Label** — `io.arthack.<project>.<verb>`, matching the file name exactly.
+  The final component names the action (`work`, `observe`, `serve`,
+  `process-queue`), not the process shape (`worker`, `observer`, `server`,
+  `daemon`).
 - **Ownership marker** — the second line is
   `<!-- agentstart-installer-owned: <label>.v1 -->`. The installer refuses to
   unload or replace a service carrying anything else, so a hand-written or
@@ -55,13 +54,13 @@ comment beside the key:
   is looking at.
 - **Lifecycle** — the manifest names each service as `resident`, `periodic`, or
   `queue-triggered`; templates express that through `KeepAlive`,
-  `StartInterval`, and `QueueDirectories`. `agentbrain.doctor` is the only
-  periodic member and `agentscrape.queue-processor` the only queue-triggered
-  member.
+  `StartInterval`, and `QueueDirectories`. `io.arthack.agentbrain.doctor` is
+  the only periodic member and `io.arthack.agentscrape.process-queue` the only
+  queue-triggered member.
 - **Arguments and extra environment**, including values that must be
   discovered from another service at install time.
-- **Conditional installation.** `agentbrain.share` installs only when an
-  operator names a bind address; there is no default, by its ADR 0017.
+- **Conditional installation.** `io.arthack.agentbrain.share` installs only
+  when an operator names a bind address; there is no default, by its ADR 0017.
 
 ## Adding a service
 

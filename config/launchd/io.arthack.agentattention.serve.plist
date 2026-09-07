@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- agentstart-installer-owned: agentbrain.worker.v1 -->
+<!-- agentstart-installer-owned: io.arthack.agentattention.serve.v1 -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>agentbrain.worker</string>
+	<string>io.arthack.agentattention.serve</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>worker</string>
+		<string>serve</string>
 	</array>
+	<!-- Agentattention's checkout-owned installer creates the mode-0600 server
+	     and local-client configurations. The resident service reads the server
+	     configuration from HOME; no bearer credential enters launchd. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>
@@ -21,11 +24,14 @@
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
-	<!-- Background: ingestion is work nobody is waiting on. -->
+	<!-- Standard: agents and the human queue can both be blocked on this local
+	     control plane, so Background throttling would be user-visible. -->
 	<key>ProcessType</key>
-	<string>Background</string>
+	<string>Standard</string>
 	<key>Umask</key>
 	<integer>63</integer>
+	<!-- A second server exits on the occupied loopback port; throttle prevents
+	     a stale predecessor from turning that refusal into a hot restart loop. -->
 	<key>ThrottleInterval</key>
 	<integer>10</integer>
 	<key>StandardOutPath</key>
