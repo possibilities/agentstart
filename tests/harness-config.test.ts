@@ -273,3 +273,21 @@ test("invalid native profile edits are retained and notified without hiding the 
   expect(profiles).toHaveLength(1); expect(readFileSync(join(root,".codex",profiles[0]),"utf8")).toBe("invalid=[");
   expect(readFileSync(receipt,"utf8")).toBe("notified");
 });
+
+test("account-launcher temporary home cleanup is quiet while native file deletion remains visible", async () => {
+  const temporary = join(root,"runtime-shadow-homes/account/config.toml");
+  put(temporary,'model="ambient"'); registerNativeHome("codex",temporary,files);
+  await apply(files);
+  rmSync(dirname(temporary),{recursive:true});
+  const report = await apply(files);
+  expect(report.notices).toEqual([]); expect(report.harnesses.codex.drift).toEqual([]);
+  expect(report.harnesses.codex.shadowed.some((s:any) => s.file === temporary)).toBe(false);
+  // A file can disappear before its parent is removed. That temporary
+  // missing-file report must resolve when the home lifecycle completes.
+  put(temporary,'model="ambient"'); await apply(files);
+  unlinkSync(temporary); expect((await apply(files)).harnesses.codex.drift).toHaveLength(1);
+  rmSync(dirname(temporary),{recursive:true});
+  expect((await apply(files)).harnesses.codex.drift).toEqual([]);
+  unlinkSync(files.native.codex);
+  expect((await apply(files)).harnesses.codex.drift).toEqual([{key:"model",file:files.native.codex}]);
+});

@@ -39,6 +39,9 @@ differs from the authored value becomes a review item. Unauthored fields,
 trust records, generated hooks/statusline, and account state are outside that
 comparison. Edits that occur and revert between observations cannot be seen.
 Alternate native homes register when a managed invocation uses them.
+Vanished registered home directories are ignored: account-launcher temporary
+home cleanup is not a deliberate settings edit. Deleting a native settings file
+inside a surviving home can still be reported.
 
 Codex's wrapper additionally captures edits to authored fields in its disposable
 profile before deletion. Only fields that changed during that invocation are

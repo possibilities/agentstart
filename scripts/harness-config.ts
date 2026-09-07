@@ -124,7 +124,9 @@ function nativeFiles(files: Layout, harness: Harness) {
   if (existsSync(directory)) for (const name of readdirSync(directory)) {
     if (!/^[a-f0-9]{64}\.json$/.test(name)) continue;
     const record = readJSON(join(directory, name));
-    if (record.harness === harness && typeof record.path === "string" && resolve(record.path) === record.path) result.add(record.path);
+    // Account launchers can use disposable shadow homes. Their removal is
+    // lifecycle churn, not a preference deletion worth watching or alerting.
+    if (record.harness === harness && typeof record.path === "string" && resolve(record.path) === record.path && existsSync(dirname(record.path))) result.add(record.path);
   }
   return [...result];
 }
@@ -205,7 +207,12 @@ export async function apply(files = layout(), acknowledge = false) {
           const wanted = fingerprints(info.settings, info.paths);
           entry.native = { ...previous.native }; entry.shadowed = [];
           const nativeErrors: string[] = [];
-          for (const nativeFile of nativeFiles(files, harness)) {
+          const activeNativeFiles = nativeFiles(files, harness);
+          for (const retired of Object.keys(entry.native)) if (!activeNativeFiles.includes(retired)) {
+            delete entry.native[retired];
+            for (const [key, drift] of Object.entries(entry.drift) as [string, any][]) if (drift.file === retired) delete entry.drift[key];
+          }
+          for (const nativeFile of activeNativeFiles) {
             try {
               const native = existsSync(nativeFile) ? parse(harness, readFileSync(nativeFile, "utf8")) : {};
               const observed = fingerprints(native, info.paths);
