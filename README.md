@@ -131,17 +131,17 @@ it starts shown. agentmux reads it at start and never
 writes it. agentmux and agentwork install in the fleet CLI loop; agentwork
 puts nothing on PATH.
 
-`scripts/agentbrowse-config install` links the locked version-2 deployment into
-`~/.config/agentbrowse/config.json`: Artbird first, then an already-enabled
-Apple container session with one 2-CPU, 6-GiB target. The provider never starts
-Apple services or acquires an image; recovery remains the explicit
-`agentbrowse-infra enable` plus pull/load lifecycle.
+`scripts/agentbrowse-config install` links the version-2 Hypeman deployment:
+Artbird first, local Mac second. AgentBrowse's explicit `scripts/install-host`
+owns runtime dependencies and automatic service recovery on each host. Its
+private connection files must exist before linking this policy. Browser launch
+never installs infrastructure or acquires an image.
 
 The same file locks the Live View video capture policy. The shared
 `browser.video` policy keeps Chromium's display at 60 Hz and captures 30 VP8
 frames per second; only Artbird overrides it to 60 fps, 4,792,320 bits/s, and a
-60-frame keyframe interval, the shape agentbrowse measured for a remote Docker
-backend. The Apple backend deliberately carries no override and stays on the
+60-frame keyframe interval, the shape agentbrowse measured for a remote browser
+backend. The local Hypeman backend deliberately carries no override and stays on the
 shared policy until that shape is validated locally. Agentbrowse verifies
 capture settings as part of target ownership, so after the policy changes it
 rejects an existing Browser target at its next launch or `create` until that

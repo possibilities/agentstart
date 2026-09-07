@@ -20,7 +20,10 @@
   installer, and `config/launchd/` defines every fleet service, because a
   service with two owners has them racing to render it. A fleet checkout
   ships the code; this repository decides that it is present and when it
-  runs. AgentVoice is the explicit exception: its approved default-server
+  runs. AgentBrowse is also a service-ownership exception: its explicit
+  `scripts/install-host` owns Hypeman installation and service recovery on both
+  Mac and Linux. AgentStart must not render a competing Hypeman service.
+  AgentVoice is the explicit exception: its approved default-server
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template

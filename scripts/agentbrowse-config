@@ -53,38 +53,18 @@ validate_config() {
     # The Live View capture policy is locked together with the backends. The
     # shared policy keeps Chromium's display at 60 Hz and captures 30 VP8
     # frames per second; only Artbird overrides it to 60 fps, double the
-    # bitrate, and a 60-frame keyframe interval. The Apple backend carries no
-    # override until that shape is validated locally, so it must stay on the
-    # shared policy. Agentbrowse verifies capture settings as part of target
+    # bitrate, and a 60-frame keyframe interval. The local Hypeman backend uses the shared policy. Agentbrowse verifies capture settings as part of target
     # ownership: changing any of these values makes it reject every existing
     # Browser target at its next launch or create until that target is
     # destroyed and recreated explicitly; Browser profiles are preserved.
     "$jq_bin" -e '
         .version == 2 and
-        (.backends | map(.id)) == ["artbird", "apple-container-local"] and
-        .backends[0] == {
-            "id": "artbird",
-            "type": "docker",
-            "context": "artbird",
-            "expectedEndpoint": "ssh://artbird",
-            "expectedEngine": "artbird",
-            "remoteHost": "artbird",
-            "networkAddressCommand": "tailscale ip -4",
-            "video": {
-                "fps": 60,
-                "targetBitrateBps": 4792320,
-                "keyframeMaxDistance": 60
-            }
-        } and
-        .backends[1] == {
-            "id": "apple-container-local",
-            "type": "apple-container",
-            "command": "/usr/local/bin/container",
-            "maxTargets": 1,
-            "cpus": 2,
-            "memory": "6G",
-            "accessMode": "loopback"
-        } and
+        (.backends | map(.id)) == ["artbird", "local"] and
+        (.backends | all(.type == "hypeman" and .cpus == 2 and .memory == "3G" and .portOffset == 2000)) and
+        .backends[0].connectionFile == "~/.config/agentbrowse/hosts/artbird.json" and
+        .backends[1].connectionFile == "~/.config/agentbrowse/hosts/local.json" and
+        .backends[0].video == {"fps":60,"targetBitrateBps":4792320,"keyframeMaxDistance":60} and
+        (.backends[1] | has("video") | not) and
         .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
         .browser.video == {
             "screenRefreshRate": 60,
@@ -156,7 +136,7 @@ usage() {
 Usage: agentbrowse-config <command>
 
 Commands:
-  install   Link AgentStart's ordered Artbird/Apple agentbrowse configuration
+  install   Link AgentStart's ordered Artbird/local Hypeman agentbrowse configuration
 EOF
 }
 

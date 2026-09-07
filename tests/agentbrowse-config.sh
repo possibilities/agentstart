@@ -29,13 +29,10 @@ cmp -s "$source_config" "$target_config" \
     || fail "linked agentbrowse config does not resolve to the tracked source"
 /usr/bin/jq -e '
     .version == 2 and
-    (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+    (.backends | map(.id)) == ["artbird", "local"] and
+    (.backends | all(.type == "hypeman" and .cpus == 2 and .memory == "3G")) and
     .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
     (.backends[1] | has("video") | not) and
-    .backends[1].maxTargets == 1 and
-    .backends[1].accessMode == "loopback" and
-    .backends[1].cpus == 2 and
-    .backends[1].memory == "6G" and
     .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
     .browser.video == {
         "screenRefreshRate": 60,
@@ -79,7 +76,7 @@ done
 # deployed agentbrowse, whose Apple backend still requires exactly one target.
 ahead_source="$test_root/ahead-source.json"
 ahead_target="$test_root/ahead-home/.config/agentbrowse/config.json"
-/usr/bin/jq '.backends[1].maxTargets = 1000' "$root/config/agentbrowse/config.json" >"$ahead_source"
+/usr/bin/jq '.backends[1].type = "unsupported-runtime"' "$root/config/agentbrowse/config.json" >"$ahead_source"
 if ahead_output=$(AGENTSTART_AGENTBROWSE_CONFIG_SOURCE="$ahead_source" \
     AGENTSTART_AGENTBROWSE_CONFIG_TARGET="$ahead_target" \
     "$helper" install 2>&1); then
@@ -87,7 +84,7 @@ if ahead_output=$(AGENTSTART_AGENTBROWSE_CONFIG_SOURCE="$ahead_source" \
 fi
 printf '%s\n' "$ahead_output" | grep -F 'deployed agentbrowse rejects the tracked config' >/dev/null \
     || fail "loader refusal did not say the deployed CLI rejects the config: $ahead_output"
-printf '%s\n' "$ahead_output" | grep -F 'maxTargets must be 1' >/dev/null \
+printf '%s\n' "$ahead_output" | grep -F 'unsupported backend type' >/dev/null \
     || fail "loader refusal did not carry the loader's reason: $ahead_output"
 [ ! -e "$ahead_target" ] && [ ! -L "$ahead_target" ] \
     || fail "a config the deployed loader rejects still linked"

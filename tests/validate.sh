@@ -103,13 +103,10 @@ done
     || fail "default agentbrowse config is missing or empty"
 /usr/bin/jq -e '
     .version == 2 and
-    (.backends | map(.id)) == ["artbird", "apple-container-local"] and
+    (.backends | map(.id)) == ["artbird", "local"] and
+    (.backends | all(.type == "hypeman" and .cpus == 2 and .memory == "3G")) and
     .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
     (.backends[1] | has("video") | not) and
-    .backends[1].maxTargets == 1 and
-    .backends[1].accessMode == "loopback" and
-    .backends[1].cpus == 2 and
-    .backends[1].memory == "6G" and
     .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
     .browser.video == {
         "screenRefreshRate": 60,
@@ -3356,12 +3353,12 @@ grep -F '"$script_dir/remove-retired-pi" --install' scripts/install.sh >/dev/nul
 # precede agentusage so balance observes the command owners they install.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
+for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
     agentscrape agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;

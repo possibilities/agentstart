@@ -48,12 +48,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # Agentbrowse Browser profile, so Agentscrape and Agentbrain have no special
 # install-order relationship beyond both preceding their resident services.
 #
-# agentbrowse-infra precedes agentbrowse because it owns the manual Apple
-# lifecycle command referenced by agentbrowse's recovery messages. Installing
-# it never enables Apple services or acquires an image. Agentbrowse supplies
-# agent-browser's ordered provider. The provider process is short-lived and
-# resolves the Browser target's CDP URL dynamically; there is no provider
-# service to install or configure with a static URL.
+# Agentbrowse owns the Hypeman host installer and its short-lived provider.
+# Host installation is explicit through agentbrowse/scripts/install-host;
+# this command installation never starts VMs or performs a runtime migration.
 # agentattention follows it because its browser-interaction processor imports
 # agentbrowse's supported OpenTUI surface from the adjacent installed checkout.
 #
@@ -74,7 +71,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
-for tool in agentwiki agentboard agentbrowse-infra agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
+for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
     agentbrain codex-swap grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentroles agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then

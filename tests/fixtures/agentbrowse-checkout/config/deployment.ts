@@ -12,8 +12,8 @@ export function loadAgentbrowseConfig(
     backends?: { type?: string; maxTargets?: number }[];
   };
   (root.backends ?? []).forEach((backend, index) => {
-    if (backend.type === "apple-container" && (backend.maxTargets ?? 1) !== 1) {
-      throw new Error(`${path}: backends[${index}].maxTargets must be 1`);
+    if (backend.type !== "hypeman") {
+      throw new Error("unsupported backend type");
     }
   });
   return root;
