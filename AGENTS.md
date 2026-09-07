@@ -20,7 +20,11 @@
   installer, and `config/launchd/` defines every fleet service, because a
   service with two owners has them racing to render it. A fleet checkout
   ships the code; this repository decides that it is present and when it
-  runs. Nothing outside this repository installs a fleet component.
+  runs. AgentVoice is the explicit exception: its approved default-server
+  topology makes `agentvoice/scripts/install.sh --install` the sole owner of
+  `dev.agentvoice.default`, including plist rendering and service lifecycle.
+  AgentStart delegates to that installer and must not add a competing template
+  or registration. Nothing outside these installer contracts installs a fleet component.
 - Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
   the original repository as `upstream` and our optional fork as `fork`.
   Managed fork dependencies bind their `integration` branch — every patch
