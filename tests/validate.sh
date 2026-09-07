@@ -2824,7 +2824,7 @@ for required_install in \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
-    'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
+    'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
     'render shadcn as a managed-session MCP server; render no LiveKit MCP or skill' \
     'https://github.com/vercel-labs/skills: find-skills' \

@@ -503,7 +503,8 @@ Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
   remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
-  ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES,TOOLS}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
+  ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
+  remove ~/.config/agentguidance/TOOLS.md only when it is this checkout's retired catalog symlink
   remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete
   remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
   remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher
