@@ -24,6 +24,8 @@ shim_dir="$HOME/.local/share/agentlaunch/shims"
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 codex_invocation="$script_dir/codex-invocation"
 [ -x "$codex_invocation" ] || die "Codex invocation helper is missing: $codex_invocation"
+claude_invocation="$script_dir/claude-invocation"
+[ -x "$claude_invocation" ] || die "Claude invocation helper is missing: $claude_invocation"
 
 command -v agentlaunch >/dev/null 2>&1 ||
     die "agentlaunch is not on PATH; run ~/code/agentlaunch/scripts/install.sh first"
@@ -37,6 +39,9 @@ for harness in claude codex; do
         # %q safely embeds even a checkout path containing shell metacharacters.
         # shellcheck disable=SC2016 # Expanded by the generated shim at launch time.
         printf -v invocation 'exec %q "$real" "$@"' "$codex_invocation"
+    elif [ "$harness" = claude ]; then
+        # shellcheck disable=SC2016 # Expanded by the generated shim at launch time.
+        printf -v invocation 'exec %q "$real" "$@"' "$claude_invocation"
     fi
     shim="$shim_dir/$harness"
     # apply_patch owns this source file; this heredoc deliberately generates
@@ -44,7 +49,7 @@ for harness in claude codex; do
     cat >"$shim" <<EOF
 #!/usr/bin/env bash
 # AgentStart-managed AgentLaunch shim: bare \`$harness\` uses the fleet launch
-# policy. Managed Codex runtime calls use a private invocation profile.
+# policy. Managed runtime calls apply authored harness preferences and trust.
 # AGENTLAUNCH_SHIM_BYPASS=1 is the manual native-binary escape. Regenerate with
 # \`agentstart/scripts/install-agentlaunch-shims\`; do not edit in place.
 set -euo pipefail

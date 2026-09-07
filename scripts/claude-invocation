@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""Internal shim: load authored preferences and trust the launched workspace.
+
+Trust is native, machine-local state, never part of the Stowed preferences.
+Claude 2.1.263 uses a proper-lockfile directory at <config>.lock. Cooperate
+with that lock, re-read inside it, and leave every unrelated field intact.
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+
+
+COMMANDS = set("agents attach auth auto-mode doctor gateway help import install logs mcp plugin plugins project respawn rm setup-token stop kill ultrareview update upgrade".split())
+VALUES = set("--agent --agents --append-system-prompt --append-system-prompt-file --autocompact --debug-file --effort --fallback-model --input-format --json-schema --max-budget-usd --max-turns --model --name -n --output-format --permission-mode --permission-prompts --permission-prompt-tool --plugin-dir --plugin-url --remote-control-session-name-prefix --session-id --settings --system-prompt --system-prompt-file --system-prompt-snapshot".split())
+OPTIONAL = set("--debug -d --from-pr --resume -r --prompt-suggestions --remote-control --worktree -w".split())
+VARIADIC = set("--add-dir --allowedTools --allowed-tools --betas --disallowedTools --disallowed-tools --file --mcp-config --tools".split())
+FLAGS = set("--allow-dangerously-skip-permissions --ax-screen-reader --bg --background --brief --chrome --no-chrome --continue -c --dangerously-skip-permissions --disable-slash-commands --exclude-dynamic-system-prompt-sections --fork-session --forward-subagent-text --ide --include-hook-events --include-partial-messages --no-session-persistence --print -p --replay-user-messages --strict-mcp-config --tmux --verbose".split())
+
+
+def inspect(args):
+    """Unknown/new CLI shapes stay native; never mistake option values for verbs."""
+    explicit_settings = False
+    positional = False
+    i = 0
+    while i < len(args):
+        token = args[i]
+        if token == "--":
+            break
+        if not token.startswith("-"):
+            if not positional and token in COMMANDS:
+                return True, False
+            positional = True
+            i += 1
+            continue
+        option, equal, _ = token.partition("=")
+        if option in VALUES:
+            explicit_settings |= option == "--settings"
+            if not equal:
+                i += 1
+                if i == len(args):
+                    return True, False
+        elif option in OPTIONAL | VARIADIC:
+            if not equal:
+                while i + 1 < len(args) and not args[i + 1].startswith("-"):
+                    i += 1
+                    if option in OPTIONAL:
+                        break
+        elif option not in FLAGS:
+            # Includes help/version, remote/cloud, safe/bare/restricted modes,
+            # and explicit setting-source isolation.
+            return True, False
+        i += 1
+    return False, explicit_settings
+
+
+def read_object(path):
+    with path.open() as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise ValueError(f"expected a JSON object: {path}")
+    return value
+
+
+def config_path(env):
+    home = Path(env["HOME"])
+    config_home = Path(env.get("CLAUDE_CONFIG_DIR") or home / ".claude")
+    legacy = config_home / ".config.json"
+    if legacy.exists() or legacy.is_symlink():
+        return legacy
+    # Non-production OAuth layouts have different native state filenames.
+    # Refuse guessing their state path; the explicit shim bypass stays native.
+    if env.get("CLAUDE_CODE_CUSTOM_OAUTH_URL") or env.get("CLAUDE_CODE_USE_STAGING_OAUTH"):
+        raise ValueError("custom OAuth configuration requires the native shim bypass")
+    return Path(env.get("CLAUDE_CONFIG_DIR") or home) / ".claude.json"
+
+
+def workspace_paths(cwd):
+    paths = {str(cwd.resolve())}
+    # Git worktrees share Claude's canonical project key. Trust the launched
+    # cwd, its worktree root, and the main root when Git proves that relation.
+    git_env = {key: value for key, value in os.environ.items()
+               if key not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_CEILING_DIRECTORIES"}}
+    for flag in ("--show-toplevel", "--git-common-dir"):
+        result = subprocess.run(["git", "rev-parse", flag], cwd=cwd,
+                                env=git_env, capture_output=True, text=True, timeout=5)
+        if result.returncode:
+            continue
+        path = (cwd / result.stdout.strip()).resolve()
+        if flag == "--git-common-dir":
+            if path.name != ".git":
+                continue
+            path = path.parent
+        paths.add(str(path))
+    return {unicodedata.normalize("NFC", path) for path in paths}
+
+
+def trust(path, paths, timeout=5):
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if path.is_symlink():
+        raise ValueError(f"refusing symlinked Claude state: {path}")
+    lock = Path(str(path) + ".lock")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            lock.mkdir(mode=0o700)
+            break
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise ValueError(f"Claude state is locked: {lock}; retry after its writer finishes")
+            time.sleep(0.05)
+    identity = lock.stat()
+    acquired = time.monotonic()
+    temporary = None
+    try:
+        if path.is_symlink():
+            raise ValueError(f"refusing symlinked Claude state: {path}")
+        data = read_object(path) if path.exists() else {}
+        projects = data.setdefault("projects", {})
+        if not isinstance(projects, dict):
+            raise ValueError("Claude projects state is not an object")
+        changed = False
+        for cwd in sorted(paths):
+            project = projects.setdefault(cwd, {})
+            if not isinstance(project, dict):
+                raise ValueError("Claude project state is not an object")
+            if project.get("hasTrustDialogAccepted") is not True:
+                project["hasTrustDialogAccepted"] = True
+                changed = True
+        if not changed:
+            return
+        fd, temporary = tempfile.mkstemp(prefix=path.name + ".agentstart-", dir=path.parent)
+        with os.fdopen(fd, "w") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        # Our bounded local write must finish well before Claude's 10s stale
+        # threshold. Never steal a stale lock or publish after losing ours.
+        current = lock.stat()
+        if time.monotonic() - acquired >= 5 or (current.st_dev, current.st_ino) != (identity.st_dev, identity.st_ino):
+            raise ValueError("Claude state lock expired or changed during preparation")
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary:
+            os.unlink(temporary)
+        try:
+            current = lock.stat()
+            if (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino):
+                lock.rmdir()
+        except FileNotFoundError:
+            pass
+
+
+def main():
+    if len(sys.argv) < 2:
+        raise ValueError("usage: claude-invocation <native-claude> [native arguments...]")
+    binary, *args = sys.argv[1:]
+    bypass, explicit_settings = inspect(args)
+    source = Path(os.environ.get("AGENTSTART_CLAUDE_CONFIG_SOURCE") or Path.home() / ".claude/preferences.json")
+    if not bypass and (source.exists() or source.is_symlink() or os.environ.get("AGENTSTART_CLAUDE_CONFIG_SOURCE")):
+        if not explicit_settings:
+            settings = read_object(source)
+            for key in ("projects", "oauthAccount", "primaryApiKey", "autoMode", "hooks", "statusLine"):
+                if key in settings:
+                    raise ValueError(f"{key} belongs in local Claude state/settings, not {source}")
+        if os.environ.get("AGENTSTART_CLAUDE_TRUST", "1") != "0":
+            trust(config_path(os.environ), workspace_paths(Path.cwd()))
+        if not explicit_settings:
+            args = ["--settings", str(source.resolve()), *args]
+    os.execv(binary, [binary, *args])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        # JSON parser errors can contain user data; only report the file/type.
+        message = "invalid JSON configuration" if isinstance(error, json.JSONDecodeError) else str(error)
+        print(f"claude-invocation: {message}", file=sys.stderr)
+        sys.exit(1)

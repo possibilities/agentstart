@@ -369,6 +369,8 @@ trap 'rm -rf "$skip_test_dir"' EXIT
 # keeps AgentLaunch-managed child processes from entering the shim again.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
 bun test "$root/tests/codex-invocation.test.ts"
+[ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
+PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
 # shellcheck disable=SC2016 # Match the installer source, not this environment.
 grep -F '"$script_dir/install-agentlaunch-shims"' scripts/install.sh >/dev/null \
     || fail "full installer does not converge invocation-aware harness shims"
