@@ -41,10 +41,13 @@ mcp_servers="$resources_root/mcp-servers.json"
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 [ -x "$invocation_policy_renderer" ] || die "skill invocation policy renderer is unavailable"
+# Resolve the MCP package outside the project so npm never validates its
+# dependency overrides. npm exec preserves cwd; shadcn still sees the project.
+# --yes keeps a cold-cache launch unattended.
 /usr/bin/jq -e '
     (.mcpServers | type == "object") and
     (.mcpServers | keys == ["shadcn"]) and
-    .mcpServers.shadcn == {"command":"npx","args":["shadcn@latest","mcp"]}
+    .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
 ' "$template_root/mcp-servers.json" >/dev/null \
     || die "the fixed MCP resource must contain only the shadcn stdio server"
 

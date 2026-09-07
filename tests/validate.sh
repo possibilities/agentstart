@@ -175,7 +175,7 @@ done
     || fail "Claude fleet plugin has the wrong name"
 /usr/bin/jq -e '
     (.mcpServers | keys == ["shadcn"]) and
-    .mcpServers.shadcn == {"command":"npx","args":["shadcn@latest","mcp"]}
+    .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
 ' config/resources/mcp-servers.json >/dev/null \
     || fail "fixed MCP resources are not exactly the managed shadcn server"
 /usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
