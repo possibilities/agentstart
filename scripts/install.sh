@@ -469,6 +469,7 @@ Command-line tools:
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
+  scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
@@ -476,7 +477,7 @@ Command-line tools:
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
-  ~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable voice TUI + native audio build only; no launch, services or prompt/skill configuration
+  ~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call
   remove AgentStart's retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant
 
 Agent documentation:
@@ -1180,6 +1181,8 @@ native skills list >/dev/null
 # contract (frozen deps, ~/.local/bin symlink, deployed-SHA receipt). AgentStart
 # only invokes it; a machine without a checkout skips inside the script, so
 # only a present-but-broken checkout fails here.
+"$script_dir/agentvoice-config" install
+
 agent_clis_status=0
 "$script_dir/install-agent-clis" || agent_clis_status=$?
 if [ "$agent_clis_status" -ne 0 ]; then

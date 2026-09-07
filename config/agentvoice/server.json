@@ -1,0 +1,9 @@
+{
+  "allow-full-access": true,
+  "debug": true,
+  "role": "~/code/agentvoice/roles/default",
+  "orchestrator": {
+    "model": "gpt-6-astra",
+    "effort": "low"
+  }
+}

@@ -187,3 +187,13 @@ managed agent-terminal runtime, then carries the same release's `plannotator`,
 `plannotator-review`, `plannotator-annotate`, and `plannotator-last` core
 skills into Claude Code and Codex. Plan-mode hooks are deliberately not
 installed by this integration.
+
+### AgentVoice server defaults
+
+`scripts/agentvoice-config install` links `config/agentvoice/server.json` into
+`$XDG_CONFIG_HOME/agentvoice/server.json` (default `~/.config/agentvoice/server.json`).
+Full installation runs it before the fleet CLI installers. The tracked settings
+request full access, debug logs, gpt-6-astra at low effort and the default AgentVoice
+role. Missing or empty local placeholders can be linked; nonempty independent
+configuration and unrelated links are preserved with an error. AgentVoice loads
+settings once per runtime generation; restart its service after changing server defaults.

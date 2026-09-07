@@ -1,0 +1,59 @@
+#!/bin/bash
+set -euo pipefail
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+case "${1:-}" in
+    install) [ "$#" -eq 1 ] || exit 64 ;;
+    --help|-h) printf 'Usage: agentvoice-config install\nLink the tracked AgentVoice server configuration; preserve independent nonempty files.\n'; exit 0 ;;
+    *) printf 'Usage: agentvoice-config install\n' >&2; exit 64 ;;
+esac
+python3 - "$script_dir/.." <<'PY'
+import json, os, pathlib, stat, sys, tempfile
+
+try:
+    root = pathlib.Path(sys.argv[1]).resolve()
+    source = pathlib.Path(os.environ.get('AGENTSTART_AGENTVOICE_CONFIG_SOURCE', root / 'config/agentvoice/server.json'))
+    xdg = os.environ.get('XDG_CONFIG_HOME', '')
+    base = pathlib.Path(xdg) if os.path.isabs(xdg) else pathlib.Path.home() / '.config'
+    target = pathlib.Path(os.environ.get('AGENTSTART_AGENTVOICE_CONFIG_TARGET', base / 'agentvoice/server.json'))
+    if not source.is_absolute() or not target.is_absolute():
+        raise ValueError('configuration paths must be absolute')
+    if not isinstance(json.loads(source.read_text()), dict):
+        raise ValueError('server configuration must be a JSON object')
+    for parent in reversed(target.parents):
+        if parent.is_symlink():
+            # macOS system aliases are not user-controlled redirects.
+            if str(parent) in ('/var', '/tmp') and parent.lstat().st_uid == 0 and str(parent.resolve()) == '/private' + str(parent):
+                continue
+            raise ValueError(f'refusing redirected configuration directory: {parent}')
+        if parent.exists():
+            info = parent.stat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, os.getuid()):
+                raise ValueError(f'unsafe configuration directory: {parent}')
+            if info.st_mode & 0o022 and not (info.st_uid == 0 and info.st_mode & stat.S_ISVTX):
+                raise ValueError(f'writable configuration directory: {parent}')
+    def snapshot():
+        try: return target.lstat()
+        except FileNotFoundError: return None
+    old = snapshot()
+    if old:
+        if old.st_uid != os.getuid():
+            raise ValueError(f'refusing foreign configuration: {target}')
+        if stat.S_ISLNK(old.st_mode):
+            if target.resolve() == source.resolve():
+                sys.exit(0)
+            raise ValueError(f'refusing unrelated configuration link: {target}')
+        # An empty regular placeholder contains no operator settings to preserve.
+        if not stat.S_ISREG(old.st_mode) or old.st_size != 0 or old.st_nlink != 1 or old.st_mode & 0o022:
+            raise ValueError(f'refusing independent configuration: {target}')
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix='.agentvoice-config-', dir=target.parent) as stage:
+        link = pathlib.Path(stage) / 'server.json'
+        link.symlink_to(source)
+        now = snapshot()
+        if old != now:
+            raise ValueError('configuration changed during installation')
+        os.replace(link, target)
+    print(f'Linked AgentVoice configuration: {target} -> {source}')
+except (OSError, ValueError) as error:
+    sys.exit(f'agentvoice-config: {error}')
+PY

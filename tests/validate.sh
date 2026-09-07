@@ -29,6 +29,7 @@ scripts/agent-browser-config
 scripts/agent-browser-link.sh
 scripts/smolmux-config
 scripts/agentmux-config
+scripts/agentvoice-config
 scripts/herdr-config
 scripts/select-herdr-runtime
 tests/validate.sh
@@ -37,6 +38,7 @@ tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/smolmux-config.sh
 tests/agentmux-config.sh
+tests/agentvoice-config.sh
 tests/herdr-config.sh
 tests/herdr-homebrew-cutover.sh
 tests/agentsource-webhooks.sh
@@ -66,7 +68,7 @@ for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis 
     scripts/remove-retired-pi \
     scripts/remove-retired-agentweb \
     scripts/remove-retired-capabilities \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/herdr-config \
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config scripts/herdr-config \
     scripts/select-herdr-runtime; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
@@ -2720,7 +2722,7 @@ for removed_mcp in \
 done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
-    '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable voice TUI + native audio build only; no launch, services or prompt/skill configuration' \
+    '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
     'brew install or upgrade --cask executor  # standalone GUI only; no MCP or harness registration' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
@@ -3206,6 +3208,10 @@ grep -F '"$script_dir/smolmux-config" install' scripts/install.sh >/dev/null \
     || fail "installer does not link the smolmux config"
 tests/smolmux-config.sh
 tests/agentmux-config.sh
+tests/agentvoice-config.sh
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F '"$script_dir/agentvoice-config" install' scripts/install.sh >/dev/null \
+    || fail "AgentVoice configuration is not wired into installation"
 
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F 'AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install' scripts/install.sh >/dev/null \
