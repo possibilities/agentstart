@@ -300,9 +300,9 @@ remove_retired_llm_config() {
 # The operator extension prompts are cross-project guidance, so AgentStart
 # owns them: prompts/agentguidance/ here is the source of truth, and
 # ~/.config/agentguidance is links into this checkout. Agentguidance's
-# renderer reads that directory when composing the collab and build skills,
+# renderer reads that directory when composing the guided skills,
 # so these links must exist before its post-sync hook fires in sync-skills.
-# The recognized names — SYSTEM.md, GUIDELINES.md, TOOLS.md — are
+# The recognized names — SYSTEM.md and GUIDELINES.md — are
 # agentguidance's contract; an unrecognized file renders to nothing. An
 # independent non-symlink file with content is preserved and reported, the
 # same conflict rule as the guidance links above.
@@ -312,7 +312,7 @@ link_extension_prompts() {
     local source
     local target
 
-    for name in SYSTEM.md GUIDELINES.md TOOLS.md; do
+    for name in SYSTEM.md GUIDELINES.md; do
         source="$repo_root/prompts/agentguidance/$name"
         target="$config_dir/$name"
         [ -f "$source" ] \
@@ -327,6 +327,18 @@ link_extension_prompts() {
         cmp -s "$source" "$target" \
             || die "linked extension prompt does not resolve to $source: $target"
     done
+
+    # Retire only our catalog link, including a dangling link after the source
+    # was removed. Independent prompts belong to the operator; the renderer
+    # no longer has a TOOLS.md render point, so those files remain unloaded.
+    source="$repo_root/prompts/agentguidance/TOOLS.md"
+    target="$config_dir/TOOLS.md"
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
+        rm -- "$target"
+        printf 'Removed retired AgentStart tool catalog link: %s.\n' "$target"
+    elif [ -e "$target" ] || [ -L "$target" ]; then
+        printf 'Leaving independent retired extension prompt untouched: %s.\n' "$target"
+    fi
 }
 
 # Everything this repository owns as content, in the one order that works.
@@ -1174,10 +1186,8 @@ install_private_skill_pack \
 # `hunk skill path` as the authority instead of copying the GitHub head: the
 # skill describes the exact `hunk session` commands this build accepts. The
 # resolved package root already has the skills/<name>/SKILL.md shape consumed
-# by the common capability-pack renderer. Deliberately not advertised in
-# TOOLS.md: its own trigger covers live Hunk sessions and interactive diff
-# review without spending attention in unrelated conversations (see the
-# tool-advertisement-policy wiki page).
+# by the common capability-pack renderer. Its description handles discovery
+# for live Hunk sessions and interactive diff review.
 install_hunk_skill() {
     local skill_file skill_dir pack_root
 
@@ -1208,10 +1218,8 @@ install_hunk_skill
 # harness integrations above, and never tracks a different release than the
 # stable formula. The rendered pack lives
 # in a managed state root shaped like a checkout (skills/herdr/) so the same
-# `skills add` mechanism ships it into the fixed private resources. Deliberately
-# not advertised in TOOLS.md: its own trigger covers explicit Herdr work, so
-# it does not spend attention in unrelated conversations (the
-# tool-advertisement-policy wiki page).
+# `skills add` mechanism ships it into the fixed private resources. Its
+# description covers explicit Herdr work.
 install_herdr_skill() {
     local pack_root="$HOME/.local/share/agentstart/herdr-skill"
     local skill_dir="$pack_root/skills/herdr"

@@ -197,7 +197,7 @@ fi
 # The installer links these into ~/.config/agentguidance and agentguidance
 # renders every skill against them, so an empty or missing prompt ships
 # broken skills to a fresh account.
-for prompt in SYSTEM.md GUIDELINES.md TOOLS.md; do
+for prompt in SYSTEM.md GUIDELINES.md; do
     [ -s "prompts/agentguidance/$prompt" ] \
         || fail "extension prompt is missing or empty: prompts/agentguidance/$prompt"
 done
@@ -2999,10 +2999,44 @@ grep -F 'link_extension_prompts' scripts/install.sh >/dev/null \
     || fail "installer does not link the operator extension prompts"
 grep -F 'refusing to replace independent extension prompt' scripts/install.sh >/dev/null \
     || fail "installer would replace an independent extension prompt"
-for prompt_name in SYSTEM.md GUIDELINES.md TOOLS.md; do
+for prompt_name in SYSTEM.md GUIDELINES.md; do
     grep -F "$prompt_name" scripts/install.sh >/dev/null \
         || fail "installer does not link the $prompt_name extension prompt"
 done
+# Exercise extension ownership without running the machine installer. A
+# retired managed link can be dangling; independent files and links survive.
+extension_home=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-extension-prompts.XXXXXX")
+extension_harness="$extension_home/link-prompts.sh"
+# shellcheck disable=SC2016 # Variables expand in the generated fixture.
+{
+    printf '#!/bin/bash\nset -euo pipefail\nrepo_root=$1\n'
+    printf 'die() { printf "%%s\\n" "$*" >&2; exit 1; }\n'
+    sed -n '/^link_extension_prompts() {$/,/^}$/p' scripts/install.sh
+    printf '\nlink_extension_prompts\n'
+} >"$extension_harness"
+mkdir -p "$extension_home/.config/agentguidance"
+retired_prompt="$extension_home/.config/agentguidance/TOOLS.md"
+ln -s "$root/prompts/agentguidance/TOOLS.md" "$retired_prompt"
+HOME="$extension_home" bash "$extension_harness" "$root" >/dev/null
+for prompt_name in SYSTEM.md GUIDELINES.md; do
+    cmp -s "prompts/agentguidance/$prompt_name" \
+        "$extension_home/.config/agentguidance/$prompt_name" \
+        || fail "extension prompt convergence lost $prompt_name"
+done
+if [ -e "$retired_prompt" ] || [ -L "$retired_prompt" ]; then
+    fail "extension prompt convergence kept its retired catalog link"
+fi
+HOME="$extension_home" bash "$extension_harness" "$root" >/dev/null
+printf 'independent prompt\n' >"$retired_prompt"
+HOME="$extension_home" bash "$extension_harness" "$root" >/dev/null
+grep -Fx 'independent prompt' "$retired_prompt" >/dev/null \
+    || fail "extension prompt convergence changed an independent file"
+mv "$retired_prompt" "$extension_home/independent.md"
+ln -s "$extension_home/independent.md" "$retired_prompt"
+HOME="$extension_home" bash "$extension_harness" "$root" >/dev/null
+[ "$(readlink "$retired_prompt")" = "$extension_home/independent.md" ] \
+    || fail "extension prompt convergence changed an independent link"
+rm -rf "$extension_home"
 # shellcheck disable=SC2016 # Match the literal home-guidance source path.
 grep -F 'source="$repo_root/prompts/AGENTS.md"' scripts/install.sh >/dev/null \
     || fail "installer does not own the harness guidance source"
@@ -3062,22 +3096,6 @@ grep -F 'install -m 0755 "$termctrl_shim" "$termctrl_bin"' \
 grep -F '"anomalyco/terminal-control@v$terminal_control_version" terminal-control' \
     scripts/install.sh >/dev/null \
     || fail "installer does not bind the Terminal Control skill to the installed CLI release"
-# shellcheck disable=SC2016 # Backticks name the advertised skill literally.
-grep -F '`terminal-control` — real terminal applications:' \
-    prompts/agentguidance/TOOLS.md >/dev/null \
-    || fail "TOOLS.md does not advertise the Terminal Control skill"
-grep -F 'desktop, terminal-control' skills/fleet/MAP.md >/dev/null \
-    || fail "the fleet skill route map omits the Terminal Control advertisement"
-# shellcheck disable=SC2016 # Backticks name the advertised skill literally.
-grep -F '`attention` — durable human handoff' \
-    prompts/agentguidance/TOOLS.md >/dev/null \
-    || fail "TOOLS.md does not advertise the Attention skill"
-# shellcheck disable=SC2016 # Backticks name the advertised skill literally.
-grep -F '`chats` — every past Claude Code and Codex session' \
-    prompts/agentguidance/TOOLS.md >/dev/null \
-    || fail "TOOLS.md does not advertise the session history skill"
-grep -F 'board & groom & chats' skills/fleet/MAP.md >/dev/null \
-    || fail "the fleet skill route map omits the chats advertisement"
 
 # Herdr stages the official stable Homebrew formula but must retain the
 # compatible source-built client while the formula is below fleet protocol 20

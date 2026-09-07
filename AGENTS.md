@@ -151,8 +151,10 @@ Where things go:
   is a rule plus, when detail exists, the named wiki contract page
   (`fork-rebase-policy`, `document-placement-policy`, `fleet-tui-design`)
   — never the detail itself, which lives in the page and is read at the
-  trigger. These lines render into every session, so each one is paid for
-  in every conversation.
+  trigger. These lines render into collab, build, and maintain. Skill names
+  and descriptions provide capability discovery; do not add a second tool
+  catalog to prompts. Standing tool preferences belong in GUIDELINES.md;
+  `agentwiki get tool-advertisement-policy` records that boundary.
 - A cross-project decision that belongs to no single repo: the wiki
   (`agentwiki new`), one page per subject, wikilinked to its neighbours
   and pointed at from wherever it constrains. `tool-advertisement-policy`

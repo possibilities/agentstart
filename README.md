@@ -29,9 +29,10 @@ believing any of this.
 - `scripts/` — the installers the machine invokes; the whole external
   interface.
 - `prompts/` — the operator guidance the installer links into the home:
-  - `agentguidance/` — the extension prompts `SYSTEM.md`, `GUIDELINES.md`,
-    and `TOOLS.md`, which agentguidance renders into the collab and build
-    skills. Linked into `~/.config/agentguidance/`.
+  - `agentguidance/` — the extension prompts `SYSTEM.md` and `GUIDELINES.md`,
+    which agentguidance renders into collab, build, and maintain.
+    Linked into `~/.config/agentguidance/`. Skills are discovered through
+    their names and descriptions; there is no separate tool catalog.
   - `AGENTS.md` — the deliberately empty harness guidance source, copied into
     the fixed private resources and linked from there into the Claude Code and
     Codex global slots. Advice belongs in the extension prompts.
@@ -183,9 +184,9 @@ Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
 skills. Participant source manifests remain portable and bare; only the Codex
 plugin copy qualifies default prompts. Only a tool with its own CLI installer joins the
 explicit loop in
-`scripts/install-agent-clis`. Whether to advertise it in
-`prompts/agentguidance/TOOLS.md` is a separate decision — make it
-deliberately, per the `tool-advertisement-policy` wiki page.
+`scripts/install-agent-clis`. Its skill name and description provide discovery;
+keep the capability and its use cases clear there. Do not add a second catalog
+to prompts. The `tool-advertisement-policy` wiki page records the convention.
 
 Plannotator follows that fixed-resource path: AgentStart asks the upstream
 installer for only its pinned CLI binary, uses that binary to install the

@@ -162,23 +162,19 @@ flowchart LR
     bus -.-> notify
     desktop -.-> notify
 
-    tools[TOOLS.md — agentstart prompts, spliced into collab and build at render] -.-> search & scrape & brain & browser & attention & wiki & board & groom & chats & notify & bus & desktop
+    guidelines[GUIDELINES.md — operator preferences] -.-> brain & chats & board & notify & wiki & terminalControl[terminal-control]
 ```
 
-The TOOLS.md node is the widest fan-out in the fleet and this repository is
-its origin: `agentguidance/scripts/render` splices
-`prompts/agentguidance/TOOLS.md`
-into the collab and build skills at their
-`<!-- extension-prompt: TOOLS.md -->`
-markers, so those skills route to all advertised tools without
-their templates naming any of them. That is why the tool-advertisement
-policy (the `tool-advertisement-policy` wiki page) governs a real graph
-edge, not just prose.
+Skill names and descriptions are the capability discovery surface. There is
+no prompt-level tool catalog. `agentguidance/scripts/render` splices SYSTEM.md
+and GUIDELINES.md into collab, build, and maintain; GUIDELINES preserves the
+operator's research reuse, work tracking, notification, document-placement,
+and managed-PTY preferences. The `tool-advertisement-policy` wiki page records
+this separation of operating preferences from discovery.
 
-`keys` references no other skill and none reference it — the standalone
-shape behind the decision not to advertise it in TOOLS.md. `email` is
-unadvertised on the same policy but is not standalone: it routes to
-`notify`, so mail work that stalls still reaches the human.
+`keys` references no other skill and none reference it. `email` routes to
+`notify`, so mail work that stalls still reaches the human. Both are discovered
+through their descriptions, like the other resource skills.
 
 A trap this section has already caught twice: a project's *own* `search`
 subcommand (agentboard's and agentwiki's) reads exactly like a reference to
@@ -328,7 +324,7 @@ per-TUI app-server topology and are no longer needed by this fleet.
 | stateinsurance | attention, browser | the project work-round skill routes bounded questions, document approvals, and exact-target MyMaineConnection interaction to attention while browser owns the stable `mainecare` session, persistent profile, and live-target handoff (`stateinsurance/.claude/skills/stateinsurance/SKILL.md`; `stateinsurance/AGENTS.md`) |
 | desktop | browser, bus, notify | anything inside a web page is browser's; a peer agent's pane is messaged over bus, never clicked; an input takeover is announced through notify (`agentdesk/skills/desktop/SKILL.md`) |
 | wiki | board, brain, chats | the durable home the others cite into. Wiki's `search` is its own subcommand, not the search skill |
-| GUIDELINES.md / TOOLS.md (this repo) | search, scrape, brain, browser, attention, desktop, terminal-control, wiki, board, groom, chats, notify, bus | spliced into collab and build at render — TOOLS advertises the routes, while GUIDELINES also requires terminal-control instead of raw shell backgrounding for PTY work |
+| GUIDELINES.md (this repo) | brain, chats, board, notify, wiki, terminal-control | spliced into collab, build, and maintain; preserves operator preferences for research reuse, work tracking, notifications, document placement, and managed PTY work. Capability discovery uses skill descriptions |
 | bus | notify | a blocked bus target is waiting on the operator, so a message that matters escalates to a human notification instead of more retries (`agentsurface/skills/bus/SKILL.md`) |
 | grokbot | notify, wiki | a bot's turn can outlive the operator's attention and a bot waiting on a login or a judgment call asks in its transcript, so a long wait is announced rather than held; a result worth keeping goes to the wiki, not a transcript (`agentgrok/skills/grokbot/SKILL.md`) |
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
@@ -644,3 +640,8 @@ the signed CLI from the official cask, then delegates the `sh.executor.daemon`
 plist and lifecycle to `executor service install`. The vendor service, not the
 desktop sidecar, owns the catalog and captures the fleet command path; harness
 registration remains an explicit operator choice.
+
+**2026-09-07 — skill discovery.** Retired the TOOLS.md catalog and its render
+points from collab, build, and maintain. The installer removes only its owned
+legacy link. Resource skill descriptions now carry discovery; GUIDELINES keeps
+operating preferences. Updated the active routing diagram and table above.

@@ -1,5 +1,11 @@
 ## Guidelines
 
+- Reuse collected research: check `brain` before starting a web search, and
+  consult `chats` when prior sessions may contain relevant work.
+- Keep work visible with `board`: claim an item before starting and
+  close it when finished.
+- Use `notify` when work the human is waiting for finishes or stalls while
+  they are away from the conversation.
 - In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
   working: verify `upstream` names the original repository, `fork` names our
   optional fork, and the branch is the one the task means — the default, or
@@ -28,8 +34,9 @@
 - Place global personal guidance tied to the `~/code/agent*` fleet in
   `~/code/agentstart`; reserve `~/code/agentguidance` for reusable general
   agent doctrine that is not specific to this fleet or operator.
-- Route documents by reader and lifetime: asked-for documents and ruling
-  decisions go to the wiki, the repo keeps what it owns (`AGENTS.md`,
+- Route documents by reader and lifetime: asked-for documents, finished
+  research worth finding again, and ruling decisions go to the wiki. The
+  repo keeps what it owns (`AGENTS.md`,
   `CONTEXT.md`, `README`, ADRs, the docs that ship with the code), and
   successor-session context is a dated `~/handoffs/` file, deleted by its
   consumer. The `document-placement-policy` wiki page is the contract.
