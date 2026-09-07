@@ -163,6 +163,11 @@ def main():
     binary, *args = sys.argv[1:]
     bypass, explicit_settings = inspect(args)
     source = Path(os.environ.get("AGENTSTART_CLAUDE_CONFIG_SOURCE") or Path.home() / ".claude/preferences.json")
+    if not bypass and not explicit_settings and not os.environ.get("AGENTSTART_CLAUDE_CONFIG_SOURCE"):
+        resolved = subprocess.run([str(Path(__file__).resolve().with_name("agentstart")),
+                                   "config", "resolve", "--harness", "claude"],
+                                  stdout=subprocess.PIPE, text=True, check=True)
+        source = Path(resolved.stdout.strip())
     if not bypass and (source.exists() or source.is_symlink() or os.environ.get("AGENTSTART_CLAUDE_CONFIG_SOURCE")):
         if not explicit_settings:
             settings = read_object(source)

@@ -39,6 +39,7 @@ render_temp=""
 # Every service enters through its tool's one public binary and an explicit
 # subcommand; the fleet does not grow parallel *d executables.
 SERVICES=(
+    "io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident"
     "io.arthack.agentbrain.work|agentbrain|worker.log|resident"
     "io.arthack.agentbrain.share|agentbrain|share.log|resident"
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
@@ -159,6 +160,9 @@ if flag in args:
 service_tokens() {
     local label="$1"
     case "$label" in
+        io.arthack.agentstart.watch-config)
+            printf 'STATE_ROOT=%s\n' "$state_root"
+            ;;
         io.arthack.agentbrain.work)
             local session
             if [ -n "${AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION+set}" ]; then

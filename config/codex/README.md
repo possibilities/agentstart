@@ -1,8 +1,9 @@
 # Codex invocation profiles
 
 Edit personal preferences in `~/code/funk/config/harnesses/codex.toml`. The next
-normal `codex` launch reads that source; there is no apply or synchronization
-step. AgentStart installs the wrapper through `scripts/install.sh --install`
+normal `codex` launch reads the current valid source or its generated snapshot.
+The [preference watcher](../harness-preferences.md) retains a last-good copy
+when an edit is invalid and reports native drift; no manual apply step is needed. AgentStart installs the wrapper through `scripts/install.sh --install`
 and the existing `scripts/install-agentlaunch-shims` contract. Bun is required,
 as it is for the fleet CLIs. Codex must support native profile files (0.134.0+;
 runtime proof performed on 0.153.4).
@@ -43,7 +44,8 @@ Utility commands (including `app-server`, `mcp`, login, and plugin management),
 help/version, remote-server connections, and explicit `--ignore-user-config`
 pass through unchanged. `AGENTLAUNCH_SHIM_BYPASS=1` bypasses both balancing and
 invocation profiles. An absent default authored file is optional and passes
-through; a present malformed/unreadable file fails before Codex starts.
+through until first configured; an invalid default source uses its last-good
+snapshot when available, otherwise launch fails.
 `AGENTSTART_CODEX_CONFIG_SOURCE` selects an alternative source and makes its
 presence mandatory.
 
@@ -52,8 +54,9 @@ child, propagates its exit status, forwards parent termination/hangup, and
 deletes only its own profile after the child exits. Concurrent launches never
 share profile files. SIGKILL or machine failure can leave an inert profile;
 there is no background scavenger that could delete a live launch's profile.
-Native preference writes during a session are not automatically saved back to
-Funk. Edit Funk to make a preference durable.
+Native edits to authored fields are captured in private review receipts before
+profile cleanup, never written back to Funk. Capture failures retain the profile
+and report its path. Edit Funk deliberately to make a preference durable.
 
 For resume/fork, the wrapper uses the new invocation's cwd, or its explicit
 `--cd`. AgentLaunch's `x-resume` already recovers the saved session's cwd. A

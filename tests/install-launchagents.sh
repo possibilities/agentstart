@@ -249,4 +249,26 @@ rm "$launch_agents/agentbrain.worker.plist"
 AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION='' install_brain_session >/dev/null
 assert_brain_session ''
 
+# The config watcher uses the same manifest/render/lifecycle owner and pins
+# state consistently with one-shot invocations, including non-default XDG.
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentstart"
+chmod +x "$bin_dir/agentstart"
+install_brain_session >/dev/null
+watcher_plist="$launch_agents/io.arthack.agentstart.watch-config.plist"
+/usr/bin/python3 - "$watcher_plist" "$bin_dir" "$state_dir" <<'PYTHON'
+import os, plistlib, sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2] + "/agentstart", "config", "watch", "--notify"]
+assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[3]
+assert value["KeepAlive"] and value["RunAtLoad"] and value["Umask"] == 63
+assert os.stat(sys.argv[1]).st_mode & 0o777 == 0o600
+PYTHON
+printf '<!-- independent watcher -->\n' >"$watcher_plist"
+if install_brain_session >/dev/null 2>&1; then
+    fail "independent config watcher was accepted"
+fi
+grep -Fxq '<!-- independent watcher -->' "$watcher_plist" \
+    || fail "independent watcher was overwritten"
+
 printf 'ok\n'

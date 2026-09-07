@@ -76,3 +76,8 @@ Add the template here, add its entry to the manifest in
 `scripts/install-launchagents`, and add its assertions to `tests/validate.sh`.
 The plan line in `scripts/install.sh --check` comes from the manifest, so it
 follows automatically.
+
+`io.arthack.agentstart.watch-config` is a resident configuration watcher. It
+invokes `agentstart config watch --notify`, reconciles filesystem events and
+a 30-second fallback, and uses Funk notifications. Its [one-way preference
+contract](../harness-preferences.md) forbids writing authored preferences.

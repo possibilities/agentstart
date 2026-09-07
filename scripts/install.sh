@@ -454,6 +454,7 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   scripts/install-agentlaunch-shims  # Codex native profiles and Stowed Claude preferences with cwd/worktree trust
+  agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
@@ -1244,6 +1245,7 @@ if [ "$agent_clis_status" -ne 0 ]; then
 fi
 
 "$script_dir/install-agentlaunch-shims"
+"$script_dir/agentstart" config apply --notify
 
 # Agentbrowse and agent-browser do not write these configs during normal
 # browsing, so the operator defaults can stay linked directly to AgentStart's

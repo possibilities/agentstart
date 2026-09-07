@@ -368,7 +368,8 @@ trap 'rm -rf "$skip_test_dir"' EXIT
 # Bare harness shims route through AgentLaunch, and the recursion sentinel
 # keeps AgentLaunch-managed child processes from entering the shim again.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
-bun test "$root/tests/codex-invocation.test.ts"
+bun test "$root/tests/codex-invocation.test.ts" "$root/tests/harness-config.test.ts"
+"$root/scripts/validate-agent-contract.ts" "$root/scripts/agentstart"
 [ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
 # shellcheck disable=SC2016 # Match the installer source, not this environment.
@@ -3526,7 +3527,8 @@ grep -Fq "local label=agentweb.broker" scripts/install-launchagents \
 grep -Fq "agentstart-installer-owned: agentweb.broker.v1" scripts/install-launchagents \
     || fail "retired broker cleanup does not require the exact ownership marker"
 
-expected_services='io.arthack.agentbrain.work|agentbrain|worker.log|resident
+expected_services='io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident
+io.arthack.agentbrain.work|agentbrain|worker.log|resident
 io.arthack.agentbrain.share|agentbrain|share.log|resident
 io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident

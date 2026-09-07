@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { captureEdits, notify, registerNativeHome, resolvePreferences } from "./harness-config.ts";
 
 const commands = new Set([
   "agents", "exec", "e", "review", "login", "logout", "mcp", "plugin", "mcp-server",
@@ -90,8 +91,10 @@ async function main() {
   const [binary, ...original] = process.argv.slice(2);
   if (!binary) throw new Error("usage: codex-invocation <native-codex> [native arguments...]");
   const parsed = inspect(original);
-  const source = process.env.AGENTSTART_CODEX_CONFIG_SOURCE || join(homedir(), "code/funk/config/harnesses/codex.toml");
+  const customSource = process.env.AGENTSTART_CODEX_CONFIG_SOURCE;
+  const source = customSource || (parsed.bypass ? "" : resolvePreferences("codex"));
   let profilePath = null;
+  let authored, baseline;
   let args = original;
   let child;
   const signals = { SIGHUP: 129, SIGINT: 130, SIGQUIT: 131, SIGTERM: 143 };
@@ -112,6 +115,7 @@ async function main() {
     if (!parsed.bypass && (lstatSync(source, { throwIfNoEntry: false }) || process.env.AGENTSTART_CODEX_CONFIG_SOURCE)) {
       const codexHome = resolve(process.env.CODEX_HOME || join(homedir(), ".codex"));
       let config = readConfig(source);
+      authored = config;
       for (const key of ["projects", "profile", "profiles"]) {
         if (Object.hasOwn(config, key)) throw new Error(`${key} is runtime state; remove it from ${source}`);
       }
@@ -122,6 +126,7 @@ async function main() {
       const cwd = realpathSync(resolve(parsed.cd ?? process.cwd()));
       if (!statSync(cwd).isDirectory()) throw new Error(`working directory is not a directory: ${cwd}`);
       const basePath = join(codexHome, "config.toml");
+      if (!customSource) registerNativeHome("codex", basePath);
       const base = existsSync(basePath) ? readConfig(basePath) : {};
       let markers = config.project_root_markers ?? base.project_root_markers ?? [".git"];
       for (const override of parsed.overrides) {
@@ -137,6 +142,7 @@ async function main() {
       args = ["--profile", name, ...parsed.args];
       // Exclusive creation and unique names isolate simultaneous processes.
       const rendered = Bun.TOML.stringify(config);
+      baseline = config;
       const fd = openSync(path, "wx", 0o600);
       profilePath = path;
       try { writeFileSync(fd, rendered); }
@@ -149,7 +155,18 @@ async function main() {
     });
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
-    if (profilePath) unlinkSync(profilePath);
+    if (profilePath) {
+      try {
+        if (!customSource && existsSync(profilePath)) captureEdits("codex", baseline, readConfig(profilePath), authored, undefined, profilePath);
+      } catch {
+        // Preserve the private profile if it cannot be inspected. Never erase
+        // potentially deliberate edits just because parsing/capture failed.
+        console.error(`codex-invocation: cannot capture preference edits; retained ${profilePath} for review`);
+        await notify([{ harness: "codex", kind: "attention", message: `Codex preference capture failed. Retained profile for review: ${profilePath}` }]);
+        profilePath = null;
+      }
+      if (profilePath && existsSync(profilePath)) unlinkSync(profilePath);
+    }
   }
 }
 

@@ -24,8 +24,9 @@ symlinked native state file refuses launch without overwriting it.
 
 `CLAUDE_CONFIG_DIR` account homes and their legacy `.config.json` are honored.
 The default state path is `~/.claude.json`; custom OAuth layouts require a
-native bypass. An absent optional preferences file passes through unchanged;
-an explicitly selected missing file fails. The source can be overridden with
+native bypass. An absent optional preferences file initially passes through unchanged;
+a missing/invalid default file later uses its verified last-good snapshot.
+An explicitly selected missing file fails. The source can be overridden with
 `AGENTSTART_CLAUDE_CONFIG_SOURCE`. Preferences never contain trust records.
 
 Set `AGENTSTART_CLAUDE_TRUST=0` to keep normal trust behavior while loading the
@@ -58,3 +59,7 @@ entries and the unchanged preferences symlink were checked. The native plugin
 writer was also checked against a settings
 symlink: it updated the target and preserved the link, but keeping authored
 preferences separate avoids its generated state entering Funk.
+
+The [preference watcher](../harness-preferences.md) publishes validated snapshots,
+reports native edits to authored fields, and retains a last-good copy during
+invalid edits. It never rewrites Funk preferences or native settings.

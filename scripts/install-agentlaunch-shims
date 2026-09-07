@@ -26,11 +26,28 @@ codex_invocation="$script_dir/codex-invocation"
 [ -x "$codex_invocation" ] || die "Codex invocation helper is missing: $codex_invocation"
 claude_invocation="$script_dir/claude-invocation"
 [ -x "$claude_invocation" ] || die "Claude invocation helper is missing: $claude_invocation"
+operator_cli="$script_dir/agentstart"
+[ -x "$operator_cli" ] || die "AgentStart config CLI is missing: $operator_cli"
+bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+cli="$bin_dir/agentstart"
+cli_marker='# agentstart-installer-owned: agentstart.cli.v1'
+if [ -L "$cli" ] || { [ -e "$cli" ] && ! grep -Fxq "$cli_marker" "$cli"; }; then
+    die "refusing to replace an independent agentstart command: $cli"
+fi
 
 command -v agentlaunch >/dev/null 2>&1 ||
     die "agentlaunch is not on PATH; run ~/code/agentlaunch/scripts/install.sh first"
 
 mkdir -p "$shim_dir"
+mkdir -p "$bin_dir"
+cli_temp=$(mktemp "$bin_dir/.agentstart.XXXXXX")
+trap 'rm -f -- "$cli_temp"' EXIT
+{
+    printf '#!/bin/bash\n%s\n' "$cli_marker"
+    printf 'exec %q "$@"\n' "$operator_cli"
+} >"$cli_temp"
+chmod 0755 "$cli_temp"
+mv -f -- "$cli_temp" "$cli"
 
 for harness in claude codex; do
     # shellcheck disable=SC2016 # Expanded by the generated shim at launch time.

@@ -1,0 +1,93 @@
+#!/usr/bin/env bun
+// AgentStart's operator configuration surface. Install through the existing
+// install-agentlaunch-shims/full-installer contract, never as another installer.
+import { join } from "node:path";
+import { homedir } from "node:os";
+import { apply, layout, notify, registerNativeHome, resolvePreferences, status, watchConfigs } from "./harness-config.ts";
+
+const jsonFlag = { name: "--json", type: "boolean", description: "Emit a structured result." };
+const notifyFlag = { name: "--notify", type: "boolean", description: "Notify on meaningful changes, drift, failures, and recovery." };
+const contract = {
+  contract_version: 1,
+  meta: { name: "agentstart", version: "0.1.0", purpose: "Apply authored harness preferences and report local configuration drift without writing tracked preferences.", audience: "operator" },
+  global_arguments: [jsonFlag],
+  commands: [
+    { name: "guide", summary: "Print the command contract", audience: "operator", mutates: false, arguments: [] },
+    { name: "config", summary: "Manage generated harness preference snapshots", audience: "operator", subcommands: [
+      { name: "apply", summary: "Validate and publish current preferences, recording local drift", audience: "operator", mutates: true, arguments: [notifyFlag] },
+      { name: "status", summary: "Show the last check, watcher health, and files needing review", audience: "operator", mutates: false, arguments: [] },
+      { name: "acknowledge", summary: "Dismiss reported local differences without changing any preferences", audience: "operator", mutates: true, arguments: [] },
+      { name: "watch", summary: "Watch sources and native configuration with periodic reconciliation", audience: "operator", mutates: true, blocking: true, arguments: [notifyFlag] },
+      { name: "resolve", summary: "Resolve a snapshot for a managed harness invocation", audience: "internal", mutates: true,
+        arguments: [{ name: "--harness", type: "string", choices: ["claude", "codex"], required: true, description: "Harness whose preferences to resolve." }] },
+    ] },
+  ],
+};
+const envelope = (data: any) => ({ schema_version: 1, ok: true, error: null, data });
+const args = process.argv.slice(2);
+function help() {
+  console.log(`${contract.meta.name}: ${contract.meta.purpose}`);
+  for (const group of contract.commands) {
+    if ("subcommands" in group) for (const command of group.subcommands!) {
+      console.log(`  ${group.name} ${command.name}  ${command.summary}`);
+      for (const arg of command.arguments) console.log(`    ${arg.name}  ${arg.description}`);
+    }
+    else console.log(`  ${group.name}  ${group.summary}`);
+  }
+  console.log(`  ${jsonFlag.name}  ${jsonFlag.description}`);
+}
+function printReport(report: any) {
+  if (args.includes("--json")) console.log(JSON.stringify(envelope(report)));
+  else {
+    if ("watcherRunning" in report) console.log(`Watcher: ${report.watcherRunning ? "running" : "not running"}`);
+    console.log(`Last checked: ${report.checkedAt || "never"}`);
+    for (const [name, entry] of Object.entries(report.harnesses) as [string, any][]) {
+      console.log(`${name}: ${entry.status}`);
+      if (entry.source) console.log(`  Source: ${entry.source}`);
+      if (entry.snapshot) console.log(`  Snapshot: ${entry.snapshot}`);
+      if (entry.error) console.log(`  ${entry.error}`);
+      for (const drift of entry.drift || []) console.log(`  Review ${drift.key}: ${drift.file}`);
+      if (entry.shadowed?.length) console.log(`  ${entry.shadowed.length} native values differ from the overlay (existing differences are not automatically new edits).`);
+    }
+  }
+}
+try {
+  if (args.includes("--help") || args.includes("--agent-help") || !args.length) help();
+  else if (args.includes("--agent-teaser")) console.log(contract.meta.purpose);
+  else if (args[0] === "guide" && args.every(arg => ["guide", "--json"].includes(arg))) console.log(JSON.stringify(envelope(contract)));
+  else {
+    const [group, command, ...options] = args;
+    if (group !== "config") throw new Error("expected config or guide; use --help");
+    const spec = contract.commands[1].subcommands!.find(item => item.name === command);
+    if (!spec) throw new Error("unknown config command; use --help");
+    if (command === "resolve") {
+      if (options.length !== 2 || options[0] !== "--harness" || !["claude", "codex"].includes(options[1])) throw new Error("resolve requires --harness claude|codex");
+      const harness = options[1] as "claude" | "codex", files = layout();
+      const native = harness === "claude" ? join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "settings.json") : join(process.env.CODEX_HOME || join(homedir(), ".codex"), "config.toml");
+      const path = resolvePreferences(harness, files);
+      registerNativeHome(harness, native, files);
+      console.log(path);
+    } else {
+      const allowed = new Set(["--json", ...spec.arguments.map(item => item.name)]);
+      if (options.some(arg => !allowed.has(arg))) throw new Error("unexpected config option; use --help");
+      if (command === "status") printReport(status());
+      else if (command === "watch") {
+        const abort = new AbortController();
+        const stop = () => abort.abort();
+        process.on("SIGINT", stop); process.on("SIGTERM", stop); process.on("SIGHUP", stop);
+        try { await watchConfigs(layout(), args.includes("--notify"), abort.signal); }
+        finally { process.off("SIGINT", stop); process.off("SIGTERM", stop); process.off("SIGHUP", stop); }
+      } else {
+        const report = await apply(layout(), command === "acknowledge");
+        if (args.includes("--notify")) await notify(report.notices);
+        printReport(report);
+        if (Object.values(report.harnesses).some((entry: any) => entry.status === "invalid")) process.exitCode = 1;
+      }
+    }
+  }
+} catch (error: any) {
+  const message = error instanceof SyntaxError ? "Invalid watcher state JSON" : error.message;
+  if (args.includes("--json")) console.log(JSON.stringify({ schema_version: 1, ok: false, error: { code: "config_error", message }, data: null }));
+  else console.error(`agentstart: ${message}`);
+  process.exitCode = 1;
+}
