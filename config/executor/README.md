@@ -115,6 +115,15 @@ and WAV paths. Cancellation and stdio shutdown stop active playback without
 removing recipes or exports. Its checkout owns command installation; the
 fleet installer invokes that contract and preserves existing Bun links.
 
+Chats exposes nine producer tools through the CLI's shared typed handlers.
+Searches preserve exact transcript citations; `state` needs an explicit
+absolute workspace and remains plain Markdown. Existing JSON and error objects
+keep their original shapes, while `guide` uses the fleet guide envelope.
+Incremental indexing reports partial failures and stops on cancellation without
+final pruning. `resume` returns a command for human handoff; the operator picker
+and terminal scripts keep their existing behavior. AgentStart already invokes
+the checkout's command and index-preparation installer before MCP convergence.
+
 Codex computer use is available, but replacing Peekaboo also requires usable
 normal-window capture and input validation. The installed adapter returns
 screenshot file URLs inside text JSON, so agents must load them with the native

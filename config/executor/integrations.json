@@ -46,6 +46,17 @@
       ]
     },
     {
+      "slug": "agentchats",
+      "name": "Agent Chats",
+      "description": "Search and reread prior local coding-agent conversations.",
+      "repo": "agentchats",
+      "transport": "stdio",
+      "command": "agentchats",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
       "slug": "agentkeys",
       "name": "Agent Keys",
       "description": "Inspect keyboard bindings and their interception chain.",
