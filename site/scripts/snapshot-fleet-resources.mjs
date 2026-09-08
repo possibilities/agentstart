@@ -76,7 +76,7 @@ const displayNames = {
   chats: "Past Chats",
   collab: "Collaborate",
   desktop: "Desktop",
-  email: "Email and Calendar",
+  email: "Email",
   "find-skills": "Find Skills",
   fleet: "Fleet Map",
   "frontend-design": "Frontend Design",

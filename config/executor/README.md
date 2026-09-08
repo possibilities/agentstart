@@ -20,8 +20,7 @@ a shared daemon must not silently substitute its own cwd.
 - `--install` creates missing registrations, ensures a no-auth `org/default`
   connection, and refreshes and verifies each tool catalog. It supports both
   Executor versions that auto-connect stdio and those that require explicit
-  connection creation. An absent fleet checkout skips its registration; Gog
-  is optional when its independently installed executable is absent.
+  connection creation. An absent fleet checkout skips its registration.
 
 Every registration is inspected before catalog writes begin. An exact existing
 registration can be adopted without altering it. Successful convergence records
@@ -32,7 +31,17 @@ connections are the managed no-auth default. Independent config drift,
 credential templates, and additional connections prevent replacement. Catalog
 changes recheck this state immediately before mutation. Failed discovery leaves
 an incomplete result that the next explicit install can finish; it never
-records success. Removing a manifest entry does not delete its registration.
+records success. Removing an entry from the `servers` list alone does not
+delete its registration.
+
+`retiredServers` explicitly names a retired integration and its last source
+configuration. Retirement requires that exact current configuration, a matching
+ownership receipt, and only the unauthenticated managed default connection
+(or no connections). It refuses drift or independent credentials before any
+catalog write, rechecks immediately before removal, and verifies absence before
+dropping the receipt entry. `--verify` reports a surviving retired registration.
+This is the narrow migration guard for the former Gog registration; it cannot
+remove or replace either authenticated `google_gmail` connection.
 
 Unlisted integrations and accounts are untouched. The source contains no
 credentials. Underlying tools retain their existing authentication stores;
@@ -81,11 +90,15 @@ In particular, every agent-browser call must carry the same selected `session`.
 AgentBrowse owns durable browser targets and profiles; agent-browser operates
 pages. Registering its full MCP catalog does not change those responsibilities.
 
-The current third-party catalogs have real limits: Gog exposes Google reads and
-document/sheet writes, but no mail-send tool; Terminal Control operates existing
-named sessions but does not create them through MCP. Preserve their existing
-workflows until the missing operations have an MCP implementation. Exposing
-write tools does not authorize unsolicited writes or messages.
+Gmail uses the independently authenticated `google_gmail` connections already
+in Executor. The `email` skill selects the intended account and uses discovered
+read, draft, send, and attachment tools. AgentStart never creates a replacement
+account or copies its credentials. Other Google products require their own
+available integrations and workflow skills.
+
+Terminal Control operates existing named sessions but does not create them
+through MCP. Preserve that session-creation workflow until an MCP implementation
+exists. Exposing write tools does not authorize unsolicited writes or messages.
 
 Codex computer use is available, but replacing Peekaboo also requires usable
 normal-window capture and input validation. The installed adapter returns

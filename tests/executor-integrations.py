@@ -102,7 +102,8 @@ class ProtocolTests(unittest.TestCase):
         return invoke
 
     def test_exact_registry_gate_is_recorded_before_one_accept(self):
-        for path, args in [(self.path, self.arguments), (["mcp", "addServer"], registration()[1])]:
+        for path, args in [(self.path, self.arguments), (["mcp", "addServer"], registration()[1]),
+                           (["coreTools", "integrations", "remove"], {"slug": "gog"})]:
             with self.subTest(path=path):
                 calls, events = [], []
                 invoke = self.invoke_sequence([self.paused(path, args), self.completed()], calls)
@@ -356,7 +357,9 @@ class RegistrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "code/agentboard").mkdir(parents=True)
-            rows = module.load_manifest(ROOT / "config/executor/integrations.json", root, root / "code")
+            rows, retired = module.load_manifest(ROOT / "config/executor/integrations.json", root, root / "code")
+            self.assertNotIn("gog", [row[0] for row in rows])
+            self.assertEqual(retired, [("gog", registration("gog", ["mcp", "--allow-write"])[2])])
             desktop = next(row for row in rows if row[0] == "codex_computer_use")
             self.assertEqual(desktop[1]["command"], str(root / ".local/bin/codex"))
             self.assertEqual(desktop[2]["env"]["CODEX_HOME"], str(root / ".codex"))
@@ -366,6 +369,97 @@ class RegistrationTests(unittest.TestCase):
             module.save_receipt(path, {desktop[0]: desktop[2]})
             self.assertEqual(json.loads(path.read_text())["owner"], module.OWNER)
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+
+class RetirementTests(unittest.TestCase):
+    def setup_catalog(self):
+        catalog, records = Catalog(), {}
+        old = registration("gog", ["mcp", "--allow-write"])
+        module.converge([old], catalog.call, records, True, lambda _: None)
+        catalog.servers["google_gmail"] = {"config": {"transport": "openapi"}}
+        catalog.connections.extend([
+            {"integration": "google_gmail", "owner": "org", "name": account, "template": "oauth"}
+            for account in ["personal", "second"]
+        ])
+        catalog.mutations.clear()
+        # API responses, the on-disk receipt, and source JSON are independent.
+        return catalog, copy.deepcopy(records), [(old[0], copy.deepcopy(old[2]))]
+
+    def test_only_exact_owned_gog_is_removed_and_rerun_is_inert(self):
+        catalog, records, retiring = self.setup_catalog()
+        mail = copy.deepcopy((catalog.servers["google_gmail"], catalog.connections[1:]))
+        saved = []
+        for _ in range(2):
+            module.converge([], catalog.call, records, True,
+                            lambda rows: saved.append(copy.deepcopy(rows)), retiring)
+        self.assertEqual(catalog.mutations, [("remove", {"slug": "gog"})])
+        self.assertEqual(saved, [{}])
+        self.assertEqual(mail, (catalog.servers["google_gmail"], catalog.connections))
+        module.converge([], catalog.call, records, False, lambda _: self.fail("verify wrote"), retiring)
+
+    def test_missing_receipt_drift_and_foreign_connections_block_all_writes(self):
+        for change in ["missing-receipt", "config-drift", "receipt-drift", "other-source",
+                       "authenticated-default", "extra-connection", "auth-template"]:
+            with self.subTest(change=change):
+                catalog, records, retiring = self.setup_catalog()
+                if change == "missing-receipt":
+                    records.clear()
+                elif change == "config-drift":
+                    catalog.servers["gog"]["config"]["args"].append("--independent")
+                elif change == "receipt-drift":
+                    records["gog"]["args"].append("--different")
+                elif change == "other-source":
+                    retiring = [("gog", registration("gog", ["other"])[2])]
+                elif change == "authenticated-default":
+                    catalog.connections[0]["template"] = "oauth"
+                elif change == "extra-connection":
+                    catalog.connections.append({**catalog.default("gog"), "name": "independent"})
+                else:
+                    catalog.servers["gog"]["config"]["authenticationTemplate"] = [{"slug": "oauth", "kind": "oauth"}]
+                before = copy.deepcopy((catalog.servers, catalog.connections, records))
+                with self.assertRaises(module.Failure):
+                    module.converge([registration()], catalog.call, records, True,
+                                    lambda _: self.fail("failed preflight wrote"), retiring)
+                self.assertEqual(catalog.mutations, [])
+                self.assertEqual(before, (catalog.servers, catalog.connections, records))
+
+    def test_verify_reports_surviving_retirement_without_mutation(self):
+        catalog, records, retiring = self.setup_catalog()
+        with self.assertRaisesRegex(module.Failure, "retired registration remains"):
+            module.converge([], catalog.call, records, False, lambda _: self.fail("verify wrote"), retiring)
+        self.assertEqual(catalog.mutations, [])
+
+    def test_connection_appearing_after_preflight_prevents_removal(self):
+        catalog, records, retiring = self.setup_catalog()
+        reads = 0
+        def call(path, args):
+            nonlocal reads
+            if path[-1] == "getServer" and args["slug"] == "gog":
+                reads += 1
+                if reads == 2:
+                    catalog.connections.append({**catalog.default("gog"), "name": "new"})
+            return catalog.call(path, args)
+        with self.assertRaisesRegex(module.Failure, "changed during convergence"):
+            module.converge([], call, records, True, lambda _: self.fail("race wrote receipt"), retiring)
+        self.assertEqual(catalog.mutations, [])
+        self.assertIn("gog", records)
+
+    def test_unverified_removal_does_not_erase_ownership_receipt(self):
+        catalog, records, retiring = self.setup_catalog()
+        def call(path, args):
+            return {"removed": True} if path[-1] == "remove" else catalog.call(path, args)
+        with self.assertRaisesRegex(module.Failure, "removal was not verified"):
+            module.converge([], call, records, True, lambda _: self.fail("unverified removal saved"), retiring)
+        self.assertIn("gog", records)
+
+    def test_absent_retirement_drops_only_its_stale_receipt(self):
+        catalog, records, retiring = self.setup_catalog()
+        catalog.call(["coreTools", "integrations", "remove"], {"slug": "gog"})
+        records["unlisted"] = {"preserve": True}
+        catalog.mutations.clear()
+        module.converge([], catalog.call, records, True, lambda _: None, retiring)
+        self.assertEqual(records, {"unlisted": {"preserve": True}})
+        self.assertEqual(catalog.mutations, [])
 
 
 if __name__ == "__main__":

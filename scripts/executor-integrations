@@ -67,9 +67,9 @@ def config(value):
 
 def load_manifest(path, home, code_root):
     raw = json.loads(path.read_text())
-    if set(raw) != {"version", "servers"} or raw["version"] != 1:
+    if set(raw) - {"version", "servers", "retiredServers"} or raw.get("version") != 1:
         raise Failure("unsupported integration manifest")
-    if not isinstance(raw["servers"], list) or not raw["servers"]:
+    if not isinstance(raw.get("servers"), list) or not raw["servers"]:
         raise Failure("integration manifest must declare servers")
     servers, names = [], set()
     for entry in expand(raw["servers"], home):
@@ -101,7 +101,26 @@ def load_manifest(path, home, code_root):
             skip = True
         registration = {key: value for key, value in entry.items() if key not in {"repo", "optional"}}
         servers.append((slug, registration, desired, skip))
-    return servers
+    retired = raw.get("retiredServers", [])
+    if not isinstance(retired, list):
+        raise Failure("retiredServers must be a list")
+    retirements = []
+    for entry in expand(retired, home):
+        if not isinstance(entry, dict) or set(entry) - CONFIG_FIELDS - {"slug"}:
+            raise Failure("unknown retired integration field")
+        slug = entry.get("slug", "")
+        if not isinstance(slug, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", slug) or slug in names:
+            raise Failure("invalid or duplicate retired integration slug")
+        names.add(slug)
+        if (not isinstance(entry.get("command"), str) or not entry["command"]
+                or not isinstance(entry.get("args", []), list)
+                or not all(isinstance(arg, str) for arg in entry.get("args", []))):
+            raise Failure(f"{slug}: invalid retired command")
+        previous = config({key: value for key, value in entry.items() if key != "slug"})
+        if previous["env"]:
+            raise Failure(f"{slug}: retired registrations must not declare credentials or environment")
+        retirements.append((slug, previous))
+    return servers, retirements
 
 
 class ExecutorMcp:
@@ -308,7 +327,7 @@ def save_receipt(path, records):
             os.unlink(name)
 
 
-def converge(servers, call, records, install, save):
+def converge(servers, call, records, install, save, retirements=()):
     plan = []
     # Inspect every desired registration before making any catalog change.
     for slug, registration, desired, skip in servers:
@@ -323,6 +342,37 @@ def converge(servers, call, records, install, save):
         if not install and (current != desired or default is None):
             raise Failure(f"{slug}: integration/connection is missing or differs; run the full installer")
         plan.append((slug, registration, desired, current))
+
+    retiring = []
+    for slug, expected in retirements:
+        current, connections = server_state(call, slug)
+        default_connection(connections)
+        if current is not None and (
+            current != expected or records.get(slug) != current or not replaceable(connections)
+        ):
+            raise Failure(f"{slug}: retired registration is not unchanged, receipt-owned, and unauthenticated; preserved")
+        if not install and current is not None:
+            raise Failure(f"{slug}: retired registration remains; run the full installer")
+        retiring.append((slug, current))
+
+    # Retirement is explicit source policy, never an inference from a removed
+    # manifest entry. All desired and retiring registrations passed preflight.
+    for slug, previous in retiring:
+        if not install:
+            print(f"{slug}: retired registration absent")
+            continue
+        current, connections = server_state(call, slug)
+        default_connection(connections)
+        if current != previous or not replaceable(connections):
+            raise Failure(f"{slug}: retired registration changed during convergence; preserved")
+        if current is not None:
+            removed = call(["coreTools", "integrations", "remove"], {"slug": slug})
+            if removed.get("removed") is not True or server_state(call, slug)[0] is not None:
+                raise Failure(f"{slug}: retired registration removal was not verified")
+        if slug in records:
+            del records[slug]
+            save(records)
+        print(f"{slug}: retired registration removed" if current is not None else f"{slug}: already absent")
 
     for slug, registration, desired, previous in plan:
         if not install:
@@ -369,10 +419,12 @@ def main():
     home = Path.home()
     manifest = Path(os.environ.get("AGENTSTART_EXECUTOR_MANIFEST", ROOT / "config/executor/integrations.json"))
     code_root = Path(os.environ.get("AGENTSTART_CODE_ROOT", home / "code"))
-    servers = load_manifest(manifest, home, code_root)
+    servers, retirements = load_manifest(manifest, home, code_root)
     if args.check:
         for slug, registration, _, skip in servers:
             print(f"  {slug}: {registration['command']} {' '.join(registration.get('args', []))}" + (" (absent; skip)" if skip else ""))
+        for slug, _ in retirements:
+            print(f"  {slug}: retire only the unchanged receipt-owned unauthenticated registration")
         return
     executable = os.environ.get("AGENTSTART_EXECUTOR_BIN", EXECUTOR)
     receipt = Path(os.environ.get("AGENTSTART_EXECUTOR_RECEIPT", home / ".local/share/agentstart/executor-integrations.json"))
@@ -385,7 +437,7 @@ def main():
     if args.verify:
         with ExecutorMcp(executable) as client:
             call = lambda path, arguments: api(client.invoke, path, arguments)
-            converge(servers, call, records, False, lambda _: None)
+            converge(servers, call, records, False, lambda _: None, retirements)
         return
     receipt.parent.mkdir(parents=True, exist_ok=True)
     with open(str(receipt) + ".lock", "a") as lock:
@@ -397,7 +449,7 @@ def main():
         with ExecutorMcp(executable) as client:
             call = lambda path, arguments: api(client.invoke, path, arguments, True,
                                                lambda event: record_execution(journal, event))
-            converge(servers, call, records, True, lambda rows: save_receipt(receipt, rows))
+            converge(servers, call, records, True, lambda rows: save_receipt(receipt, rows), retirements)
 
 
 if __name__ == "__main__":

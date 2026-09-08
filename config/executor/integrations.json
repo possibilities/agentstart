@@ -112,18 +112,6 @@
       ]
     },
     {
-      "slug": "gog",
-      "name": "Google via Gog",
-      "description": "Use the existing Gog accounts to read Google resources and edit supported documents and sheets.",
-      "transport": "stdio",
-      "command": "gog",
-      "args": [
-        "mcp",
-        "--allow-write"
-      ],
-      "optional": true
-    },
-    {
       "slug": "codex_computer_use",
       "name": "Computer Use",
       "description": "Read and operate native macOS applications through Codex computer use.",
@@ -140,6 +128,17 @@
         "surface": "sky",
         "presetId": "codex-computer-use"
       }
+    }
+  ],
+  "retiredServers": [
+    {
+      "slug": "gog",
+      "transport": "stdio",
+      "command": "gog",
+      "args": [
+        "mcp",
+        "--allow-write"
+      ]
     }
   ]
 }
