@@ -1234,21 +1234,24 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
     || fail "render-capabilities may prompt before replacing an immutable generated manifest"
 # The list spans two lines, so the order is checked on the joined text rather
 # than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells prepare), and grok-swap precedes agentusage for Grok observation.
+# launcher shells prepare). AgentUsage owns all three account inventories.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain grok-swap agentusage agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain grok-swap agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice; do
+    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
     esac
 done
+case "$agent_cli_order" in
+    *" grok-swap "*) fail "agent CLI loop still installs the retired Grok account owner" ;;
+esac
 account_bar=$(printf '{}\n' | AGENTUSAGE_ACCOUNT=claude-7 CLAUDE_CONFIG_DIR=/shared/native config/statusline/claude-statusline.sh)
 printf '%s' "$account_bar" | grep -F 'claude-7' >/dev/null || fail "Claude statusline lost managed identity"
 

@@ -357,7 +357,7 @@ export HOMEBREW_NO_ASK=1
 
 # Grok Build's official Homebrew cask installs its signed release binary as
 # both `grok` and the vendor's `agent` alias. Keep this phase to the native
-# CLI/TUI itself: grok-swap deliberately does not activate harness credentials,
+# CLI/TUI itself: AgentUsage's Grok inventory does not activate harness credentials,
 # and AgentLaunch and Herdr do not support Grok sessions yet.
 printf 'Installing or upgrading the Grok Build CLI/TUI (standalone; no fleet launch integration).\n'
 install_or_upgrade_cask grok-build

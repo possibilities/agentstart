@@ -12,8 +12,8 @@
   name.
 - The fleet lives beside this checkout: every `~/code/agent*` checkout
   without exception — including `~/code/agentguidance`, the general guidance
-  skills and their renderer. AgentUsage owns Claude/Codex account
-  storage, preparation and the shared proxy; Grok still uses grok-swap. Each
+  skills and their renderer. AgentUsage owns Claude/Codex/Grok account
+  storage and observation, plus Claude/Codex preparation and the shared proxy. Each
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides that every
   one of them is installed. `install-agent-clis` runs each checkout's own

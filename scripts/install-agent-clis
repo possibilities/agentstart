@@ -30,9 +30,9 @@ die() {
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 
-# Agentusage precedes AgentLaunch: it owns Claude/Codex accounts, prepares native
-# authentication, and serves leases in its existing daemon. Grok-swap remains
-# its separate Grok adapter. No Claude/Codex swap repository is required.
+# Agentusage precedes AgentLaunch: it owns Claude/Codex/Grok accounts, prepares
+# native Claude/Codex authentication, and serves leases in its existing daemon.
+# No separate account-swap repository is required.
 # The full installer invokes install-agentlaunch-shims after this loop.
 #
 # An explicit Agentscrape session maps through the configured agent-browser
@@ -64,7 +64,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain grok-swap agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentwork; do
+    agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

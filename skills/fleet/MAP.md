@@ -27,7 +27,6 @@ flowchart LR
     subgraph balancing [Launch balancing]
         launch[agentlaunch]
         usage[agentusage]
-        grokSwap[grok-swap]
     end
 
     subgraph research [Research pipeline]
@@ -47,7 +46,6 @@ flowchart LR
     herdr[herdr — the surface]
     herdrConfig[agentstart / herdr-config]
     surface[agentsurface]
-    collab[agentcollab]
     mux[agentmux]
     smolmux[smolmux]
     work[agentwork Tray]
@@ -76,7 +74,6 @@ flowchart LR
     launch -->|prepare claude/codex --json; renew/release HTTP leases| usage
     launch -->|managed launch| claude
     launch -->|managed launch| codex
-    usage -->|observe --json / select --json [--account] [--reserve-seconds]| grokSwap
     source -->|read-only agent.list + workspace.list snapshots| herdr
     tend -->|inactive-worktree safety: events.subscribe + agent list| herdr
     tend -->|optional cross-harness self-wake| surface
@@ -95,7 +92,6 @@ flowchart LR
     remote[External MCP clients] -->|toolset-specific bearer and /mcp/toolset| gateway[FastMCP gateway]
     gateway -->|selected tools, isolated stdio sessions| contractServers & browser & terminal & desk & gog & shadcn
     harnesses -->|fleet registry MCP stdio| shadcn[shadcn]
-    collab -->|sheet calls can launch Agents; Hub invokes agent_message for attached Event Messages| mux
     mux -->|private Runtime: lifecycle commands, event.subscribe + state.get over duplex UDS| smolmux
     work -->|agentmux/client: observe snapshot + filtered events, agent.show| mux
 ```
@@ -118,7 +114,7 @@ flowchart LR
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
-    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     start ==>|default: editable command + client native audio; explicit optional install-agentvoice-android: browser/Termux proof on named SSH host| voiceInstall[agentvoice]
     skills ==>|fixed session skills + individual MCP definitions| launch
@@ -200,11 +196,9 @@ sentence around the match, never from the name alone.
 | agentroles | agentvoice | passes `--role <dir>` and nothing else; AgentVoice reads the directory itself because only its process can register skill roots on the child it owns | `agentroles/src/deliver/agentvoice.ts`; `agentvoice/src/core/role.ts` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action | `agentstart/scripts/install-agent-clis`; `agentroles/scripts/install.sh` |
 | agentstart | FastMCP / Tailscale / Gog | installs pinned FastMCP through uv and Gog through Homebrew; owns the io.arthack.agentstart.serve-mcp service and exact /mcp Funnel handler. A private configuration selects tools at /mcp/TOOLSET with distinct bearer credentials. The gateway reuses one direct inventory and preserves stdio state per frontend session. Google OAuth stays in Gog | AgentStart scripts/install-mcp-gateway, scripts/install-gog, gateway/gateway.py, gateway/uv.lock, config/mcp-gateway.json, config/launchd/io.arthack.agentstart.serve-mcp.plist; gateway/test_gateway.py; tests/mcp-install.py |
-| agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and grok-swap remains an observation/selection provider rather than a harness credential activator | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
+| agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and AgentUsage owns Grok billing and account selection without activating harness credentials | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
 | agentstart | Plannotator | installs the pinned release through Plannotator's official `--minimal` path so vendor hooks and ambient skills stay absent, verifies the resulting binary, invokes that exact binary's `install-runtime agent-terminal` contract for the managed WebTUI/PTY sidecar, and copies the same tag's core skills into fixed resources. Removing or changing the runtime subcommand disables the annotate UI's embedded Agent tab even though the CLI itself still launches | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; runtime contract in `plannotator/packages/server/agent-terminal-runtime.ts` |
-| agentstart | agentusage | installs AgentUsage after grok-swap and before AgentLaunch. AgentUsage owns Claude/Codex accounts, direct observations and the proxy in its existing `daemon run`; AgentStart owns the observer LaunchAgent and converges it last. No Claude/Codex swap installer is invoked | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-launchagents`; `agentusage/scripts/install.sh`; `agentusage/src/daemon.ts` |
-| cswax | claude-swap | standalone workshop; no AgentUsage or AgentStart dependency remains. Its own installer binds `~/source/realiti4--claude-swap` to a published `fork/integration` commit and installs it with `uv tool install --force`, refusing foreign `upstream` or `fork` remotes, a dirty tree, or an unpublished commit, and reporting when integration trails upstream. `/maintain` separately composes the carry heads, gates, and publishes | `cswax/scripts/install.sh`; `cswax/MAINTAIN.md`; `cswax/scripts/reconcile-branches.sh` |
-| agentstart | grok-swap | `install-agent-clis` invokes the checkout's `scripts/install.sh --install` immediately before agentusage, so the observer's Grok provider subprocess is present before observation starts. Grok-swap owns account storage, billing observation, and selection; it does not activate the separately installed Grok Build harness, and AgentStart adds no separate service | `agentstart/scripts/install-agent-clis`; `grok-swap/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` |
+| agentstart | agentusage | installs AgentUsage before AgentLaunch. AgentUsage owns Claude/Codex/Grok accounts, direct observations and the Claude/Codex proxy in its existing `daemon run`; AgentStart owns the observer LaunchAgent and converges it last. No Claude/Codex swap installer is invoked | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-launchagents`; `agentusage/scripts/install.sh`; `agentusage/src/daemon.ts` |
 | agentstart | agentlaunch | `install-agent-clis` invokes `scripts/install.sh --install` after `agentusage`; `scripts/install-agentlaunch-shims` is the external shim contract for bare `claude`/`codex` | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-agentlaunch-shims` |
 | agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, securely creates or preserves the private webhook secret, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit. The explicit `configure-agentsource-webhooks --apply` path discovers this node's Funnel origin and calls `agentsource webhook-configure` to reconcile signed hooks; ordinary install only runs its non-mutating, agent-oriented diagnostic | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/configure-agentsource-webhooks`; `agentsource/scripts/install.sh`; `agentsource/src/cli.ts` |
 | agentsource notifier | agentsource receiver, terminal-notifier | the resident `notify-daemon` subscribes to the receiver's `ci:*` Unix-socket channels with reconnect, remembers one PASS/FAIL verdict per project's primary-branch head in an owner-only state file, coalesces flips for ninety seconds, and posts one grouped banner through `terminal-notifier` on PATH naming what flipped plus every project still red. A missing notifier is logged, never fatal | `agentsource/src/ci-notifier.ts`; `agentsource/src/channel-client.ts` (`subscribeChannels`); `agentstart/config/launchd/io.arthack.agentsource.notify.plist` |
@@ -232,7 +226,6 @@ sentence around the match, never from the name alone.
 | Direct MCP hosts / HTTP gateway | agent-browser / agentbrowse | the registered `agent_browser` namespace drives page operations through agent-browser's native MCP surface; `agentbrowse` supplies durable session and target lifecycle tools. The browser workflow discovers the versioned driver guide, supplies the same explicit session on every call, and resolves the exact live target before a human handoff. Driver upgrades must preserve this pairing | `agentstart/config/resources/mcp-servers.json`; `agentstart/config/agent-browser/config.json`; `agentbrowse/skills/browser/SKILL.md`; `agentbrowse/skills/browser/references/lifecycle.md`; `agentbrowse/cli/provider.ts` |
 | agentgrok | grok (Grok Build CLI) | reuses the CLI's login at `$GROK_HOME/auth.json` as the hub bearer token, and when it is expired or within 90 s of it runs the refresh command — `grok models` by default, `AGENTGROK_REFRESH_COMMAND` to override — so the CLI renews its own file under its own lock, then reads it again. agentgrok never writes `auth.json`; `AGENTGROK_TOKEN` bypasses the CLI entirely. A change to the CLI's login file layout or to `grok models` needing interaction breaks every agentgrok call once the token expires | `agentgrok/src/auth.ts` (`resolveCredential`, `spawnRefresh`); `agentgrok/docs/adr/0002-token-refresh-shells-out-to-the-grok-cli.md`; pinned by `agentgrok/test/auth.test.ts` |
 | agentgrok | xAI Computer Hub (external, `wss://computer-hub.grok.com/v1/tools`) | one WebSocket per command as `?role=bot_client`: hello, then JSON-RPC `bot.roster`, `bot.status`, `bot.vncDescriptor`, `bot.transcript.offbox`, `bot.usage`, `bot.subscribe`/`unsubscribe`, and `bot.command` relaying one of the hub's 43 allowlisted gateway commands to the user's Grok Bot box; `bot.event` notifications carry `hub:turn_finished`. The hub answers 400 without the role parameter, which the protocol crate does not document. Not a fleet edge — recorded because it is the whole product | `agentgrok/src/hub.ts`, `agentgrok/src/relay.ts`; wire shapes from `xai-org/grok-build` `crates/common/xai-tool-protocol/src/bot_relay.rs`; `agentgrok/docs/adr/0001-the-hub-relay-is-the-transport.md` |
-| agentcollab | agentmux | the Sheet spec language names `mcp__agentmux__agent_launch_claude` as its direct-call example, so a generated Sheet can launch an Agent without another reasoning turn. When `collab_attach` names an Agent, the Sheet sends each matching human Event through its Hub as one visible-CC `mcp__agentmux__agent_message` call with `{ names: [agent], message }`; delivery succeeds only after the Hub decodes the MCP result and observes `results[0].ok === true`, otherwise the Event stays pending in `collab_events`. Renaming either tool, changing the Message argument shape, or removing the per-recipient result breaks this integration while the MCP notification stream remains independent | `agentcollab/src/prompt.ts` (`mcp__agentmux__agent_launch_claude` call example); `agentcollab/src/server.ts` (`DEFAULT_MESSAGE_TOOL`, `detectMessaging`, `Collab.sendEvent`); behavioral coverage in `agentcollab/test/server.test.ts`; callee contracts in `agentmux/src/protocol.ts` (`agent.launch_claude`, `agent.message`) |
 | agentmux | smolmux | starts and stops its private named Runtime through the CLI, then uses the duplex Unix API for terminal control and `event.subscribe` plus `state.get` observation. Smolmux 0.8.0 or newer supplies the lifetime/generation/sequence envelope; reconnect replaces the cached projection while transient notices remain independent of snapshot watermarks. Changing the CLI, socket protocol, or native session identity breaks terminal control and Runtime recovery | `agentmux/src/smolmux.ts` (`smolmuxArgv`, `startSmolmux`, `MIN_SMOLMUX_VERSION`); `agentmux/src/daemon.ts` (`connectRuntime`, `recoverRuntime`); `smolmux/events.schema.json`; real recovery coverage in `agentmux/test/instance.e2e.test.ts` |
 | agentwork Tray | agentmux | imports `agentmux/client` and `agentmux/protocol` from the sibling package, observes the current snapshot and filtered Agent/theme/stop events over the duplex Unix socket, and sends `agent.show` when a row is pressed. Disconnect clears the displayed projection until reconnect; changing the package exports, snapshot, or event contract breaks the Tray | `agentwork/package.json`; `agentwork/src/tui/tray.ts` (`runTray`); `agentmux/src/api-client.ts` (`observe`); `agentmux/events.schema.json` |
 | agentstart | every `agent*` CLI | owns `config/agent-contract/schema.json`, the one machine-readable self-description each CLI publishes as `<cli> guide --json`, and `scripts/validate-agent-contract.ts`, which EXECUTES that schema rather than restating it. `--agent-help`, `--agent-teaser`, and `--help` are renders of the contract, not second authorships beside it; thirteen of sixteen CLIs go further and derive their argument parser from it, so a declared flag and an accepted flag cannot disagree. Each repository owns its own conformance test and resolves the validator through AgentStart's checkout | `agentstart/config/agent-contract/{schema.json,README.md,MCP.md,example.json}`; `agentstart/scripts/validate-agent-contract.ts`; `agentstart/scripts/json-schema-subset.ts`; asserted by `agentstart/tests/agent-contract.test.ts` and each repository's own contract test |
@@ -245,7 +238,6 @@ sentence around the match, never from the name alone.
 | agentstart config watcher | Funk preferences, funk-notify | resident `agentstart config watch --notify` publishes validated generated snapshots for managed Claude/Codex launches, detects changes to authored fields in native settings, and groups change/drift/recovery notifications through `funk-notify`. Never writes tracked preferences; Codex captures disposable-profile edits for review before cleanup | `agentstart/scripts/harness-config.ts`; `agentstart/scripts/agentstart`; `agentstart/config/launchd/io.arthack.agentstart.watch-config.plist`; `funk/bin/.local/bin/funk-notify` |
 | agentstart | Codex / Funk preferences | the managed Codex shim invokes `scripts/codex-invocation <native-codex> ...`, copying `~/code/funk/config/harnesses/codex.toml` into a unique native profile with effective cwd/project-root trust. Keeps the selected account and Codex home; removes only its own profile at child exit. Runtime commands receive profiles; utility/remote calls and the explicit shim bypass remain native. The full installer converges the shims | `agentstart/scripts/codex-invocation`; `agentstart/scripts/install-agentlaunch-shims`; `agentstart/config/codex/README.md`; `funk/config/harnesses/codex.toml`; `agentstart/tests/codex-invocation.test.ts` |
 | agentstart | Claude / Funk preferences | the managed Claude shim invokes `scripts/claude-invocation <native-claude> ...`, loading Funk's Stowed `~/.claude/preferences.json` with native `--settings` and recording cwd/Git/worktree trust under Claude's local config lock. Writable settings, accounts, and trust history stay local; explicit settings replace the overlay and utility/isolated/remote calls pass through | `agentstart/scripts/claude-invocation`; `agentstart/scripts/install-agentlaunch-shims`; `agentstart/config/claude/README.md`; `funk/claude/.claude/preferences.json`; `agentstart/tests/claude-invocation.py` |
-| agentusage | grok-swap | `grok-swap observe --json` observes every managed xAI account and `grok-swap select --json [--account <focused-key>] [--reserve-seconds <seconds>]` performs ordinary or focus-pinned selection. Agentusage renders the returned billing facts and delegates eligibility, scoring, and reservation ownership to the provider; it never reads Grok credentials itself | `agentusage/src/grok/observe.ts` (`observeGrok`); `agentusage/src/daemon.ts`; `agentusage/src/balance/grok.ts` (`delegateGrokSelect`) |
 | agentguidance `tend` skill | herdr, agentsurface | its read-only watcher subscribes to pane and workspace lifecycle events over Herdr's Unix-socket NDJSON API, queries `herdr agent list` once per survey, and treats every live agent status as ownership that blocks a proposal. Git independently supplies linked-worktree and local-main ancestry state. Optional cross-harness self-wake travels through `agentsurface message`; the woken agent routes human notification through `notify`. Tend emits only removal, catch-up, or inspection minisketches and contains no integration, rebase, removal, branch deletion, or push helper | `agentguidance/skills/tend/SKILL.md`; `agentguidance/skills/tend/scripts/watch.ts`; behavioral coverage in `agentguidance/tests/tend.test.ts` |
 | agentstart | herdr | installs the official stable Homebrew formula when absent and upgrades it only during an explicitly authorized socket-free maintenance run, then runs `herdr integration install claude\|codex`, links agentsurface's launcher-pane and tab-naming plugin directory with `herdr plugin link`, and renders the version-matched surface skill from `herdr --skill` into the fixed resources | `agentstart/scripts/install.sh` (`install_or_upgrade_formula herdr`, `install_herdr_integrations`, `install_herdr_skill`); `agentstart/scripts/herdr-socket-state`; asserted by `agentstart/tests/validate.sh` |
 | agentstart (`herdr-config`) | herdr | validates every rendered candidate through `HERDR_CONFIG_PATH=<temp> herdr config check`, atomically replaces the managed live config, then reloads the default server and every reachable named session; an unavailable server is nonfatal because its next start reads the validated file | `agentstart/scripts/herdr-config` (`render_candidate`, `reload_live_servers`) |
@@ -279,7 +271,7 @@ sentence around the match, never from the name alone.
 
 | Binary | Version | Why | Evidence |
 | --- | --- | --- | --- |
-| Grok Build | official stable Homebrew cask | Homebrew verifies the signed release artifact and gives the native CLI/TUI one managed update path. The installation deliberately stops before AgentLaunch, Herdr, or grok-swap credential activation | `agentstart/scripts/install.sh`; Homebrew cask `grok-build`; asserted by `agentstart/tests/validate.sh` |
+| Grok Build | official stable Homebrew cask | Homebrew verifies the signed release artifact and gives the native CLI/TUI one managed update path. The installation deliberately stops before AgentLaunch, Herdr, or AgentUsage credential activation | `agentstart/scripts/install.sh`; Homebrew cask `grok-build`; asserted by `agentstart/tests/validate.sh` |
 | Plannotator | 0.27.9 | the CLI, its `install-runtime agent-terminal` contract, and its core skills move as one pinned release. AgentStart deliberately uses the minimal vendor install to avoid ambient harness integrations, then restores the separately managed runtime through the verified binary | `agentstart/scripts/install.sh` (`plannotator_version` and runtime invocation); `agentstart/tests/validate.sh` |
 | agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
 | @native-sdk/cli | 0.7 line | the native-sdk skill documents 0.7 and its agent helpers are version-matched | `agentstart/scripts/install.sh` (`native_sdk_version`) |
@@ -294,17 +286,15 @@ standalone checkouts, credential stores and backups are left intact. Explicit
 `agentusage accounts import --file` and native `accounts login` enroll accounts
 into the owned pool; there is no runtime store discovery or reverse write.
 
-The Fx and
-zmx and claude-swap forks are owned by workshop repositories (`fxnk`, `zmax`,
-`cswax`) instead of an installer: each workshop's `MAINTAIN.md` is that fork's
-contract, the shared `maintain` skill (agentguidance) is the cycle, and the
-workshop's consumer step binds the result — fxnk's installer, zmax's move of
-smolmux's Companion pin, cswax's `uv tool install`. The `fork-rebase-policy` wiki
-page is the overview of the arrangement.
+The Fx and zmx forks are owned by workshop repositories (`fxnk`, `zmax`):
+each workshop's `MAINTAIN.md` is that fork's contract, the shared `maintain`
+skill (agentguidance) is the cycle, and the workshop's consumer step binds the
+result — fxnk's installer and zmax's move of smolmux's Companion pin. The
+`fork-rebase-policy` wiki page is the overview of the arrangement. The former
+`cswax` workshop is archived and has no fleet consumer.
 
 | Fork | Integration branch | Owner | Gate |
 | --- | --- | --- | --- |
-| `~/source/realiti4--claude-swap` | `integration` | `cswax` standalone via `/maintain` and its own installer; no fleet consumer | all three of upstream's CI jobs (Ubuntu, macOS, macOS keychain contract), plus the fork's CI green on the exact candidate |
 | `~/source/vercel-labs--fx` | `integration` | `fxnk` via `/maintain` and `scripts/install.sh --install --sha` | fxnk's exact-SHA Local development gate and ship gate |
 | `~/source/neurosnap--zmx` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `smolmux/companion.json`) | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, smolmux's suite against it |
 
@@ -680,3 +670,18 @@ absent. Fleet services now converge only current labels with exact ownership
 markers. Homebrew Herdr keeps its socket gate, using explicit
 `AGENTSTART_HERDR_ALLOW_UPGRADE=1` for upgrades. `docs/agent-interfaces.md`
 records which workflows use MCP, native harness mechanisms, or owning CLIs/TUIs.
+
+
+Updated 2026-09-08 for Grok account ownership and repository retirement:
+AgentUsage now owns xAI device OAuth, refresh, private account storage, billing,
+selection, and short reservations directly (`agentusage/src/grok/`,
+`src/balance/grok.ts`, and ADR 0001). AgentStart no longer installs grok-swap;
+AgentUsage no longer invokes it. Native Grok Build login remains separate.
+
+The operator retired these checkouts to `~/archive`: `agentweb`, `droidedtui`,
+`fxm-start`, `multipass`, `cswax`, `grok-swap`, `clispeak`, `agentcollab`,
+`agentworkplace`, and `agentworkplace-site`. The current graph omits the former
+agentcollab → agentmux and cswax → claude-swap edges. Their earlier entries in
+this chronology describe historical behavior. Incoming references in `~/code`
+were checked before retirement; Grok's live AgentStart and AgentUsage edges
+were migrated first. Stored credentials and application data are preserved.

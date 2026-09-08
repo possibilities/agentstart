@@ -76,7 +76,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, agentboard, agentbrowse-infra, agentbrowse, agentattention,
-    agentsearch, agentkeys, grok-swap, agentusage, agentlaunch, and agentgrok
+    agentsearch, agentkeys, agentusage, agentlaunch, and agentgrok
     CLIs;
   - AgentUsage’s owned Claude/Codex accounts and single proxy through its
     existing observer daemon; enroll/import accounts before switching balanced
