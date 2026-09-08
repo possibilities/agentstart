@@ -79,3 +79,47 @@ structured-error fidelity, declined interactions, cancellation, independent
 sessions, and child cleanup. Installer
 tests cover private-file ownership, stable credentials, invalid configurations,
 and preservation of unrelated Funnel routes.
+
+### Verify the public path
+
+A successful request from inside the tailnet does not verify Funnel ingress:
+MagicDNS can resolve the hostname to its private Tailscale address. Resolve
+the hostname through a public DNS resolver and probe each returned public IPv4
+address with the original hostname for TLS and HTTP. For example, substitute
+the node hostname and one address returned by `dig`:
+
+```sh
+dig @1.1.1.1 NODE.TAILNET.ts.net A +short
+curl --noproxy '*' --resolve 'NODE.TAILNET.ts.net:443:PUBLIC_IPV4' \
+  --connect-timeout 5 --max-time 15 --silent --show-error \
+  --output /dev/null --write-out '%{http_code}\n' \
+  https://NODE.TAILNET.ts.net/mcp/grok
+```
+
+The unauthenticated probe must complete normal certificate verification and
+return 401. Then use the configured MCP client and its existing private
+credential to verify `initialize`, `notifications/initialized`, and `tools/list`
+from the external client machine. A 401 alone does not verify backend discovery.
+The external client needs ordinary HTTPS, without installing Tailscale.
+
+### Recover public TLS failures
+
+On 2026-09-08, Greybird's public addresses accepted TCP and closed during TLS,
+while private HTTPS and authenticated loopback MCP worked. The running daemon
+and CLI were both 1.102.3; public probes did not increment `peerapi_ingress` in
+`tailscale debug metrics`. Reapplying the existing mapping and briefly toggling
+Funnel did not recover it. Removing only the 443 listener, waiting 20 seconds,
+and recreating its original handlers restored public TLS on both addresses.
+This is an observed recovery, not evidence of a specific upstream root cause.
+
+Before repeating that recovery, save `tailscale serve status --json`, establish
+ownership of every handler on 443, and account for the brief interruption of
+those handlers. `tailscale funnel --https=443 off` removes the whole listener;
+recreate every saved 443 handler with its exact backend using
+`tailscale funnel --yes --bg --https=443 --set-path=PATH BACKEND`. Greybird had
+`/` pointing to `http://127.0.0.1:8787` and `/mcp` pointing to
+`http://127.0.0.1:4790/mcp`. Compare the complete configuration afterward with
+the saved copy, including the other ports, then repeat the public checks above.
+An unrestricted `funnel reset` would also remove independently owned Serve
+routes. Ordinary installation must not interrupt healthy listeners to perform
+this recovery, restart Tailscale, or rotate gateway credentials.
