@@ -27,11 +27,10 @@
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
-  or registration. Executor is the vendor-service exception: its Homebrew cask
-  supplies the signed CLI, and `executor service install` is the sole owner of
-  `sh.executor.daemon`, including plist rendering and lifecycle. AgentStart
-  delegates after installing the cask, with `$HOME/.local/bin` on `PATH`, and
-  must not add a competing launchd template or rely on the desktop sidecar.
+  or registration. AgentStart owns the direct MCP resource inventory and
+  the authenticated HTTP gateway. Each configured toolset has its own route,
+  credential, and enforced tool selection. Gog owns its Google credentials;
+  AgentStart installs Gog and binds each declared mailbox at MCP startup.
   Nothing outside these installer contracts installs a fleet component.
 - Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
   the original repository as `upstream` and our optional fork as `fork`.

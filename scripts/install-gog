@@ -1,0 +1,16 @@
+#!/bin/bash
+# AgentStart owns the Google MCP package; account credentials stay in gogcli.
+set -euo pipefail
+case "${1:-}" in
+    --check) printf 'Install or upgrade openclaw/tap/gogcli for direct Google MCP access.\n'; exit 0 ;;
+    --install) ;;
+    *) printf 'Usage: scripts/install-gog --install|--check\n' >&2; exit 64 ;;
+esac
+brew_bin=$(command -v brew || true)
+[ -n "$brew_bin" ] || { printf 'Homebrew is required.\n' >&2; exit 1; }
+if "$brew_bin" list --formula --versions openclaw/tap/gogcli >/dev/null 2>&1; then
+    "$brew_bin" upgrade --formula openclaw/tap/gogcli
+else
+    "$brew_bin" install --formula openclaw/tap/gogcli
+fi
+gog mcp --help >/dev/null

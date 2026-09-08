@@ -1,0 +1,203 @@
+#!/usr/bin/env python3
+"""Install AgentStart's HTTP transport, private toolset config and credentials."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import stat
+import subprocess
+import tempfile
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+
+ROOT = Path(__file__).resolve().parent.parent
+MARKER = 'agentstart-mcp-gateway.v1'
+
+
+def safe_parents(path):
+    if not path.is_absolute() or ".." in path.parts:
+        raise ValueError(f'invalid private path: {path}')
+    for parent in reversed([path.parent, *path.parent.parents]):
+        if not parent.exists() and not parent.is_symlink(): continue
+        info = parent.lstat()
+        if (str(parent) in ['/tmp','/var'] and info.st_uid == 0
+                and parent.is_symlink() and parent.resolve() == Path('/private' + str(parent))):
+            continue
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid not in [0, os.getuid()]
+                or (info.st_mode & 0o022 and not (info.st_uid == 0 and info.st_mode & stat.S_ISVTX))):
+            raise ValueError(f'refusing unsafe private path parent: {parent}')
+
+
+def read_private(path):
+    safe_parents(path)
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or info.st_nlink != 1 or info.st_mode & 0o077):
+        raise ValueError(f'refusing shared, linked or foreign file: {path}')
+    return json.loads(path.read_text())
+
+
+def publish(path, value):
+    safe_parents(path)
+    if path.exists() or path.is_symlink():
+        read_private(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd, temp = tempfile.mkstemp(prefix='.' + path.name, dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as out:
+            json.dump(value, out, indent=2)
+            out.write('\n')
+        os.replace(temp, path)
+    finally:
+        if os.path.exists(temp): os.unlink(temp)
+
+
+def tailscale():
+    command = os.environ.get('AGENTSTART_TAILSCALE') or shutil.which('tailscale')
+    if not command and Path('/Applications/Tailscale.app/Contents/MacOS/Tailscale').is_file():
+        command = '/Applications/Tailscale.app/Contents/MacOS/Tailscale'
+    if not command: raise ValueError('Tailscale is required for the external gateway')
+    return command
+
+
+def tail(*args):
+    result = subprocess.run([tailscale(), *args], check=True, capture_output=True, text=True,
+                            env={**os.environ, 'TAILSCALE_BE_CLI':'1'})
+    return json.loads(result.stdout) if '--json' in args else result.stdout
+
+
+def prepare(home):
+    config_root = home / '.config/agentstart'
+    config_path = config_root / 'mcp-gateway.json'
+    receipt_path = config_root / 'mcp-gateway-install.json'
+    credential_root = config_root / 'mcp-credentials'
+    client_root = config_root / 'mcp-clients'
+    resources = home / '.local/share/agentstart/resources/mcp-servers.json'
+    inventory = read_private(resources)['mcpServers']
+    for path in [config_path, receipt_path, credential_root/'check', client_root/'check']:
+        safe_parents(path)
+    status = tail('status', '--json')
+    if status.get('BackendState') != 'Running' or not status.get('Self', {}).get('Online'):
+        raise ValueError('Tailscale must be signed in and online to configure external MCP access')
+    dns = status['Self']['DNSName'].rstrip('.')
+    if not re.fullmatch(r'[a-z0-9.-]+', dns): raise ValueError('invalid Tailscale DNS name')
+    if config_path.exists() or config_path.is_symlink():
+        receipt = read_private(receipt_path)
+        if receipt.get('owner') != MARKER: raise ValueError('gateway configuration is not installer-owned')
+        config = read_private(config_path)
+    else:
+        if receipt_path.exists() or receipt_path.is_symlink(): raise ValueError('gateway receipt exists without its configuration')
+        config = json.loads((ROOT/'config/mcp-gateway.json').read_text())
+        config.update(resources=str(resources), public_origin='https://' + dns)
+    if config.get('public_origin') != 'https://' + dns:
+        raise ValueError('gateway public_origin does not match this Tailscale node')
+    if config.get('resources') != str(resources): raise ValueError('gateway must use the shared MCP inventory')
+    if set(config) != {'version','resources','port','public_origin','session_idle_seconds','toolsets'}:
+        raise ValueError('invalid gateway configuration keys')
+    if not isinstance(config['toolsets'], dict) or not config['toolsets']:
+        raise ValueError('at least one toolset is required')
+    credentials, clients = {}, {}
+    for name, toolset in config['toolsets'].items():
+        if (not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', name) or not isinstance(toolset, dict)
+                or set(toolset) - {'tools','credential'} or not isinstance(toolset.get('tools'), dict)
+                or not toolset['tools']):
+            raise ValueError(f'invalid toolset: {name}')
+        for server, names in toolset['tools'].items():
+            if (server not in inventory or not isinstance(names,list) or not names
+                    or not all(isinstance(tool,str) and tool for tool in names)
+                    or len(set(names)) != len(names) or ('*' in names and names != ['*'])):
+                raise ValueError(f'invalid tool selection: {name}/{server}')
+        credential = credential_root / (name + '.json')
+        if toolset.get('credential', str(credential)) != str(credential):
+            raise ValueError(f'{name}: credential must use its managed path {credential}')
+        toolset['credential'] = str(credential)
+        client = client_root / (name + '.json')
+        if credential.exists() or credential.is_symlink():
+            digest, export = read_private(credential), read_private(client)
+            if (set(digest) != {'version','sha256'} or digest['version'] != 1
+                    or export.get('owner') != MARKER or export.get('toolset') != name
+                    or not isinstance(export.get('token'), str)
+                    or hashlib.sha256(export['token'].encode()).hexdigest() != digest['sha256']):
+                raise ValueError(f'{name}: gateway credential and private client export disagree')
+        else:
+            if client.exists() or client.is_symlink(): raise ValueError(f'{name}: orphaned client credential')
+            token = secrets.token_urlsafe(32)
+            digest = {'version':1, 'sha256':hashlib.sha256(token.encode()).hexdigest()}
+            export = {'owner':MARKER, 'toolset':name, 'token':token}
+        export['url'] = config['public_origin'] + '/mcp/' + name
+        credentials[credential], clients[client] = digest, export
+    # Validate the complete candidate with staged hashes before changing live files.
+    config_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with tempfile.TemporaryDirectory(prefix='.mcp-check-', dir=config_root) as temp:
+        staged = json.loads(json.dumps(config))
+        for name, toolset in staged['toolsets'].items():
+            target = Path(temp)/(name+'.json')
+            publish(target, credentials[Path(toolset['credential'])])
+            toolset['credential'] = str(target)
+        candidate = Path(temp)/'config.json'
+        publish(candidate, staged)
+        subprocess.run([str(ROOT/'gateway/.venv/bin/python'), str(ROOT/'gateway/gateway.py'), str(candidate), '--check'], check=True)
+    # All existing occupants have been checked before publishing any changes.
+    for path, value in [*credentials.items(), *clients.items()]: publish(path, value)
+    publish(config_path, config)
+    publish(receipt_path, {'owner':MARKER, 'config':str(config_path)})
+    python = ROOT/'gateway/.venv/bin/python'
+    subprocess.run([str(python), str(ROOT/'gateway/gateway.py'), str(config_path), '--check'], check=True)
+    print(f'Configured {len(config["toolsets"])} MCP toolset(s); private client settings: {client_root}')
+
+
+def expose(home):
+    config = read_private(home/'.config/agentstart/mcp-gateway.json')
+    origin = config['public_origin']
+    host = urlsplit(origin).netloc + ':443'
+    backend = f'http://127.0.0.1:{config["port"]}/mcp'
+    # Refuse publication unless the running service requires auth on every route.
+    for name in config['toolsets']:
+        try:
+            with urlopen(backend + '/' + name, timeout=5) as response:
+                raise ValueError(f'{name}: gateway accepted unauthenticated access ({response.status})')
+        except HTTPError as error:
+            if error.code != 401 or not error.headers.get('WWW-Authenticate','').startswith('Bearer'):
+                raise ValueError(f'{name}: gateway auth check failed ({error.code})') from error
+    before = tail('funnel','status','--json')
+    handlers = before.get('Web',{}).get(host,{}).get('Handlers',{})
+    current = handlers.get('/mcp')
+    # The old route's exact target is the inspected migration boundary.
+    if current is not None and current not in [{'Proxy':backend}, {'Proxy':'http://127.0.0.1:4789/mcp'}]:
+        raise ValueError('refusing to replace an independently owned /mcp Funnel handler')
+    if current != {'Proxy':backend} or not before.get('AllowFunnel',{}).get(host):
+        tail('funnel','--yes','--bg','--set-path=/mcp',backend)
+    after = tail('funnel','status','--json')
+    wanted = json.loads(json.dumps(before))
+    wanted.setdefault('TCP',{}).setdefault('443',{})['HTTPS'] = True
+    wanted.setdefault('Web',{}).setdefault(host,{}).setdefault('Handlers',{})['/mcp'] = {'Proxy':backend}
+    wanted.setdefault('AllowFunnel',{})[host] = True
+    if after != wanted: raise ValueError('Funnel postcondition failed: unexpected route/configuration change')
+    print(f'Authenticated MCP toolsets exposed at {origin}/mcp/<toolset>')
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('mode', choices=['--install','--check','--expose'])
+    # Modes retain the fleet's script spelling, without argparse treating them as options.
+    args=parser.parse_args(['--',*__import__('sys').argv[1:]])
+    if args.mode == '--check':
+        print('Install pinned FastMCP gateway; provision private per-toolset credentials; expose /mcp/<toolset> through Tailscale.')
+    elif args.mode == '--install':
+        if not shutil.which('uv'):
+            subprocess.run(['brew','install','uv'], check=True)
+        subprocess.run(['uv','sync','--frozen','--project',str(ROOT/'gateway')],check=True)
+        prepare(Path.home())
+    else:
+        expose(Path.home())
+
+
+if __name__ == '__main__':
+    try: main()
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f'AgentStart MCP gateway: {error}') from error

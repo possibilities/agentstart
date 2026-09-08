@@ -23,7 +23,7 @@ class VoiceRoleRender(unittest.TestCase):
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("---\nname: board\ndescription: fixture\n---\n")
         (self.resources / "mcp-servers.json").write_text(json.dumps({
-            "mcpServers": {"executor": {"command": "/fixture/executor", "args": ["mcp"]}}
+            "mcpServers": {"agentbrain": {"command": "/fixture/agentbrain", "args": ["mcp"]}}
         }))
         self.source = self.root / "source" / "default"
         self.source.mkdir(parents=True)

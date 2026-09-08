@@ -23,10 +23,10 @@ function fixture() {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "install.sh"), `#!/bin/bash\nprintf '%s:%s\\n' '${name}' "$*" >> "$FIXTURE_LOG"\nexit ${code}\n`, { mode: 0o755 });
   }
-  function run(args: string[] = []) {
+  function run(args: string[] = [], extraEnv: Record<string, string> = {}) {
     return Bun.spawnSync(["/bin/bash", join(import.meta.dir, "../scripts/install-agent-clis"), ...args], {
       cwd: base,
-      env: { PATH: bin, AGENTSTART_CODE_ROOT: root, FIXTURE_LOG: join(base, "calls") },
+      env: { PATH: bin, AGENTSTART_CODE_ROOT: root, FIXTURE_LOG: join(base, "calls"), ...extraEnv },
       stdout: "pipe", stderr: "pipe",
     });
   }
@@ -68,4 +68,12 @@ test("argument errors and an earlier failed contract stop before AgentVoice", ()
   expect(existsSync(join(f.base, "calls"))).toBe(false);
   expect(f.run().exitCode).toBe(19);
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentwiki:--install\n");
+});
+
+test("live-call convergence uses AgentVoice's command-only contract", () => {
+  const f = fixture();
+  f.installer("agentvoice");
+  const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
+  expect(result.exitCode).toBe(0);
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install --command-only\n");
 });

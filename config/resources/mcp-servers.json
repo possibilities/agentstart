@@ -1,12 +1,124 @@
 {
   "mcpServers": {
-    "executor": {
-      "command": "/Applications/Executor.app/Contents/Resources/executor/executor",
-      "args": ["mcp", "--no-artifacts", "--elicitation-mode", "model"]
+    "agent_browser": {
+      "command": "${HOME}/.local/bin/agent-browser",
+      "args": [
+        "mcp",
+        "--tools",
+        "all"
+      ]
+    },
+    "agentattention": {
+      "command": "${HOME}/.local/bin/agentattention",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentboard": {
+      "command": "${HOME}/.local/bin/agentboard",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentbrain": {
+      "command": "${HOME}/.local/bin/agentbrain",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentbrowse": {
+      "command": "${HOME}/.local/bin/agentbrowse",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentchats": {
+      "command": "${HOME}/.local/bin/agentchats",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentdesk": {
+      "command": "${HOME}/.local/bin/agentdesk",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentgrok": {
+      "command": "${HOME}/.local/bin/agentgrok",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentkeys": {
+      "command": "${HOME}/.local/bin/agentkeys",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentscrape": {
+      "command": "${HOME}/.local/bin/agentscrape",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentsearch": {
+      "command": "${HOME}/.local/bin/agentsearch",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentsounds": {
+      "command": "${HOME}/.local/bin/agentsounds",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentsurface": {
+      "command": "${HOME}/.local/bin/agentsurface",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agentwiki": {
+      "command": "${HOME}/.local/bin/agentwiki",
+      "args": [
+        "mcp"
+      ]
+    },
+    "gog_mikebannister": {
+      "command": "gog",
+      "args": [
+        "--account",
+        "mikebannister@gmail.com",
+        "mcp",
+        "--allow-write"
+      ]
+    },
+    "gog_notimpossiblemike": {
+      "command": "gog",
+      "args": [
+        "--account",
+        "notimpossiblemike@gmail.com",
+        "mcp",
+        "--allow-write"
+      ]
     },
     "shadcn": {
       "command": "npx",
-      "args": ["--prefix", "/", "--yes", "shadcn@latest", "mcp"]
+      "args": [
+        "--prefix",
+        "/",
+        "--yes",
+        "shadcn@latest",
+        "mcp"
+      ]
+    },
+    "termctrl": {
+      "command": "${HOME}/.local/bin/termctrl",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

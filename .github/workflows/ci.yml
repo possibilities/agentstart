@@ -33,5 +33,8 @@ jobs:
       - name: Install shellcheck
         run: command -v shellcheck >/dev/null 2>&1 || brew install shellcheck
 
+      - name: Install uv
+        run: command -v uv >/dev/null 2>&1 || brew install uv
+
       - name: Validate
         run: tests/validate.sh

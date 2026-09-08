@@ -57,10 +57,10 @@ flags, and skip-versus-fail semantics are load-bearing:
   - Claude Code and Codex, by their official installers, plus the official
     Homebrew cask for the standalone Grok Build CLI/TUI (without AgentLaunch
     or Herdr integration yet);
-  - Executor through its official Homebrew cask, whose signed CLI installs and
-    converges Executor's own login-started background service so the catalog
-    serves without the desktop app; declared MCP integrations converge through
-    its supported CLI, and managed sessions receive one Executor connection;
+  - Gog through its Homebrew formula, with separate MCP registrations for the
+    two declared Gmail accounts and Google-owned sign-in;
+  - the pinned FastMCP HTTP transport, private toolset configuration and
+    credentials, and an authenticated Tailscale route;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -70,9 +70,9 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
-  - the session-only Executor and project-local shadcn MCP resources loaded
-    by AgentLaunch, plus removal
-    of ambient shadcn and retired LiveKit MCP registrations;
+  - individual fleet MCPs, Agentdesk, termctrl, agent-browser, account-bound Gog,
+    and project-local shadcn through one shared resource inventory, plus removal
+    of retired ambient MCP registrations;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
@@ -102,16 +102,21 @@ flags, and skip-versus-fail semantics are load-bearing:
   defaults, with temporary cwd/project trust and the normal Codex home intact.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
-migration. Executor is the narrow cask exception because the cask supplies the
-signed CLI for its fleet-related integration catalog. AgentStart delegates the
-`sh.executor.daemon` lifecycle to that CLI's supported service installer; the
-desktop app is neither launched nor required to keep the server alive. Grok
-Build is a separate CLI-only cask exception because it is an AI harness.
-AgentStart connects Executor only through AgentLaunch's fixed session resources.
-Its [integration registry](config/executor/README.md) preserves independently
-configured integrations and credentials. Shadcn stays directly connected to each
-session so it sees the project's working directory. Grok Build remains outside
-AgentLaunch and Herdr.
+migration. Grok Build is its CLI-only cask exception.
+
+AgentStart renders [one MCP inventory](config/resources/mcp-servers.json) into
+the private shared resources. AgentLaunch loads it for Claude and Codex;
+AgentVoice's prepared default role links the same file. Discovery happens in
+the MCP host, without a repository scan at launch. Shadcn retains project cwd.
+
+The [HTTP gateway](gateway/README.md) exposes configured toolsets at
+/mcp/<toolset>. Each set has a separate bearer credential and a server-enforced
+tool selection. It preserves stdio session state and native MCP results.
+Grok Build remains outside AgentLaunch and Herdr.
+
+For a full install while a voice call is active, set
+AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1. This uses AgentVoice's supported
+--command-only installer mode; the prepared role applies to subsequent calls.
 
 ## Herdr and Ghostty color
 
@@ -224,8 +229,8 @@ its `skills` and `mcp.json` link to the already synchronized portable skills
 and MCP resources. The role therefore keeps AgentVoice's default instructions
 and native delegation while supplying the same fleet workflows. Its skills
 use their bare names (`$board`, for example); the source invocation policy
-still controls implicit use. Executor is per-thread, and shadcn remains
-directly configured for that conversation's workspace.
+still controls implicit use. Each MCP is configured directly for the thread;
+shadcn receives that conversation's workspace.
 
 Publish these role resources before selecting their path in the operator's
 server config. The native role mechanism registers skill roots only with the

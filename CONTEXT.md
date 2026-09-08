@@ -16,14 +16,11 @@ the rule).
 
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
-extension prompts, every fixed private fleet resource, and Executor's
-cask-backed supervised integration service. General-purpose AI *desktop
-clients* are not toolchain; the Claude and ChatGPT casks are the machine's.
-Executor is the narrow exception because its shared integration catalog is
-deeply related to the fleet: the cask supplies its signed CLI, and that CLI's
-service installer owns `sh.executor.daemon`. The desktop app is not the server
-owner, and installing the service does not register Executor's MCP endpoint
-with a harness.
+extension prompts, every fixed private fleet resource, and the authenticated
+HTTP gateway. Individual stdio MCPs share one installed inventory across
+AgentLaunch and AgentVoice; external clients receive configurable toolsets at
+/mcp/<toolset>, each with separate authentication. General-purpose AI desktop
+clients belong to the machine layer. Gog owns its Google credential store.
 _Avoid_: stack, setup.
 
 **Smolmux source installation** — Smolmux's repository-owned `scripts/install.sh`,

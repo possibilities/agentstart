@@ -13,7 +13,7 @@ case "$1" in
   render the fixed private fleet resource set under ~/.local/share/agentstart/resources
   narrow vendor provider-origin guidance to retained Claude/Codex values
   derive and audit Codex invocation policy from portable skill frontmatter
-  render one session-only Claude plugin named agent (/agent:<skill>) with Executor and the project-local shadcn MCP server
+  render one session-only Claude plugin named agent (/agent:<skill>) with the individual fleet MCPs, gog, and project-local shadcn
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   render a standard AgentVoice role from its default prompts and the fixed fleet resources
   persistently disable every agent:<skill> outside managed Codex sessions
@@ -45,13 +45,7 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # Resolve the MCP package outside the project so npm never validates its
 # dependency overrides. npm exec preserves cwd; shadcn still sees the project.
 # --yes keeps a cold-cache launch unattended.
-/usr/bin/jq -e '
-    (.mcpServers | type == "object") and
-    (.mcpServers | keys == ["executor", "shadcn"]) and
-    .mcpServers.executor == {"command":"/Applications/Executor.app/Contents/Resources/executor/executor","args":["mcp","--no-artifacts","--elicitation-mode","model"]} and
-    .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
-' "$template_root/mcp-servers.json" >/dev/null \
-    || die "the fixed MCP resources must contain Executor and project-local shadcn"
+"$script_dir/render-mcp-resources" --check "$template_root/mcp-servers.json"
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
@@ -102,9 +96,9 @@ trap 'rm -rf -- "$render_root"' EXIT
 next_claude="$render_root/claude/agent"
 mkdir -p "$next_claude/.claude-plugin"
 cp "$template_root/claude-plugin.json" "$next_claude/.claude-plugin/plugin.json"
-cp "$template_root/mcp-servers.json" "$next_claude/.mcp.json"
+"$script_dir/render-mcp-resources" "$template_root/mcp-servers.json" "$render_root/mcp-servers.json"
+cp "$render_root/mcp-servers.json" "$next_claude/.mcp.json"
 cp -R "$skills_root" "$next_claude/skills"
-cp "$template_root/mcp-servers.json" "$render_root/mcp-servers.json"
 
 next_marketplace="$render_root/codex-marketplace"
 next_codex="$next_marketplace/plugins/agent"

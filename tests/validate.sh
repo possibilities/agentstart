@@ -12,6 +12,7 @@ fail() {
 
 shell_files="
 scripts/install.sh
+scripts/install-gog
 scripts/sync-skills
 scripts/run-skills-cli
 scripts/render-capabilities
@@ -169,21 +170,28 @@ fi
 [ ! -e scripts/install-agentsurface-shims ] \
     || fail "retired AgentSurface shim installer returned"
 
-PYTHONDONTWRITEBYTECODE=1 python3 tests/executor-integrations.py
-[ -x scripts/executor-integrations ] || fail "Executor registry installer is not executable"
-scripts/executor-integrations --check >/dev/null
-# The explicit install owns catalog writes; content and scheduled sync do not.
-python3 - <<'PY'
+uv sync --frozen --project gateway
+PYTHONDONTWRITEBYTECODE=1 python3 tests/mcp-install.py
+PYTHONDONTWRITEBYTECODE=1 gateway/.venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
+for script in render-mcp-resources install-gog install-mcp-gateway remove-executor; do
+    [ -x "scripts/$script" ] || fail "MCP delivery helper is not executable: $script"
+done
+scripts/render-mcp-resources --check config/resources/mcp-servers.json
+python3 - <<'PYTHON'
 from pathlib import Path
 source = Path("scripts/install.sh").read_text()
-call = '"$script_dir/executor-integrations" --install'
-assert source.count(call) == 1
-assert source.index(call) > source.index('"$script_dir/install-agent-clis" ||')
-assert source.index(call) < source.rindex("converge_repo_content")
-assert call not in source[:source.index('if [ "$check_only" -eq 1 ]; then')]
+content = source.rindex("\nconverge_repo_content\n")
+prepare = source.index('"$script_dir/install-mcp-gateway" --install')
+services = source.index('"$script_dir/install-launchagents" --install')
+expose = source.index('"$script_dir/install-mcp-gateway" --expose')
+retire = source.index('"$script_dir/remove-executor" --install')
+assert content < prepare < services < expose < retire
 for name in ["sync-skills", "render-capabilities"]:
-    assert "executor-integrations" not in Path("scripts", name).read_text()
-PY
+    body = Path("scripts", name).read_text()
+    assert "install-mcp-gateway" not in body and "remove-executor" not in body
+assert not Path("config/executor").exists()
+assert not Path("scripts/executor-integrations").exists()
+PYTHON
 
 for manifest in config/resources/*.json; do
     /usr/bin/jq -e . "$manifest" >/dev/null \
@@ -191,12 +199,20 @@ for manifest in config/resources/*.json; do
 done
 /usr/bin/jq -e '.name == "agent"' config/resources/claude-plugin.json >/dev/null \
     || fail "Claude fleet plugin has the wrong name"
-/usr/bin/jq -e '
-    (.mcpServers | keys == ["executor", "shadcn"]) and
-    .mcpServers.executor == {"command":"/Applications/Executor.app/Contents/Resources/executor/executor","args":["mcp","--no-artifacts","--elicitation-mode","model"]} and
-    .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
-' config/resources/mcp-servers.json >/dev/null \
-    || fail "fixed MCP resources are not exactly Executor and project-local shadcn"
+python3 - <<'PYTHON'
+import json
+from pathlib import Path
+servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
+fleet=["agentattention","agentboard","agentbrain","agentbrowse","agentchats",
+       "agentdesk","agentgrok","agentkeys","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
+assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
+for name in fleet:
+    assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
+assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser","args":["mcp","--tools","all"]}
+for name in ["mikebannister","notimpossiblemike"]:
+    assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
+assert servers["shadcn"] == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
+PYTHON
 /usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
     config/resources/codex-plugin.json >/dev/null \
     || fail "Codex fleet plugin is not strictly skills-only"
@@ -238,7 +254,8 @@ grep -F 'public indexing was explicitly' prompts/agentguidance/GUIDELINES.md >/d
 
 # Content convergence is one function with one call site, because two lists of
 # what "content" means would drift apart on the first step somebody adds to
-# only one of them. --content runs it alone; the full install ends with it.
+# only one of them. --content runs it alone; full installation publishes it
+# before starting the HTTP gateway that consumes the same inventory.
 grep -q '^converge_repo_content() {$' scripts/install.sh \
     || fail "install.sh does not define converge_repo_content"
 [ "$(grep -c '^converge_repo_content$' scripts/install.sh)" -eq 1 ] \
@@ -837,7 +854,12 @@ cat >"$retired_pi_contract_code_root/agentchats/bin/agentchats" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 "$AGENTSTART_TEST_PI_LOCK_ASSERT"
-exit 0
+[ "${1:-} ${2:-}" = 'guide --json' ] || exit 64
+if [ "${AGENTSTART_TEST_PI_BAD_CONTRACT:-}" = agentchats-guide ]; then
+    printf '%s\n' '{"ok":true,"data":{"commands":[{"arguments":[{"name":"--agent","choices":["pi"]}]}]}}'
+    exit 0
+fi
+printf '%s\n' '{"ok":true,"data":{"commands":[{"arguments":[{"name":"--agent","choices":["claude_code","codex"]}]}]}}'
 EOF
 chmod +x \
     "$retired_pi_contract_code_root/agentlaunch/src/main.ts" \
@@ -866,10 +888,10 @@ for retired_pi_contract_repo in agentlaunch agentsurface agentchats; do
         config branch.main.merge refs/heads/main
 done
 export AGENTSTART_TEST_PI_CODE_ROOT="$retired_pi_contract_code_root"
-# The launcher and surface must also tolerate a newer pushed main plus a
+# All three consumers tolerate a newer pushed main plus a
 # clean deployed commit above it. Every successful cleanup below uses this
 # chain, so a frozen retirement-tip comparison is a regression.
-for retired_pi_contract_repo in agentlaunch agentsurface; do
+for retired_pi_contract_repo in agentlaunch agentsurface agentchats; do
     printf '%s\n' 'safe pushed contract fixture' \
         >"$retired_pi_contract_code_root/$retired_pi_contract_repo/pushed-contract"
     git -C "$retired_pi_contract_code_root/$retired_pi_contract_repo" add pushed-contract
@@ -1001,8 +1023,8 @@ AGENTSTART_PI_CLEANUP_HOME="$no_swap_home" \
 [ ! -e "$no_swap_home/.local/share/agentstart/resources/pi" ] \
     || fail "Pi cleanup failed to converge without codex-swap"
 
-# The same current-upstream identity check applies to both command links.
-for retired_repo in agentlaunch agentsurface; do
+# The same current-upstream identity check applies to all three command links.
+for retired_repo in agentlaunch agentsurface agentchats; do
     retired_repo_root="$retired_pi_contract_code_root/$retired_repo"
     retired_pushed=$(git -C "$retired_repo_root" rev-parse origin/main)
     ancestry_home="$skip_test_dir/$retired_repo-unrelated-upstream"
@@ -1028,15 +1050,17 @@ done
 
 # Checkout identity never substitutes for the currently installed behavior or
 # its receipt. These failures must preserve the same deletion candidate.
-for contract_case in agentlaunch-catalog agentlaunch-accepts-pi agentsurface-guide stale-receipt; do
+for contract_case in agentlaunch-catalog agentlaunch-accepts-pi agentsurface-guide agentchats-guide stale-receipt; do
     contract_home="$skip_test_dir/retired-pi-$contract_case"
     make_retired_pi_claim_fixture "$contract_home"
     install_retired_pi_agentlaunch_contract "$contract_home"
     install_retired_pi_agentsurface_contract "$contract_home"
+    install_retired_pi_agentchats_contract "$contract_home"
     case "$contract_case" in
         agentlaunch-catalog) expected_refusal='deployed AgentLaunch catalog is not exactly Claude and Codex' ;;
         agentlaunch-accepts-pi) expected_refusal='deployed AgentLaunch still accepts the retired Pi harness' ;;
         agentsurface-guide) expected_refusal='deployed AgentSurface contract still names the retired Pi harness' ;;
+        agentchats-guide) expected_refusal='deployed AgentChats contract is not exactly Claude Code and Codex' ;;
         stale-receipt)
             printf '%s\n' "$(git -C "$retired_pi_contract_code_root/agentlaunch" rev-parse HEAD^)" \
                 >"$contract_home/.local/state/agentlaunch/deployed-sha"
@@ -2543,7 +2567,8 @@ grep -F 'retained fleet harnesses (`claude-code`, `codex`)' \
     || fail "skill sync did not render the Claude fleet plugin"
 [ -f "$fixture_resources_root/mcp-servers.json" ] \
     || fail "skill sync did not render the canonical managed MCP resource"
-cmp -s config/resources/mcp-servers.json "$fixture_resources_root/mcp-servers.json" \
+HOME="$code_skills_home" scripts/render-mcp-resources config/resources/mcp-servers.json "$skip_test_dir/expected-mcp.json"
+cmp -s "$skip_test_dir/expected-mcp.json" "$fixture_resources_root/mcp-servers.json" \
     || fail "canonical managed MCP resources drifted during rendering"
 cmp -s "$fixture_resources_root/mcp-servers.json" "$fixture_claude_root/.mcp.json" \
     || fail "Claude's session-only MCP resource drifted from the canonical copy"
@@ -2703,36 +2728,12 @@ grep -F '"$script_dir/run-skills-cli" npx --yes skills remove' scripts/install.s
 # fixture tree so the asserted lines are the same on every machine.
 install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
 
-# Executor's cask supplies the signed CLI, which must then own its supervised
-# service without any AgentStart-rendered plist. Grok Build lands as a native
-# CLI/TUI without AgentLaunch or Herdr integration.
-grep -F 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
-    || fail "the full installer does not converge the Executor cask"
-grep -F 'executor_bin="/Applications/Executor.app/Contents/Resources/executor/executor"' \
-    scripts/install.sh >/dev/null \
-    || fail "the Executor service installer does not use the cask's signed CLI"
-# shellcheck disable=SC2016 # Match the literal vendor CLI variable invocation.
-grep -F '"$executor_bin" service install' scripts/install.sh >/dev/null \
-    || fail "the full installer does not delegate Executor service ownership"
-# shellcheck disable=SC2016 # Match the literal per-user PATH assertion.
-grep -F '*":$HOME/.local/bin:"*)' scripts/install.sh >/dev/null \
-    || fail "the Executor service convergence does not verify the fleet command path"
-# shellcheck disable=SC2016 # Match the literal postcondition message.
-grep -F 'Executor service PATH still omits $HOME/.local/bin after vendor installation' \
-    scripts/install.sh >/dev/null \
-    || fail "the Executor service convergence does not enforce the installed PATH postcondition"
-# shellcheck disable=SC2016 # Match the literal vendor CLI variable invocation.
-grep -F '"$executor_bin" service status' scripts/install.sh >/dev/null \
-    || fail "the Executor service convergence does not verify the installed service"
-if rg -n 'sh\.executor\.daemon' config/launchd scripts/install-launchagents >/dev/null; then
-    fail "AgentStart renders a competing Executor service instead of delegating to its CLI"
+# Direct delivery cannot recreate the retired service or an ambient connection.
+if rg -n 'install_or_upgrade_cask executor|executor.*service install|mcp add.*executor' scripts/install.sh; then
+    fail "full installation can recreate Executor"
 fi
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
-if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor' \
-    scripts/install.sh; then
-    fail "the Executor install registers an ambient harness connection"
-fi
 if grep -Ei '(codex|claude) mcp add.*(shadcn|livekit)|(shadcn|livekit).*mcp add' \
     scripts/install.sh; then
     fail "the full installer still registers shadcn or LiveKit ambiently"
@@ -2748,8 +2749,6 @@ done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
-    'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration' \
-    '/Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
@@ -2788,8 +2787,11 @@ for required_install in \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
-    'scripts/executor-integrations --install  # converge declared MCPs through the existing Executor service; preserve independent integrations/auth' \
-    'render Executor and project-local shadcn as managed-session MCP servers; render no LiveKit MCP or skill' \
+    'scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli' \
+    'scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport' \
+    'scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes' \
+    'scripts/remove-executor --install  # retire vendor service, cask, registrations and dedicated state' \
+    'render the individual fleet MCPs, termctrl, agent-browser, gog, and project-local shadcn for managed sessions' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
@@ -2911,11 +2913,9 @@ if printf '%s\n' "$install_plan" \
     fail "installation plan still synchronizes desktop explicitly beside the scan"
 fi
 # The ownership boundary: general-purpose desktop clients and the GitHub CLI
-# belong to the machine layer. Executor's cask-backed supervised catalog and
-# Grok Build's CLI-only package are the two explicit cask exceptions.
+# belong to the machine layer. Grok Build is the sole CLI-only cask exception.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
     | grep -Fv \
-        -e 'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration' \
         -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     >/dev/null; then
     fail "installation plan contains an unowned Homebrew cask"
@@ -3452,28 +3452,18 @@ grep -F '"$agentchats_root/scripts/install.sh" --install' scripts/install.sh >/d
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "installer does not invoke the agentdesk retirement contract"
 
-# The ownership boundary, from this side: Executor is the only desktop cask,
-# and Grok Build is the only CLI-only cask this repository may install. The
-# generic helper may mention the cask flag, but it must have exactly those two
-# callers, and the unattended sync may never use it.
+# Grok Build is the only CLI-only cask installed by AgentStart.
 if grep -Eq -- '--cask' scripts/sync-skills; then
     fail "the unattended sync tried to install a Homebrew cask"
 fi
-# shellcheck disable=SC2016 # Match the literal generic helper variable.
-if grep -E -- '--cask' scripts/install.sh \
-    | grep -Ev 'executor|grok-build|"\$cask"' >/dev/null; then
+# shellcheck disable=SC2016
+if grep -E -- '--cask' scripts/install.sh | grep -Ev 'grok-build|"\$cask"' >/dev/null; then
     fail "an AgentStart script installs an unowned Homebrew cask"
 fi
-if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 2 ] \
-    || ! grep -Fx 'install_or_upgrade_cask executor' scripts/install.sh >/dev/null \
+if [ "$(grep -Ec '^install_or_upgrade_cask ' scripts/install.sh)" -ne 1 ] \
     || ! grep -Fx 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null; then
-    fail "the installer does not own exactly the Executor and Grok Build casks"
+    fail "the installer does not own exactly the Grok Build cask"
 fi
-executor_cask_line=$(grep -n '^install_or_upgrade_cask executor$' scripts/install.sh | cut -d: -f1)
-executor_service_line=$(grep -n '^install_executor_service$' scripts/install.sh | cut -d: -f1)
-[ -n "$executor_cask_line" ] && [ -n "$executor_service_line" ] \
-    && [ "$executor_service_line" -gt "$executor_cask_line" ] \
-    || fail "Executor's supervised service must converge after its cask"
 if grep -F 'oauth_token' scripts/install.sh >/dev/null; then
     fail "an AgentStart script crossed the boundary: gh migration is the machine's"
 fi

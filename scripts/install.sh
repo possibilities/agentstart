@@ -458,8 +458,6 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Homebrew casks:
-  brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration
-  /Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs
   brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration
 
 Command-line tools:
@@ -512,8 +510,11 @@ Agent guidance:
 
 Fixed private fleet resources:
   install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
-  scripts/executor-integrations --install  # converge declared MCPs through the existing Executor service; preserve independent integrations/auth
-  render Executor and project-local shadcn as managed-session MCP servers; render no LiveKit MCP or skill
+  scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli
+  scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport
+  scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes
+  scripts/remove-executor --install  # retire vendor service, cask, registrations and dedicated state
+  render the individual fleet MCPs, termctrl, agent-browser, gog, and project-local shadcn for managed sessions
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
@@ -589,64 +590,9 @@ install_or_upgrade_cask() {
         || die "Homebrew cask verification failed: $cask"
 }
 
-install_executor_service() {
-    local executor_bin="/Applications/Executor.app/Contents/Resources/executor/executor"
-    local executor_service_plist="$HOME/Library/LaunchAgents/sh.executor.daemon.plist"
-    local installed_path=''
-
-    [ -x "$executor_bin" ] \
-        || die "Executor cask did not install its CLI at $executor_bin"
-
-    # Executor owns this plist and its lifecycle. Its installer normally
-    # no-ops when the current version is already serving, so force a supported
-    # uninstall/install only when an older unit captured a PATH that cannot
-    # resolve the fleet's per-user commands. Never edit the vendor plist.
-    if [ -f "$executor_service_plist" ]; then
-        installed_path=$(
-            /usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PATH' \
-                "$executor_service_plist" 2>/dev/null || true
-        )
-        case ":$installed_path:" in
-            *":$HOME/.local/bin:"*)
-                ;;
-            *)
-                printf 'Reinstalling Executor service whose PATH omits the fleet command directory.\n'
-                "$executor_bin" service uninstall \
-                    || die "Executor service uninstall failed while repairing PATH"
-                ;;
-        esac
-    fi
-
-    printf 'Installing or refreshing Executor as an OS-supervised background service.\n'
-    "$executor_bin" service install \
-        || die "Executor supervised service installation failed"
-
-    installed_path=$(
-        /usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PATH' \
-            "$executor_service_plist" 2>/dev/null || true
-    )
-    case ":$installed_path:" in
-        *":$HOME/.local/bin:"*)
-            ;;
-        *)
-            die "Executor service PATH still omits $HOME/.local/bin after vendor installation"
-            ;;
-    esac
-
-    "$executor_bin" service status \
-        || die "Executor supervised service is not healthy after installation"
-}
-
 export HOMEBREW_NO_ASK=1
 
-# Executor is a shared integration catalog for the fleet. The cask supplies
-# its signed CLI binary, but the desktop sidecar is not the runtime owner:
-# delegate sh.executor.daemon to Executor's own service installer so it starts
-# at login with the fleet PATH and serves without the GUI. Do not register its
-# MCP endpoint with any harness here; that remains an explicit operator choice.
-printf 'Installing or upgrading the Executor distribution.\n'
-install_or_upgrade_cask executor
-install_executor_service
+"$script_dir/install-gog" --install
 
 # Grok Build's official Homebrew cask installs its signed release binary as
 # both `grok` and the vendor's `agent` alias. Keep this phase to the native
@@ -1303,23 +1249,26 @@ fi
 printf 'Removing the retired Pi CLI and exact machine state roots.\n'
 "$script_dir/remove-retired-pi" --install
 
-# Agentdesk retires Peekaboo through its existing checkout contract. It removes
-# the official formula and moves the verified app and its dedicated state to
-# Trash. The Computer Use desktop skill ships through the normal skill scan;
-# this full-install cleanup never runs in the unattended content updater.
+# Agentdesk's installer owns its Computer Use stdio MCP and desktop skill,
+# including retirement of the previous desktop driver. It never starts a call.
 agentdesk_root="$code_root/agentdesk"
 if [ -f "$agentdesk_root/scripts/install.sh" ]; then
     agentdesk_status=0
     "$agentdesk_root/scripts/install.sh" --install || agentdesk_status=$?
     if [ "$agentdesk_status" -ne 0 ]; then
-        printf 'AgentStart installer: Peekaboo retirement failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or %s/scripts/install.sh --install.\n' \
+        printf 'AgentStart installer: Agentdesk installation failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or %s/scripts/install.sh --install.\n' \
             "$agentdesk_status" "$agentdesk_root" >&2
         exit "$agentdesk_status"
     fi
 else
-    printf 'AgentStart installer: no agentdesk checkout at %s; skipping desktop retirement cleanup.\n' \
+    printf 'AgentStart installer: no agentdesk checkout at %s; skipping the Computer Use server.\n' \
         "$agentdesk_root"
 fi
+
+# Publish the shared inventory before the gateway starts. The content updater
+# uses the same renderer without installing, uninstalling or restarting anything.
+converge_repo_content
+"$script_dir/install-mcp-gateway" --install
 
 # The fleet's long-running services. This runs after every CLI above, because
 # a service is only installed once the binary it supervises exists — a tool
@@ -1343,12 +1292,7 @@ printf 'Removing retired Agentweb command artifacts.\n'
 # remains quiet.
 "$script_dir/configure-agentsource-webhooks" --check || true
 
-# Register only the declared fleet integrations after their commands and provider
-# configs exist. This is explicit installation, never content or scheduled sync.
-"$script_dir/executor-integrations" --install
-
-# Everything this repository owns as content — skills, prompts, guidance, the
-# statusline, and the rendered private resources — converges last, on top of the
-# machine the steps above just built. `--content` runs exactly this and nothing
-# else, which is why it lives in one function rather than inline here.
-converge_repo_content
+# Replace only the inspected MCP Funnel route after the new authenticated
+# listener is healthy. Retire the former transport and dedicated state last.
+"$script_dir/install-mcp-gateway" --expose
+"$script_dir/remove-executor" --install

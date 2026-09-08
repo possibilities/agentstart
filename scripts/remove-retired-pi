@@ -1581,7 +1581,7 @@ validate_agentsurface_deployment() {
 validate_agentchats_deployment() {
     local relevant=0 root="$cleanup_code_root/agentchats"
     local source="$cleanup_code_root/agentchats/bin/agentchats"
-    local command="$cleanup_home/.local/bin/agentchats"
+    local command="$cleanup_home/.local/bin/agentchats" guide
     local pending_receipt="$cleanup_home/.local/state/agentchats/pi-retirement-v1.pending.json"
     for path in \
         "$command" "$pending_receipt"; do
@@ -1589,10 +1589,19 @@ validate_agentchats_deployment() {
     done
     [ "$relevant" -eq 1 ] || return 0
 
-    validate_pi_free_checkout "$root" agentchats "$source"
+    validate_pi_free_checkout "$root" agentchats "$source" yes contains-upstream
     validate_exact_deployed_link "$command" "$source" AgentChats
     ! path_exists "$pending_receipt" \
         || die "completed AgentChats retirement receipt remains: $pending_receipt"
+    guide=$(HOME="$cleanup_home" "$command" guide --json) \
+        || die "deployed AgentChats could not report its agent contract"
+    printf '%s\n' "$guide" | jq -e '
+        .ok == true and
+        ([.data.commands[] | .arguments[]? | select(.name == "--agent") | .choices]
+            | length > 0 and all(. == ["claude_code", "codex"])) and
+        ([.. | strings | select(. == "pi" or . == "pi_agent")] | length == 0)
+    ' >/dev/null 2>&1 \
+        || die "deployed AgentChats contract is not exactly Claude Code and Codex"
 }
 
 validate_pi_free_herdr_config() {

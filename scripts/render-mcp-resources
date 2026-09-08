@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Validate the single MCP inventory and expand account-relative commands."""
+
+import json
+import os
+from pathlib import Path
+import re
+import sys
+
+
+def render(source, home):
+    config = json.loads(source.read_text())
+    if not isinstance(config, dict) or set(config) != {"mcpServers"}:
+        raise ValueError("the inventory must contain only mcpServers")
+    servers = config["mcpServers"]
+    if not isinstance(servers, dict) or not servers:
+        raise ValueError("the inventory must declare at least one MCP server")
+    rendered = {}
+    for name, server in sorted(servers.items()):
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name):
+            raise ValueError(f"invalid MCP server name: {name}")
+        if not isinstance(server, dict) or set(server) != {"command", "args"}:
+            raise ValueError(f"{name}: expected only command and args")
+        command, args = server["command"], server["args"]
+        if not isinstance(command, str) or not command or not isinstance(args, list):
+            raise ValueError(f"{name}: invalid command or args")
+        if not all(isinstance(arg, str) for arg in args):
+            raise ValueError(f"{name}: args must be strings")
+        if any("\0" in value for value in [command, *args]):
+            raise ValueError(f"{name}: NUL is not valid in an argument")
+        expanded = [value.replace("${HOME}", str(home)) for value in [command, *args]]
+        if any("${" in value for value in expanded):
+            raise ValueError(f"{name}: unsupported template variable")
+        rendered[name] = {"command": expanded[0], "args": expanded[1:]}
+    return {"mcpServers": rendered}
+
+
+def main():
+    check = len(sys.argv) == 3 and sys.argv[1] == "--check"
+    if not check and len(sys.argv) != 3:
+        raise ValueError("usage: render-mcp-resources [--check] SOURCE [DESTINATION]")
+    source = Path(sys.argv[2] if check else sys.argv[1])
+    config = render(source, Path.home())
+    if not check:
+        destination = Path(sys.argv[2])
+        # The parent resource render owns staging and atomic publication.
+        with destination.open("w", encoding="utf-8") as output:
+            json.dump(config, output, indent=2)
+            output.write("\n")
+        os.chmod(destination, 0o600)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        raise SystemExit(f"AgentStart MCP resources: {error}") from error

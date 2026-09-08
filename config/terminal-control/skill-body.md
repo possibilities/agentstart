@@ -1,20 +1,13 @@
 # Terminal Control
 
 Use Terminal Control for a real terminal application's visible screen, input,
-and readiness. In managed sessions, discover its MCP tools through Executor.
+and readiness. In managed sessions, use the direct `termctrl` MCP server.
 Use the native shell for the CLI operations that the installed MCP omits.
 
 ## Discover and choose a session
 
-In Executor:
-
-```js
-const found = await tools.search({ namespace: "termctrl", limit: 30 });
-return found;
-```
-
-Describe the returned path with `tools.describe.tool({ path })`, then call
-`tools[path](args)`. Use `list_sessions` to find a running session and
+Select a tool from the harness catalog or tool search, inspect its input
+schema, and call it with JSON arguments. Use `list_sessions` to find a running session and
 `get_session_status({ name })` to verify its command, working directory, and
 state before driving it. Pass an absolute `cwd` when filtering: the shared
 server's directory is not the caller's project. Use one exact session name
@@ -36,15 +29,15 @@ for launch flags, human attachment, or operations absent from MCP.
 
 `get_screen({ name })` reads the current visible screen immediately. Treat
 that screen as the evidence for a full-screen TUI; retained logs are not its
-visible state. For a known transition, use the discovered `interact` path:
+visible state. For a known transition, call `interact` with these arguments:
 
-```js
-return await tools[interactPath]({
-  name: sessionName,
-  input: [{ type: "text", text: "help" }, { type: "key", key: "enter" }],
-  waitFor: "Commands",
-  timeoutMs: 5000
-});
+```json
+{
+  "name": "task-shell",
+  "input": [{ "type": "text", "text": "help" }, { "type": "key", "key": "enter" }],
+  "waitFor": "Commands",
+  "timeoutMs": 5000
+}
 ```
 
 `interact` sends ordered input, waits for the requested visible text, and
@@ -58,10 +51,9 @@ Use `resize_session` for more visible area. `send_mouse` takes zero-based
 cells within that viewport; the application must enable mouse reporting.
 Never inject raw mouse escape sequences to work around disabled reporting.
 
-Check Executor's outer `ok`. Successful screens are in
-`data.structuredContent.text`; inspect the returned content for other tool
-results. On failure, preserve the message and `error.details.content` instead
-of treating an empty result as success. After an uncertain input delivery,
+Inspect MCP `isError` and each tool's returned content. Successful screens
+are in `structuredContent.text`; preserve a failure's diagnostic content and
+message. After an uncertain input delivery,
 read the screen before retrying a non-idempotent action.
 
 ## Evidence and cleanup

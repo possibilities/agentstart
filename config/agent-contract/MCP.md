@@ -63,7 +63,7 @@ invisible in most host UIs.
 Each union branch includes the complete generated input object: its properties,
 types, descriptions, defaults, baseline required fields, and unknown-property
 policy. Add the branch's selector to that required set. Some MCP hosts,
-including Executor's TypeScript preview, read union branches independently;
+including schema preview generators, read union branches independently;
 bare `required` fragments lose the root properties and required arguments.
 Generate branches from the input schema rather than authoring those fields
 again. Use input-mode conversion so a default does not become a required input.

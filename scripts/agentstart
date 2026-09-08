@@ -9,7 +9,7 @@ const jsonFlag = { name: "--json", type: "boolean", description: "Emit a structu
 const notifyFlag = { name: "--notify", type: "boolean", description: "Notify on meaningful changes, drift, failures, and recovery." };
 const contract = {
   contract_version: 1,
-  meta: { name: "agentstart", version: "0.1.0", purpose: "Apply authored harness preferences and report local configuration drift without writing tracked preferences.", audience: "operator" },
+  meta: { name: "agentstart", version: "0.1.0", purpose: "Manage authored harness preferences and the fleet HTTP MCP gateway.", audience: "operator" },
   global_arguments: [jsonFlag],
   commands: [
     { name: "guide", summary: "Print the command contract", audience: "operator", mutates: false, arguments: [] },
@@ -20,6 +20,10 @@ const contract = {
       { name: "watch", summary: "Watch sources and native configuration with periodic reconciliation", audience: "operator", mutates: true, blocking: true, arguments: [notifyFlag] },
       { name: "resolve", summary: "Resolve a snapshot for a managed harness invocation", audience: "internal", mutates: true,
         arguments: [{ name: "--harness", type: "string", choices: ["claude", "codex"], required: true, description: "Harness whose preferences to resolve." }] },
+    ] },
+    { name: "mcp", summary: "Serve authenticated MCP toolsets", audience: "operator", subcommands: [
+      { name: "serve", summary: "Run the loopback HTTP gateway from its private configuration", audience: "operator", mutates: true, blocking: true, arguments: [] },
+      { name: "check", summary: "Validate the gateway configuration without starting servers", audience: "operator", mutates: false, arguments: [] },
     ] },
   ],
 };
@@ -57,6 +61,19 @@ try {
   else if (args[0] === "guide" && args.every(arg => ["guide", "--json"].includes(arg))) console.log(JSON.stringify(envelope(contract)));
   else {
     const [group, command, ...options] = args;
+    if (group === "mcp") {
+      if (!["serve", "check"].includes(command) || options.length) throw new Error("expected mcp serve|check");
+      const root = join(import.meta.dir, "..");
+      const child = Bun.spawn([
+        join(root, "gateway/.venv/bin/python"), join(root, "gateway/gateway.py"),
+        join(homedir(), ".config/agentstart/mcp-gateway.json"),
+        ...(command === "check" ? ["--check"] : []),
+      ], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+      const stop = () => child.kill("SIGTERM");
+      process.on("SIGINT", stop); process.on("SIGTERM", stop); process.on("SIGHUP", stop);
+      try { process.exitCode = await child.exited; }
+      finally { process.off("SIGINT", stop); process.off("SIGTERM", stop); process.off("SIGHUP", stop); }
+    } else {
     if (group !== "config") throw new Error("expected config or guide; use --help");
     const spec = contract.commands[1].subcommands!.find(item => item.name === command);
     if (!spec) throw new Error("unknown config command; use --help");
@@ -83,6 +100,7 @@ try {
         printReport(report);
         if (Object.values(report.harnesses).some((entry: any) => entry.status === "invalid")) process.exitCode = 1;
       }
+    }
     }
   }
 } catch (error: any) {

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- agentstart-installer-owned: io.arthack.agentstart.serve-mcp.v1 -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.arthack.agentstart.serve-mcp</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PROGRAM__</string>
+        <string>mcp</string>
+        <string>serve</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__PATH__</string>
+        <key>XDG_STATE_HOME</key>
+        <string>__STATE_ROOT__</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <!-- External clients wait on these MCP responses. -->
+    <key>ProcessType</key>
+    <string>Standard</string>
+    <key>Umask</key>
+    <integer>63</integer>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>__LOG__</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG__</string>
+</dict>
+</plist>

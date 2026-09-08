@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Retire the inspected Executor installation without touching other services."""
+import argparse
+import json
+import os
+from pathlib import Path
+import plistlib
+import shutil
+import signal
+import stat
+import subprocess
+import time
+
+APP = Path('/Applications/Executor.app')
+BINARY = APP/'Contents/Resources/executor/executor'
+LABEL = 'sh.executor.daemon'
+
+
+def owned_path(path, directory=False):
+    if not path.exists() and not path.is_symlink(): return False
+    info = path.lstat()
+    expected = stat.S_ISDIR if directory else stat.S_ISREG
+    if info.st_uid != os.getuid() or not expected(info.st_mode):
+        raise ValueError(f'refusing foreign or linked retired state: {path}')
+    return True
+
+
+def executor_processes():
+    result = subprocess.run(['ps','-axo','pid=,comm='],capture_output=True,text=True,check=True)
+    return [int(parts[0]) for line in result.stdout.splitlines()
+            for parts in [line.strip().split(None,1)] if len(parts) == 2
+            for command in [parts[1]]
+            if command.startswith(str(APP) + '/')]
+
+
+def is_executor(server):
+    if not isinstance(server, dict): return False
+    command = server.get('command','')
+    return (command in ['executor',str(BINARY)]
+            or server.get('url') in ['http://127.0.0.1:4789/mcp','http://localhost:4789/mcp'])
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    group=parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--install',action='store_true')
+    group.add_argument('--check',action='store_true')
+    args=parser.parse_args()
+    home=Path.home()
+    plist=home/'Library/LaunchAgents'/f'{LABEL}.plist'
+    state=home/'.executor'
+    receipt=home/'.local/share/agentstart/executor-integrations.json'
+    copy=home/'agent-tools/executor-bearer-for-mcp.txt'
+    directories=[state,home/'Library/Application Support/Executor',home/'Library/Application Support/@executor-js',home/'Library/Logs/Executor']
+    files=[receipt,copy,home/'Library/Preferences/sh.executor.desktop.plist']
+    for path in directories: owned_path(path,True)
+    for path in files: owned_path(path)
+    if owned_path(plist):
+        job=plistlib.loads(plist.read_bytes())
+        env=job.get('EnvironmentVariables',{})
+        if (job.get('Label') != LABEL or job.get('ProgramArguments') != [str(BINARY),'daemon','run','--foreground','--port','4789','--hostname','127.0.0.1']
+                or env.get('EXECUTOR_DATA_DIR') != str(state) or env.get('EXECUTOR_SCOPE_DIR') != str(state)):
+            raise ValueError('refusing an unrecognized Executor service definition')
+    elif subprocess.run(['launchctl','print',f'gui/{os.getuid()}/{LABEL}'],capture_output=True).returncode == 0:
+        raise ValueError('refusing a loaded service without its inspected vendor plist')
+    if APP.exists():
+        if APP.is_symlink() or plistlib.loads((APP/'Contents/Info.plist').read_bytes()).get('CFBundleIdentifier') != 'sh.executor.desktop':
+            raise ValueError('refusing an unrecognized application at Executor.app')
+    if receipt.exists() and json.loads(receipt.read_text()).get('owner') != 'agentstart-executor-integrations-v1':
+        raise ValueError('refusing an unowned integration receipt')
+    if copy.exists():
+        auth=state/'server-control/auth.json'
+        if not auth.is_file() or copy.read_text().strip() != json.loads(auth.read_text()).get('token'):
+            raise ValueError('refusing an unverified external-token copy')
+    brew=shutil.which('brew')
+    if not brew: raise ValueError('Homebrew is required to retire its cask')
+    info=subprocess.run([brew,'info','--json=v2','--cask','executor'],capture_output=True,text=True,check=True)
+    casks=json.loads(info.stdout).get('casks',[])
+    if len(casks)!=1 or casks[0].get('token')!='executor' or casks[0].get('tap')!='homebrew/cask':
+        raise ValueError('refusing an unrecognized Executor package')
+    registrations=[]
+    codex_config=home/'.codex/config.toml'
+    if codex_config.is_file():
+        result=subprocess.run(['codex','mcp','list','--json'],capture_output=True,text=True,check=True)
+        for server in json.loads(result.stdout):
+            if is_executor(server.get('transport')):
+                registrations.append(['codex','mcp','remove',server['name']])
+    claude_config=home/'.claude.json'
+    if claude_config.is_file():
+        data=json.loads(claude_config.read_text())
+        for name,server in data.get('mcpServers',{}).items():
+            if is_executor(server): registrations.append(['claude','mcp','remove','--scope','user',name])
+    if args.check:
+        print('Retire Executor vendor service, owned cask, MCP registrations, dedicated data/auth and verified token copy; preserve unrelated credentials and routes.')
+        return
+    for command in registrations: subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
+    if plist.exists():
+        if BINARY.is_file():
+            subprocess.run([str(BINARY),'service','uninstall'],check=True,stdout=subprocess.DEVNULL)
+        else:
+            result=subprocess.run(['launchctl','bootout',f'gui/{os.getuid()}/{LABEL}'],capture_output=True)
+            if result.returncode and subprocess.run(['launchctl','print',f'gui/{os.getuid()}/{LABEL}'],capture_output=True).returncode == 0:
+                raise ValueError('could not stop the retired vendor service')
+            plist.unlink()
+    # Existing harnesses can retain an old stdio bridge. Stop only executables
+    # inside the verified app bundle; never kill their harness or an active call.
+    for pid in executor_processes():
+        try: os.kill(pid,signal.SIGTERM)
+        except ProcessLookupError: pass
+    deadline=time.monotonic()+10
+    while executor_processes() and time.monotonic()<deadline: time.sleep(0.1)
+    if executor_processes(): raise ValueError('Executor processes did not stop; dedicated state was preserved')
+    if casks[0].get('installed'):
+        subprocess.run([brew,'uninstall','--cask','executor'],check=True)
+    if APP.exists(): raise ValueError('Executor.app remains after package retirement')
+    for path in files:
+        if path.exists(): path.unlink()
+    for path in directories:
+        if path.exists(): shutil.rmtree(path)
+    if plist.exists() or executor_processes(): raise ValueError('Executor runtime still exists')
+    print('Removed Executor service, application, dedicated configuration/data/auth, registry receipt and verified external-token copy.')
+
+
+if __name__=='__main__':
+    try: main()
+    except (OSError,ValueError,subprocess.CalledProcessError) as error:
+        raise SystemExit(f'AgentStart Executor retirement: {error}') from error

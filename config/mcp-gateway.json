@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "port": 4790,
+  "session_idle_seconds": 1800,
+  "toolsets": {
+    "fleet": {
+      "tools": {
+        "agent_browser": [
+          "*"
+        ],
+        "agentattention": [
+          "*"
+        ],
+        "agentboard": [
+          "*"
+        ],
+        "agentbrain": [
+          "*"
+        ],
+        "agentbrowse": [
+          "*"
+        ],
+        "agentchats": [
+          "*"
+        ],
+        "agentdesk": [
+          "*"
+        ],
+        "agentgrok": [
+          "*"
+        ],
+        "agentkeys": [
+          "*"
+        ],
+        "agentscrape": [
+          "*"
+        ],
+        "agentsearch": [
+          "*"
+        ],
+        "agentsounds": [
+          "*"
+        ],
+        "agentsurface": [
+          "*"
+        ],
+        "agentwiki": [
+          "*"
+        ],
+        "gog_mikebannister": [
+          "*"
+        ],
+        "gog_notimpossiblemike": [
+          "*"
+        ],
+        "termctrl": [
+          "*"
+        ]
+      }
+    }
+  }
+}
