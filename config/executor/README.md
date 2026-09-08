@@ -124,6 +124,16 @@ final pruning. `resume` returns a command for human handoff; the operator picker
 and terminal scripts keep their existing behavior. AgentStart already invokes
 the checkout's command and index-preparation installer before MCP convergence.
 
+Surface exposes `agents`, `message`, and `guide`. Every bus call supplies the
+caller's exact absolute `socket-path` and `caller-pane`; `caller-session` can
+guard its expected native session. The server derives workspace and sender
+names from fresh Herdr state and refuses mismatched identity. Never register a
+global pane or socket as the default caller. Native harness tools still handle
+subagent communication. Messages retain task authorization and delivery-state
+semantics; cancellation stops waiting and reaps active Herdr children, but an
+in-flight prompt may require reconciliation before retry. Operator and internal
+Surface workflows keep their existing CLI routes.
+
 Codex computer use is available, but replacing Peekaboo also requires usable
 normal-window capture and input validation. The installed adapter returns
 screenshot file URLs inside text JSON, so agents must load them with the native

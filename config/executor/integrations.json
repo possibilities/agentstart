@@ -101,6 +101,17 @@
       ]
     },
     {
+      "slug": "agentsurface",
+      "name": "Agent Surface",
+      "description": "Discover and message independent agents on an explicitly selected local Herdr surface.",
+      "repo": "agentsurface",
+      "transport": "stdio",
+      "command": "agentsurface",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
       "slug": "agentwiki",
       "name": "Agent Wiki",
       "description": "Read, author, link, and publish the durable Markdown library.",
