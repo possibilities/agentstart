@@ -54,14 +54,27 @@ Express them in the schema where JSON Schema can, and in the description always
 — a caller that cannot see the rule will break it, and a schema-only rule is
 invisible in most host UIs.
 
-- `one_of` with `required: true` → `oneOf` of single-property `required` shapes
+- `one_of` with `required: true` → `oneOf`, one branch requiring each selector
 - `one_of` without → at most one; describe it
-- `at_least_one` → `anyOf` of single-property `required` shapes
+- `at_least_one` → `anyOf`, one branch requiring each selector
 - `requires` → `dependentRequired`
 - `conflicts` → describe it; `not`/`allOf` is legal but unreadable in practice
 
-A relation conditioned on another argument's **value** has no representation.
-It goes in the description, in full.
+Each union branch includes the complete generated input object: its properties,
+types, descriptions, defaults, baseline required fields, and unknown-property
+policy. Add the branch's selector to that required set. Some MCP hosts,
+including Executor's TypeScript preview, read union branches independently;
+bare `required` fragments lose the root properties and required arguments.
+Generate branches from the input schema rather than authoring those fields
+again. Use input-mode conversion so a default does not become a required input.
+
+A boolean selector represents a CLI flag being true: its branch requires the
+property with `const: true`. Passing false must not select that branch. Keep
+default values descriptive when materializing them would change explicit-flag
+conflicts; apply those defaults in the shared handler.
+
+More complex relations conditioned on another argument's value, such as an
+anchor required only for `--to after`, go in the description in full.
 
 ## Annotations
 
