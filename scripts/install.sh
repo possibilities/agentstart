@@ -494,7 +494,7 @@ Command-line tools:
   remove AgentStart's retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant
 
 Agent documentation:
-  remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources
+  remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through managed fleet resources
   native skills list
 
 Agent guidance:
@@ -514,7 +514,7 @@ Fixed private fleet resources:
   scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport
   scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes
   scripts/remove-executor --install  # retire vendor service, cask, registrations and dedicated state
-  render the individual fleet MCPs, termctrl, agent-browser, gog, and project-local shadcn for managed sessions
+  render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices

@@ -55,6 +55,9 @@ class InstallTest(unittest.TestCase):
         result = json.loads(self.resources.read_text())['mcpServers']
         self.assertEqual(len(result), 18)
         self.assertEqual(result['agentdesk']['command'], str(self.home/'.local/bin/agentdesk'))
+        self.assertEqual(result['shadcn'], {
+            'command': str(self.home/'.local/bin/agentstart'), 'args': ['mcp', 'shadcn'],
+        })
         self.assertEqual(result['gog_notimpossiblemike']['args'][1], 'notimpossiblemike@gmail.com')
         bad = self.home/'bad.json'
         save(bad, {'mcpServers':{'test':{'command':'${SECRET}', 'args':[]}}})
@@ -65,9 +68,11 @@ class InstallTest(unittest.TestCase):
         self.prepare()
         base = self.home/'.config/agentstart'
         gateway = json.loads((base/'mcp-gateway.json').read_text())
+        inventory = set(json.loads(self.resources.read_text())['mcpServers'])
+        self.assertEqual(set(gateway['toolsets']['fleet']['tools']), inventory)
         self.assertEqual(set(gateway['toolsets']['grok']['tools']), {
             'agentboard', 'agentbrain', 'agentchats', 'agentsearch', 'agentwiki',
-            'gog_mikebannister', 'gog_notimpossiblemike', 'termctrl',
+            'gog_mikebannister', 'gog_notimpossiblemike', 'shadcn', 'termctrl',
         })
         client = base/'mcp-clients/fleet.json'
         first = json.loads(client.read_text())

@@ -105,13 +105,10 @@
       ]
     },
     "shadcn": {
-      "command": "npx",
+      "command": "${HOME}/.local/bin/agentstart",
       "args": [
-        "--prefix",
-        "/",
-        "--yes",
-        "shadcn@latest",
-        "mcp"
+        "mcp",
+        "shadcn"
       ]
     },
     "termctrl": {

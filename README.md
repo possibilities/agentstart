@@ -71,8 +71,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
   - individual fleet MCPs, Agentdesk, termctrl, agent-browser, account-bound Gog,
-    and project-local shadcn through one shared resource inventory, plus removal
-    of retired ambient MCP registrations;
+    and the fleet-owned shadcn registry through one shared resource inventory,
+    plus removal of retired ambient MCP registrations;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
@@ -229,8 +229,10 @@ its `skills` and `mcp.json` link to the already synchronized portable skills
 and MCP resources. The role therefore keeps AgentVoice's default instructions
 and native delegation while supplying the same fleet workflows. Its skills
 use their bare names (`$board`, for example); the source invocation policy
-still controls implicit use. Each MCP is configured directly for the thread;
-shadcn receives that conversation's workspace.
+still controls implicit use. Each MCP is configured directly for the thread.
+Shadcn runs from the fixed fleet registry directory, independent of the
+conversation workspace, and is also available through authenticated HTTP
+toolsets.
 
 Publish these role resources before selecting their path in the operator's
 server config. The native role mechanism registers skill roots only with the

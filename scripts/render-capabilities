@@ -13,7 +13,7 @@ case "$1" in
   render the fixed private fleet resource set under ~/.local/share/agentstart/resources
   narrow vendor provider-origin guidance to retained Claude/Codex values
   derive and audit Codex invocation policy from portable skill frontmatter
-  render one session-only Claude plugin named agent (/agent:<skill>) with the individual fleet MCPs, gog, and project-local shadcn
+  render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   render a standard AgentVoice role from its default prompts and the fixed fleet resources
   persistently disable every agent:<skill> outside managed Codex sessions
@@ -42,9 +42,8 @@ mcp_servers="$resources_root/mcp-servers.json"
 [ -d "$skills_root" ] || die "no synchronized skills at $skills_root"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 [ -x "$invocation_policy_renderer" ] || die "skill invocation policy renderer is unavailable"
-# Resolve the MCP package outside the project so npm never validates its
-# dependency overrides. npm exec preserves cwd; shadcn still sees the project.
-# --yes keeps a cold-cache launch unattended.
+# Resolve the MCP package outside a project so npm never validates project
+# dependency overrides. The fleet command gives shadcn a fixed registry config.
 "$script_dir/render-mcp-resources" --check "$template_root/mcp-servers.json"
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
@@ -93,6 +92,8 @@ mv "$next_managed_names" "$managed_names"
 
 render_root=$(mktemp -d "$resources_root/.render.XXXXXX")
 trap 'rm -rf -- "$render_root"' EXIT
+mkdir -p "$render_root/shadcn"
+cp "$template_root/shadcn/components.json" "$template_root/shadcn/package.json" "$render_root/shadcn/"
 next_claude="$render_root/claude/agent"
 mkdir -p "$next_claude/.claude-plugin"
 cp "$template_root/claude-plugin.json" "$next_claude/.claude-plugin/plugin.json"
@@ -126,11 +127,12 @@ for skill_dir in "$next_codex/skills"/*/; do
     mv -f -- "$manifest.next" "$manifest"
 done
 
-rm -rf -- "$claude_plugin_root" "$marketplace_root"
+rm -rf -- "$claude_plugin_root" "$marketplace_root" "$resources_root/shadcn"
 mkdir -p "$(dirname "$claude_plugin_root")" "$(dirname "$marketplace_root")"
 mv "$next_claude" "$claude_plugin_root"
 mv "$next_marketplace" "$marketplace_root"
 mv "$render_root/mcp-servers.json" "$mcp_servers"
+mv "$render_root/shadcn" "$resources_root/shadcn"
 
 "$script_dir/render-agentvoice-role" "$resources_root" \
     "${AGENTSTART_AGENTVOICE_ROLE_SOURCE:-$HOME/code/agentvoice/roles/default}"

@@ -53,6 +53,9 @@
         "gog_notimpossiblemike": [
           "*"
         ],
+        "shadcn": [
+          "*"
+        ],
         "termctrl": [
           "*"
         ]
@@ -79,6 +82,9 @@
           "*"
         ],
         "gog_notimpossiblemike": [
+          "*"
+        ],
+        "shadcn": [
           "*"
         ],
         "termctrl": [

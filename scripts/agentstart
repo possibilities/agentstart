@@ -21,9 +21,10 @@ const contract = {
       { name: "resolve", summary: "Resolve a snapshot for a managed harness invocation", audience: "internal", mutates: true,
         arguments: [{ name: "--harness", type: "string", choices: ["claude", "codex"], required: true, description: "Harness whose preferences to resolve." }] },
     ] },
-    { name: "mcp", summary: "Serve authenticated MCP toolsets", audience: "operator", subcommands: [
+    { name: "mcp", summary: "Run fleet MCP services and authenticated toolsets", audience: "operator", subcommands: [
       { name: "serve", summary: "Run the loopback HTTP gateway from its private configuration", audience: "operator", mutates: true, blocking: true, arguments: [] },
       { name: "check", summary: "Validate the gateway configuration without starting servers", audience: "operator", mutates: false, arguments: [] },
+      { name: "shadcn", summary: "Run the fleet shadcn registry MCP server", audience: "internal", mutates: false, blocking: true, arguments: [] },
     ] },
   ],
 };
@@ -55,6 +56,13 @@ function printReport(report: any) {
     }
   }
 }
+async function runChild(command: string[], cwd?: string) {
+  const child = Bun.spawn(command, { cwd, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+  const stop = () => child.kill("SIGTERM");
+  process.on("SIGINT", stop); process.on("SIGTERM", stop); process.on("SIGHUP", stop);
+  try { return await child.exited; }
+  finally { process.off("SIGINT", stop); process.off("SIGTERM", stop); process.off("SIGHUP", stop); }
+}
 try {
   if (args.includes("--help") || args.includes("--agent-help") || !args.length) help();
   else if (args.includes("--agent-teaser")) console.log(contract.meta.purpose);
@@ -62,17 +70,23 @@ try {
   else {
     const [group, command, ...options] = args;
     if (group === "mcp") {
-      if (!["serve", "check"].includes(command) || options.length) throw new Error("expected mcp serve|check");
+      if (!["serve", "check", "shadcn"].includes(command) || options.length) throw new Error("expected mcp serve|check|shadcn");
       const root = join(import.meta.dir, "..");
-      const child = Bun.spawn([
-        join(root, "gateway/.venv/bin/python"), join(root, "gateway/gateway.py"),
-        join(homedir(), ".config/agentstart/mcp-gateway.json"),
-        ...(command === "check" ? ["--check"] : []),
-      ], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
-      const stop = () => child.kill("SIGTERM");
-      process.on("SIGINT", stop); process.on("SIGTERM", stop); process.on("SIGHUP", stop);
-      try { process.exitCode = await child.exited; }
-      finally { process.off("SIGINT", stop); process.off("SIGTERM", stop); process.off("SIGHUP", stop); }
+      if (command === "shadcn") {
+        const resources = process.env.AGENTSTART_RESOURCES_ROOT || join(homedir(), ".local/share/agentstart/resources");
+        const registry = join(resources, "shadcn");
+        if (!(await Bun.file(join(registry, "components.json")).exists()) ||
+            !(await Bun.file(join(registry, "package.json")).exists())) {
+          throw new Error(`fleet shadcn resources are missing at ${registry}; run ~/code/agentstart/scripts/sync-skills`);
+        }
+        process.exitCode = await runChild(["npx", "--prefix", "/", "--yes", "shadcn@latest", "mcp"], registry);
+      } else {
+        process.exitCode = await runChild([
+          join(root, "gateway/.venv/bin/python"), join(root, "gateway/gateway.py"),
+          join(homedir(), ".config/agentstart/mcp-gateway.json"),
+          ...(command === "check" ? ["--check"] : []),
+        ]);
+      }
     } else {
     if (group !== "config") throw new Error("expected config or guide; use --help");
     const spec = contract.commands[1].subcommands!.find(item => item.name === command);

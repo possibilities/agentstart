@@ -211,7 +211,13 @@ for name in fleet:
 assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser","args":["mcp","--tools","all"]}
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
-assert servers["shadcn"] == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
+assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
+components=json.loads(Path("config/resources/shadcn/components.json").read_text())
+assert components["$schema"] == "https://ui.shadcn.com/schema.json"
+assert components["registries"] == {}
+assert json.loads(Path("config/resources/shadcn/package.json").read_text()) == {
+    "name":"agentstart-shadcn-registry", "private":True,
+}
 PYTHON
 /usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
     config/resources/codex-plugin.json >/dev/null \
@@ -2567,6 +2573,10 @@ grep -F 'retained fleet harnesses (`claude-code`, `codex`)' \
     || fail "skill sync did not render the Claude fleet plugin"
 [ -f "$fixture_resources_root/mcp-servers.json" ] \
     || fail "skill sync did not render the canonical managed MCP resource"
+cmp -s config/resources/shadcn/components.json "$fixture_resources_root/shadcn/components.json" \
+    || fail "skill sync did not render the fleet shadcn registry config"
+cmp -s config/resources/shadcn/package.json "$fixture_resources_root/shadcn/package.json" \
+    || fail "skill sync did not render the fleet shadcn package boundary"
 HOME="$code_skills_home" scripts/render-mcp-resources config/resources/mcp-servers.json "$skip_test_dir/expected-mcp.json"
 cmp -s "$skip_test_dir/expected-mcp.json" "$fixture_resources_root/mcp-servers.json" \
     || fail "canonical managed MCP resources drifted during rendering"
@@ -2780,7 +2790,7 @@ for required_install in \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
     'remove AgentStart'"'"'s retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant' \
-    'remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through AgentLaunch fleet resources' \
+    'remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through managed fleet resources' \
     'native skills list' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
@@ -2791,7 +2801,7 @@ for required_install in \
     'scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport' \
     'scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes' \
     'scripts/remove-executor --install  # retire vendor service, cask, registrations and dedicated state' \
-    'render the individual fleet MCPs, termctrl, agent-browser, gog, and project-local shadcn for managed sessions' \
+    'render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
@@ -2807,7 +2817,7 @@ for required_install in \
     'install herdr with --copy into the fixed resources' \
     'remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant' \
     'narrow vendor provider-origin guidance to retained Claude/Codex values' \
-    'render one session-only Claude plugin named agent (/agent:<skill>)' \
+    'render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory' \
     'render and refresh the skills-only Codex plugin agent@agentstart-managed' \
     'persistently disable every agent:<skill> outside managed Codex sessions' \
     'leave retired-path and ambient-link cleanup to the explicit full installer' \
