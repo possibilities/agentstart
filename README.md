@@ -189,7 +189,9 @@ session: Claude Code exposes `/agent:<name>` and Codex `$agent:<name>`. The
 globally installed Codex plugin is skills-only and every name is
 persistently disabled until AgentLaunch enables it in a session;
 Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
-skills. Participant source manifests remain portable and bare; only the Codex
+skills unless another explicitly selected role supplies them. AgentVoice can
+load the same common pack through a standard role on its own Codex child.
+Participant source manifests remain portable and bare; only the Codex
 plugin copy qualifies default prompts. Only a tool with its own CLI installer joins the
 explicit loop in
 `scripts/install-agent-clis`. Its skill name and description provide discovery;
@@ -211,7 +213,26 @@ Full installation runs it before the fleet CLI installers. The tracked settings
 request full access, debug logs, gpt-6-astra at low effort and the default AgentVoice
 role. Missing or empty local placeholders can be linked; nonempty independent
 configuration and unrelated links are preserved with an error. AgentVoice loads
-settings once per runtime generation; restart its service after changing server defaults.
+settings once per runtime generation. Installation does not restart an active
+call or service; new settings apply when AgentVoice next loads its runtime.
+
+The fixed-resource renderer prepares
+`~/.local/share/agentstart/resources/agentvoice/default` as a standard role.
+Its prompt files link to the app-owned `~/code/agentvoice/roles/default`, and
+its `skills` and `mcp.json` link to the already synchronized portable skills
+and MCP resources. The role therefore keeps AgentVoice's default instructions
+and native delegation while supplying the same fleet workflows. Its skills
+use their bare names (`$board`, for example); the source invocation policy
+still controls implicit use. Executor is per-thread, and shadcn remains
+directly configured for that conversation's workspace.
+
+Publish these role resources before selecting their path in the operator's
+server config. The native role mechanism registers skill roots only with the
+owned child and adds MCP config to its thread; this does not enable a global
+plugin or rewrite prompt files. The renderer preserves independent roles and
+refuses modified generated files or app-owned skill/MCP definitions that
+would require an explicit composition decision. The public role format stays
+the AgentRoles/AgentVoice contract, with no extra runtime layer.
 
 ### Account integration credits
 

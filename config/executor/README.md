@@ -12,6 +12,14 @@ demand. Native workflow skills remain in the harness. Shadcn remains a direct
 session MCP because its operations depend on the project's working directory;
 a shared daemon must not silently substitute its own cwd.
 
+AgentVoice receives the same MCP resource definition through a generated
+standard role, alongside the common portable skills and its unchanged
+app-owned default prompt. Its native loader registers skills only on the
+Codex child it owns and applies MCP configuration per thread. This retains
+native tools, delegation, and app-consent handling; no global skill enablement
+or additional role execution service is involved. Resource rendering does not
+restart an active call.
+
 ## Convergence and ownership
 
 - `scripts/executor-integrations --check` prints the source plan offline.

@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Publish a standard role from already synchronized fleet resources."""
+
+import json
+import os
+import pathlib
+import shutil
+import stat
+import sys
+import tempfile
+
+
+OWNER = "agentstart-agentvoice-role-v1"
+MARKER = ".agentstart-role.json"
+PROMPTS = (
+    "SYSTEM_PROMPT.md", "APPEND_SYSTEM_PROMPT.md",
+    "VOICE_AGENT_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
+    "VOICE_ORCHESTRATOR_SYSTEM_PROMPT.md", "VOICE_ORCHESTRATOR_APPEND_SYSTEM_PROMPT.md",
+    "VOICE_ORCHESTRATOR_SESSION_START.md", "VOICE_ORCHESTRATOR_SESSION_END.md",
+)
+
+
+def inspect_owned(role):
+    if not role.exists() and not role.is_symlink():
+        return None
+    info = role.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o022:
+        raise ValueError(f"refusing redirected or foreign role: {role}")
+    marker = role / MARKER
+    if marker.is_symlink() or not marker.is_file():
+        raise ValueError(f"refusing an independent role without ownership: {role}")
+    marker_info = marker.stat()
+    if marker_info.st_uid != os.getuid() or marker_info.st_nlink != 1 or marker_info.st_mode & 0o022:
+        raise ValueError(f"unsafe role ownership record: {marker}")
+    receipt = json.loads(marker.read_text())
+    if not isinstance(receipt, dict) or receipt.get("owner") != OWNER:
+        raise ValueError(f"unrecognized role ownership: {role}")
+    links = receipt.get("links")
+    if not isinstance(links, dict) or any(
+        name not in (*PROMPTS, "skills", "mcp.json") or not isinstance(target, str)
+        for name, target in links.items()
+    ):
+        raise ValueError(f"invalid role ownership links: {role}")
+    if {entry.name for entry in role.iterdir()} != {MARKER, *links}:
+        raise ValueError(f"role has independent files: {role}")
+    for name, target in links.items():
+        path = role / name
+        if not path.is_symlink() or os.readlink(path) != target:
+            raise ValueError(f"role link changed independently: {path}")
+    identity = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns)
+    return (identity, marker.read_bytes(), links)
+
+
+def render(resources, source):
+    if source.is_symlink():
+        raise ValueError(f"the default role source must be a directory: {source}")
+    if not source.exists():
+        print(f"Skipping AgentVoice role: optional source is absent at {source}.")
+        return
+    if not source.is_dir():
+        raise ValueError(f"the default role source is not a directory: {source}")
+    # The app owns its role prompt. Do not silently replace future app-owned
+    # skills or MCP definitions while composing the managed fleet role.
+    for name in ("skills", "mcp.json"):
+        if (source / name).exists() or (source / name).is_symlink():
+            raise ValueError(f"default role already declares {name}; resolve resource composition explicitly")
+    if not (resources / "skills").is_dir() or not (resources / "mcp-servers.json").is_file():
+        raise ValueError("synchronized skills and MCP resources must exist before the role")
+    links = {"skills": "../../skills", "mcp.json": "../../mcp-servers.json"}
+    for name in PROMPTS:
+        path = source / name
+        if not path.exists() and not path.is_symlink():
+            continue
+        if not path.is_file():
+            raise ValueError(f"unreadable default role prompt: {path}")
+        path.read_bytes()
+        links[name] = str(path)
+    if not any(name in links for name in PROMPTS):
+        raise ValueError("default role source contains no prompt")
+    if "SYSTEM_PROMPT.md" in links and "APPEND_SYSTEM_PROMPT.md" in links:
+        raise ValueError("default role cannot have both general prompt forms")
+    if "VOICE_AGENT_SYSTEM_PROMPT.md" in links and "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md" in links:
+        raise ValueError("default role cannot have both voice prompt forms")
+    base = "VOICE_ORCHESTRATOR_SYSTEM_PROMPT.md" if "VOICE_ORCHESTRATOR_SYSTEM_PROMPT.md" in links else "SYSTEM_PROMPT.md"
+    append = "VOICE_ORCHESTRATOR_APPEND_SYSTEM_PROMPT.md" if "VOICE_ORCHESTRATOR_APPEND_SYSTEM_PROMPT.md" in links else "APPEND_SYSTEM_PROMPT.md"
+    if base in links and append in links:
+        raise ValueError("default role has conflicting effective orchestrator prompts")
+    parent = resources / "agentvoice"
+    if parent.is_symlink():
+        raise ValueError(f"refusing redirected role parent: {parent}")
+    parent.mkdir(exist_ok=True)
+    role = parent / "default"
+    before = inspect_owned(role)
+    receipt = (json.dumps({"owner": OWNER, "links": links}, indent=2) + "\n").encode()
+    if before is not None and before[1] == receipt:
+        return
+    # Keep internal links relative so the complete resource tree remains
+    # relocatable. The prompt is linked to its one app-owned authored source.
+    stage = pathlib.Path(tempfile.mkdtemp(prefix=".default.", dir=parent))
+    backup = stage.with_name(stage.name + ".previous")
+    try:
+        for name, target in links.items():
+            (stage / name).symlink_to(target)
+        (stage / MARKER).write_bytes(receipt)
+        (stage / MARKER).chmod(0o444)
+        if inspect_owned(role) != before:
+            raise ValueError("role changed during rendering")
+        if before is not None:
+            role.rename(backup)
+        try:
+            stage.rename(role)
+        except OSError:
+            if backup.exists():
+                backup.rename(role)
+            raise
+        if backup.exists():
+            shutil.rmtree(backup)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
+    print(f"Rendered AgentVoice role at {role}; app-owned prompts remain linked.")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: render-agentvoice-role RESOURCES_ROOT DEFAULT_ROLE_SOURCE")
+    try:
+        resources, source = map(pathlib.Path, sys.argv[1:])
+        if not resources.is_absolute() or not source.is_absolute():
+            raise ValueError("resource and role source paths must be absolute")
+        render(resources, source)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"AgentStart AgentVoice role: {error}") from error

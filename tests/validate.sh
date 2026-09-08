@@ -99,6 +99,7 @@ done
 /usr/bin/python3 -c \
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/render-agentvoice-role.py
 
 [ -s config/agentbrowse/config.json ] \
     || fail "default agentbrowse config is missing or empty"

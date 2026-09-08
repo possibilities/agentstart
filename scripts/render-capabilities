@@ -15,6 +15,7 @@ case "$1" in
   derive and audit Codex invocation policy from portable skill frontmatter
   render one session-only Claude plugin named agent (/agent:<skill>) with Executor and the project-local shadcn MCP server
   render and refresh the skills-only Codex plugin agent@agentstart-managed
+  render a standard AgentVoice role from its default prompts and the fixed fleet resources
   persistently disable every agent:<skill> outside managed Codex sessions
   leave retired-path and ambient-link cleanup to the explicit full installer
 EOF
@@ -136,6 +137,9 @@ mkdir -p "$(dirname "$claude_plugin_root")" "$(dirname "$marketplace_root")"
 mv "$next_claude" "$claude_plugin_root"
 mv "$next_marketplace" "$marketplace_root"
 mv "$render_root/mcp-servers.json" "$mcp_servers"
+
+"$script_dir/render-agentvoice-role" "$resources_root" \
+    "${AGENTSTART_AGENTVOICE_ROLE_SOURCE:-$HOME/code/agentvoice/roles/default}"
 
 # Disable names before registering refreshed plugin content: a newly added
 # skill must never be ambiently visible for even one successful convergence.

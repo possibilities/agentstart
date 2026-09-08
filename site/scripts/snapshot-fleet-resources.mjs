@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, readdir, readlink, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -213,7 +213,13 @@ const absoluteFiles = await walk(resourcesRoot);
 const inventory = await Promise.all(
   absoluteFiles.map(async (absolutePath) => {
     const path = relative(resourcesRoot, absolutePath).split("\\").join("/");
-    const content = await readFile(absolutePath);
+    const link = (await lstat(absolutePath)).isSymbolicLink() ? await readlink(absolutePath) : null;
+    // Role skill roots alias the common pack. Fingerprint the link without
+    // recursively traversing a second copy (or following a directory cycle).
+    // Linked prompt/MCP files also include their bytes so source edits count.
+    const directoryLink = link !== null && (await stat(absolutePath)).isDirectory();
+    const bytes = directoryLink ? Buffer.alloc(0) : await readFile(absolutePath);
+    const content = link === null ? bytes : Buffer.concat([Buffer.from(`symlink\0${link}\0`), bytes]);
     return { absolutePath, path, hash: sha256(content) };
   }),
 );
