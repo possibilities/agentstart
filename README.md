@@ -218,6 +218,7 @@ call or service; new settings apply when AgentVoice next loads its runtime.
 
 The fixed-resource renderer prepares
 `~/.local/share/agentstart/resources/agentvoice/default` as a standard role.
+The tracked server configuration selects this prepared role.
 Its prompt files link to the app-owned `~/code/agentvoice/roles/default`, and
 its `skills` and `mcp.json` link to the already synchronized portable skills
 and MCP resources. The role therefore keeps AgentVoice's default instructions
