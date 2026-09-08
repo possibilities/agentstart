@@ -120,7 +120,7 @@ flowchart LR
     start ==>|npm pin| browser[agent-browser]
     start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
-    start ==>|default: editable command + native audio; explicit optional install-agentvoice-android: browser/Termux proof on named ADB host| voiceInstall[agentvoice]
+    start ==>|default: editable command + client native audio; explicit optional install-agentvoice-android: browser/Termux proof on named SSH host| voiceInstall[agentvoice]
     skills ==>|fixed session skills + individual MCP definitions| launch
     launch ==>|synthetic agent plugin with skills + configured MCPs| claude
     launch ==>|native launch/resume + AgentUsage lease + qualified skill and configured MCP enables| codex
@@ -334,6 +334,15 @@ remains intact, with no Responses provider injection into its Realtime path.
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
 
 ## Checked and absent
+
+AgentVoice frontend API v2 moves native audio/WebRTC into `agentvoice client`;
+the browser uses the same server signaling contract. `--device` and
+`--output-device` belong to the client/composition, not the server. AgentRoles'
+server launch flags and the AgentStart installer contract are unchanged.
+Evidence: `agentvoice/src/frontend/protocol.ts`, `frontend/native-media.ts`,
+`frontend/client-runtime.ts`, `docs/client-api.md`, ADR 0033. The signed runtime
+is reused by the native client for macOS microphone permission identity;
+the server never loads the audio library.
 
 Edges that were looked for and do not exist — recorded so the next audit
 does not re-suspect them:
