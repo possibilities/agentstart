@@ -108,6 +108,13 @@ paged events when the aggregator does not forward logging notifications.
 The `attention` skill carries payload, exact-browser-target, and outcome rules;
 ordinary in-session clarification can still use native harness questions.
 
+Sounds exposes `notify` and `guide` through the CLI's shared typed handlers.
+Playback is audible by default; use `no-play:true` for silent preparation.
+Keep `data.patch` as a recipe using native file tools, and use absolute recipe
+and WAV paths. Cancellation and stdio shutdown stop active playback without
+removing recipes or exports. Its checkout owns command installation; the
+fleet installer invokes that contract and preserves existing Bun links.
+
 Codex computer use is available, but replacing Peekaboo also requires usable
 normal-window capture and input validation. The installed adapter returns
 screenshot file URLs inside text JSON, so agents must load them with the native

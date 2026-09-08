@@ -64,7 +64,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain grok-swap agentusage agentlaunch agentsurface agentgrok agentvoice agentroles agentmux agentwork; do
+    agentbrain grok-swap agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

@@ -79,6 +79,17 @@
       ]
     },
     {
+      "slug": "agentsounds",
+      "name": "Agent Sounds",
+      "description": "Generate, play, export, and replay procedural UI sounds.",
+      "repo": "agentsounds",
+      "transport": "stdio",
+      "command": "agentsounds",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
       "slug": "agentwiki",
       "name": "Agent Wiki",
       "description": "Read, author, link, and publish the durable Markdown library.",
