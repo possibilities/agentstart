@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""Converge only AgentStart's declared, credential-free Executor registrations."""
+
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+ROOT = Path(__file__).resolve().parent.parent
+EXECUTOR = "/Applications/Executor.app/Contents/Resources/executor/executor"
+OWNER = "agentstart-executor-integrations-v1"
+CONFIG_FIELDS = {
+    "transport", "command", "args", "cwd", "env", "staticEnv",
+    "versionNegotiation", "spawnPerCall", "appServer", "authenticationTemplate",
+}
+
+
+class Failure(Exception):
+    pass
+
+
+def expand(value, home):
+    if isinstance(value, str):
+        return value.replace("${HOME}", str(home))
+    if isinstance(value, dict):
+        return {key: expand(item, home) for key, item in value.items()}
+    if isinstance(value, list):
+        return [expand(item, home) for item in value]
+    return value
+
+
+def config(value):
+    """Compare behavior, ignoring presentation and equivalent SDK defaults."""
+    unknown = set(value) - CONFIG_FIELDS - {"family"}
+    if unknown:
+        raise Failure("unrecognized MCP configuration fields: " + ", ".join(sorted(unknown)))
+    if value.get("transport") != "stdio":
+        raise Failure("only declared stdio registrations may be managed")
+    auth = value.get("authenticationTemplate", [{"slug": "none", "kind": "none"}])
+    if auth != [{"slug": "none", "kind": "none"}]:
+        raise Failure("credential-bearing registrations are independently owned")
+    env = {**(value.get("env") or {}), **(value.get("staticEnv") or {})}
+    return {
+        "transport": "stdio", "command": value.get("command"),
+        "args": value.get("args") or [], "cwd": value.get("cwd") or None,
+        "env": env, "versionNegotiation": value.get("versionNegotiation") or "auto",
+        "spawnPerCall": value.get("spawnPerCall") or False,
+        "appServer": value.get("appServer") or None,
+    }
+
+
+def load_manifest(path, home, code_root):
+    raw = json.loads(path.read_text())
+    if set(raw) != {"version", "servers"} or raw["version"] != 1:
+        raise Failure("unsupported integration manifest")
+    if not isinstance(raw["servers"], list) or not raw["servers"]:
+        raise Failure("integration manifest must declare servers")
+    servers, names = [], set()
+    for entry in expand(raw["servers"], home):
+        allowed = CONFIG_FIELDS - {"env", "authenticationTemplate"}
+        if set(entry) - allowed - {"slug", "name", "description", "repo", "optional"}:
+            raise Failure("unknown integration manifest field")
+        slug = entry.get("slug", "")
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", slug) or slug in names:
+            raise Failure("invalid or duplicate integration slug")
+        names.add(slug)
+        if not isinstance(entry.get("name"), str) or not entry["name"]:
+            raise Failure(f"{slug}: name is required")
+        if not isinstance(entry.get("command"), str) or not entry["command"]:
+            raise Failure(f"{slug}: command is required")
+        if not isinstance(entry.get("args", []), list) or not all(
+            isinstance(arg, str) for arg in entry.get("args", [])
+        ):
+            raise Failure(f"{slug}: args must be strings")
+        # This source contains paths/settings only. Credentials stay with the
+        # underlying applications or independent Executor connections.
+        if set(entry.get("staticEnv", {})) - {"CODEX_HOME"}:
+            raise Failure(f"{slug}: credential environment does not belong in this manifest")
+        desired = config({key: item for key, item in entry.items() if key in CONFIG_FIELDS})
+        repo = entry.get("repo")
+        if repo is not None and (not isinstance(repo, str) or not re.fullmatch(r"agent[a-z]+", repo)):
+            raise Failure(f"{slug}: invalid fleet checkout name")
+        skip = repo is not None and not (code_root / repo).is_dir()
+        if entry.get("optional") and shutil.which(entry["command"]) is None:
+            skip = True
+        registration = {key: value for key, value in entry.items() if key not in {"repo", "optional"}}
+        servers.append((slug, registration, desired, skip))
+    return servers
+
+
+def api(executable, path, args):
+    try:
+        result = subprocess.run(
+            [executable, "call", "executor", *path, json.dumps(args)],
+            capture_output=True, text=True, timeout=90,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise Failure(f"Executor {' '.join(path)} could not complete ({type(error).__name__})") from error
+    try:
+        envelope = json.loads(result.stdout)
+    except ValueError as error:
+        raise Failure(f"Executor {' '.join(path)} returned no JSON envelope (exit {result.returncode})") from error
+    if result.returncode or envelope.get("ok") is not True or "data" not in envelope:
+        # Never echo raw upstream output: registered config may include secrets.
+        raise Failure(f"Executor {' '.join(path)} failed (exit {result.returncode}); inspect it with the supported Executor UI")
+    return envelope["data"]
+
+
+def server_state(call, slug):
+    record = call(["mcp", "getServer"], {"slug": slug})["integration"]
+    if record is None:
+        return None, []
+    current = config(record["config"])
+    connections = call(["coreTools", "connections", "list"], {"integration": slug})["connections"]
+    return current, connections
+
+
+def default_connection(connections):
+    matches = [c for c in connections if c["owner"] == "org" and c["name"] == "default"]
+    if len(matches) > 1 or (matches and matches[0]["template"] != "none"):
+        raise Failure("the default connection is independently authenticated")
+    return matches[0] if matches else None
+
+
+def replaceable(connections):
+    return all(c["owner"] == "org" and c["name"] == "default" and c["template"] == "none"
+               for c in connections)
+
+
+def save_receipt(path, records):
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=".executor-integrations.")
+    try:
+        with os.fdopen(fd, "w") as file:
+            json.dump({"owner": OWNER, "servers": records}, file, indent=2)
+            file.write("\n")
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def converge(servers, call, records, install, save):
+    plan = []
+    # Inspect every desired registration before making any catalog change.
+    for slug, registration, desired, skip in servers:
+        if skip:
+            print(f"{slug}: absent optional tool/checkout; skipped")
+            continue
+        current, connections = server_state(call, slug)
+        default = default_connection(connections)
+        if current is not None and current != desired:
+            if records.get(slug) != current or not replaceable(connections):
+                raise Failure(f"{slug}: configuration differs from source and is not an unchanged owned registration; preserved")
+        if not install and (current != desired or default is None):
+            raise Failure(f"{slug}: integration/connection is missing or differs; run the full installer")
+        plan.append((slug, registration, desired, current))
+
+    for slug, registration, desired, previous in plan:
+        if not install:
+            print(f"{slug}: configuration and default connection verified")
+            continue
+        # Recheck immediately before mutation, including independently added
+        # connections. A serialized install window remains required.
+        current, connections = server_state(call, slug)
+        if current != previous:
+            raise Failure(f"{slug}: configuration changed during convergence; retry")
+        if current is not None and current != desired:
+            if not replaceable(connections):
+                raise Failure(f"{slug}: independent connections appeared; preserved")
+            removed = call(["coreTools", "integrations", "remove"], {"slug": slug})
+            if removed.get("removed") is not True:
+                raise Failure(f"{slug}: owned registration was not removed")
+            current = None
+        if current is None:
+            call(["mcp", "addServer"], registration)
+        # Current Executor auto-connects stdio; older versions do not. Never
+        # assume addServer is an upsert or create a duplicate default.
+        actual, connections = server_state(call, slug)
+        if actual != desired:
+            raise Failure(f"{slug}: registered configuration does not match source")
+        address = {"owner": "org", "name": "default", "integration": slug}
+        if default_connection(connections) is None:
+            call(["coreTools", "connections", "create"], {**address, "template": "none"})
+        refreshed = call(["coreTools", "connections", "refresh"], address)
+        health = refreshed.get("lastHealth")
+        if not refreshed.get("tools") or (health and health["status"] != "healthy"):
+            raise Failure(f"{slug}: tool discovery did not produce a healthy nonempty catalog")
+        records[slug] = desired
+        save(records)
+        print(f"{slug}: converged ({len(refreshed['tools'])} tools)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group(required=True)
+    modes.add_argument("--check", action="store_true", help="print the source plan without contacting Executor")
+    modes.add_argument("--verify", action="store_true", help="read and verify installed registrations")
+    modes.add_argument("--install", action="store_true", help="converge the owned catalog through Executor's CLI")
+    args = parser.parse_args()
+    home = Path.home()
+    manifest = Path(os.environ.get("AGENTSTART_EXECUTOR_MANIFEST", ROOT / "config/executor/integrations.json"))
+    code_root = Path(os.environ.get("AGENTSTART_CODE_ROOT", home / "code"))
+    servers = load_manifest(manifest, home, code_root)
+    if args.check:
+        for slug, registration, _, skip in servers:
+            print(f"  {slug}: {registration['command']} {' '.join(registration.get('args', []))}" + (" (absent; skip)" if skip else ""))
+        return
+    executable = os.environ.get("AGENTSTART_EXECUTOR_BIN", EXECUTOR)
+    receipt = Path(os.environ.get("AGENTSTART_EXECUTOR_RECEIPT", home / ".local/share/agentstart/executor-integrations.json"))
+    records = {}
+    if receipt.exists():
+        prior = json.loads(receipt.read_text())
+        if prior.get("owner") != OWNER or not isinstance(prior.get("servers"), dict):
+            raise Failure("independent Executor receipt file; preserved")
+        records = prior["servers"]
+    call = lambda path, arguments: api(executable, path, arguments)
+    if args.verify:
+        converge(servers, call, records, False, lambda _: None)
+        return
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(receipt) + ".lock", "a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise Failure("another AgentStart Executor convergence is active") from error
+        converge(servers, call, records, True, lambda rows: save_receipt(receipt, rows))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Failure, ValueError, KeyError, OSError) as error:
+        print(f"AgentStart Executor: {error}", file=sys.stderr)
+        sys.exit(1)

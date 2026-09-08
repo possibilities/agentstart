@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "slug": "agentboard",
+      "name": "Agent Board",
+      "description": "Capture, prioritize, claim, relate, and complete fleet work.",
+      "repo": "agentboard",
+      "transport": "stdio",
+      "command": "agentboard",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentbrain",
+      "name": "Agent Brain",
+      "description": "Search and ingest the local research library.",
+      "repo": "agentbrain",
+      "transport": "stdio",
+      "command": "agentbrain",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentbrowse",
+      "name": "Agent Browse",
+      "description": "Manage durable browser profiles, sessions, and exact targets.",
+      "repo": "agentbrowse",
+      "transport": "stdio",
+      "command": "agentbrowse",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentkeys",
+      "name": "Agent Keys",
+      "description": "Inspect keyboard bindings and their interception chain.",
+      "repo": "agentkeys",
+      "transport": "stdio",
+      "command": "agentkeys",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentscrape",
+      "name": "Agent Scrape",
+      "description": "Read web pages, documents, and supported structured sources.",
+      "repo": "agentscrape",
+      "transport": "stdio",
+      "command": "agentscrape",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentsearch",
+      "name": "Agent Search",
+      "description": "Find web sources and obtain cited research answers.",
+      "repo": "agentsearch",
+      "transport": "stdio",
+      "command": "agentsearch",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentwiki",
+      "name": "Agent Wiki",
+      "description": "Read, author, link, and publish the durable Markdown library.",
+      "repo": "agentwiki",
+      "transport": "stdio",
+      "command": "agentwiki",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agentgrok",
+      "name": "Agent Grok",
+      "description": "Work with persistent Grok Bot teammates and their cloud computer.",
+      "repo": "agentgrok",
+      "transport": "stdio",
+      "command": "agentgrok",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "agent_browser",
+      "name": "Agent Browser",
+      "description": "Interact with pages in explicitly named browser sessions.",
+      "transport": "stdio",
+      "command": "agent-browser",
+      "args": [
+        "mcp",
+        "--tools",
+        "all"
+      ]
+    },
+    {
+      "slug": "termctrl",
+      "name": "Terminal Control",
+      "description": "Read and interact with named terminal sessions.",
+      "transport": "stdio",
+      "command": "termctrl",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
+      "slug": "gog",
+      "name": "Google via Gog",
+      "description": "Use the existing Gog accounts to read Google resources and edit supported documents and sheets.",
+      "transport": "stdio",
+      "command": "gog",
+      "args": [
+        "mcp",
+        "--allow-write"
+      ],
+      "optional": true
+    },
+    {
+      "slug": "codex_computer_use",
+      "name": "Computer Use",
+      "description": "Read and operate native macOS applications through Codex computer use.",
+      "transport": "stdio",
+      "command": "${HOME}/.local/bin/codex",
+      "args": [
+        "app-server"
+      ],
+      "staticEnv": {
+        "CODEX_HOME": "${HOME}/.codex"
+      },
+      "appServer": {
+        "server": "node_repl",
+        "surface": "sky",
+        "presetId": "codex-computer-use"
+      }
+    }
+  ]
+}

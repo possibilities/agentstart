@@ -59,7 +59,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     or Herdr integration yet);
   - Executor through its official Homebrew cask, whose signed CLI installs and
     converges Executor's own login-started background service so the catalog
-    serves without the desktop app; no harness registration is performed;
+    serves without the desktop app; declared MCP integrations converge through
+    its supported CLI, and managed sessions receive one Executor connection;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -69,7 +70,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
-  - the session-only shadcn MCP resource loaded by AgentLaunch, plus removal
+  - the session-only Executor and project-local shadcn MCP resources loaded
+    by AgentLaunch, plus removal
     of ambient shadcn and retired LiveKit MCP registrations;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
@@ -102,8 +104,11 @@ signed CLI for its fleet-related integration catalog. AgentStart delegates the
 `sh.executor.daemon` lifecycle to that CLI's supported service installer; the
 desktop app is neither launched nor required to keep the server alive. Grok
 Build is a separate CLI-only cask exception because it is an AI harness.
-AgentStart installs both, but deliberately does not register Executor's MCP
-endpoint or add Grok to AgentLaunch or Herdr.
+AgentStart connects Executor only through AgentLaunch's fixed session resources.
+Its [integration registry](config/executor/README.md) preserves independently
+configured integrations and credentials. Shadcn stays directly connected to each
+session so it sees the project's working directory. Grok Build remains outside
+AgentLaunch and Herdr.
 
 ## Herdr and Ghostty color
 

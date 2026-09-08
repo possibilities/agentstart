@@ -167,6 +167,22 @@ fi
 [ ! -e scripts/install-agentsurface-shims ] \
     || fail "retired AgentSurface shim installer returned"
 
+PYTHONDONTWRITEBYTECODE=1 python3 tests/executor-integrations.py
+[ -x scripts/executor-integrations ] || fail "Executor registry installer is not executable"
+scripts/executor-integrations --check >/dev/null
+# The explicit install owns catalog writes; content and scheduled sync do not.
+python3 - <<'PY'
+from pathlib import Path
+source = Path("scripts/install.sh").read_text()
+call = '"$script_dir/executor-integrations" --install'
+assert source.count(call) == 1
+assert source.index(call) > source.index('"$script_dir/install-agent-clis" ||')
+assert source.index(call) < source.rindex("converge_repo_content")
+assert call not in source[:source.index('if [ "$check_only" -eq 1 ]; then')]
+for name in ["sync-skills", "render-capabilities"]:
+    assert "executor-integrations" not in Path("scripts", name).read_text()
+PY
+
 for manifest in config/resources/*.json; do
     /usr/bin/jq -e . "$manifest" >/dev/null \
         || fail "resource manifest is not valid JSON: $manifest"
@@ -174,10 +190,11 @@ done
 /usr/bin/jq -e '.name == "agent"' config/resources/claude-plugin.json >/dev/null \
     || fail "Claude fleet plugin has the wrong name"
 /usr/bin/jq -e '
-    (.mcpServers | keys == ["shadcn"]) and
+    (.mcpServers | keys == ["executor", "shadcn"]) and
+    .mcpServers.executor == {"command":"/Applications/Executor.app/Contents/Resources/executor/executor","args":["mcp","--no-artifacts","--elicitation-mode","model"]} and
     .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
 ' config/resources/mcp-servers.json >/dev/null \
-    || fail "fixed MCP resources are not exactly the managed shadcn server"
+    || fail "fixed MCP resources are not exactly Executor and project-local shadcn"
 /usr/bin/jq -e '.name == "agent" and .skills == "./skills/" and .interface.capabilities == ["Skills"]' \
     config/resources/codex-plugin.json >/dev/null \
     || fail "Codex fleet plugin is not strictly skills-only"
@@ -2767,9 +2784,9 @@ if rg -n 'sh\.executor\.daemon' config/launchd scripts/install-launchagents >/de
 fi
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
-if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor|executor mcp' \
+if grep -Eq '(codex|claude) mcp add.*executor|add-mcp.*executor' \
     scripts/install.sh; then
-    fail "the Executor desktop install also connects it to an agent harness"
+    fail "the Executor install registers an ambient harness connection"
 fi
 if grep -Ei '(codex|claude) mcp add.*(shadcn|livekit)|(shadcn|livekit).*mcp add' \
     scripts/install.sh; then
@@ -2786,7 +2803,7 @@ done
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
-    'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration' \
+    'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration' \
     '/Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
@@ -2826,7 +2843,8 @@ for required_install in \
     'remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
-    'render shadcn as a managed-session MCP server; render no LiveKit MCP or skill' \
+    'scripts/executor-integrations --install  # converge declared MCPs through the existing Executor service; preserve independent integrations/auth' \
+    'render Executor and project-local shadcn as managed-session MCP servers; render no LiveKit MCP or skill' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
@@ -2952,7 +2970,7 @@ fi
 # Grok Build's CLI-only package are the two explicit cask exceptions.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
     | grep -Fv \
-        -e 'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration' \
+        -e 'brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration' \
         -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     >/dev/null; then
     fail "installation plan contains an unowned Homebrew cask"

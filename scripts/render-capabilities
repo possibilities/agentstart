@@ -13,7 +13,7 @@ case "$1" in
   render the fixed private fleet resource set under ~/.local/share/agentstart/resources
   narrow vendor provider-origin guidance to retained Claude/Codex values
   derive and audit Codex invocation policy from portable skill frontmatter
-  render one session-only Claude plugin named agent (/agent:<skill>) with the shadcn MCP server
+  render one session-only Claude plugin named agent (/agent:<skill>) with Executor and the project-local shadcn MCP server
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   persistently disable every agent:<skill> outside managed Codex sessions
   leave retired-path and ambient-link cleanup to the explicit full installer
@@ -46,10 +46,11 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # --yes keeps a cold-cache launch unattended.
 /usr/bin/jq -e '
     (.mcpServers | type == "object") and
-    (.mcpServers | keys == ["shadcn"]) and
+    (.mcpServers | keys == ["executor", "shadcn"]) and
+    .mcpServers.executor == {"command":"/Applications/Executor.app/Contents/Resources/executor/executor","args":["mcp","--no-artifacts","--elicitation-mode","model"]} and
     .mcpServers.shadcn == {"command":"npx","args":["--prefix","/","--yes","shadcn@latest","mcp"]}
 ' "$template_root/mcp-servers.json" >/dev/null \
-    || die "the fixed MCP resource must contain only the shadcn stdio server"
+    || die "the fixed MCP resources must contain Executor and project-local shadcn"
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"

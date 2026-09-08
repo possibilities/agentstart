@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "executor": {
+      "command": "/Applications/Executor.app/Contents/Resources/executor/executor",
+      "args": ["mcp", "--no-artifacts", "--elicitation-mode", "model"]
+    },
     "shadcn": {
       "command": "npx",
       "args": ["--prefix", "/", "--yes", "shadcn@latest", "mcp"]

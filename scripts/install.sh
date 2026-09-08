@@ -458,7 +458,7 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Homebrew casks:
-  brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no harness registration
+  brew install or upgrade --cask executor  # supplies Executor.app and its signed CLI; no ambient harness registration
   /Applications/Executor.app/Contents/Resources/executor/executor service install  # supported takeover to the login-started service; captures ~/.local/bin for fleet MCPs
   brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration
 
@@ -512,7 +512,8 @@ Agent guidance:
 
 Fixed private fleet resources:
   install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
-  render shadcn as a managed-session MCP server; render no LiveKit MCP or skill
+  scripts/executor-integrations --install  # converge declared MCPs through the existing Executor service; preserve independent integrations/auth
+  render Executor and project-local shadcn as managed-session MCP servers; render no LiveKit MCP or skill
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
@@ -1343,6 +1344,10 @@ printf 'Removing retired Agentweb command artifacts.\n'
 # exist; incomplete state prints an agent-ready handoff while a healthy machine
 # remains quiet.
 "$script_dir/configure-agentsource-webhooks" --check || true
+
+# Register only the declared fleet integrations after their commands and provider
+# configs exist. This is explicit installation, never content or scheduled sync.
+"$script_dir/executor-integrations" --install
 
 # Everything this repository owns as content — skills, prompts, guidance, the
 # statusline, and the rendered private resources — converges last, on top of the
