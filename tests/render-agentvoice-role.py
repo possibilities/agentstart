@@ -64,6 +64,17 @@ class VoiceRoleRender(unittest.TestCase):
         self.assertEqual((self.role / "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md").read_text(), "Voice detail")
         self.assertEqual((other / "APPEND_SYSTEM_PROMPT.md").read_text(), "Independent role")
 
+    def test_native_mode_is_linked_from_the_app_role_without_copying_policy(self):
+        mode = self.source / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md"
+        mode.write_text("Role-owned mode\n")
+        self.render()
+        published = self.role / mode.name
+        self.assertEqual(published.resolve(), mode)
+        self.assertEqual(published.read_text(), "Role-owned mode\n")
+        mode.write_text("Changed mode\n")
+        self.assertEqual(published.read_text(), "Changed mode\n")
+        self.render()
+
     def test_independent_destination_or_changed_link_is_preserved(self):
         self.role.mkdir(parents=True)
         (self.role / "note.md").write_text("Independent")
