@@ -100,6 +100,14 @@ Terminal Control operates existing named sessions but does not create them
 through MCP. Preserve that session-creation workflow until an MCP implementation
 exists. Exposing write tools does not authorize unsolicited writes or messages.
 
+Attention exposes its 12 contract-derived producer tools for durable handoffs,
+bounded waits, inspection, and scoped cancellation. Human claims, resolutions,
+returns, and credential administration stay with the operator. MCP cancellation
+stops an outstanding wait or event stream without withdrawing the item. Use
+paged events when the aggregator does not forward logging notifications.
+The `attention` skill carries payload, exact-browser-target, and outcome rules;
+ordinary in-session clarification can still use native harness questions.
+
 Codex computer use is available, but replacing Peekaboo also requires usable
 normal-window capture and input validation. The installed adapter returns
 screenshot file URLs inside text JSON, so agents must load them with the native

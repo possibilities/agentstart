@@ -2,6 +2,17 @@
   "version": 1,
   "servers": [
     {
+      "slug": "agentattention",
+      "name": "Agent Attention",
+      "description": "Create durable human handoffs and read their recorded outcomes.",
+      "repo": "agentattention",
+      "transport": "stdio",
+      "command": "agentattention",
+      "args": [
+        "mcp"
+      ]
+    },
+    {
       "slug": "agentboard",
       "name": "Agent Board",
       "description": "Capture, prioritize, claim, relate, and complete fleet work.",
