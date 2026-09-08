@@ -218,8 +218,8 @@ owned_marker() {
 # Ours, somebody else's, or absent. Only our exact marker authorizes replacement.
 plist_ownership() {
     local label="$1" plist="$launch_agents_dir/$1.plist"
-    [ -e "$plist" ] || { printf 'absent'; return 0; }
     if [ -L "$plist" ]; then printf 'foreign'; return 0; fi
+    [ -e "$plist" ] || { printf 'absent'; return 0; }
     if grep -Fq "$(owned_marker "$label")" "$plist" 2>/dev/null; then
         printf 'ours'
         return 0

@@ -20,16 +20,16 @@ mkdir -p "$launch_agents" "$bin_dir" "$state_dir"
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentattention"
 chmod +x "$bin_dir/agentattention"
 
-run_check() {
+run_installer() {
     HOME="$test_home" \
         XDG_STATE_HOME="$state_dir" \
         AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
         AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
         AGENTSTART_INSTALL_LAUNCHCTL=none \
-        "$root/scripts/install-launchagents" --check
+        "$root/scripts/install-launchagents" "$@"
 }
 
-plan=$(run_check)
+plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
     || fail "absent current Agentattention service was not planned for install"
 HOME="$test_home" \
@@ -41,7 +41,7 @@ HOME="$test_home" \
 attention_plist="$launch_agents/io.arthack.agentattention.serve.plist"
 grep -Fq 'agentstart-installer-owned: io.arthack.agentattention.serve.v1' "$attention_plist" \
     || fail "current service lacks its exact ownership marker"
-plan=$(run_check)
+plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'converge' >/dev/null \
     || fail "owned current service was not planned for convergence"
 
@@ -57,6 +57,31 @@ fi
 grep -Fxq '<!-- independent service -->' "$attention_plist" \
     || fail "independent current service was overwritten"
 rm "$attention_plist"
+
+# A symlink is foreign even when its target has our marker or has disappeared.
+foreign_target="$test_root/foreign-attention.plist"
+printf '<!-- agentstart-installer-owned: io.arthack.agentattention.serve.v1 -->\n' >"$foreign_target"
+cp "$foreign_target" "$test_root/foreign-attention.before"
+for link_state in existing dangling; do
+    if [ "$link_state" = dangling ]; then rm "$foreign_target"; fi
+    ln -s "$foreign_target" "$attention_plist"
+    plan=$(run_installer --check)
+    printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'REFUSE' >/dev/null \
+        || fail "$link_state service symlink was not planned for refusal"
+    if run_installer --install >/dev/null 2>&1; then
+        fail "$link_state service symlink was accepted"
+    fi
+    [ -L "$attention_plist" ] && [ "$(readlink "$attention_plist")" = "$foreign_target" ] \
+        || fail "$link_state service symlink was replaced or redirected"
+    if [ "$link_state" = existing ]; then
+        cmp "$test_root/foreign-attention.before" "$foreign_target" \
+            || fail "foreign service symlink target was changed"
+    else
+        [ ! -e "$foreign_target" ] || fail "dangling service symlink target was created"
+    fi
+    rm "$attention_plist"
+done
+
 HOME="$test_home" \
     XDG_STATE_HOME="$state_dir" \
     AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
