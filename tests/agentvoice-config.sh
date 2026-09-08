@@ -30,7 +30,15 @@ ln "$AGENTSTART_AGENTVOICE_CONFIG_TARGET" "$test_root/hardlink"
 if "$helper" install >/dev/null 2>&1; then exit 1; fi
 python3 - "$root/config/agentvoice/server.json" <<'PY'
 import json, sys
-assert json.load(open(sys.argv[1])) == {
+config = json.load(open(sys.argv[1]))
+features = config['orchestrator'].pop('config')
+assert set(features) == {'features.multi_agent_v2'}
+mode = features['features.multi_agent_v2']
+assert set(mode) == {'enabled', 'multi_agent_mode_hint_text'}
+assert mode['enabled'] is True
+assert isinstance(mode['multi_agent_mode_hint_text'], str)
+assert 0 < len(mode['multi_agent_mode_hint_text']) < 1600
+assert config == {
     'allow-full-access': True, 'debug': True,
     'role': '~/.local/share/agentstart/resources/agentvoice/default',
     'orchestrator': {'model': 'gpt-6-astra', 'effort': 'low'},
