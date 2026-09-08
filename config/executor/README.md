@@ -156,11 +156,22 @@ semantics; cancellation stops waiting and reaps active Herdr children, but an
 in-flight prompt may require reconciliation before retry. Operator and internal
 Surface workflows keep their existing CLI routes.
 
-Codex computer use is available, but replacing Peekaboo also requires usable
-normal-window capture and input validation. The installed adapter returns
-screenshot file URLs inside text JSON, so agents must load them with the native
-image reader. Do not mistake a returned path or JSON object for a viewed image.
-Tool registration itself grants no application consent.
+Desktop workflows use native Codex Computer Use when the harness provides it,
+or the registered `codex_computer_use` MCP adapter through Executor. The
+`desktop` skill belongs to Agentdesk and ships through the existing skill scan.
+It requires an explicit app, fresh observations, and full MCP state when the
+shared diff baseline is not known. The adapter returns screenshot file URLs
+inside standalone text JSON; agents open those files with the native image
+reader before relying on the capture.
+
+Application consent can pause even a read. Preserve the exact pending request,
+honor existing task authority, and obtain any fresh app access it requires;
+registration or a generic write-tool confirmation cannot grant that access.
+Normal-window capture and a benign input postcondition must be verified before
+claiming replacement readiness. Peekaboo remains installed by Agentdesk for
+operator workflows, with versioned CLI guidance in a linked reference. The
+Computer Use catalog provides no dedicated app launch/quit, arbitrary window
+management, clipboard-read, or video-recording tool; do not invent parity.
 
 ## Results through Executor
 
