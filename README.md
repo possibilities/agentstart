@@ -71,8 +71,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
   - individual fleet MCPs, Agentdesk, termctrl, agent-browser, account-bound Gog,
-    and the fleet-owned shadcn registry through one shared resource inventory,
-    plus removal of retired ambient MCP registrations;
+    and the fleet-owned shadcn registry through one shared resource inventory;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
@@ -84,8 +83,6 @@ flags, and skip-versus-fail semantics are load-bearing:
     consumers, then converge the service after AgentUsage and AgentLaunch.
     No Claude/Codex swap checkout or command is an installation prerequisite;
     existing checkouts, backups and credentials are preserved;
-  - ownership-verified cleanup of the retired AgentSurface, AgentBus, and Orca
-    harness integrations and skills;
   - agentchats, the fleet launch agents, and finally `sync-skills`.
 
   The machine's installer calls this and refuses to finish without it.
@@ -95,6 +92,10 @@ flags, and skip-versus-fail semantics are load-bearing:
   refresh. The scheduled updater calls this every six hours. It
   never removes a skill from a compatibility root or restarts services.
   `--check` prints the plan.
+- [`docs/agent-interfaces.md`](docs/agent-interfaces.md) — the policy and
+  support matrix for MCP, native harness, and CLI/TUI workflows. A workflow
+  needs one authoritative surface; an MCP wrapper is not required when the
+  harness or interactive tool already owns the contract.
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`; the machine's wrapper of the same name delegates
   here. The full installer also converges them. Codex runtime calls receive
@@ -195,7 +196,7 @@ globally installed Codex plugin is skills-only and every name is
 persistently disabled until AgentLaunch enables it in a session;
 Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
 skills unless another explicitly selected role supplies them. AgentVoice can
-load the same common pack through a standard role on its own Codex child.
+load the same fixed resource set through a standard role on its own Codex child.
 Participant source manifests remain portable and bare; only the Codex
 plugin copy qualifies default prompts. Only a tool with its own CLI installer joins the
 explicit loop in

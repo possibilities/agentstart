@@ -46,25 +46,17 @@ shim adds trust for the effective cwd and project root, retains the existing
 Codex home, and removes the profile when the child exits.
 _Avoid_: temporary Codex home, config sync, trust database.
 
-**Extension prompts** — the operator's `SYSTEM.md`, `GUIDELINES.md`, and
-`TOOLS.md` under `prompts/agentguidance/`, linked into
-`~/.config/agentguidance` and rendered by agentguidance into the
-collab/build skills. Their three names are agentguidance's contract; an
-unrecognized file renders to nothing. _Avoid_:
+**Extension prompts** — the operator's `SYSTEM.md` and `GUIDELINES.md` under
+`prompts/agentguidance/`, linked into `~/.config/agentguidance` and rendered
+by agentguidance into the collab/build skills. Those two names are
+agentguidance's contract; an unrecognized file renders to nothing. _Avoid_:
 config files, dotfiles.
-
-**Advertisement** — a tool's one line in `TOOLS.md` saying when to load its
-skill. A line is attention spent in every session and has to earn it; the
-policy and its standing decisions live in the wiki
-(`agentwiki get tool-advertisement-policy`). _Avoid_: documentation,
-listing (an installed, unadvertised tool is still fully documented by its
-skill).
 
 **The sync path** — `scripts/sync-skills`: the unattended-safe convergence
 the scheduled updater runs every six hours — the participant scan into the
-fixed private resources, harness render refresh, no elevation, no
-compatibility-root cleanup, no restarts. _Avoid_: update, upgrade (binaries
-never move on this path).
+fixed private resources, harness render refresh, no elevation, binary updates,
+or service restarts. _Avoid_: update, upgrade (binaries never move on this
+path).
 
 **Fleet resources** — the one fixed private set under
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,

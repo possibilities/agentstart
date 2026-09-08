@@ -35,10 +35,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # its separate Grok adapter. No Claude/Codex swap repository is required.
 # The full installer invokes install-agentlaunch-shims after this loop.
 #
-# Agentscrape no longer consults Agentweb's origin/session conduit. An explicit
-# stable session maps through the configured agent-browser provider to an
-# Agentbrowse Browser profile, so Agentscrape and Agentbrain have no special
-# install-order relationship beyond both preceding their resident services.
+# An explicit Agentscrape session maps through the configured agent-browser
+# provider to an Agentbrowse Browser profile. Agentscrape and Agentbrain have
+# no install-order relationship beyond both preceding their resident services.
 #
 # Agentbrowse owns the Hypeman host installer and its short-lived provider.
 # Host installation is explicit through agentbrowse/scripts/install-host;

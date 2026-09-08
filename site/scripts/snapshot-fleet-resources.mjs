@@ -11,9 +11,6 @@ const resourcesRoot =
 const outputPath =
   process.env.AGENTSTART_SNAPSHOT_OUTPUT || join(siteRoot, "public", "fleet-resources.json");
 
-const retiredPiSpelling =
-  /(^|[^A-Za-z0-9_])pi([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])pi_(?:agent|coding_agent|session|subagents|viewer)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])pi(?:Agent|CodingAgent|Session|Subagents|Viewer)([^A-Za-z0-9_]|$)/i;
-
 const categoryCatalog = [
   {
     id: "work",
@@ -320,10 +317,6 @@ const snapshot = {
 };
 
 const serialized = JSON.stringify(snapshot);
-if (retiredPiSpelling.test(serialized)) {
-  throw new Error("refusing to publish a fleet snapshot containing a retired Pi spelling");
-}
-
 await mkdir(dirname(outputPath), { recursive: true });
 await writeFile(outputPath, `${serialized}\n`);
 console.log(

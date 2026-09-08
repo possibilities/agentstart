@@ -52,27 +52,6 @@ SERVICES=(
     "io.arthack.agentwiki.serve|agentwiki|server.log|resident"
 )
 
-# Label replacements that the full installer converges atomically. These are
-# old names for services still present, not a graveyard for retired tools: once
-# the fleet has converged and the migration is deliberately removed, nothing
-# here should remember the previous spelling.
-legacy_agentattention_label="com.$(id -un).agentattention"
-LABEL_REPLACEMENTS=(
-    "io.arthack.agentbrain.work|agentbrain.worker"
-    "io.arthack.agentbrain.share|agentbrain.share"
-    "io.arthack.agentbrain.doctor|agentbrain.doctor"
-    "io.arthack.agentusage.observe|agentusage.observer"
-    "io.arthack.agentusage.observe|agentusage.daemon"
-    "io.arthack.agentattention.serve|agentattention.server"
-    "io.arthack.agentattention.serve|$legacy_agentattention_label"
-    "io.arthack.agentscrape.process-queue|agentscrape.queue-processor"
-    "io.arthack.agentscrape.process-queue|agentscrape.process-queue"
-    "io.arthack.agentsource.receive|agentsource.receiver"
-    "io.arthack.agentsource.notify|agentsource.notifier"
-    "io.arthack.agentwiki.serve|agentwiki.server"
-    "io.arthack.agentwiki.serve|agentwiki.serve"
-)
-
 # agentwiki's two loopback origins. Named here rather than left to the CLI's
 # defaults so a resident service never moves a port because a default changed.
 AGENTWIKI_PORT="${AGENTSTART_INSTALL_AGENTWIKI_PORT:-7777}"
@@ -170,8 +149,6 @@ service_tokens() {
                 session="$AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION"
             else
                 session="$(preserved_env "$label" AGENTSCRAPE_BROWSER_SESSION)"
-                [ -n "$session" ] \
-                    || session="$(preserved_env "$(replacement_label "$label")" AGENTSCRAPE_BROWSER_SESSION)"
             fi
             # Agentscrape ignores invalid pins and silently falls back to a
             # signed-out session; reject them before replacing the service.
@@ -199,7 +176,6 @@ service_tokens() {
             else
                 host="$(tailnet_address)"
                 [ -n "$host" ] || host="$(preserved_arg "$label" --host)"
-                [ -n "$host" ] || host="$(preserved_arg "$(replacement_label "$label")" --host)"
             fi
             case "$host" in
                 "" | none) return 10 ;;
@@ -239,7 +215,7 @@ owned_marker() {
     printf 'agentstart-installer-owned: %s.v1' "$1"
 }
 
-# Ours, a predecessor's, somebody else's, or absent. Only a stranger is refused.
+# Ours, somebody else's, or absent. Only our exact marker authorizes replacement.
 plist_ownership() {
     local label="$1" plist="$launch_agents_dir/$1.plist"
     [ -e "$plist" ] || { printf 'absent'; return 0; }
@@ -248,84 +224,7 @@ plist_ownership() {
         printf 'ours'
         return 0
     fi
-    # Before this script existed, each fleet checkout installed its own service
-    # and stamped its own name. Adopting exactly that marker — same tool, same
-    # label, same version — is what centralizing here means; anything else
-    # sharing a label is still a stranger and is still refused.
-    if grep -Fq "${label%%.*}-installer-owned: $label.v1" "$plist" 2>/dev/null; then
-        printf 'adopt'
-        return 0
-    fi
     printf 'foreign'
-}
-
-# Agentattention briefly predated centralized fleet service ownership. Its one
-# live predecessor had no ownership marker, so it cannot use the ordinary
-# adoption path above. Recognize only that exact, inert plist shape: changing
-# any key, argument, path, or owner leaves it foreign and therefore refused.
-# This migration entry can disappear after every machine has converged.
-legacy_replacement_ownership() {
-    local new_label="$1" old_label="$2" plist owner
-    plist="$launch_agents_dir/$old_label.plist"
-
-    if [ "$new_label" != io.arthack.agentattention.serve ] ||
-        [ "$old_label" != "$legacy_agentattention_label" ]; then
-        printf 'foreign'
-        return 0
-    fi
-    [ -f "$plist" ] && [ ! -L "$plist" ] || {
-        printf 'foreign'
-        return 0
-    }
-    owner="$(stat -f %u "$plist" 2>/dev/null || stat -c %u "$plist" 2>/dev/null || true)"
-    [ "$owner" = "$(id -u)" ] || {
-        printf 'foreign'
-        return 0
-    }
-
-    if /usr/bin/python3 - "$plist" "$HOME" "$old_label" <<'PYTHON'
-import plistlib
-import sys
-
-path, home, label = sys.argv[1:]
-with open(path, "rb") as handle:
-    actual = plistlib.load(handle)
-
-expected = {
-    "Label": label,
-    "ProgramArguments": [
-        "/opt/homebrew/bin/bun",
-        f"{home}/code/agentattention/src/cli.ts",
-        "serve",
-        "--config",
-        f"{home}/.config/agentattention/config.json",
-    ],
-    "RunAtLoad": True,
-    "KeepAlive": True,
-    "ThrottleInterval": 5,
-    "StandardOutPath": f"{home}/.local/state/agentattention/daemon.log",
-    "StandardErrorPath": f"{home}/.local/state/agentattention/daemon.error.log",
-}
-raise SystemExit(0 if actual == expected else 1)
-PYTHON
-    then
-        printf 'adopt'
-    else
-        printf 'foreign'
-    fi
-}
-
-replacement_labels() {
-    local new_label="$1" replacement
-    for replacement in "${LABEL_REPLACEMENTS[@]}"; do
-        if [ "$(field "$replacement" 1)" = "$new_label" ]; then
-            field "$replacement" 2
-        fi
-    done
-}
-
-replacement_label() {
-    replacement_labels "$1" | sed -n '1p'
 }
 
 render_plist() {
@@ -388,7 +287,7 @@ PYTHON
 # Reload rather than restart-in-place: launchd caches the plist it bootstrapped,
 # so a rewritten file does nothing until the label is booted out and back in.
 reload_service() {
-    local label="$1" plist="$2" old_labels="$3"
+    local label="$1" plist="$2"
     launchctl_available || {
         note "installed $label (launchctl unavailable; not loaded)"
         return 0
@@ -403,46 +302,8 @@ reload_service() {
             waited=$((waited + 1))
         done
     fi
-    local old_label old_target old_plist old_ownership
-    while IFS= read -r old_label; do
-        [ -n "$old_label" ] || continue
-        old_target="gui/$(id -u)/$old_label"
-        old_plist="$launch_agents_dir/$old_label.plist"
-        old_ownership="$(plist_ownership "$old_label")"
-        if [ "$old_ownership" = foreign ]; then
-            old_ownership="$(legacy_replacement_ownership "$label" "$old_label")"
-        fi
-        { [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; } || continue
-        if "$launchctl_bin" print "$old_target" >/dev/null 2>&1; then
-            "$launchctl_bin" bootout "$old_target" >/dev/null 2>&1 ||
-                die "failed to stop replaced service $old_label"
-        fi
-    done <<EOF
-$old_labels
-EOF
     "$launchctl_bin" bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1 ||
-        {
-            # Preserve service availability if launchd rejects the replacement.
-            # Old plists are removed only after the new label is live.
-            while IFS= read -r old_label; do
-                [ -n "$old_label" ] || continue
-                old_plist="$launch_agents_dir/$old_label.plist"
-                [ -f "$old_plist" ] || continue
-                "$launchctl_bin" bootstrap "gui/$(id -u)" "$old_plist" >/dev/null 2>&1 || true
-            done <<EOF
-$old_labels
-EOF
-            die "failed to load $label; inspect: launchctl print $target"
-        }
-    while IFS= read -r old_label; do
-        [ -n "$old_label" ] || continue
-        old_plist="$launch_agents_dir/$old_label.plist"
-        [ -f "$old_plist" ] || continue
-        rm -- "$old_plist"
-        note "replaced $old_label with $label"
-    done <<EOF
-$old_labels
-EOF
+        die "failed to load $label; inspect: launchctl print $target"
     note "installed and loaded $label"
 }
 
@@ -467,24 +328,6 @@ install_service() {
 
     local ownership
     ownership="$(plist_ownership "$label")"
-    local old_label old_ownership old_labels owned_old_labels=""
-    old_labels="$(replacement_labels "$label")"
-    while IFS= read -r old_label; do
-        [ -n "$old_label" ] || continue
-        old_ownership="$(plist_ownership "$old_label")"
-        if [ "$old_ownership" = foreign ]; then
-            old_ownership="$(legacy_replacement_ownership "$label" "$old_label")"
-        fi
-        [ "$old_ownership" != foreign ] ||
-            die "refusing to replace a legacy service this installer does not own: $launch_agents_dir/$old_label.plist"
-        if [ "$old_ownership" = ours ] || [ "$old_ownership" = adopt ]; then
-            owned_old_labels="${owned_old_labels}${owned_old_labels:+
-}$old_label"
-        fi
-    done <<EOF
-$old_labels
-EOF
-
     local tokens status=0
     tokens="$(service_tokens "$label")" || status=$?
     if [ "$status" -eq 10 ]; then
@@ -502,12 +345,8 @@ EOF
         case "$ownership" in
             absent) plan="install" ;;
             ours) plan="converge" ;;
-            adopt) plan="adopt from ${label%%.*}" ;;
             foreign) plan="REFUSE — not ours to replace" ;;
         esac
-        if [ -n "$owned_old_labels" ]; then
-            plan="replace $(printf '%s' "$owned_old_labels" | tr '\n' ',')"
-        fi
         printf '  %-28s %-18s %-22s %s\n' "$label" "$lifecycle" "$plan" "$program"
         return 0
     fi
@@ -515,62 +354,11 @@ EOF
     if [ "$ownership" = foreign ]; then
         die "refusing to replace a service this installer does not own: $destination"
     fi
-    if [ "$ownership" = adopt ]; then
-        note "adopting $label from ${label%%.*}"
-    fi
-
     mkdir -p "$(dirname -- "$log")"
     [ -e "$log" ] || : >"$log"
     chmod 600 "$log"
     render_plist "$label" "$program" "$log" "$destination" "$tokens"
-    reload_service "$label" "$destination" "$owned_old_labels"
-}
-
-# Agentweb is retired, but a previously installed broker may still be loaded.
-# The plist marker is the sole authority: without that exact marker, neither
-# the job nor its file belongs to this installer and both are preserved.
-retire_agentweb_broker() {
-    local label=agentweb.broker
-    local marker='agentstart-installer-owned: agentweb.broker.v1'
-    local plist="$launch_agents_dir/$label.plist"
-    local target
-    target="gui/$(id -u)/$label"
-
-    if [ ! -e "$plist" ] && [ ! -L "$plist" ]; then
-        if [ "$check_only" -eq 1 ]; then
-            printf '  %-28s %-18s %s\n' "$label" retired 'absent; nothing to remove'
-        fi
-        return 0
-    fi
-
-    if [ -L "$plist" ] || [ ! -f "$plist" ] ||
-        ! grep -Fqx "<!-- $marker -->" "$plist" 2>/dev/null; then
-        if [ "$check_only" -eq 1 ]; then
-            printf '  %-28s %-18s %s\n' "$label" retired 'REFUSE — not ours to remove'
-            return 0
-        fi
-        die "refusing to remove a retired service this installer does not own: $plist"
-    fi
-
-    if [ "$check_only" -eq 1 ]; then
-        printf '  %-28s %-18s %s\n' "$label" retired 'would boot out and remove owned plist'
-        return 0
-    fi
-
-    if launchctl_available && "$launchctl_bin" print "$target" >/dev/null 2>&1; then
-        "$launchctl_bin" bootout "$target" >/dev/null 2>&1 ||
-            die "failed to stop retired service $label"
-        local waited=0
-        while "$launchctl_bin" print "$target" >/dev/null 2>&1 && [ "$waited" -lt 30 ]; do
-            sleep 0.2
-            waited=$((waited + 1))
-        done
-        ! "$launchctl_bin" print "$target" >/dev/null 2>&1 ||
-            die "retired service remained loaded after bootout: $label"
-    fi
-
-    rm -- "$plist"
-    note "removed retired owned service $label"
+    reload_service "$label" "$destination"
 }
 
 status_services() {
@@ -663,8 +451,6 @@ else
     mkdir -p "$launch_agents_dir"
     chmod 700 "$launch_agents_dir"
 fi
-
-retire_agentweb_broker
 
 for entry in "${SERVICES[@]}"; do
     install_service "$entry"

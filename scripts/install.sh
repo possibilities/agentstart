@@ -25,9 +25,6 @@ fx_integration_sha=e6ef2148c63f304883de21768bcfcdbf97c4d833
 plannotator_version=0.27.9
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 resources_skills_state_root="$resources_root/skills-state"
-retired_capabilities_root="$HOME/.local/share/agentstart/capabilities"
-legacy_core_marketplace_root="${AGENTSTART_CORE_MARKETPLACE_ROOT:-$HOME/.local/share/agentstart/core-marketplace}"
-legacy_core_plugin_root="$legacy_core_marketplace_root/plugins/agentstart-core"
 
 usage() {
     cat <<'EOF'
@@ -92,113 +89,6 @@ install_private_skill_pack() {
         || die "installing agent skills failed: $source ($*)"
 }
 
-remove_legacy_global_skills() {
-    local names=(
-        find-skills
-        frontend-design
-        web-design-guidelines
-        vercel-react-best-practices
-        ai-sdk
-        ai-elements
-        shadcn
-        native-sdk
-        plannotator
-        plannotator-review
-        plannotator-annotate
-        plannotator-last
-        terminal-control
-        herdr
-        livekit-simulations
-        orca-cli
-        orchestration
-        computer-use
-        supervisor
-        supervise
-        orchestrate
-        prompt
-        resource-create
-        resource-update
-        story
-        watch-requests
-    )
-    local project skill_dir skill_name previous_names
-
-    for project in "$code_root"/agent*/; do
-        [ -d "$project" ] || continue
-        for skill_dir in "$project"/skills/*/; do
-            [ -f "$skill_dir/SKILL.md" ] || continue
-            skill_dir=${skill_dir%/}
-            names+=("${skill_dir##*/}")
-        done
-    done
-
-    for previous_names in \
-        "$resources_root/managed-skills.txt" \
-        "$retired_capabilities_root/managed-skills.txt" \
-        "$legacy_core_marketplace_root/managed-skills.txt"; do
-        if [ -f "$previous_names" ]; then
-            while IFS= read -r skill_name; do
-                [ -n "$skill_name" ] && names+=("$skill_name")
-            done <"$previous_names"
-        fi
-    done
-
-    "$script_dir/run-skills-cli" npx --yes skills remove --global --yes "${names[@]}" \
-        || die "removing retired AgentStart-managed skills failed"
-}
-
-remove_retired_core_plugin() {
-    local legacy_owned=0 legacy_plugin manifest
-
-    # This migration is intentionally a full-install operation. The six-hour
-    # sync only refreshes the Codex fleet plugin in place; it never
-    # uninstalls plugins or ambient resources that a live session may use.
-    claude plugin uninstall agentstart-core@agentstart-managed --scope user >/dev/null 2>&1 || true
-    claude plugin uninstall agent@agentstart-managed --scope user >/dev/null 2>&1 || true
-    claude plugin marketplace remove agentstart-managed >/dev/null 2>&1 || true
-
-    codex plugin remove agentstart-core@agentstart-managed >/dev/null 2>&1 || true
-    codex plugin remove agent@agentstart-managed >/dev/null 2>&1 || true
-    codex plugin marketplace remove agentstart-managed >/dev/null 2>&1 || true
-
-    # The old marketplace was wholly AgentStart-owned, but prove that identity
-    # before removing a recursive tree. Preserve and name an unexpected occupant.
-    if [ -d "$legacy_core_marketplace_root" ]; then
-        legacy_plugin="$legacy_core_plugin_root"
-        for manifest in \
-            "$legacy_plugin/.claude-plugin/plugin.json" \
-            "$legacy_plugin/.codex-plugin/plugin.json"; do
-            [ -f "$manifest" ] || continue
-            if /usr/bin/jq -e '.name == "agentstart-core"' "$manifest" >/dev/null 2>&1; then
-                legacy_owned=1
-                break
-            fi
-        done
-        if [ "$legacy_owned" -eq 1 ]; then
-            rm -rf -- "$legacy_core_marketplace_root"
-            printf 'Removed retired AgentStart core marketplace: %s.\n' \
-                "$legacy_core_marketplace_root"
-        else
-            printf 'Leaving unrecognized legacy marketplace untouched: %s.\n' \
-                "$legacy_core_marketplace_root" >&2
-        fi
-    fi
-}
-
-remove_retired_capability_resources() {
-    "$script_dir/remove-retired-capabilities" --install
-}
-
-remove_ambient_mcp_servers() {
-    printf 'Removing shadcn and retired LiveKit MCP servers from ambient Codex configuration.\n'
-    codex mcp remove shadcn >/dev/null 2>&1 || true
-    codex mcp remove livekit-docs >/dev/null 2>&1 || true
-
-    printf 'Removing shadcn and retired LiveKit MCP servers from ambient Claude Code configuration.\n'
-    claude mcp remove --scope user shadcn >/dev/null 2>&1 || true
-    claude mcp remove --scope user livekit-docs >/dev/null 2>&1 || true
-}
-
 # AgentStart owns one guidance slot for each managed harness. Link both to the
 # fixed resource set's canonical AGENTS.md, which stays deliberately empty — global
 # advice belongs
@@ -224,78 +114,6 @@ link_agent_guidance() {
             || die "linked guidance does not resolve to $source: $target"
     done
 }
-
-# Remove only the exact home guidance symlinks this checkout previously
-# created. With the three harness slots linked directly, ~/AGENTS.md is a
-# project guidance location again; an independent occupant belongs to its
-# owner and is left alone.
-remove_retired_home_guidance() {
-    local retired_source="$repo_root/prompts/AGENTS.md"
-    local current_source="$resources_root/guidance/AGENTS.md"
-    local target="$HOME/AGENTS.md"
-
-    if [ -L "$target" ] && { [ "$(readlink "$target")" = "$retired_source" ] || [ "$(readlink "$target")" = "$current_source" ]; }; then
-        rm -- "$target"
-        printf 'Removed retired AgentStart-owned home guidance symlink: %s.\n' "$target"
-    elif [ -e "$target" ] || [ -L "$target" ]; then
-        printf 'Leaving independent home guidance untouched: %s.\n' "$target"
-    fi
-}
-
-# A renamed or retired skill leaves its previous directory behind in the fixed
-# resources because the scan is additive. Name those spellings here once. A
-# name that any fleet checkout exports again is in service and is left alone.
-# Like every removal here, this belongs to the explicit full installer; the
-# six-hour sync stays additive.
-retired_pack_skill_names=(
-    supervisor
-    supervise
-    orchestrate
-    prompt
-    resource-create
-    resource-update
-    story
-    watch-requests
-)
-
-remove_retired_pack_skills() {
-    local name project target in_service
-
-    for name in "${retired_pack_skill_names[@]}"; do
-        in_service=0
-        for project in "$code_root"/agent*/; do
-            [ -f "$project/skills/$name/SKILL.md" ] || continue
-            in_service=1
-            break
-        done
-        if [ "$in_service" -eq 1 ]; then
-            printf 'Leaving the %s skill in place; a fleet checkout exports it again.\n' "$name"
-            continue
-        fi
-
-        target="$resources_root/skills/$name"
-        if [ -d "$target" ]; then
-            rm -rf -- "$target"
-            printf 'Removed the retired skill left in the fixed resources: %s.\n' "$target"
-        fi
-    done
-}
-
-# The extra model records are retired. Remove only the exact symlink this
-# checkout previously created; an independent file or differently-targeted
-# symlink belongs to its owner and is left alone.
-remove_retired_llm_config() {
-    local retired_source="$repo_root/config/llm/extra-openai-models.yaml"
-    local target="$HOME/Library/Application Support/io.datasette.llm/extra-openai-models.yaml"
-
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$retired_source" ]; then
-        rm -- "$target"
-        printf 'Removed retired AgentStart-owned llm model configuration: %s.\n' "$target"
-    elif [ -e "$target" ] || [ -L "$target" ]; then
-        printf 'Leaving independent llm model configuration untouched: %s.\n' "$target"
-    fi
-}
-
 
 # The operator extension prompts are cross-project guidance, so AgentStart
 # owns them: prompts/agentguidance/ here is the source of truth, and
@@ -327,18 +145,6 @@ link_extension_prompts() {
         cmp -s "$source" "$target" \
             || die "linked extension prompt does not resolve to $source: $target"
     done
-
-    # Retire only our catalog link, including a dangling link after the source
-    # was removed. Independent prompts belong to the operator; the renderer
-    # no longer has a TOOLS.md render point, so those files remain unloaded.
-    source="$repo_root/prompts/agentguidance/TOOLS.md"
-    target="$config_dir/TOOLS.md"
-    if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-        rm -- "$target"
-        printf 'Removed retired AgentStart tool catalog link: %s.\n' "$target"
-    elif [ -e "$target" ] || [ -L "$target" ]; then
-        printf 'Leaving independent retired extension prompt untouched: %s.\n' "$target"
-    fi
 }
 
 # Everything this repository owns as content, in the one order that works.
@@ -355,43 +161,19 @@ link_extension_prompts() {
 # the two can never disagree about what content convergence means.
 #
 # What it deliberately leaves out is anything that installs, upgrades, or
-# downloads: the pinned third-party skill packs and the retired-harness-
-# integration cleanup that touches live harness state.
-# Those persist from the last full install, and the renderer below carries
-# whatever they left behind. A machine that has never had a full install is
-# not a machine this mode can converge.
+# downloads, including the pinned third-party skill packs. Those persist from
+# the last full install, and the renderer below carries whatever they left
+# behind. A machine that has never had a full install is not a machine this
+# mode can converge.
 converge_repo_content() {
-    printf 'Removing the retired home guidance hub if AgentStart owns it.\n'
-    remove_retired_home_guidance
-
     printf 'Linking the operator extension prompts into ~/.config/agentguidance.\n'
     link_extension_prompts
-
-    printf 'Removing the retired llm model configuration if AgentStart owns it.\n'
-    remove_retired_llm_config
-
-    # This cleanup belongs only to the explicit full installer. sync-skills is
-    # the six-hour unattended path and remains additive: it never uninstalls a
-    # skill that may be in use by a live session. The exact managed set is the
-    # external packs, every discovered fleet skill, and the previous install
-    # receipt; independent compatibility-root occupants are preserved.
-    printf 'Removing AgentStart-managed skills from Fx-visible compatibility roots.\n'
-    remove_legacy_global_skills
-
-    printf 'Retiring AgentStart-owned legacy plugin registrations and marketplace.\n'
-    remove_retired_core_plugin
 
     # The fleet statusline is harness configuration in each CLI's own idiom, so
     # it converges here rather than from a launcher. It reads config the harness
     # installers create, which is why content convergence assumes a machine a
     # full install has already been through.
     "$script_dir/install-statusline" --install
-
-    # A renamed or retired skill leaves its previous directory behind in the
-    # fixed resources, and the additive sync below would keep it in every
-    # session. Remove before the sync, never after.
-    printf 'Removing retired skills left behind in the fixed resources.\n'
-    remove_retired_pack_skills
 
     # Every agent tool publishes its skills by convention — skills/<name>/
     # inside a checkout named agent* — so they are discovered rather than
@@ -400,13 +182,6 @@ converge_repo_content() {
     # whose post-sync hook re-renders the templates the scan ships against the
     # operator extension prompts linked above.
     "$script_dir/sync-skills"
-
-    # Both managed consumers are installed earlier in the full convergence and
-    # now read the fixed resources. The old projections and pack receipts are
-    # not a compatibility surface; remove only a manifest-owned tree or an
-    # exact managed-skill residue from the fixed-resource migration.
-    printf 'Retiring the provably managed capability-pack tree.\n'
-    remove_retired_capability_resources
 
     # The sync above renders the canonical guidance source. Link
     # the two harness discovery slots only after that source is guaranteed
@@ -476,9 +251,8 @@ Command-line tools:
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
-  brew install or upgrade herdr only while every default/named server socket is proved inactive  # after cutover, upgrades additionally require explicit inactive-maintenance authorization
-  initially select Homebrew Herdr only with explicit inactive-cutover authorization, protocol 20+, and no live or uncertain server sockets, then remove the receipt-proved legacy source build  # ordinary convergence recognizes completed cutover; ambiguous evidence preserves legacy
-  herdr integration install claude and codex  # both are pinned to canonical homes, and stale swap-session hooks are pruned
+  brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate
+  herdr integration install claude and codex into their canonical homes
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
@@ -491,29 +265,19 @@ Command-line tools:
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
   ~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call
-  remove AgentStart's retired ~/.local/bin/smolmux-release-local helper  # preserve an independent occupant
-
 Agent documentation:
-  remove ambient shadcn and retired livekit-docs MCP registrations from Codex and Claude Code  # shadcn loads only through managed fleet resources
   native skills list
 
 Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
-  remove AgentStart-owned ~/AGENTS.md symlink  # retired hub; independent occupants are preserved
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
-  remove ~/.config/agentguidance/TOOLS.md only when it is this checkout's retired catalog symlink
-  remove AgentStart-owned ~/Library/Application Support/io.datasette.llm/extra-openai-models.yaml symlink  # its extra model records are obsolete
-  remove ownership-verified AgentSurface, AgentBus, and Orca harness integrations
-  remove the retired Pi CLI package and exact machine state roots, refusing an unproved package or launcher
-  remove AgentStart-managed skills from Fx-visible compatibility roots, including retired livekit-simulations  # full install only; independent occupants are preserved
 
 Fixed private fleet resources:
   install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
   scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli
   scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport
   scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes
-  scripts/remove-executor --install  # retire vendor service, cask, registrations and dedicated state
   render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/anthropics/skills: frontend-design
@@ -528,21 +292,17 @@ Fixed private fleet resources:
   install hunk-review with --copy into the fixed resources
   herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
   install herdr with --copy into the fixed resources
-  remove retired skills left in the fixed resources: supervisor supervise orchestrate prompt resource-create resource-update story watch-requests  # full install only; /tend replaces worktree supervision with advisory triage
-  remove the retired capability-pack tree only with its original manifest or byte-proved fixed-resource residue; refuse every other occupant
 
 Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):
 EOF
     "$script_dir/install-statusline" --check
     "$script_dir/install-launchagents" --check
-    "$script_dir/remove-retired-agentweb" --check
     printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
         "$code_root/agentchats/scripts/install.sh" --check
     fi
-    "$script_dir/remove-retired-pi" --check
     if [ -f "$code_root/agentdesk/scripts/install.sh" ]; then
         "$code_root/agentdesk/scripts/install.sh" --check
     fi
@@ -611,11 +371,6 @@ XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code" \
 printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
-
-# Ambient MCP cleanup depends only on the two freshly converged harness CLIs.
-# Keep it ahead of independent fleet gates so a blocked binary install cannot
-# leave retired or newly session-scoped servers active in naked harnesses.
-remove_ambient_mcp_servers
 
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:
@@ -722,16 +477,13 @@ install -m 0755 "$termctrl_shim" "$termctrl_bin"
 # formula owns its binary and normal update path; AgentStart still converges
 # the fleet integrations, plugin, behavior config, and bundled skill below.
 # Package-manager replacement cannot use Herdr's live handoff. Inspect every
-# default/named socket before Homebrew can change the installed client bytes;
-# a later inactive convergence performs the deferred install or upgrade.
-herdr_socket_state=$("$script_dir/select-herdr-runtime" --socket-state) \
+# default/named socket before Homebrew can change the installed client bytes.
+herdr_socket_state=$("$script_dir/herdr-socket-state") \
     || die "inspecting Herdr server sockets before Homebrew convergence failed"
-herdr_legacy_state=$("$script_dir/select-herdr-runtime" --legacy-state) \
-    || die "inspecting legacy Herdr state before Homebrew convergence failed"
-herdr_cutover_allowed="${AGENTSTART_HERDR_ALLOW_CUTOVER:-0}"
-case "$herdr_cutover_allowed" in
+herdr_upgrade_allowed="${AGENTSTART_HERDR_ALLOW_UPGRADE:-0}"
+case "$herdr_upgrade_allowed" in
     0|1) ;;
-    *) die "AGENTSTART_HERDR_ALLOW_CUTOVER must be 0 or 1" ;;
+    *) die "AGENTSTART_HERDR_ALLOW_UPGRADE must be 0 or 1" ;;
 esac
 herdr_formula_installed=0
 if "$brew_bin" list --formula --versions herdr >/dev/null 2>&1; then
@@ -739,13 +491,14 @@ if "$brew_bin" list --formula --versions herdr >/dev/null 2>&1; then
 fi
 case "$herdr_socket_state" in
     inactive)
-        if [ "$herdr_legacy_state" = present ] ||
-            [ "$herdr_formula_installed" -eq 0 ] ||
-            [ "$herdr_cutover_allowed" -eq 1 ]; then
+        if [ "$herdr_formula_installed" -eq 0 ]; then
+            printf 'Installing Herdr from the official stable formula.\n'
+            install_or_upgrade_formula herdr
+        elif [ "$herdr_upgrade_allowed" -eq 1 ]; then
             printf 'Installing or upgrading Herdr from the official stable formula.\n'
             install_or_upgrade_formula herdr
         else
-            printf 'Deferring post-cutover Homebrew Herdr upgrade without explicit inactive-maintenance authorization.\n'
+            printf 'Preserving the installed Homebrew Herdr version; set AGENTSTART_HERDR_ALLOW_UPGRADE=1 for an inactive maintenance run.\n'
         fi
         ;;
     present)
@@ -757,18 +510,16 @@ case "$herdr_socket_state" in
     *) die "unexpected Herdr socket state: $herdr_socket_state" ;;
 esac
 
-# Keep using the source-built protocol-21 client while stable is older or any
-# default/named server socket exists. Only a fully compatible, inactive
-# cutover removes the old binary, and only with exact ownership evidence.
-# Once that evidence is gone, ordinary convergence recognizes Homebrew as the
-# already-selected runtime without requiring the one-time cutover flag again.
-herdr_bin=$("$script_dir/select-herdr-runtime" "$brew_prefix/bin/herdr") \
-    || die "selecting the safe Herdr runtime failed"
-if [ "$herdr_bin" = "$brew_prefix/bin/herdr" ]; then
-    hash -r
-    [ "$(command -v herdr)" = "$herdr_bin" ] \
-        || die "Homebrew Herdr does not win PATH after legacy cleanup: $(command -v herdr || printf missing)"
-fi
+herdr_bin="$brew_prefix/bin/herdr"
+[ -x "$herdr_bin" ] \
+    || die "Homebrew Herdr is unavailable; stop any remaining server and rerun the installer"
+herdr_protocol=$("$herdr_bin" status client 2>/dev/null \
+    | awk '$1 == "protocol:" { print $2; exit }')
+case "$herdr_protocol" in
+    ''|*[!0-9]*) die "could not read the Homebrew Herdr client protocol" ;;
+esac
+[ "$herdr_protocol" -ge 20 ] \
+    || die "Homebrew Herdr protocol $herdr_protocol is below the fleet minimum 20"
 
 # The harness integrations wire each agent into Herdr. Claude's and Codex's
 # report session identity (for native restore) and deliberately leave lifecycle
@@ -781,193 +532,15 @@ fi
 # ownership and conflict rules are its installer's to enforce, exactly as they
 # are for a fleet checkout's own installer. Herdr supports more harnesses, and
 # adding one here is a deliberate edit.
-prune_shadow_codex_herdr_hooks() {
-    local hooks_path="$HOME/.codex/hooks.json"
-
-    [ -f "$hooks_path" ] || return 0
-
-    /usr/bin/python3 - "$hooks_path" <<'PYTHON' \
-        || die "failed to prune stale herdr hooks from $hooks_path"
-import json
-import os
-import re
-import stat
-import sys
-import tempfile
-
-hooks_path = sys.argv[1]
-with open(hooks_path, encoding="utf-8") as source:
-    document = json.load(source)
-
-session_start = document.get("hooks", {}).get("SessionStart")
-if not isinstance(session_start, list):
-    raise SystemExit(0)
-
-shadow_command = re.compile(
-    r"^bash '.*?/multi-auth/runtime-shadow-homes/"
-    r"codex-multi-auth-runtime-home-[^/']+/herdr-agent-state\.sh' session$"
-)
-removed = 0
-groups = []
-
-for group in session_start:
-    if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
-        groups.append(group)
-        continue
-
-    handlers = []
-    for handler in group["hooks"]:
-        generated_shadow_hook = (
-            isinstance(handler, dict)
-            and handler.get("type") == "command"
-            and isinstance(handler.get("command"), str)
-            and shadow_command.fullmatch(handler["command"]) is not None
-        )
-        if generated_shadow_hook:
-            removed += 1
-        else:
-            handlers.append(handler)
-
-    if handlers:
-        group["hooks"] = handlers
-        groups.append(group)
-
-if removed == 0:
-    raise SystemExit(0)
-
-document["hooks"]["SessionStart"] = groups
-write_path = os.path.realpath(hooks_path)
-mode = stat.S_IMODE(os.stat(write_path).st_mode)
-temporary = tempfile.NamedTemporaryFile(
-    mode="w",
-    encoding="utf-8",
-    dir=os.path.dirname(write_path),
-    prefix=f".{os.path.basename(write_path)}.",
-    suffix=".tmp",
-    delete=False,
-)
-try:
-    with temporary:
-        json.dump(document, temporary, indent=2)
-        temporary.write("\n")
-        temporary.flush()
-        os.fsync(temporary.fileno())
-    os.chmod(temporary.name, mode)
-    os.replace(temporary.name, write_path)
-except BaseException:
-    try:
-        os.unlink(temporary.name)
-    except FileNotFoundError:
-        pass
-    raise
-
-print(f"Removed {removed} stale Codex multi-auth Herdr hook(s) from {hooks_path}.")
-PYTHON
-}
-
-prune_swap_claude_herdr_hooks() {
-    local settings_path="$HOME/.claude/settings.json"
-
-    [ -f "$settings_path" ] || return 0
-
-    /usr/bin/python3 - "$settings_path" <<'PYTHON' \
-        || die "failed to prune stale herdr hooks from $settings_path"
-import json
-import os
-import re
-import stat
-import sys
-import tempfile
-
-settings_path = sys.argv[1]
-with open(settings_path, encoding="utf-8") as source:
-    document = json.load(source)
-
-session_start = document.get("hooks", {}).get("SessionStart")
-if not isinstance(session_start, list):
-    raise SystemExit(0)
-
-swap_command = re.compile(
-    r"^bash '.*?/\.claude-swap-backup/sessions/"
-    r"[^/']+/hooks/herdr-agent-state\.sh' session$"
-)
-removed = 0
-groups = []
-
-for group in session_start:
-    if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
-        groups.append(group)
-        continue
-
-    handlers = []
-    for handler in group["hooks"]:
-        generated_swap_hook = (
-            isinstance(handler, dict)
-            and handler.get("type") == "command"
-            and isinstance(handler.get("command"), str)
-            and swap_command.fullmatch(handler["command"]) is not None
-        )
-        if generated_swap_hook:
-            removed += 1
-        else:
-            handlers.append(handler)
-
-    if handlers:
-        group["hooks"] = handlers
-        groups.append(group)
-
-if removed == 0:
-    raise SystemExit(0)
-
-document["hooks"]["SessionStart"] = groups
-write_path = os.path.realpath(settings_path)
-mode = stat.S_IMODE(os.stat(write_path).st_mode)
-temporary = tempfile.NamedTemporaryFile(
-    mode="w",
-    encoding="utf-8",
-    dir=os.path.dirname(write_path),
-    prefix=f".{os.path.basename(write_path)}.",
-    suffix=".tmp",
-    delete=False,
-)
-try:
-    with temporary:
-        json.dump(document, temporary, indent=2)
-        temporary.write("\n")
-        temporary.flush()
-        os.fsync(temporary.fileno())
-    os.chmod(temporary.name, mode)
-    os.replace(temporary.name, write_path)
-except BaseException:
-    try:
-        os.unlink(temporary.name)
-    except FileNotFoundError:
-        pass
-    raise
-
-print(f"Removed {removed} stale Claude swap-session Herdr hook(s) from {settings_path}.")
-PYTHON
-}
-
 install_herdr_integrations() {
     local harness
 
     for harness in claude codex; do
         printf 'Installing the herdr %s integration.\n' "$harness"
         if [ "$harness" = claude ]; then
-            # A claude-swap launch runs with CLAUDE_CONFIG_DIR pointed at a
-            # per-account session directory whose settings.json is a symlink to
-            # the canonical one. Left unpinned, every swapped run appends a
-            # second hook — same script, session-local path — to the one shared
-            # file. Pin the canonical home and prune any that already landed.
-            prune_swap_claude_herdr_hooks
             CLAUDE_CONFIG_DIR="$HOME/.claude" "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         elif [ "$harness" = codex ]; then
-            # A Codex-swap launch runs with a disposable CODEX_HOME. Never let
-            # that session-local path enter the canonical hook definition:
-            # Codex trusts the definition hash, so every new path asks again.
-            prune_shadow_codex_herdr_hooks
             CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness" \
                 || die "herdr integration install failed: $harness"
         fi
@@ -979,10 +552,10 @@ install_herdr_integrations
 # AgentSurface's herdr plugin (the titled fleet TUI popups plus tab naming from
 # a conversation's first prompt) registers by link, not copy: herdr records the
 # checkout path, so a changed checkout needs no relink and relinking the same
-# path is a safe converge. During the one-time move from a newer source build
-# to stable, the resident server may speak a newer protocol than the installed
-# client. Preserve its existing link and defer the idempotent relink until the
-# operator's natural server restart rather than stopping panes to force it.
+# path is a safe converge. A resident server may temporarily speak a newer
+# protocol than the installed client after an upgrade. Preserve its existing
+# link and defer the idempotent relink until the operator's natural server
+# restart rather than stopping panes to force it.
 # The registered plugin belongs to herdr; the plugin directory belongs to the
 # agentsurface checkout, whose absence is a skip exactly as in
 # install-agent-clis.
@@ -1073,27 +646,6 @@ link_agent_browser "$agent_browser_npm_prefix"
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
-# Remove only the helper shape AgentStart installed. The operator's general
-# file-backed Vercel login is independent account state and is left untouched.
-retired_smolmux_release="$HOME/.local/bin/smolmux-release-local"
-if [ -f "$retired_smolmux_release" ] \
-    && grep -F 'repo=possibilities/smolmux' "$retired_smolmux_release" >/dev/null \
-    && grep -F 'smolmux-release-local build --run-id' "$retired_smolmux_release" >/dev/null; then
-    rm -f "$retired_smolmux_release"
-    printf 'Removed retired AgentStart Smolmux release helper: %s.\n' "$retired_smolmux_release"
-elif [ -e "$retired_smolmux_release" ]; then
-    printf 'Preserving independent occupant at retired Smolmux release path: %s.\n' "$retired_smolmux_release"
-fi
-
-printf 'Removing retired AgentSurface, AgentBus, and Orca harness integrations.\n'
-retired_integrations_status=0
-"$script_dir/remove-retired-integrations" || retired_integrations_status=$?
-if [ "$retired_integrations_status" -ne 0 ]; then
-    printf 'AgentStart installer: retired integration cleanup failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or scripts/remove-retired-integrations.\n' \
-        "$retired_integrations_status" >&2
-    exit "$retired_integrations_status"
-fi
-
 printf 'Installing the common skill discovery helper.\n'
 install_private_skill_pack https://github.com/vercel-labs/skills find-skills
 
@@ -1134,7 +686,7 @@ install_private_skill_pack \
 # `hunk skill path` as the authority instead of copying the GitHub head: the
 # skill describes the exact `hunk session` commands this build accepts. The
 # resolved package root already has the skills/<name>/SKILL.md shape consumed
-# by the common capability-pack renderer. Its description handles discovery
+# by the fixed-resource renderer. Its description handles discovery
 # for live Hunk sessions and interactive diff review.
 install_hunk_skill() {
     local skill_file skill_dir pack_root
@@ -1240,15 +792,6 @@ else
         "$agentchats_root"
 fi
 
-# Retire Pi only after AgentLaunch, AgentSurface, and AgentChats have installed
-# their Pi-free producer contracts. The retirement gate below proves each
-# deployed command links into its Pi-free checkout and that AgentChats'
-# completed one-time migration receipt is gone. The JSONL cleanup preserves
-# each live log inode, so a final unrelated append cannot be lost to temp-file
-# replacement.
-printf 'Removing the retired Pi CLI and exact machine state roots.\n'
-"$script_dir/remove-retired-pi" --install
-
 # Agentdesk's installer owns its Computer Use stdio MCP and desktop skill. It
 # never starts a call.
 agentdesk_root="$code_root/agentdesk"
@@ -1278,21 +821,12 @@ converge_repo_content
 printf 'Installing the fleet launch agents.\n'
 "$script_dir/install-launchagents" --install
 
-# Service retirement must complete before the old command wrapper disappears:
-# otherwise launchd can restart a KeepAlive broker against a half-removed
-# installation. install-launchagents proves ownership, boots out the loaded
-# job, removes its plist, and rewrites Agentbrain without conduit variables;
-# only after it returns may these marker-owned command artifacts be removed.
-printf 'Removing retired Agentweb command artifacts.\n'
-"$script_dir/remove-retired-agentweb" --install
-
 # Authorization is never implicit in ordinary convergence. Diagnose the
 # receiver and inspectable webhook path after its CLI and resident service
 # exist; incomplete state prints an agent-ready handoff while a healthy machine
 # remains quiet.
 "$script_dir/configure-agentsource-webhooks" --check || true
 
-# Replace only the inspected MCP Funnel route after the new authenticated
-# listener is healthy. Retire the former transport and dedicated state last.
+# Replace only the inspected MCP Funnel route after the authenticated listener
+# is healthy.
 "$script_dir/install-mcp-gateway" --expose
-"$script_dir/remove-executor" --install

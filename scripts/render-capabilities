@@ -17,7 +17,7 @@ case "$1" in
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   render a standard AgentVoice role from its default prompts and the fixed fleet resources
   persistently disable every agent:<skill> outside managed Codex sessions
-  leave retired-path and ambient-link cleanup to the explicit full installer
+  leave binary installation and service restarts to the explicit full installer
 EOF
         exit 0
         ;;
@@ -51,9 +51,7 @@ cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
 
 # Plannotator's portable upstream guide includes one provider-detection table
 # row for every origin its binary knows. Preserve that useful variable contract
-# while narrowing the documented values to this fleet's retained harnesses, so
-# a vendor refresh cannot re-advertise retired harnesses in installed resources
-# or the public field-guide snapshot.
+# while narrowing the documented values to this fleet's supported harnesses.
 for skill_manifest in "$skills_root"/*/SKILL.md; do
     [ -f "$skill_manifest" ] && [ ! -L "$skill_manifest" ] || continue
     # shellcheck disable=SC2016 # The backticks name a literal documented variable.

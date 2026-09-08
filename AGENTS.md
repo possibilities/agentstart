@@ -48,22 +48,14 @@
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. The `fork-rebase-policy` wiki page is the contract.
-- Herdr is moving from AgentStart's retired source updater to the
-  official stable Homebrew formula. `scripts/select-herdr-runtime` is the
-  cutover guard: stable must speak fleet protocol 20 or newer and every
-  default/named server socket must be absent before the receipt-proved source
-  binary is removed. While a socket is present or uncertain, full convergence
-  leaves Homebrew's installed bytes unchanged and keeps the compatible client
-  and its build evidence. Once every socket is proved inactive, convergence
-  may stage stable, but the final cleanup additionally requires
-  `AGENTSTART_HERDR_ALLOW_CUTOVER=1`; ordinary
-  convergence may never win that race implicitly. Once no legacy binary or
-  evidence remains, ordinary convergence recognizes Homebrew as already
-  selected, and later formula upgrades require the same explicit inactive-run
-  authorization. A clean install with no prior formula or legacy state still
-  installs stable normally. Package-manager updates cannot use Herdr's live
-  handoff, so never weaken the socket gate to replace client bytes around
-  resident agents.
+- Herdr comes from the official stable Homebrew formula and must speak fleet
+  protocol 20 or newer. `scripts/herdr-socket-state` checks every default and
+  named server socket before Homebrew may change the installed client bytes.
+  A missing formula installs once the sockets are proved inactive. An existing
+  formula upgrades only during an explicitly authorized inactive maintenance
+  run with `AGENTSTART_HERDR_ALLOW_UPGRADE=1`. A present socket or uncertain
+  state defers either operation. Package-manager updates cannot use Herdr's
+  live handoff, so never weaken that gate around resident agents.
 - Every fleet repo's `AGENTS.md` ends with the same "The fleet" section
   pointing back here: the skills scan and its cadence, the fleet-map rule,
   and agentguidance as the home of general doctrine. Changing any of those
@@ -83,15 +75,21 @@ The external interface is exactly `scripts/install.sh` (`--install`,
 updater call these by path with fixed semantics: a missing optional fleet
 checkout is a skip inside the script, a present-but-broken one fails, and
 the updater path (`sync-skills`) must stay unattended-safe
-— no sudo, no uninstalls, no application restarts. Retired integration
-cleanup belongs in the full installer. That caller's own test suite greps
-these scripts, so renaming or resemanticizing them breaks it.
+— no sudo, no uninstalls, no application restarts. Machine migrations are
+bounded maintenance work, not permanent phases of either installer. That
+caller's own test suite greps these scripts, so renaming or resemanticizing
+them breaks it.
 
 Where things go:
 
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
+- An agent-facing workflow: classify its authoritative surface using
+  `docs/agent-interfaces.md`. Prefer an existing typed MCP for structured
+  remote actions, the harness's native mechanism for orchestration and
+  approvals, and the owning CLI/TUI for interactive or local workflows. Do
+  not add an MCP solely to make every skill name map to one.
 - Personal Codex preferences are the authored-source exception:
   `~/code/funk/config/harnesses/codex.toml`. AgentStart still owns installation
   and the invocation profile (`scripts/codex-invocation`), invoked by its Codex

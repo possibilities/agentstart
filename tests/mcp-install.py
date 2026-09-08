@@ -4,12 +4,8 @@ import hashlib
 import importlib.machinery
 import importlib.util
 import json
-import os
 from pathlib import Path
-import plistlib
-import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -27,7 +23,6 @@ def module(name, path):
 
 
 provision = module('provision', ROOT/'scripts/install-mcp-gateway')
-retire = module('retire', ROOT/'scripts/remove-executor')
 render = module('render', ROOT/'scripts/render-mcp-resources')
 
 
@@ -144,59 +139,6 @@ class InstallTest(unittest.TestCase):
             self.assertEqual(state, before)
         self.assertEqual(state['TCP'], original['TCP'])
         self.assertEqual(state['Web']['fixture.ts.net:443']['Handlers']['/'], original['Web']['fixture.ts.net:443']['Handlers']['/'])
-
-    def test_retirement_preflights_then_removes_only_owned_runtime(self):
-        app = self.home/'Applications/Executor.app'
-        binary = app/'Contents/Resources/executor/executor'
-        binary.parent.mkdir(parents=True)
-        binary.touch()
-        (app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'sh.executor.desktop'}))
-        state = self.home/'.executor'
-        save(state/'server-control/auth.json', {'token':'private-fixture-token'})
-        logs = self.home/'Library/Logs/Executor'
-        logs.mkdir(parents=True)
-        (logs/'old.log').write_text('fixture')
-        token_copy = self.home/'agent-tools/executor-bearer-for-mcp.txt'
-        token_copy.parent.mkdir()
-        token_copy.write_text('private-fixture-token')
-        unrelated = self.home/'Library/Application Support/gogcli/credentials.json'
-        save(unrelated, {'fixture':'preserved'})
-        plist = self.home/'Library/LaunchAgents/sh.executor.daemon.plist'
-        plist.parent.mkdir(parents=True)
-        job = {'Label':retire.LABEL,'ProgramArguments':[str(binary),'daemon','run','--foreground','--port','4789','--hostname','127.0.0.1'],
-               'EnvironmentVariables':{'EXECUTOR_DATA_DIR':str(state),'EXECUTOR_SCOPE_DIR':str(state)}}
-        plist.write_bytes(plistlib.dumps(job))
-        calls = []
-        def run(args, **_):
-            calls.append(args)
-            out = ''
-            if args[:4] == ['/fixture/brew','info','--json=v2','--cask']:
-                out = json.dumps({'casks':[{'token':'executor','tap':'homebrew/cask','installed':'1.6.8'}]})
-            elif args == [str(binary),'service','uninstall']:
-                plist.unlink()
-            elif args == ['/fixture/brew','uninstall','--cask','executor']:
-                shutil.rmtree(app)
-            elif args == ['ps','-axo','pid=,comm=']:
-                # An unrelated process can mention Executor in argv; comm is authoritative.
-                out = '987 /usr/local/bin/unrelated\n'
-            else: self.fail('Unexpected retirement command: '+str(args))
-            return subprocess.CompletedProcess(args,0,stdout=out,stderr='')
-        with patch.object(retire, 'APP', app), patch.object(retire, 'BINARY', binary),              patch.object(Path, 'home', return_value=self.home), patch.object(retire.shutil, 'which', return_value='/fixture/brew'),              patch.object(retire.subprocess, 'run', side_effect=run), patch.object(sys, 'argv', ['remove-executor','--install']):
-            altered = dict(job, ProgramArguments=['/independent'])
-            plist.write_bytes(plistlib.dumps(altered))
-            with self.assertRaisesRegex(ValueError, 'unrecognized Executor service'): retire.main()
-            self.assertEqual(calls, [])
-            self.assertTrue(state.exists())
-            plist.write_bytes(plistlib.dumps(job))
-            retire.main()
-        self.assertFalse(app.exists())
-        self.assertFalse(state.exists())
-        self.assertFalse(token_copy.exists())
-        self.assertFalse(logs.exists())
-        self.assertTrue(unrelated.exists())
-        self.assertLess(next(i for i,c in enumerate(calls) if 'info' in c),
-                        next(i for i,c in enumerate(calls) if 'uninstall' in c))
-
 
 if __name__ == '__main__':
     unittest.main()
