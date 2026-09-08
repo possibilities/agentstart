@@ -268,7 +268,6 @@ sentence around the match, never from the name alone.
 | agentchats | agentsurface | the picker enriches its rows through `agentsurface conversation describe` — the read-only naming surface: JSON lines of {harness, path} in, {path, slug, excerpt} lines out, one subprocess per listing refresh. Slugs come from agentsurface's slug store (written whenever `conversation slug` pays for inference — the tab namer's path); excerpts are first-prompt extraction from the transcript head. A machine without agentsurface, or a failing call, enriches nothing and the rows keep their indexed titles | `agentchats/src/tui/describe.ts:4-11`; `agentsurface/src/conversation/describe.ts:52-87`; `agentsurface/src/conversation/store.ts` |
 | agentchats | agentlaunch | a resume directive's `agent.args` are `["--x-resume", <native-session-id>]` — agentlaunch's flag spelling of `x-resume`, added for exactly this path because herdr types only the bare kind command (the shim) plus arguments. The session-id derivation in the picker mirrors agentlaunch's store layouts | `agentchats/src/tui/directive.ts:44` (`buildResumeDirective`); `agentchats/src/tui/resume.ts:37-42` (`deriveSessionId`); `agentlaunch/src/main.ts:202-206` (the `--x-resume` reroute) |
 | desktop skill / MCP hosts | Agentdesk / Codex Computer Use | native harness Computer Use remains available; otherwise agentdesk mcp wraps one owned supported Codex app-server and dynamically preserves its CUA schemas, images and consent flow. Guide and initialize do not start Codex; dynamic discovery or use does. Each stdio connection owns and reaps its child, with no model turn for tool discovery. Browser pages still use the browser workflow | agentdesk/skills/desktop/SKILL.md; agentdesk/src/mcp.ts; agentdesk/scripts/install.sh; agentstart/config/resources/mcp-servers.json |
-| AgentStart → Agentdesk retirement | retired Peekaboo package and app | the full installer invokes Agentdesk's existing contract to uninstall the official formula and move its verified app and dedicated state to Trash; the unattended skill updater never performs this removal. Desktop interaction uses Codex Computer Use | `agentstart/scripts/install.sh`; `agentdesk/scripts/install.sh`; `agentdesk/scripts/remove-peekaboo.py` |
 | agentkeys | stowed machine configs | audits the interception chain across Karabiner/skhd/Ghostty/tmux/Neovim — files the machine layer stows | `agentkeys` skill description; the machine's stow packages |
 | agentboard, agentchats | each other's CLIs | the shared "agent* state dump" bearings convention: one cross-tool contract for workspace-scoped bearings, with a common ~4-chars-per-token `--budget` and silence as the all-clear | `agentchats/src/cli/state.ts`, `agentboard/src/brief.ts:140,151-158`, `agentboard/src/contract.ts:576-581` |
 | agentstart statusline | agentusage | Claude displays the validated `AGENTUSAGE_ACCOUNT` identity exported by preparation, independent of native home layout. Codex lacks a configurable environment-backed account item. An automatic Codex account switch is reported by the launcher at the next lease renewal | `agentstart/config/statusline/claude-statusline.sh`; `agentusage/src/service/prepare.ts`; `agentlaunch/src/account-session.ts` |
@@ -419,17 +418,6 @@ by tab-label names or session ids with herdr as the delivery path. The bus
 gained its skill the same day: `bus` joins TOOLS.md's advertisements and
 routes to `notify` for blocked-target escalation; `message --wait-unblocked`
 retries a blocked delivery until its deadline.
-Updated 2026-09-08: Peekaboo is retired. Agentdesk's existing install contract
-now removes its official Homebrew formula and moves its verified application
-and dedicated state to Trash. The Desktop skill uses Codex Computer Use and
-has no Peekaboo operator reference. No shared tap or macOS grant is removed.
-Updated 2026-08-17 again for the desktop capability: peekaboo (upstream,
-`steipete/tap`, repo openclaw/Peekaboo) joins through the new agentdesk
-checkout as a skill over third-party software, installed by its own contract
-from AgentStart's installer, with the `desktop` skill advertised in TOOLS.md and routing
-to `browser`, `bus`, and `notify`. The `computer-use` name stays retired (an
-Orca-era skill the full install still removes); the capability re-lands as
-`desktop`.
 Updated 2026-08-17 to make the AgentSurface plugin the shared home for fleet
 TUIs bound to popups: its new `usage` pane runs `agentusage` through the
 escape-to-close wrapper under the title `Agent Usage`, while

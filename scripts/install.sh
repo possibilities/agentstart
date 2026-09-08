@@ -1249,8 +1249,8 @@ fi
 printf 'Removing the retired Pi CLI and exact machine state roots.\n'
 "$script_dir/remove-retired-pi" --install
 
-# Agentdesk's installer owns its Computer Use stdio MCP and desktop skill,
-# including retirement of the previous desktop driver. It never starts a call.
+# Agentdesk's installer owns its Computer Use stdio MCP and desktop skill. It
+# never starts a call.
 agentdesk_root="$code_root/agentdesk"
 if [ -f "$agentdesk_root/scripts/install.sh" ]; then
     agentdesk_status=0

@@ -3430,7 +3430,7 @@ grep -F 'agentchats_root="$code_root/agentchats"' scripts/install.sh >/dev/null 
     || fail "installer does not own the agentchats installation call"
 # shellcheck disable=SC2016 # Match the literal checkout resolution in the script.
 grep -F 'agentdesk_root="$code_root/agentdesk"' scripts/install.sh >/dev/null \
-    || fail "installer does not own the desktop retirement call"
+    || fail "installer does not own the Agentdesk installation call"
 # One fleet root, honoured by every script that walks it. A script resolving
 # $HOME/code directly cannot be pointed at a fixture tree, and one resolving it
 # relative to its own location would silently skip the whole fleet on a worktree
@@ -3450,7 +3450,7 @@ grep -F '"$agentchats_root/scripts/install.sh" --install' scripts/install.sh >/d
     || fail "installer does not invoke the agentchats contract"
 # shellcheck disable=SC2016 # Match the literal invocation in the script.
 grep -F '"$agentdesk_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke the agentdesk retirement contract"
+    || fail "installer does not invoke the Agentdesk installation contract"
 
 # Grok Build is the only CLI-only cask installed by AgentStart.
 if grep -Eq -- '--cask' scripts/sync-skills; then
