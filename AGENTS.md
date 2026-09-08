@@ -69,10 +69,13 @@ rerunning `scripts/install.sh --install`. Do not hand-configure the live
 machine, and do not grow a second installer or synchronization path here or
 in `~/code/agentguidance`.
 
-The external interface is exactly `scripts/install.sh` (`--install`,
-`--check`), `scripts/sync-skills` (`--check`),
-`scripts/install-agentlaunch-shims`. The machine's installer and scheduled
-updater call these by path with fixed semantics: a missing optional fleet
+The default convergence interface is exactly `scripts/install.sh` (`--install`,
+`--check`), `scripts/sync-skills` (`--check`), and
+`scripts/install-agentlaunch-shims`. The explicit operator-run
+`scripts/install-agentvoice-android --install` is separate: it delegates a
+phone proof deployment to AgentVoice's checkout-owned installer and must never
+be called by those default install or synchronization paths. The machine's
+installer and scheduled updater call these by path with fixed semantics: a missing optional fleet
 checkout is a skip inside the script, a present-but-broken one fails, and
 the updater path (`sync-skills`) must stay unattended-safe
 — no sudo, no uninstalls, no application restarts. Machine migrations are
@@ -101,6 +104,14 @@ Where things go:
   Companion, and doctor verification. AgentStart owns only fleet ordering and
   the shared install directory; Smolmux sessions run arbitrary commands and
   have no Fx pin or agent-specific MCP command.
+- AgentVoice Android proof deployment: invoke
+  `scripts/install-agentvoice-android --install`. It resolves AgentVoice under
+  the common fleet root and delegates only to
+  `agentvoice/scripts/install-android --install --host <host>`; AgentVoice owns
+  the build, transport, remote validation, and installation contract. The
+  default host is `smolbird`, overridden by
+  `AGENTSTART_AGENTVOICE_ANDROID_HOST`. This remains an explicit operator action
+  and is never part of `install.sh`, `sync-skills`, or `install-agent-clis`.
 - A new fleet tool: add the checkout to the `install-agent-clis` loop if it
   has a CLI installer, and note the ordering constraint in the comment there
   if it has one. The `agent*` skills scan needs nothing. A loop member's

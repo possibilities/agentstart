@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'AgentStart AgentVoice Android installer: %s\n' "$*" >&2
+    exit 1
+}
+
+[ "$#" -eq 1 ] && [ "$1" = --install ] || {
+    printf 'Usage: install-agentvoice-android --install\n' >&2
+    exit 64
+}
+
+code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+agentvoice_root="$code_root/agentvoice"
+installer="$agentvoice_root/scripts/install-android"
+host="${AGENTSTART_AGENTVOICE_ANDROID_HOST:-smolbird}"
+
+[ -d "$agentvoice_root" ] \
+    || die "AgentVoice checkout is missing or invalid: $agentvoice_root"
+[ -f "$installer" ] && [ -x "$installer" ] \
+    || die "AgentVoice checkout has no executable Android installer: $installer"
+
+exec "$installer" --install --host "$host"

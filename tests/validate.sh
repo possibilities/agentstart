@@ -18,6 +18,7 @@ scripts/run-skills-cli
 scripts/render-capabilities
 scripts/sync-codex-skill-policy
 scripts/install-agent-clis
+scripts/install-agentvoice-android
 scripts/install-agentlaunch-shims
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
@@ -52,7 +53,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     shellcheck --shell=bash $shell_files
 fi
 
-for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis \
+for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis scripts/install-agentvoice-android \
     scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
@@ -290,6 +291,7 @@ grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
     || fail "the agent contract has no worked example for the repositories adopting it"
 bun test tests/agent-contract.test.ts
 bun test tests/install-agent-clis.test.ts
+bun test tests/install-agentvoice-android.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
 # only ever runs green in a unit test is a validator nobody has actually used.

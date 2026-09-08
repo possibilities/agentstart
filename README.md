@@ -101,6 +101,13 @@ flags, and skip-versus-fail semantics are load-bearing:
   here. The full installer also converges them. Codex runtime calls receive
   [invocation profiles](config/codex/README.md) copied from Funk's personal
   defaults, with temporary cwd/project trust and the normal Codex home intact.
+- `scripts/install-agentvoice-android --install` — an explicit phone proof
+  deployment, intentionally outside every default convergence path. It
+  delegates to the sibling AgentVoice checkout's `scripts/install-android`
+  contract with host `smolbird`, or
+  `$AGENTSTART_AGENTVOICE_ANDROID_HOST` when set. AgentStart selects the fleet
+  checkout and host; AgentVoice owns building, reaching the ADB host, and
+  validating the installed runtime.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
 migration. Grok Build is its CLI-only cask exception.
@@ -118,6 +125,17 @@ Grok Build remains outside AgentLaunch and Herdr.
 For a full install while a voice call is active, set
 AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1. This uses AgentVoice's supported
 --command-only installer mode; the prepared role applies to subsequent calls.
+
+To deploy the experimental Android browser/Termux proof separately, run:
+
+```sh
+scripts/install-agentvoice-android --install
+```
+
+Set `AGENTSTART_AGENTVOICE_ANDROID_HOST` to select a host other than
+`smolbird`. This command is deliberately absent from `install.sh`,
+`install-agent-clis`, and `sync-skills`; phone deployment is never an
+unattended convergence side effect.
 
 ## Herdr and Ghostty color
 
