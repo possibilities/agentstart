@@ -104,6 +104,11 @@ Where things go:
   Companion, and doctor verification. AgentStart owns only fleet ordering and
   the shared install directory; Smolmux sessions run arbitrary commands and
   have no Fx pin or agent-specific MCP command.
+- AgentVoice network access: `bun scripts/agentvoice-network.ts --enable` explicitly
+  configures a dedicated tailnet-only Serve endpoint. Default installation runs
+  its `--install` convergence only for already enabled network settings, using
+  AgentVoice's public network/status/configure and service/restart commands.
+  Never grant credentials, enable Funnel or replace foreign routes at install time.
 - AgentVoice Android proof deployment: invoke
   `scripts/install-agentvoice-android --install`. It resolves AgentVoice under
   the common fleet root and delegates only to

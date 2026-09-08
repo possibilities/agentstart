@@ -265,6 +265,7 @@ Command-line tools:
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
   ~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call
+  bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
 Agent documentation:
   native skills list
 
@@ -746,6 +747,9 @@ native skills list >/dev/null
 
 agent_clis_status=0
 "$script_dir/install-agent-clis" || agent_clis_status=$?
+if [ "$agent_clis_status" -eq 0 ]; then
+    bun "$script_dir/agentvoice-network.ts" --install
+fi
 if [ "$agent_clis_status" -ne 0 ]; then
     printf 'AgentStart installer: agent CLIs install failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or scripts/install-agent-clis.\n' \
         "$agent_clis_status" >&2

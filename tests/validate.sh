@@ -292,6 +292,7 @@ grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
 bun test tests/agent-contract.test.ts
 bun test tests/install-agent-clis.test.ts
 bun test tests/install-agentvoice-android.test.ts
+bun test tests/agentvoice-network.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
 # only ever runs green in a unit test is a validator nobody has actually used.
