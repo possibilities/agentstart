@@ -1303,23 +1303,21 @@ fi
 printf 'Removing the retired Pi CLI and exact machine state roots.\n'
 "$script_dir/remove-retired-pi" --install
 
-# peekaboo — the macOS GUI capture and automation CLI — installs by the
-# agentdesk checkout's own contract: the official tap formula, the TCC
-# permission verification (grants stay the human's act), and a served-capture
-# gate. Its desktop skill ships through the agent* checkout skill scan like
-# every other tool's. A machine without the checkout skips; a present
-# checkout that fails to install is a real error.
+# Agentdesk retires Peekaboo through its existing checkout contract. It removes
+# the official formula and moves the verified app and its dedicated state to
+# Trash. The Computer Use desktop skill ships through the normal skill scan;
+# this full-install cleanup never runs in the unattended content updater.
 agentdesk_root="$code_root/agentdesk"
 if [ -f "$agentdesk_root/scripts/install.sh" ]; then
     agentdesk_status=0
     "$agentdesk_root/scripts/install.sh" --install || agentdesk_status=$?
     if [ "$agentdesk_status" -ne 0 ]; then
-        printf 'AgentStart installer: peekaboo install failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or %s/scripts/install.sh --install.\n' \
+        printf 'AgentStart installer: Peekaboo retirement failed (exit %s). Fix the reported problem, then rerun scripts/install.sh --install or %s/scripts/install.sh --install.\n' \
             "$agentdesk_status" "$agentdesk_root" >&2
         exit "$agentdesk_status"
     fi
 else
-    printf 'AgentStart installer: no agentdesk checkout at %s; skipping peekaboo.\n' \
+    printf 'AgentStart installer: no agentdesk checkout at %s; skipping desktop retirement cleanup.\n' \
         "$agentdesk_root"
 fi
 

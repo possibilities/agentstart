@@ -116,7 +116,7 @@ flowchart LR
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
     start ==>|staged Homebrew stable; protocol/socket-gated cutover + harness integrations + binary-rendered skill| herdrInstall[herdr]
     start ==>|npm pin| browser[agent-browser]
-    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles / peekaboo]
+    start ==>|checkout contracts| fleet[agentwiki / agentboard / agentbrowse / agentattention / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / grok-swap / agentusage / agentlaunch / agentsurface / agentgrok / agentchats / agentroles]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     start ==>|repository-owned editable command installer + native audio build; no launch/service/config| voiceInstall[agentvoice]
     skills ==>|fixed session skills + Executor and shadcn MCPs| launch
@@ -267,7 +267,7 @@ sentence around the match, never from the name alone.
 | agentchats | agentsurface | the picker enriches its rows through `agentsurface conversation describe` — the read-only naming surface: JSON lines of {harness, path} in, {path, slug, excerpt} lines out, one subprocess per listing refresh. Slugs come from agentsurface's slug store (written whenever `conversation slug` pays for inference — the tab namer's path); excerpts are first-prompt extraction from the transcript head. A machine without agentsurface, or a failing call, enriches nothing and the rows keep their indexed titles | `agentchats/src/tui/describe.ts:4-11`; `agentsurface/src/conversation/describe.ts:52-87`; `agentsurface/src/conversation/store.ts` |
 | agentchats | agentlaunch | a resume directive's `agent.args` are `["--x-resume", <native-session-id>]` — agentlaunch's flag spelling of `x-resume`, added for exactly this path because herdr types only the bare kind command (the shim) plus arguments. The session-id derivation in the picker mirrors agentlaunch's store layouts | `agentchats/src/tui/directive.ts:44` (`buildResumeDirective`); `agentchats/src/tui/resume.ts:37-42` (`deriveSessionId`); `agentlaunch/src/main.ts:202-206` (the `--x-resume` reroute) |
 | desktop skill / Executor | Codex Computer Use | the agent workflow prefers the native harness interface when present and otherwise discovers the registered `codex_computer_use` MCP tools. Reads name the app and request full state when a shared diff baseline is uncertain; returned local screenshot URLs must be opened with the native image viewer. App consent and observed input postconditions remain required; registration alone proves neither | `agentdesk/skills/desktop/SKILL.md`; `agentdesk/skills/desktop/references/input-and-recovery.md`; `agentstart/config/executor/integrations.json`; `agentstart/config/executor/README.md` |
-| peekaboo (agentdesk) | the macOS GUI | the retained operator CLI is upstream software installed from the official `steipete/tap` formula by Agentdesk's existing contract. Installation verifies the human's TCC grants and a local screen capture. Versioned CLI guidance lives in the Desktop skill's operator reference. Its daemon is on-demand; no fleet service supervises it | `agentdesk/scripts/install.sh`; `agentdesk/skills/desktop/references/peekaboo-cli.md` |
+| AgentStart → Agentdesk retirement | retired Peekaboo package and app | the full installer invokes Agentdesk's existing contract to uninstall the official formula and move its verified app and dedicated state to Trash; the unattended skill updater never performs this removal. Desktop interaction uses Codex Computer Use | `agentstart/scripts/install.sh`; `agentdesk/scripts/install.sh`; `agentdesk/scripts/remove-peekaboo.py` |
 | agentkeys | stowed machine configs | audits the interception chain across Karabiner/skhd/Ghostty/tmux/Neovim — files the machine layer stows | `agentkeys` skill description; the machine's stow packages |
 | agentboard, agentchats | each other's CLIs | the shared "agent* state dump" bearings convention: one cross-tool contract for workspace-scoped bearings, with a common ~4-chars-per-token `--budget` and silence as the all-clear | `agentchats/src/cli/state.ts`, `agentboard/src/brief.ts:140,151-158`, `agentboard/src/contract.ts:576-581` |
 | agentstart statusline | agentusage | Claude displays the validated `AGENTUSAGE_ACCOUNT` identity exported by preparation, independent of native home layout. Codex lacks a configurable environment-backed account item. An automatic Codex account switch is reported by the launcher at the next lease renewal | `agentstart/config/statusline/claude-statusline.sh`; `agentusage/src/service/prepare.ts`; `agentlaunch/src/account-session.ts` |
@@ -418,6 +418,10 @@ by tab-label names or session ids with herdr as the delivery path. The bus
 gained its skill the same day: `bus` joins TOOLS.md's advertisements and
 routes to `notify` for blocked-target escalation; `message --wait-unblocked`
 retries a blocked delivery until its deadline.
+Updated 2026-09-08: Peekaboo is retired. Agentdesk's existing install contract
+now removes its official Homebrew formula and moves its verified application
+and dedicated state to Trash. The Desktop skill uses Codex Computer Use and
+has no Peekaboo operator reference. No shared tap or macOS grant is removed.
 Updated 2026-08-17 again for the desktop capability: peekaboo (upstream,
 `steipete/tap`, repo openclaw/Peekaboo) joins through the new agentdesk
 checkout as a skill over third-party software, installed by its own contract

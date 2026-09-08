@@ -168,9 +168,9 @@ Application consent can pause even a read. Preserve the exact pending request,
 honor existing task authority, and obtain any fresh app access it requires;
 registration or a generic write-tool confirmation cannot grant that access.
 Normal-window capture and a benign input postcondition must be verified before
-claiming replacement readiness. Peekaboo remains installed by Agentdesk for
-operator workflows, with versioned CLI guidance in a linked reference. The
-Computer Use catalog provides no dedicated app launch/quit, arbitrary window
+claiming replacement readiness. Agentdesk's full-install contract retires
+Peekaboo; desktop workflows require no Peekaboo binary or operator reference.
+The Computer Use catalog provides no dedicated app launch/quit, arbitrary window
 management, clipboard-read, or video-recording tool; do not invent parity.
 
 ## Results through Executor
