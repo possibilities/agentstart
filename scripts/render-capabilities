@@ -81,6 +81,9 @@ for skill_manifest in "$skills_root"/*/SKILL.md; do
     printf 'Narrowed provider origins to Claude/Codex in %s.\n' "$skill_manifest"
 done
 
+"$script_dir/render-terminal-control-skill" "$skills_root" \
+    "$repo_root/config/terminal-control/skill-body.md"
+
 "$invocation_policy_renderer" --install "$skills_root"
 next_managed_names="$resources_root/managed-skills.next"
 : >"$next_managed_names"

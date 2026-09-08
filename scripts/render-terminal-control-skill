@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Adapt the synchronized vendor skill inside render-capabilities only."""
+
+import pathlib
+import stat
+import sys
+
+
+MARKER = "<!-- AgentStart Terminal Control workflow: config/terminal-control/skill-body.md -->"
+# Keep the saved guide at the skill root so its vendor-relative links work.
+REFERENCE = pathlib.Path("terminal-control-cli.md")
+
+
+def replace(path, data, mode):
+    temporary = path.with_name(path.name + ".next")
+    if temporary.exists() or temporary.is_symlink():
+        raise ValueError(f"temporary render path already exists: {temporary}")
+    try:
+        temporary.write_bytes(data)
+        temporary.chmod(mode)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def render(skills_root, body_path):
+    skill = skills_root / "terminal-control"
+    if not skill.exists():
+        return
+    manifest = skill / "SKILL.md"
+    reference = skill / REFERENCE
+    for path in (skill, manifest, reference.parent, reference):
+        if path.is_symlink():
+            raise ValueError(f"refusing a symlink in the vendor skill: {path}")
+    original = manifest.read_bytes()
+    if not original.startswith(b"---\n") or b"\n---\n" not in original[4:]:
+        raise ValueError("Terminal Control skill has no portable frontmatter")
+    cut = original.index(b"\n---\n", 4) + len(b"\n---\n")
+    if b"name: terminal-control\n" not in original[:cut]:
+        raise ValueError("Terminal Control skill has an unexpected name")
+    mode = stat.S_IMODE(manifest.stat().st_mode)
+    body = body_path.read_bytes().strip() + b"\n"
+    if MARKER.encode() in body or body.startswith(b"---\n"):
+        raise ValueError("the authored Terminal Control body must contain only Markdown")
+    if MARKER.encode() in original:
+        if not reference.is_file() or MARKER.encode() in reference.read_bytes():
+            raise ValueError("rendered Terminal Control skill lost its upstream reference")
+    else:
+        # A fresh vendor install replaces SKILL.md. Capture those exact new
+        # bytes, including its frontmatter; never wrap our own rendered body.
+        reference.parent.mkdir(parents=True, exist_ok=True)
+        replace(reference, original, mode)
+    rendered = original[:cut] + MARKER.encode() + b"\n\n" + body
+    if rendered != original:
+        replace(manifest, rendered, mode)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: render-terminal-control-skill SKILLS_ROOT BODY_FILE")
+    try:
+        render(pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]))
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"AgentStart Terminal Control skill: {error}") from error

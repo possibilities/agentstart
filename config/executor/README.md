@@ -96,9 +96,23 @@ read, draft, send, and attachment tools. AgentStart never creates a replacement
 account or copies its credentials. Other Google products require their own
 available integrations and workflow skills.
 
-Terminal Control operates existing named sessions but does not create them
-through MCP. Preserve that session-creation workflow until an MCP implementation
-exists. Exposing write tools does not authorize unsolicited writes or messages.
+Terminal Control operates existing named sessions through MCP: inspect, input,
+bounded readiness waits, resizing, mouse events, PNG evidence, and stopping.
+Use the native CLI for session creation, human attachment, restart, retained
+logs, semantic/text exports, recording, markers, and video editing. Its saved
+PNG is a path that the native image viewer must open, not an inline image.
+`render-capabilities` applies `config/terminal-control/skill-body.md` after the
+version-matched vendor skill is synchronized, preserving its frontmatter and
+the exact upstream guide at the skill root as `terminal-control-cli.md` so
+vendor-relative links still resolve. Repeat rendering keeps that guide;
+vendor refresh updates it. This uses the existing content pipeline.
+
+Hunk and Plannotator retain their version-matched native CLI workflows; this
+registry provides no MCP replacement for their review sessions. AgentRoles
+still launches an operator-selected role through its CLI, and OS notifications
+use their native command. These are explicit coverage boundaries, not generic
+shell commands exposed through an MCP bridge. Exposing write tools does not
+authorize unsolicited writes or messages.
 
 Attention exposes its 12 contract-derived producer tools for durable handoffs,
 bounded waits, inspection, and scoped cancellation. Human claims, resolutions,
