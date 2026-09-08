@@ -57,6 +57,34 @@
           "*"
         ]
       }
+    },
+    "grok": {
+      "tools": {
+        "agentboard": [
+          "*"
+        ],
+        "agentbrain": [
+          "*"
+        ],
+        "agentchats": [
+          "*"
+        ],
+        "agentsearch": [
+          "*"
+        ],
+        "agentwiki": [
+          "*"
+        ],
+        "gog_mikebannister": [
+          "*"
+        ],
+        "gog_notimpossiblemike": [
+          "*"
+        ],
+        "termctrl": [
+          "*"
+        ]
+      }
     }
   }
 }

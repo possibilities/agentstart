@@ -64,11 +64,19 @@ class InstallTest(unittest.TestCase):
     def test_stable_private_credentials_and_new_toolset(self):
         self.prepare()
         base = self.home/'.config/agentstart'
+        gateway = json.loads((base/'mcp-gateway.json').read_text())
+        self.assertEqual(set(gateway['toolsets']['grok']['tools']), {
+            'agentboard', 'agentbrain', 'agentchats', 'agentsearch', 'agentwiki',
+            'gog_mikebannister', 'gog_notimpossiblemike', 'termctrl',
+        })
         client = base/'mcp-clients/fleet.json'
         first = json.loads(client.read_text())
         digest = json.loads((base/'mcp-credentials/fleet.json').read_text())
         self.assertEqual(hashlib.sha256(first['token'].encode()).hexdigest(), digest['sha256'])
         self.assertEqual(client.stat().st_mode & 0o777, 0o600)
+        grok = json.loads((base/'mcp-clients/grok.json').read_text())
+        self.assertNotEqual(first['token'], grok['token'])
+        self.assertEqual(grok['url'], 'https://fixture.ts.net/mcp/grok')
         self.prepare()
         self.assertEqual(json.loads(client.read_text()), first)
         config = json.loads((base/'mcp-gateway.json').read_text())
