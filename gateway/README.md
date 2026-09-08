@@ -11,8 +11,9 @@ The full installer seeds ~/.config/agentstart/mcp-gateway.json from
 config/mcp-gateway.json. Subsequent installs preserve operator edits. The
 default fleet set includes all declared fleet tools and both bound Gog
 mailboxes. The default grok set includes AgentBoard, AgentBrain, AgentChats,
-AgentSearch, AgentWiki, Terminal Control, and both bound Gog mailboxes. Shadcn
-remains project-local and is not exposed externally.
+AgentSearch, AgentWiki, Terminal Control, shadcn, and both bound Gog mailboxes.
+The fleet set also exposes shadcn, backed by AgentStart's fixed registry
+configuration rather than the caller's project files.
 
 Each toolsets entry has a tools map from inventory server name to native tool
 names. A single "*" selects every tool on that server. An explicit list limits
