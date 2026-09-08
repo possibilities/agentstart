@@ -22,11 +22,15 @@ import json, os, sys
 from pathlib import Path
 Path(sys.argv[1], str(os.getpid())).touch()
 count = 0
+initialized = False
 for line in sys.stdin:
     msg = json.loads(line)
     if 'id' not in msg: continue
     method, params = msg['method'], msg.get('params', {})
+    if not initialized and method != 'initialize':
+        raise SystemExit('first request must initialize the native session')
     if method == 'initialize':
+        initialized = True
         data = {'protocolVersion': params['protocolVersion'], 'capabilities': {'tools': {}, 'resources': {}, 'prompts': {}}, 'serverInfo': {'name': 'fixture', 'version': '1'}}
     elif method == 'tools/list':
         data = {'tools': [{'name': n, 'description': n, 'inputSchema': {'type': 'object', 'properties': {}}} for n in ['counter', 'private', 'failure', 'image', 'ask', 'stall']]}

@@ -55,7 +55,9 @@ Complete requests within that session are serialized, including discovery,
 so a pending interaction keeps its original callback context. StatefulProxyClient
 retains the native MCP connection, including image and structured results and
 interaction callbacks, until the session closes or expires. Shutdown reaps
-backends. The session idle timeout defaults to 30 minutes.
+backends. Native connections start with MCP initialize, accommodating servers
+that close on an unsupported sessionless discovery probe. The session idle
+timeout defaults to 30 minutes.
 
 The gateway requires MCP initialize/session semantics because Computer Use
 maintains a REPL. Sessionless server/discover returns method-not-found so modern

@@ -170,7 +170,9 @@ def build_gateway(config):
             server = servers[server_name]
             client = StdioSessionClient(
                 StdioTransport(command=server["command"], args=server["args"]),
-                init_timeout=30,
+                # Native fleet servers require initialize as the first request;
+                # some close stdin on a sessionless discovery probe.
+                init_timeout=30, mode="legacy",
             )
             clients.append(client)
             proxy = FastMCPProxy(client_factory=client.new_stateful)
