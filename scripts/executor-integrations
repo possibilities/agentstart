@@ -6,11 +6,15 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import queue
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -20,6 +24,11 @@ CONFIG_FIELDS = {
     "transport", "command", "args", "cwd", "env", "staticEnv",
     "versionNegotiation", "spawnPerCall", "appServer", "authenticationTemplate",
 }
+REGISTRY_WRITES = {
+    ("mcp", "addServer"), ("coreTools", "integrations", "remove"),
+    ("coreTools", "connections", "create"), ("coreTools", "connections", "refresh"),
+}
+REGISTRY_READS = {("mcp", "getServer"), ("coreTools", "connections", "list")}
 
 
 class Failure(Exception):
@@ -95,22 +104,175 @@ def load_manifest(path, home, code_root):
     return servers
 
 
-def api(executable, path, args):
-    try:
-        result = subprocess.run(
-            [executable, "call", "executor", *path, json.dumps(args)],
-            capture_output=True, text=True, timeout=90,
+class ExecutorMcp:
+    """One supported stdio session, including structured execute/resume results."""
+
+    def __init__(self, executable):
+        self.executable = executable
+        self.sequence = 0
+        self.inbox = queue.Queue()
+
+    def __enter__(self):
+        self.process = subprocess.Popen(
+            [self.executable, "mcp", "--no-artifacts", "--elicitation-mode", "model"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, bufsize=1,
         )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise Failure(f"Executor {' '.join(path)} could not complete ({type(error).__name__})") from error
-    try:
-        envelope = json.loads(result.stdout)
-    except ValueError as error:
-        raise Failure(f"Executor {' '.join(path)} returned no JSON envelope (exit {result.returncode})") from error
-    if result.returncode or envelope.get("ok") is not True or "data" not in envelope:
+        threading.Thread(target=self.read, daemon=True).start()
+        try:
+            self.request("initialize", {
+                "protocolVersion": "2025-06-18", "capabilities": {},
+                "clientInfo": {"name": OWNER, "version": "1"},
+            })
+            self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        except BaseException:
+            self.__exit__(*sys.exc_info())
+            raise
+        return self
+
+    def read(self):
+        try:
+            for line in self.process.stdout:
+                try:
+                    value = json.loads(line)
+                    self.inbox.put(value if isinstance(value, dict) else None)
+                except ValueError:
+                    self.inbox.put(None)
+        finally:
+            self.inbox.put(None)
+
+    def send(self, value):
+        self.process.stdin.write(json.dumps(value) + "\n")
+        self.process.stdin.flush()
+
+    def request(self, method, params):
+        self.sequence += 1
+        ident = self.sequence
+        self.send({"jsonrpc": "2.0", "id": ident, "method": method, "params": params})
+        deadline = time.monotonic() + 90
+        while True:
+            try:
+                value = self.inbox.get(timeout=max(0, deadline - time.monotonic()))
+            except queue.Empty as error:
+                raise Failure("Executor MCP timed out; outcome is unknown, do not blindly retry") from error
+            if value is None:
+                raise Failure("Executor MCP closed or returned invalid protocol output")
+            if value.get("id") == ident and ("result" in value or "error" in value):
+                if "error" in value or not isinstance(value.get("result"), dict):
+                    raise Failure("Executor MCP request failed; inspect the supported Executor UI")
+                return value["result"]
+            if "method" in value and "id" in value:
+                # No client-side prompt, credential flow, or sampling is part
+                # of registry convergence. Model mode returns pauses as data.
+                self.send({"jsonrpc": "2.0", "id": value["id"], "error": {
+                    "code": -32601, "message": "Installer does not handle client requests",
+                }})
+
+    def invoke(self, name, arguments):
+        return self.request("tools/call", {"name": name, "arguments": arguments})
+
+    def __exit__(self, kind, value, traceback):
+        self.process.stdin.close()
+        try:
+            self.process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+            if kind is None:
+                raise Failure("Executor MCP did not close on EOF; its client was stopped")
+        finally:
+            self.process.stdout.close()
+        if kind is None and self.process.returncode:
+            raise Failure("Executor MCP exited unsuccessfully")
+
+
+def api(invoke, path, args, install=False, record=lambda _: None):
+    address = "executor." + ".".join(path)
+    if tuple(path) not in REGISTRY_READS and not (install and tuple(path) in REGISTRY_WRITES):
+        raise Failure(f"{address}: operation is outside this installer mode")
+    result = invoke("execute", {"code": f"return await tools[{json.dumps(address)}]({json.dumps(args)});"})
+    accepted = False
+    while True:
+        structured = result.get("structuredContent")
+        if not isinstance(structured, dict):
+            raise Failure(f"{address}: missing structured execution result")
+        if structured.get("status") != "waiting_for_interaction":
+            break
+        ident = structured.get("executionId")
+        if not isinstance(ident, str) or not ident:
+            raise Failure(f"{address}: paused without a recoverable execution ID")
+        interaction = structured.get("interaction")
+        if not isinstance(interaction, dict):
+            interaction = {}
+        title = "Add an MCP server" if path == ["mcp", "addServer"] else f"Approve {address}?"
+        expected_message = title + "\n\nArguments:\n" + json.dumps(args, ensure_ascii=False, indent=2)
+        matches = (
+            install and not accepted and tuple(path) in REGISTRY_WRITES
+            and interaction.get("address") == address and interaction.get("args") == args
+            and interaction.get("kind") == "form"
+            and interaction.get("requestedSchema") == {"type": "object", "properties": {}}
+            and interaction.get("meta") in (None, {})
+            and interaction.get("message") == expected_message
+        )
+        event = {"executionId": ident, "requestedAddress": address,
+                 "action": "accept" if matches else "cancel"}
+        try:
+            # Persist before resuming; never lose the ID when resume fails.
+            record({**event, "status": "pending"})
+        except OSError as error:
+            raise Failure(f"{address}: could not record pending execution {ident}; no approval sent") from error
+        try:
+            result = invoke("resume", {"executionId": ident, "action": event["action"], "content": "{}"})
+        except (Failure, OSError) as error:
+            raise Failure(f"{address}: resume outcome unknown for {ident}; inspect before retrying") from error
+        record({**event, "status": "resume_returned"})
+        if not matches:
+            raise Failure(f"{address}: unexpected approval; cancellation requested for {ident}; convergence stopped")
+        accepted = True
+    envelope = structured.get("result")
+    if result.get("isError") or structured.get("status") != "completed" or not isinstance(envelope, dict):
+        raise Failure(f"{address}: execution did not complete successfully")
+    if envelope.get("ok") is not True or "data" not in envelope:
         # Never echo raw upstream output: registered config may include secrets.
-        raise Failure(f"Executor {' '.join(path)} failed (exit {result.returncode}); inspect it with the supported Executor UI")
+        raise Failure(f"{address}: tool failed; inspect it with the supported Executor UI")
     return envelope["data"]
+
+
+def record_execution(path, event):
+    def validate(info):
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600):
+            raise OSError("unsafe execution journal; existing file preserved")
+
+    flags = os.O_WRONLY | os.O_APPEND | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, 0o600)
+        created = True
+    except FileExistsError:
+        validate(os.lstat(path))
+        fd = os.open(path, flags)
+        created = False
+    try:
+        info = os.fstat(fd)
+        if created and stat.S_IMODE(info.st_mode) != 0o600:
+            # Undo only the caller's umask on the file just created exclusively.
+            os.fchmod(fd, 0o600)
+            info = os.fstat(fd)
+        validate(info)
+        current = os.lstat(path)
+        validate(current)
+        if (info.st_dev, info.st_ino) != (current.st_dev, current.st_ino):
+            raise OSError("execution journal changed during open; preserved")
+        with os.fdopen(fd, "a", closefd=False) as file:
+            file.write(json.dumps(event) + "\n")
+            file.flush()
+            os.fsync(file.fileno())
+    finally:
+        os.close(fd)
 
 
 def server_state(call, slug):
@@ -202,7 +364,7 @@ def main():
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--check", action="store_true", help="print the source plan without contacting Executor")
     modes.add_argument("--verify", action="store_true", help="read and verify installed registrations")
-    modes.add_argument("--install", action="store_true", help="converge the owned catalog through Executor's CLI")
+    modes.add_argument("--install", action="store_true", help="converge the owned catalog through Executor's MCP protocol")
     args = parser.parse_args()
     home = Path.home()
     manifest = Path(os.environ.get("AGENTSTART_EXECUTOR_MANIFEST", ROOT / "config/executor/integrations.json"))
@@ -220,9 +382,10 @@ def main():
         if prior.get("owner") != OWNER or not isinstance(prior.get("servers"), dict):
             raise Failure("independent Executor receipt file; preserved")
         records = prior["servers"]
-    call = lambda path, arguments: api(executable, path, arguments)
     if args.verify:
-        converge(servers, call, records, False, lambda _: None)
+        with ExecutorMcp(executable) as client:
+            call = lambda path, arguments: api(client.invoke, path, arguments)
+            converge(servers, call, records, False, lambda _: None)
         return
     receipt.parent.mkdir(parents=True, exist_ok=True)
     with open(str(receipt) + ".lock", "a") as lock:
@@ -230,7 +393,11 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as error:
             raise Failure("another AgentStart Executor convergence is active") from error
-        converge(servers, call, records, True, lambda rows: save_receipt(receipt, rows))
+        journal = Path(str(receipt) + ".executions.jsonl")
+        with ExecutorMcp(executable) as client:
+            call = lambda path, arguments: api(client.invoke, path, arguments, True,
+                                               lambda event: record_execution(journal, event))
+            converge(servers, call, records, True, lambda rows: save_receipt(receipt, rows))
 
 
 if __name__ == "__main__":

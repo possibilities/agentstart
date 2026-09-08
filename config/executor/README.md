@@ -2,8 +2,8 @@
 
 AgentStart owns `integrations.json`: the MCP registrations needed by managed
 fleet workflows. The full installer calls `scripts/executor-integrations
---install` after installing their commands. The signed Executor CLI talks to
-the existing vendor-owned service; this adds no daemon, competing service,
+--install` after installing their commands. The signed Executor CLI's stdio
+MCP mode talks to the existing vendor-owned service; this adds no daemon, competing service,
 global harness configuration, or copy of Executor's private database.
 
 `config/resources/mcp-servers.json` delivers one Executor stdio connection to
@@ -40,6 +40,31 @@ the computer-use adapter receives only the real Codex home as a path setting.
 Use a serialized installation window when other agents are changing shared
 configuration. Content-only and six-hour skill syncs never reconcile the
 Executor catalog or restart its service.
+
+## Installer approvals
+
+The installer uses structured MCP `execute` and `resume` results. Executor's
+human CLI prints approval pauses as prose and exits zero, so its `call` output
+is not a reliable JSON protocol for convergence.
+
+An explicit `--install` authorizes the manifest's guarded registry operations.
+When one of those operations pauses, the installer accepts only its exact tool
+address, arguments, empty confirmation schema, and known registry confirmation
+message. It accepts at most one confirmation per call. A different operation,
+changed arguments, extra approval terms, a custom policy prompt, or a nested
+interaction causes cancellation of that execution and stops convergence.
+This never changes Executor's approval policies or approves application access.
+
+Before any resume, the execution ID and intended action are appended to the
+private `executor-integrations.json.executions.jsonl` beside the ownership
+receipt. Append refuses symlinks, non-regular files, hardlinks, other owners,
+and existing permissions other than `0600`; it uses `O_NOFOLLOW` where
+available and checks the opened file's identity before writing. The journal
+contains no upstream payloads or credentials. A failed
+resume preserves that record and reports the ID; inspect its outcome before
+retrying. Verification sends no approvals and reports an unexpected pause's ID
+without writing ownership or execution receipts. Closing the stdio client does
+not restart the shared service.
 
 ## Workflow boundaries
 
