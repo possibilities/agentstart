@@ -158,7 +158,7 @@ import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
 fleet=["agentattention","agentboard","agentbrain","agentbrowse","agentchats",
-       "agentdesk","agentgrok","agentkeys","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
+       "agentdesk","agentgrok","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
     assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
@@ -1245,7 +1245,7 @@ esac
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice; do
+    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

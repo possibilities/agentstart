@@ -6,8 +6,12 @@
 - Keep ongoing, tracked work visible with `board`: use its existing item or
   claim the relevant one, and close it when the authorized work is finished.
   A simple answer or isolated small edit does not need a new tracking ritual.
-- Use `notify` when work the human is waiting for finishes or stalls while
-  they are away from the conversation.
+- Use AgentNotify through the `notifications` skill when work the human is
+  waiting for finishes or stalls while they are away. It owns the durable
+  notification inbox and terminal-notifier-compatible CLI; prefer its MCP for
+  structured calls. Use the generic `notify` fallback only where AgentNotify
+  is unavailable. Sound is opt-in; time-sensitive delivery does not guarantee
+  a Focus bypass. Read is not completion or approval.
 - In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
   working: verify `upstream` names the original repository, `fork` names our
   optional fork, and the branch is the one the task means — the default, or

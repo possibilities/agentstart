@@ -29,3 +29,5 @@ When a surface changes, update this file and any affected edge in
 `skills/fleet/MAP.md` in the same commit. Add a new MCP only when a workflow
 needs a stable typed cross-process contract that its current surface cannot
 provide.
+
+AgentNotify is a deliberate parity interface: `agentnotify` preserves terminal-notifier CLI behavior, while the native app’s private Unix socket and stdio MCP expose the same durable notification operations. `skills/notifications` in AgentNotify owns expert usage. AgentLaunch and AgentVoice receive it through the shared inventory; no separate prompt tool catalog or per-client notification registry is needed. The app starts on demand; installation never restarts a running inbox.

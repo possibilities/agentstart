@@ -48,7 +48,8 @@ class InstallTest(unittest.TestCase):
 
     def test_renderer_expands_only_declared_home_without_startup_side_effects(self):
         result = json.loads(self.resources.read_text())['mcpServers']
-        self.assertEqual(len(result), 18)
+        self.assertEqual(len(result), 19)
+        self.assertEqual(result['agentnotify'], {'command': str(self.home/'.local/bin/agentnotify'), 'args': ['mcp']})
         self.assertEqual(result['agentdesk']['command'], str(self.home/'.local/bin/agentdesk'))
         self.assertEqual(result['shadcn'], {
             'command': str(self.home/'.local/bin/agentstart'), 'args': ['mcp', 'shadcn'],

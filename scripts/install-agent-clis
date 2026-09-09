@@ -63,8 +63,10 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
+# AgentNotify installs the native app and CLI without launching or restarting it.
+# Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentwork; do
+    agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentnotify agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

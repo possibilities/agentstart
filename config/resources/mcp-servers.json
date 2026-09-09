@@ -56,6 +56,12 @@
         "mcp"
       ]
     },
+    "agentnotify": {
+      "command": "${HOME}/.local/bin/agentnotify",
+      "args": [
+        "mcp"
+      ]
+    },
     "agentscrape": {
       "command": "${HOME}/.local/bin/agentscrape",
       "args": [

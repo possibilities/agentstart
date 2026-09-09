@@ -688,3 +688,14 @@ agentcollab → agentmux and cswax → claude-swap edges. Their earlier entries 
 this chronology describe historical behavior. Incoming references in `~/code`
 were checked before retirement; Grok's live AgentStart and AgentUsage edges
 were migrated first. Stored credentials and application data are preserved.
+
+## AgentNotify notification inbox
+
+| Caller | Callee | Kind | Evidence and consequence |
+|---|---|---|---|
+| AgentStart installer | AgentNotify | calls | `scripts/install-agent-clis` invokes `agentnotify/scripts/install.sh --install`; the owner builds the native app and CLI, refuses foreign destinations and a running installed app, and never restarts it. |
+| AgentLaunch / AgentVoice managed resources | AgentNotify MCP | serves | `config/resources/mcp-servers.json` exposes `~/.local/bin/agentnotify mcp` through the existing shared inventory. Removing it removes structured inbox operations from managed sessions. |
+| Fleet MCP gateway | AgentNotify MCP | serves | `config/mcp-gateway.json` includes AgentNotify in the authenticated fleet toolset. It is not added to unrelated toolsets. |
+| Fleet building/delivery guidance | notifications skill | routes | `prompts/agentguidance/GUIDELINES.md` prefers AgentNotify’s `skills/notifications/SKILL.md` for durable completion and attention notices. Generic notify remains a fallback where AgentNotify is unavailable. |
+
+AgentNotify’s app owns its private account-local Unix socket. No AgentStart LaunchAgent is installed for it; CLI/MCP launches the app on demand. Legacy `terminal-notifier` call sites continue to use their configured binary until an explicit PATH replacement or source update. Do not infer those runtime edges have migrated merely because the parity CLI exists. Native notification acceptance does not establish banner visibility or a Focus bypass.
