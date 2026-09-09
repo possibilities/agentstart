@@ -47,7 +47,6 @@ const categoryCatalog = [
     skills: [
       "ai-elements",
       "ai-sdk",
-      "frontend-design",
       "shadcn",
       "vercel-react-best-practices",
       "web-design-guidelines",
@@ -76,7 +75,6 @@ const displayNames = {
   email: "Email",
   "find-skills": "Find Skills",
   fleet: "Fleet Map",
-  "frontend-design": "Frontend Design",
   groom: "Groom the Plan",
   herdr: "Herdr",
   "hunk-review": "Hunk Review",

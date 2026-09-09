@@ -283,7 +283,6 @@ Fixed private fleet resources:
   scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes
   render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets
   https://github.com/vercel-labs/skills: find-skills
-  https://github.com/anthropics/skills: frontend-design
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
   https://github.com/vercel/ai: ai-sdk
   https://github.com/vercel/ai-elements: ai-elements
@@ -652,8 +651,7 @@ command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 printf 'Installing the common skill discovery helper.\n'
 install_private_skill_pack https://github.com/vercel-labs/skills find-skills
 
-printf 'Installing the privately managed design skills.\n'
-install_private_skill_pack https://github.com/anthropics/skills frontend-design
+printf 'Installing the web interface review skill.\n'
 install_private_skill_pack https://github.com/vercel-labs/agent-skills web-design-guidelines
 
 printf 'Installing Vercel React engineering guidance.\n'

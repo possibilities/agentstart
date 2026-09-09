@@ -33,6 +33,14 @@
   windows, and migrations are opt-in — name what breaks and for whom
   before a breaking change lands; the softer path is asked for, never
   assumed.
+- Before making or reviewing design decisions, consult the current
+  [Vercel design guidelines](https://vercel.com/design.md) and use their
+  principles as the baseline for the reasoning. Consult the relevant design
+  documentation and guidelines in the wiki, beginning with `Vercel design
+  guidance for native fleet apps` and the medium- or product-specific contract.
+  Apply the project's established design language and explicit human direction
+  on top; this is a decision-making foundation, not an instruction to imitate
+  Vercel's brand.
 - Repository guidance is `AGENTS.md` at the repo root, with `CLAUDE.md` a
   symlink to it — or, where tooling refuses tracked symlinks, a short
   pointer file naming `AGENTS.md`; never a second set of instructions.

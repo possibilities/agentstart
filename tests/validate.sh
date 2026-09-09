@@ -193,6 +193,10 @@ grep -F 'Do not use harness-provided agent memory' prompts/agentguidance/GUIDELI
     || fail "GUIDELINES.md does not reject harness-provided agent memory"
 grep -F 'Place global personal guidance tied to the' prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not keep fleet-specific personal guidance in AgentStart"
+grep -F 'https://vercel.com/design.md' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not require Vercel design guidance as the design baseline"
+grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not route design work through the wiki"
 # Gist publication is a GitHub CLI operation over the durable wiki file. Pin
 # both the create-and-open route and the existing-Gist route so agents do not
 # fall back to a browser app or create a duplicate merely to open it.
@@ -812,7 +816,6 @@ for required_install in \
     'scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes' \
     'render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets' \
     'https://github.com/vercel-labs/skills: find-skills' \
-    'https://github.com/anthropics/skills: frontend-design' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
     'https://github.com/vercel/ai: ai-sdk' \
     'https://github.com/vercel/ai-elements: ai-elements' \
