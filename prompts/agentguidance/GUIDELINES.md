@@ -33,7 +33,10 @@
   pointer file naming `AGENTS.md`; never a second set of instructions.
 - Do not use harness-provided agent memory. Persistent instructions live only
   in repository `AGENTS.md` or in global guidance maintained in
-  `~/code/agentstart` and/or `~/code/agentguidance`.
+  `~/code/agentstart` and/or `~/code/agentguidance`. This concerns persistent
+  instructions; temporary session working notes and native continuation
+  context remain appropriate. The `document-placement-policy` wiki page
+  records the distinction.
 - Place global personal guidance tied to the `~/code/agent*` fleet in
   `~/code/agentstart`; reserve `~/code/agentguidance` for reusable general
   agent doctrine that is not specific to this fleet or operator.

@@ -9,8 +9,11 @@ Four kinds of edge:
   Breaking the target skill strands the routing.
 - **serves** (dotted): a launchd service running fleet code, a tool reading
   another's data on disk, or a tool loading another fleet project's supported
-  library surface. Every fleet service is agentstart's; the machine's own
-  reverse-DNS services are outside the fleet.
+  library surface. AgentStart owns fleet service convergence except the
+  declared owner contracts: AgentBrowse installs and recovers Hypeman, and
+  AgentVoice owns its default-server LaunchAgent. AgentStart delegates to
+  those installers and never renders a competing service. Machine services
+  remain outside the fleet.
 - **pins**: a binary installed at an exact version because a consumer locks
   or resolves it by contract.
 

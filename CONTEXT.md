@@ -24,9 +24,9 @@ clients belong to the machine layer. Gog owns its Google credential store.
 _Avoid_: stack, setup.
 
 **Smolmux source installation** — Smolmux's repository-owned `scripts/install.sh`,
-which AgentStart invokes with fxnk's exact already-gated Fx source build. It is
-the same path consumers use, links the human `smolmux` and agent-facing `smolmux-mcp`
-commands, and publishes no binary artifacts.
+which AgentStart invokes through the same contract as other source consumers.
+Smolmux owns the editable command, exact source-built Companion pin and doctor
+verification; its arbitrary-command sessions require no Fx pin or agent MCP.
 _Avoid_: release path, bucket installer, AgentStart-owned Smolmux installer.
 
 **Fx Integration consumer pin** — The exact published Fx commit AgentStart
@@ -37,8 +37,8 @@ as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx.
-Skills install into harnesses; AgentLaunch shims balance their bare
-launches. _Avoid_: agent (ambiguous with the fleet apps), IDE.
+AgentLaunch balances Claude Code and Codex and loads their fleet resources;
+Fx has its own workshop-owned installation and is outside that launch path. _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's

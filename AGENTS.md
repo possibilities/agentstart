@@ -1,5 +1,8 @@
 # AgentStart agent guidance
 
+Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
+[decision records](docs/adr/) before changing ownership or convergence.
+
 ## Repository context
 
 - `~/code/agentstart` owns AI-toolchain installation for this machine. The
@@ -17,8 +20,9 @@
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides that every
   one of them is installed. `install-agent-clis` runs each checkout's own
-  installer, and `config/launchd/` defines every fleet service, because a
-  service with two owners has them racing to render it. A fleet checkout
+  installer, and `config/launchd/` defines AgentStart-owned fleet services;
+  the explicit exceptions below have their own service owner. Two owners
+  would race to render the same service. A fleet checkout
   ships the code; this repository decides that it is present and when it
   runs. AgentBrowse is also a service-ownership exception: its explicit
   `scripts/install-host` owns Hypeman installation and service recovery on both
@@ -56,11 +60,11 @@
   run with `AGENTSTART_HERDR_ALLOW_UPGRADE=1`. A present socket or uncertain
   state defers either operation. Package-manager updates cannot use Herdr's
   live handoff, so never weaken that gate around resident agents.
-- Every fleet repo's `AGENTS.md` ends with the same "The fleet" section
-  pointing back here: the skills scan and its cadence, the fleet-map rule,
-  and agentguidance as the home of general doctrine. Changing any of those
-  conventions updates that section in every fleet checkout in the same
-  change — the uniformity is what keeps twelve copies maintainable.
+- Fleet repository guidance identifies the shared owners that apply there:
+  the skill scan and its cadence, this repository's fleet map, and
+  AgentGuidance's general doctrine. When a shared convention changes, update
+  the affected entrypoints together. A short pointer is sufficient; do not
+  require identical footers or copy irrelevant instructions into small projects.
 
 ## Fix-forward installation
 
@@ -176,6 +180,11 @@ its `MAP.md` claims to be current, so a stale edge there is a bug, not a doc
 nit.
 
 ## Validation
+
+For document changes, run `python3 scripts/check-project-docs.py` against each
+affected checkout. See [document integrity](docs/project-memory.md) for its
+scope, advisory warnings and explicit exceptions. Shared guidance changes also
+need the owner's rendering checks and installed-output convergence.
 
 ```sh
 tests/validate.sh
