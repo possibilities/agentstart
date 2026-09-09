@@ -20,6 +20,7 @@ scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentvoice-android
 scripts/install-agentlaunch-shims
+scripts/install-notification-shim
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
 scripts/agentbrowse-config
@@ -293,6 +294,7 @@ grep -q 'json-schema-subset' scripts/validate-agent-contract.ts \
     || fail "the agent contract has no worked example for the repositories adopting it"
 bun test tests/agent-contract.test.ts
 bun test tests/install-agent-clis.test.ts
+PYTHONDONTWRITEBYTECODE=1 python3 tests/notification-shim.py
 bun test tests/install-agentvoice-android.test.ts
 bun test tests/agentvoice-network.test.ts
 
@@ -775,6 +777,7 @@ grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
+    'install ~/.local/bin/terminal-notifier router  # prefer AgentNotify; keep the real notifier as an availability fallback' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
@@ -1386,8 +1389,8 @@ grep -Fq '<string>webhook-daemon</string>' config/launchd/io.arthack.agentsource
     || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
 grep -Fq '<string>notify-daemon</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not enter through the installed notify-daemon subcommand"
-# The notifier posts through terminal-notifier, which only the Homebrew prefix
-# provides; a plist that hand-built PATH without it would run and never post.
+# The notifier uses the managed terminal-notifier router before Homebrew;
+# the standard service PATH keeps both the primary and fallback reachable.
 grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
 grep -Fq '<string>serve</string>' config/launchd/io.arthack.agentattention.serve.plist \

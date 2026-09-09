@@ -9,8 +9,9 @@
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for
-  structured calls. Use the generic `notify` fallback only where AgentNotify
-  is unavailable. Sound is opt-in; time-sensitive delivery does not guarantee
+  structured calls. Legacy callers use the AgentStart `terminal-notifier`
+  router, which retains the original notifier as an availability fallback
+  before submission; the `notify` skill explains it. Sound is opt-in; time-sensitive delivery does not guarantee
   a Focus bypass. Read is not completion or approval.
 - In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
   working: verify `upstream` names the original repository, `fork` names our

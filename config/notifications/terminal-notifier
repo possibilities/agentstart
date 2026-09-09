@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+# agentstart-installer-owned: terminal-notifier.router.v1
+"""Prefer AgentNotify, falling back only before a notification is submitted."""
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+def same_file(left, right):
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def main():
+    primary = Path.home() / ".local/bin/agentnotify"
+    if os.access(primary, os.X_OK) and not same_file(primary, __file__):
+        try:
+            # Diagnose may start the inbox app. It submits no notification and
+            # must not consume the caller's piped message or pollute its output.
+            ready = subprocess.run(
+                [str(primary), "diagnose"], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=12,
+            ).returncode == 0
+            if ready:
+                # Preserve stdin, literal argv, stdout, status, and signals.
+                # Never retry after dispatch: even exit 3/4/5 may be a saved
+                # item, and exit 6 can be an answered/timed-out interaction.
+                os.execv(str(primary), [str(primary), *sys.argv[1:]])
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    override = os.environ.get("AGENTSTART_TERMINAL_NOTIFIER_FALLBACK")
+    candidates = [override] if override is not None else [
+        str(Path(directory) / "terminal-notifier")
+        for directory in os.environ.get("PATH", "").split(os.pathsep) if directory
+    ] + ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"]
+    for candidate in candidates:
+        if not candidate or not os.access(candidate, os.X_OK):
+            continue
+        if same_file(candidate, __file__) or same_file(candidate, primary):
+            continue
+        try:
+            print("terminal-notifier: AgentNotify unavailable; using the original notifier.", file=sys.stderr)
+            os.execv(candidate, [candidate, *sys.argv[1:]])
+        except OSError:
+            continue
+    print("terminal-notifier: neither AgentNotify nor a fallback notifier is available.", file=sys.stderr)
+    return 127
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -14,7 +14,7 @@
 		<string>__PROGRAM__</string>
 		<string>notify-daemon</string>
 	</array>
-	<!-- PATH must reach terminal-notifier in the Homebrew prefix. -->
+	<!-- PATH reaches the AgentNotify terminal-notifier shim before Homebrew. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>HOME</key>

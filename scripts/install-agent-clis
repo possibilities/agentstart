@@ -64,6 +64,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
 # AgentNotify installs the native app and CLI without launching or restarting it.
+# install-agentlaunch-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
     agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentnotify agentwork; do

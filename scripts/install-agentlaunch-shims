@@ -97,5 +97,7 @@ EOF
     printf 'Installed shim: %s\n' "$shim"
 done
 
+"$script_dir/install-notification-shim"
+
 # shellcheck disable=SC2016 # The backticks are display text, not an expansion.
 printf 'Shims ready. New shells pick them up through the fleet PATH; current shells need `exec zsh`.\n'

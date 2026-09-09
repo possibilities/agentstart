@@ -1,0 +1,27 @@
+#!/bin/bash
+# Internal helper for install-agentlaunch-shims; no separate convergence path.
+set -euo pipefail
+die() { printf 'AgentStart notification shim installer: %s\n' "$*" >&2; exit 1; }
+[ "$#" -eq 0 ] || die 'no arguments are supported'
+[ "$(uname -s)" = Darwin ] || die 'macOS is required'
+[ "$(id -u)" -ne 0 ] || die 'run as the target user, not root'
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+source_shim="$script_dir/../config/notifications/terminal-notifier"
+bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+target="$bin_dir/terminal-notifier"
+marker='# agentstart-installer-owned: terminal-notifier.router.v1'
+if [ -L "$target" ]; then
+    # Migrate only the exact compatibility link made by AgentNotify's installer.
+    [ "$(readlink "$target")" = "$HOME/Applications/AgentNotify.app/Contents/MacOS/AgentNotify" ] \
+        || die "refusing an independent symlink: $target"
+elif [ -e "$target" ]; then
+    if [ ! -f "$target" ] || ! grep -Fxq "$marker" "$target"; then
+        die "refusing an independent command: $target"
+    fi
+fi
+mkdir -p "$bin_dir"
+temporary=$(mktemp "$bin_dir/.terminal-notifier.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+install -m 0755 "$source_shim" "$temporary"
+mv -f -- "$temporary" "$target"
+printf 'Installed terminal-notifier router: %s (AgentNotify first; original notifier retained).\n' "$target"
