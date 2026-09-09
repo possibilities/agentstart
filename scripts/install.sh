@@ -70,10 +70,22 @@ install_official() {
     local name="$1"
     local url="$2"
     local interpreter="$3"
+    local installer_file
     shift 3
 
     printf 'Installing %s with its official installer.\n' "$name"
-    /usr/bin/curl -fsSL "$url" | "$interpreter" "$@"
+    # Download the response completely before starting the vendor installer.
+    # Some installers deliberately stop reading stdin early; piping curl into
+    # them turns that success into curl error 56 under pipefail.
+    (
+        installer_file=$(mktemp "${TMPDIR:-/tmp}/agentstart-official-installer.XXXXXX") \
+            || die "creating a temporary file for the $name installer failed"
+        trap 'rm -f -- "$installer_file"' EXIT
+        [ -f "$installer_file" ] \
+            || die "temporary file for the $name installer is unavailable: $installer_file"
+        /usr/bin/curl -fsSL "$url" -o "$installer_file"
+        "$interpreter" "$@" <"$installer_file"
+    )
 }
 
 install_private_skill_pack() {
@@ -581,7 +593,10 @@ install_herdr_plugins() {
         printf '%s\n' "$link_output" >&2
         die "herdr plugin link failed: $plugin_root"
     fi
-    [ -z "$link_output" ] || printf '%s\n' "$link_output"
+
+    # A successful link returns the entire plugin record as JSON. The status
+    # line above is sufficient for convergence; replaying that payload can
+    # fail with EAGAIN when an unattended caller has a nonblocking stdout.
 }
 
 install_herdr_plugins

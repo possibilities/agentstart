@@ -848,6 +848,22 @@ fi
 grep -F 'XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code"' \
     scripts/install.sh >/dev/null \
     || fail "Claude's native installer does not use the stable macOS cache root"
+# Official installers run only after curl has completed. A vendor script may
+# stop reading stdin early, and a curl-to-interpreter pipe would then fail the
+# otherwise successful install under pipefail with curl error 56.
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F 'installer_file=$(mktemp "${TMPDIR:-/tmp}/agentstart-official-installer.XXXXXX")' \
+    scripts/install.sh >/dev/null \
+    || fail "official installers do not download into a private temporary file"
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F '/usr/bin/curl -fsSL "$url" -o "$installer_file"' scripts/install.sh >/dev/null \
+    || fail "official installers are not downloaded completely before execution"
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F 'trap '\''rm -f -- "$installer_file"'\'' EXIT' scripts/install.sh >/dev/null \
+    || fail "official installer temporary files are not cleaned up on exit"
+# shellcheck disable=SC2016 # Match the literal installer variables.
+grep -F '"$interpreter" "$@" <"$installer_file"' scripts/install.sh >/dev/null \
+    || fail "official installers are not executed from their completed downloads"
 
 # Plannotator is one versioned unit: the official installer contributes only
 # the binary, that binary installs its managed agent-terminal runtime, and the
@@ -1159,6 +1175,10 @@ grep -F 'install_herdr_plugins' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal link invocation, $-sign and all.
 grep -F '"$herdr_bin" plugin link "$plugin_root"' scripts/install.sh >/dev/null \
     || fail "the agentsurface plugin is not registered by checkout path"
+# shellcheck disable=SC2016 # Match the literal captured-output variable.
+if grep -F 'printf '\''%s\\n'\'' "$link_output"' scripts/install.sh >/dev/null; then
+    fail "plugin convergence replays Herdr's successful JSON payload"
+fi
 grep -F 'protocol_mismatch' scripts/install.sh >/dev/null \
     || fail "plugin convergence cannot preserve a newer resident server"
 grep -F 'relink deferred until the natural Herdr server restart' scripts/install.sh >/dev/null \
