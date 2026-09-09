@@ -265,6 +265,7 @@ Command-line tools:
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
   ~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call
+  ~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release
   bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
 Agent documentation:
   native skills list

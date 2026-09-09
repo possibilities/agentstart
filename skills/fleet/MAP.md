@@ -693,7 +693,7 @@ were migrated first. Stored credentials and application data are preserved.
 
 | Caller | Callee | Kind | Evidence and consequence |
 |---|---|---|---|
-| AgentStart installer | AgentNotify | calls | `scripts/install-agent-clis` invokes `agentnotify/scripts/install.sh --install`; the owner builds the native app and CLI, refuses foreign destinations and a running installed app, and never restarts it. |
+| AgentStart installer | AgentNotify | calls | `scripts/install-agent-clis` invokes `agentnotify/scripts/install.sh --install`; the owner builds the native app and CLI, refuses foreign destinations and replacement of a running app, and never restarts it. An identical signed release is left running unchanged. |
 | AgentLaunch / AgentVoice managed resources | AgentNotify MCP | serves | `config/resources/mcp-servers.json` exposes `~/.local/bin/agentnotify mcp` through the existing shared inventory. Removing it removes structured inbox operations from managed sessions. |
 | Fleet MCP gateway | AgentNotify MCP | serves | `config/mcp-gateway.json` includes AgentNotify in the authenticated fleet toolset. It is not added to unrelated toolsets. |
 | Fleet building/delivery guidance | notifications skill | routes | `prompts/agentguidance/GUIDELINES.md` prefers AgentNotify’s `skills/notifications/SKILL.md` for durable completion and attention notices. Generic notify remains a fallback where AgentNotify is unavailable. |
