@@ -105,6 +105,15 @@ class NotificationShimTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout)['backend'], 'terminal-notifier')
 
+    def test_installer_refuses_symlinked_installation_directory(self):
+        local = self.home / '.local'
+        retained = self.home / 'retained-local'
+        local.rename(retained)
+        local.symlink_to(retained)
+        before = (retained / 'bin/terminal-notifier').read_bytes()
+        self.assertNotEqual(self.install().returncode, 0)
+        self.assertEqual((retained / 'bin/terminal-notifier').read_bytes(), before)
+
     def test_installer_is_rerunnable_migrates_owned_alias_and_preserves_foreign_files(self):
         self.assertEqual(self.install().returncode, 0)
         self.shim.unlink()

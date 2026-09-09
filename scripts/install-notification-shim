@@ -1,5 +1,5 @@
 #!/bin/bash
-# Internal helper for install-agentlaunch-shims; no separate convergence path.
+# Shared installer for fleet convergence and AgentNotify's explicit setup action.
 set -euo pipefail
 die() { printf 'AgentStart notification shim installer: %s\n' "$*" >&2; exit 1; }
 [ "$#" -eq 0 ] || die 'no arguments are supported'
@@ -10,6 +10,9 @@ source_shim="$script_dir/../config/notifications/terminal-notifier"
 bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 target="$bin_dir/terminal-notifier"
 marker='# agentstart-installer-owned: terminal-notifier.router.v1'
+for directory in "$HOME/.local" "$bin_dir"; do
+    [ ! -L "$directory" ] || die "refusing a symlinked installation directory: $directory"
+done
 if [ -L "$target" ]; then
     # Migrate only the exact compatibility link made by AgentNotify's installer.
     [ "$(readlink "$target")" = "$HOME/Applications/AgentNotify.app/Contents/MacOS/AgentNotify" ] \

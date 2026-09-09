@@ -67,7 +67,7 @@ class InstallTest(unittest.TestCase):
         inventory = set(json.loads(self.resources.read_text())['mcpServers'])
         self.assertEqual(set(gateway['toolsets']['fleet']['tools']), inventory)
         self.assertEqual(set(gateway['toolsets']['grok']['tools']), {
-            'agentboard', 'agentbrain', 'agentchats', 'agentsearch', 'agentwiki',
+            'agentboard', 'agentbrain', 'agentchats', 'agentnotify', 'agentsearch', 'agentwiki',
             'gog_mikebannister', 'gog_notimpossiblemike', 'shadcn', 'termctrl',
         })
         client = base/'mcp-clients/fleet.json'
@@ -108,6 +108,41 @@ class InstallTest(unittest.TestCase):
         save(base/'mcp-gateway.json', {'independent':True})
         with self.assertRaises(FileNotFoundError): self.prepare()
         self.assertEqual(json.loads((base/'mcp-gateway.json').read_text()), {'independent':True})
+
+    def test_existing_toolsets_gain_notify_once_without_losing_operator_choices(self):
+        self.prepare()
+        base = self.home/'.config/agentstart'
+        config_path = base/'mcp-gateway.json'
+        config = json.loads(config_path.read_text())
+        for name in ('fleet', 'grok'):
+            config['toolsets'][name]['tools'].pop('agentnotify')
+        config['toolsets']['fleet']['tools']['agentwiki'] = ['get']
+        config['toolsets']['reading'] = {'tools': {'agentbrain': ['guide']}}
+        save(config_path, config)
+        save(base/'mcp-gateway-install.json', {'owner': provision.MARKER, 'config': str(config_path)})
+        credentials = {p: p.read_bytes() for p in (base/'mcp-clients').glob('*.json')}
+        self.prepare()
+        upgraded = json.loads(config_path.read_text())
+        for name in ('fleet', 'grok'):
+            self.assertEqual(upgraded['toolsets'][name]['tools']['agentnotify'], ['*'])
+        self.assertEqual(upgraded['toolsets']['fleet']['tools']['agentwiki'], ['get'])
+        self.assertNotIn('agentnotify', upgraded['toolsets']['reading']['tools'])
+        self.assertEqual({p:p.read_bytes() for p in credentials}, credentials)
+        # After adoption, an explicit operator restriction survives reinstalls.
+        upgraded['toolsets']['grok']['tools']['agentnotify'] = ['send']
+        save(config_path, upgraded)
+        self.prepare()
+        self.assertEqual(json.loads(config_path.read_text())['toolsets']['grok']['tools']['agentnotify'], ['send'])
+
+    def test_notify_adoption_preserves_an_existing_restricted_selection(self):
+        self.prepare()
+        base = self.home/'.config/agentstart'
+        config = json.loads((base/'mcp-gateway.json').read_text())
+        config['toolsets']['grok']['tools']['agentnotify'] = ['send']
+        save(base/'mcp-gateway.json', config)
+        save(base/'mcp-gateway-install.json', {'owner': provision.MARKER, 'config': str(base/'mcp-gateway.json')})
+        self.prepare()
+        self.assertEqual(json.loads((base/'mcp-gateway.json').read_text())['toolsets']['grok']['tools']['agentnotify'], ['send'])
 
     def test_funnel_changes_only_its_handler_after_auth_checks(self):
         base = self.home/'.config/agentstart'

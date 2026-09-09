@@ -66,6 +66,9 @@
     },
     "grok": {
       "tools": {
+        "agentnotify": [
+          "*"
+        ],
         "agentboard": [
           "*"
         ],

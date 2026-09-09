@@ -17,6 +17,7 @@ from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parent.parent
 MARKER = 'agentstart-mcp-gateway.v1'
+NOTIFY_MIGRATION = 'agentnotify-fleet-grok.v1'
 
 
 def safe_parents(path):
@@ -86,6 +87,7 @@ def prepare(home):
         raise ValueError('Tailscale must be signed in and online to configure external MCP access')
     dns = status['Self']['DNSName'].rstrip('.')
     if not re.fullmatch(r'[a-z0-9.-]+', dns): raise ValueError('invalid Tailscale DNS name')
+    receipt = {'owner': MARKER, 'config': str(config_path)}
     if config_path.exists() or config_path.is_symlink():
         receipt = read_private(receipt_path)
         if receipt.get('owner') != MARKER: raise ValueError('gateway configuration is not installer-owned')
@@ -101,6 +103,18 @@ def prepare(home):
         raise ValueError('invalid gateway configuration keys')
     if not isinstance(config['toolsets'], dict) or not config['toolsets']:
         raise ValueError('at least one toolset is required')
+    migrations = receipt.get('migrations', [])
+    if not isinstance(migrations, list) or not all(isinstance(value, str) for value in migrations):
+        raise ValueError('invalid gateway installation migrations')
+    if NOTIFY_MIGRATION not in migrations:
+        # The operator adopted AgentNotify throughout the fleet, including Grok.
+        # Apply this bounded addition once to existing built-in sets. Preserve
+        # narrower explicit selections, custom sets, credentials, and later edits.
+        for name in ('fleet', 'grok'):
+            toolset = config['toolsets'].get(name)
+            if isinstance(toolset, dict) and isinstance(toolset.get('tools'), dict):
+                toolset['tools'].setdefault('agentnotify', ['*'])
+        migrations = [*migrations, NOTIFY_MIGRATION]
     credentials, clients = {}, {}
     for name, toolset in config['toolsets'].items():
         if (not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', name) or not isinstance(toolset, dict)
@@ -145,7 +159,7 @@ def prepare(home):
     # All existing occupants have been checked before publishing any changes.
     for path, value in [*credentials.items(), *clients.items()]: publish(path, value)
     publish(config_path, config)
-    publish(receipt_path, {'owner':MARKER, 'config':str(config_path)})
+    publish(receipt_path, {'owner':MARKER, 'config':str(config_path), 'migrations':migrations})
     python = ROOT/'gateway/.venv/bin/python'
     subprocess.run([str(python), str(ROOT/'gateway/gateway.py'), str(config_path), '--check'], check=True)
     print(f'Configured {len(config["toolsets"])} MCP toolset(s); private client settings: {client_root}')
