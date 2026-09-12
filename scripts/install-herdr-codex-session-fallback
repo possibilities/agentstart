@@ -1,0 +1,166 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() { printf 'AgentStart Herdr Codex session fallback: %s\n' "$*" >&2; exit 1; }
+usage() { printf 'Usage: install-herdr-codex-session-fallback --install|--check|--uninstall\n'; }
+
+[ "$#" -eq 1 ] || { usage >&2; exit 64; }
+mode=$1
+case "$mode" in
+    --install|--check|--uninstall) ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 64 ;;
+esac
+
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+repo_root=$(cd -P -- "$script_dir/.." && pwd)
+source_script="$repo_root/config/herdr/codex-session-fallback.sh"
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+target_script="$codex_home/herdr-agent-session-fallback.sh"
+hooks_file="$codex_home/hooks.json"
+managed_marker='# AGENTSTART_MANAGED_CODEX_HERDR_SESSION_FALLBACK=1'
+legacy_marker='# Temporary local fallback for Herdr Codex integration v8.'
+
+case "$target_script" in
+    *"'"*) die "Codex home contains a single quote, which cannot preserve the trusted hook command: $codex_home" ;;
+esac
+hook_command="bash '$target_script'"
+
+if [ "$mode" = --check ]; then
+    printf '  install the temporary AgentLaunch+Herdr Codex SessionStart fallback at %s and preserve its exact trusted hook command\n' "$target_script"
+    exit 0
+fi
+
+[ -f "$source_script" ] || die "tracked fallback source is missing: $source_script"
+command -v python3 >/dev/null 2>&1 || die "python3 is required"
+
+mkdir -p "$codex_home"
+
+if [ "$mode" = --install ]; then
+    if [ -e "$target_script" ] || [ -L "$target_script" ]; then
+        [ -f "$target_script" ] && [ ! -L "$target_script" ] \
+            || die "refusing non-regular fallback target: $target_script"
+        if ! grep -Fqx "$managed_marker" "$target_script" \
+            && ! grep -Fqx "$legacy_marker" "$target_script"; then
+            die "refusing to replace an unowned fallback target: $target_script"
+        fi
+    fi
+    next_script=$(mktemp "$codex_home/.herdr-agent-session-fallback.XXXXXX")
+    trap 'rm -f -- "${next_script:-}" "${next_hooks:-}"' EXIT
+    install -m 0755 "$source_script" "$next_script"
+    mv -f -- "$next_script" "$target_script"
+
+    next_hooks=$(mktemp "$codex_home/.hooks.json.agentstart.XXXXXX")
+    CODEX_HOOK_COMMAND="$hook_command" CODEX_HOOKS_FILE="$hooks_file" \
+        /usr/bin/python3 - "$next_hooks" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+destination = Path(sys.argv[1])
+source = Path(os.environ["CODEX_HOOKS_FILE"])
+command = os.environ["CODEX_HOOK_COMMAND"]
+expected = {"command": command, "timeout": 10, "type": "command"}
+
+if source.exists():
+    if not source.is_file() or source.is_symlink():
+        raise SystemExit(f"refusing non-regular Codex hooks file: {source}")
+    try:
+        document = json.loads(source.read_text(encoding="utf-8"))
+    except Exception as error:
+        raise SystemExit(f"Codex hooks file is not valid JSON: {source}: {error}")
+else:
+    document = {}
+
+if not isinstance(document, dict):
+    raise SystemExit(f"Codex hooks file must contain an object: {source}")
+hooks = document.setdefault("hooks", {})
+if not isinstance(hooks, dict):
+    raise SystemExit(f"Codex hooks field must contain an object: {source}")
+groups = hooks.setdefault("SessionStart", [])
+if not isinstance(groups, list):
+    raise SystemExit(f"Codex SessionStart hooks must contain an array: {source}")
+
+matches = []
+for group in groups:
+    if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+        continue
+    for handler in group["hooks"]:
+        if isinstance(handler, dict) and handler.get("command") == command:
+            matches.append(handler)
+
+if len(matches) > 1:
+    raise SystemExit(f"Codex hooks contain duplicate AgentStart fallback commands: {source}")
+if matches and matches[0] != expected:
+    raise SystemExit(f"refusing to replace a modified AgentStart fallback hook: {source}")
+if not matches:
+    groups.append({"hooks": [expected]})
+
+destination.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+PY
+    chmod 600 "$next_hooks"
+    if [ -f "$hooks_file" ] && cmp -s "$next_hooks" "$hooks_file"; then
+        rm -f -- "$next_hooks"
+    else
+        mv -f -- "$next_hooks" "$hooks_file"
+    fi
+    trap - EXIT
+    printf 'Installed temporary Herdr Codex session fallback at %s.\n' "$target_script"
+    exit 0
+fi
+
+# Explicit retirement path. Remove only the exact managed definition and a
+# file still carrying AgentStart's marker; preserve every unrelated hook.
+if [ -e "$target_script" ] || [ -L "$target_script" ]; then
+    [ -f "$target_script" ] && [ ! -L "$target_script" ] \
+        || die "refusing non-regular fallback target: $target_script"
+    grep -Fqx "$managed_marker" "$target_script" \
+        || die "refusing to remove an unowned fallback target: $target_script"
+fi
+
+if [ -f "$hooks_file" ]; then
+    next_hooks=$(mktemp "$codex_home/.hooks.json.agentstart.XXXXXX")
+    trap 'rm -f -- "${next_hooks:-}"' EXIT
+    CODEX_HOOK_COMMAND="$hook_command" CODEX_HOOKS_FILE="$hooks_file" \
+        /usr/bin/python3 - "$next_hooks" <<'PY'
+import json
+import os
+from pathlib import Path
+import sys
+
+destination = Path(sys.argv[1])
+source = Path(os.environ["CODEX_HOOKS_FILE"])
+command = os.environ["CODEX_HOOK_COMMAND"]
+expected = {"command": command, "timeout": 10, "type": "command"}
+try:
+    document = json.loads(source.read_text(encoding="utf-8"))
+except Exception as error:
+    raise SystemExit(f"Codex hooks file is not valid JSON: {source}: {error}")
+if not isinstance(document, dict) or not isinstance(document.get("hooks", {}), dict):
+    raise SystemExit(f"Codex hooks file has an invalid shape: {source}")
+
+groups = document.get("hooks", {}).get("SessionStart", [])
+if not isinstance(groups, list):
+    raise SystemExit(f"Codex SessionStart hooks must contain an array: {source}")
+for group in groups:
+    if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+        continue
+    for handler in group["hooks"]:
+        if isinstance(handler, dict) and handler.get("command") == command and handler != expected:
+            raise SystemExit(f"refusing to remove a modified AgentStart fallback hook: {source}")
+    group["hooks"] = [handler for handler in group["hooks"] if handler != expected]
+groups[:] = [group for group in groups if not isinstance(group, dict) or group.get("hooks") != []]
+if groups == []:
+    document.get("hooks", {}).pop("SessionStart", None)
+if document.get("hooks") == {}:
+    document.pop("hooks", None)
+destination.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+PY
+    chmod 600 "$next_hooks"
+    mv -f -- "$next_hooks" "$hooks_file"
+    trap - EXIT
+fi
+rm -f -- "$target_script"
+printf 'Removed the temporary Herdr Codex session fallback.\n'

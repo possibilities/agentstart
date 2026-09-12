@@ -80,6 +80,14 @@ becomes program-written state; it is rendered rather than linked because Herdr
 writes its own keys into it.
 _Avoid_: dotfile, theme config (the render sets no colors at all).
 
+**The Herdr Codex session fallback** — a temporary AgentStart-owned
+`SessionStart` hook installed at Herdr integration v8's existing trusted
+command path. It reports a new Codex thread through Herdr's public CLI only
+when both `AGENTLAUNCH_LAUNCH=1` and `HERDR_ENV=1`, and becomes a no-op when
+the installed Herdr integration version advances past 8. Its dedicated source,
+installer, and test are one deletion unit for Herdr retirement.
+_Avoid_: Herdr patch, plugin hook (neither is used).
+
 **Participant** — an `agent*` checkout that exports
 `skills/<name>/SKILL.md` and is therefore discovered by the scan. A
 checkout without one is not misconfigured; it is simply not a participant.

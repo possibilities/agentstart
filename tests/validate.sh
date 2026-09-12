@@ -20,6 +20,7 @@ scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentvoice-android
 scripts/install-agentlaunch-shims
+scripts/install-herdr-codex-session-fallback
 scripts/install-notification-shim
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
@@ -56,7 +57,7 @@ fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis scripts/install-agentvoice-android \
     scripts/run-skills-cli \
-    scripts/install-agentlaunch-shims scripts/render-capabilities scripts/install-launchagents \
+    scripts/install-agentlaunch-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
@@ -88,6 +89,7 @@ done
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-agentvoice-role.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/codex-herdr-session-fallback.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/project-docs.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
 
@@ -798,6 +800,7 @@ for required_install in \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate' \
     'herdr integration install claude and codex into their canonical homes' \
+    'scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside AgentLaunch+Herdr and self-disables after the integration advances' \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
@@ -1056,6 +1059,15 @@ grep -F 'install_herdr_integrations' scripts/install.sh >/dev/null \
     || fail "installer does not converge the herdr harness integrations"
 grep -F 'for harness in claude codex' scripts/install.sh >/dev/null \
     || fail "herdr integrations do not cover both harnesses the fleet runs"
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F '"$script_dir/install-herdr-codex-session-fallback" --install' scripts/install.sh >/dev/null \
+    || fail "installer does not converge the temporary Herdr Codex session fallback"
+[ -s config/herdr/codex-session-fallback.sh ] \
+    || fail "tracked Herdr Codex session fallback is missing"
+grep -F 'AGENTLAUNCH_LAUNCH' config/herdr/codex-session-fallback.sh >/dev/null \
+    || fail "Herdr Codex session fallback is not isolated to managed launches"
+grep -F 'HERDR_INTEGRATION_VERSION' config/herdr/codex-session-fallback.sh >/dev/null \
+    || fail "Herdr Codex session fallback does not retire itself after the v8 integration"
 
 # AgentStart owns Herdr's behavior config and renders it into the live file,
 # because Herdr writes its own keys there. It carries no palette: Herdr's

@@ -265,6 +265,7 @@ Command-line tools:
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
   brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate
   herdr integration install claude and codex into their canonical homes
+  scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside AgentLaunch+Herdr and self-disables after the integration advances
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
@@ -562,6 +563,13 @@ install_herdr_integrations() {
 }
 
 install_herdr_integrations
+
+# Herdr's v8 Codex hook can miss the first SessionStart identity report. Keep
+# the known-working fallback in AgentStart source control and reinstall it
+# after Herdr has converged its own hook. The fallback retains the already-
+# trusted command path, acts only for AgentLaunch descendants inside Herdr,
+# and self-disables as soon as the managed integration version exceeds 8.
+"$script_dir/install-herdr-codex-session-fallback" --install
 
 # AgentSurface's herdr plugin (the titled fleet TUI popups plus tab naming from
 # a conversation's first prompt) registers by link, not copy: herdr records the

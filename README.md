@@ -152,6 +152,14 @@ check`, atomically replaces the live file, and asks a running server to reload.
 It is rendered rather than linked because Herdr writes its own keys into that
 file, and neither checkout may become program-written state.
 
+Until Herdr's Codex integration advances past v8,
+`scripts/install-herdr-codex-session-fallback --install` also converges a
+temporary `SessionStart` identity bridge at its existing trusted hook path.
+It runs only for AgentLaunch descendants inside Herdr, uses Herdr's public
+`pane report-agent-session` command, and self-disables for newer integration
+versions. The dedicated installer has an explicit `--uninstall` retirement
+path; no Herdr source patch is installed.
+
 Smolmux installs through `~/code/smolmux/scripts/install.sh`, its canonical
 consumer path. Smolmux owns the editable `smolmux` command, pinned Companion,
 and doctor check. It runs arbitrary commands and no longer owns an Fx pin,
