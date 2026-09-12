@@ -9,10 +9,27 @@ script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 source_shim="$script_dir/../config/notifications/terminal-notifier"
 bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 target="$bin_dir/terminal-notifier"
+primary="$bin_dir/agentnotify"
 marker='# agentstart-installer-owned: terminal-notifier.router.v1'
 for directory in "$HOME/.local" "$bin_dir"; do
     [ ! -L "$directory" ] || die "refusing a symlinked installation directory: $directory"
 done
+# A linked Homebrew notifier can bypass the managed PATH router from launchd
+# or an absolute-path caller. Require its removal before installing the shim;
+# aliases of the managed router or AgentNotify itself are harmless.
+prefixes="${AGENTSTART_TERMINAL_NOTIFIER_PREFIXES:-/opt/homebrew:/usr/local}"
+old_ifs=$IFS
+IFS=:
+for prefix in $prefixes; do
+    candidate="$prefix/bin/terminal-notifier"
+    if [ -n "$prefix" ] && [ -x "$candidate" ] \
+        && { [ ! -e "$target" ] || [ ! "$candidate" -ef "$target" ]; } \
+        && { [ ! -e "$primary" ] || [ ! "$candidate" -ef "$primary" ]; }; then
+        IFS=$old_ifs
+        die "Homebrew terminal-notifier is still installed at $candidate. Uninstall it with brew uninstall terminal-notifier, then install the shim. Otherwise launchd and scripts keep posting macOS banners."
+    fi
+done
+IFS=$old_ifs
 if [ -L "$target" ]; then
     # Migrate only the exact compatibility link made by AgentNotify's installer.
     [ "$(readlink "$target")" = "$HOME/Applications/AgentNotify.app/Contents/MacOS/AgentNotify" ] \
@@ -27,4 +44,4 @@ temporary=$(mktemp "$bin_dir/.terminal-notifier.XXXXXX")
 trap 'rm -f -- "$temporary"' EXIT
 install -m 0755 "$source_shim" "$temporary"
 mv -f -- "$temporary" "$target"
-printf 'Installed terminal-notifier router: %s (AgentNotify first; original notifier retained).\n' "$target"
+printf 'Installed AgentNotify-only terminal-notifier router: %s.\n' "$target"

@@ -34,12 +34,12 @@ class NotificationShimTests(unittest.TestCase):
         self.bin.mkdir(parents=True)
         self.primary = self.bin / 'agentnotify'
         self.primary.write_text(FIXTURE); self.primary.chmod(0o755)
-        self.fallback = self.home / 'original-notifier'
-        self.fallback.write_text(FIXTURE); self.fallback.chmod(0o755)
+        self.prefix = self.home / 'homebrew'
+        (self.prefix / 'bin').mkdir(parents=True)
         self.log = self.home / 'calls'
         self.env = {**os.environ, 'HOME': str(self.home), 'PATH': '/usr/bin:/bin',
                     'AGENTSTART_INSTALL_BIN_DIR': str(self.bin), 'ROUTE_LOG': str(self.log),
-                    'AGENTSTART_TERMINAL_NOTIFIER_FALLBACK': str(self.fallback)}
+                    'AGENTSTART_TERMINAL_NOTIFIER_PREFIXES': str(self.prefix)}
         self.shim = self.bin / 'terminal-notifier'
         self.assertEqual(self.install().returncode, 0)
 
@@ -62,14 +62,14 @@ class NotificationShimTests(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout), {'backend': 'agentnotify', 'args': ['-reply', 'Your answer', '-action', 'One,Two'], 'stdin': 'piped message\nsecond line\n'})
         self.assertEqual(len(self.calls()), 2)
 
-    def test_unavailable_primary_falls_back_before_submission(self):
+    def test_unavailable_primary_fails_without_submission(self):
         for missing in [False, True]:
             with self.subTest(missing=missing):
                 if missing: self.primary.unlink()
                 result = self.run_shim(PROBE_EXIT='4')
-                self.assertEqual(result.returncode, 0)
-                self.assertEqual(json.loads(result.stdout)['backend'], 'original-notifier')
-                self.assertEqual(json.loads(result.stdout)['stdin'], 'piped message\nsecond line\n')
+                self.assertEqual(result.returncode, 127)
+                self.assertEqual(result.stdout, '')
+                self.assertEqual(result.stderr, 'terminal-notifier: AgentNotify is unavailable; no notification was submitted.\n')
         self.assertTrue(all(args == ['diagnose'] for kind, args in self.calls() if kind == 'agentnotify'))
 
     def test_dispatch_failure_timeout_or_denial_never_replays(self):
@@ -78,32 +78,58 @@ class NotificationShimTests(unittest.TestCase):
                 result = self.run_shim(ACTION_EXIT=str(code))
                 self.assertEqual(result.returncode, code)
                 self.assertEqual(json.loads(result.stdout)['backend'], 'agentnotify')
-        self.assertFalse(any(kind == 'original-notifier' for kind, _ in self.calls()))
 
     def test_signal_is_preserved_after_dispatch(self):
         self.assertEqual(self.run_shim(ACTION_SIGNAL='1').returncode, -signal.SIGTERM)
-        self.assertFalse(any(kind == 'original-notifier' for kind, _ in self.calls()))
 
-    def test_probe_is_bounded_and_then_uses_fallback(self):
+    def test_probe_is_bounded_and_then_fails_without_submission(self):
         result = self.run_shim(PROBE_DELAY='30')
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(json.loads(result.stdout)['backend'], 'original-notifier')
+        self.assertEqual(result.returncode, 127)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'terminal-notifier: AgentNotify is unavailable; no notification was submitted.\n')
 
-    def test_missing_both_backends_fails_without_submission(self):
-        self.primary.unlink(); self.fallback.unlink()
-        self.assertEqual(self.run_shim().returncode, 127)
+    def test_missing_primary_fails_without_submission(self):
+        self.primary.unlink()
+        result = self.run_shim()
+        self.assertEqual(result.returncode, 127)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'terminal-notifier: AgentNotify is unavailable; no notification was submitted.\n')
         self.assertEqual(self.calls(), [])
 
-    def test_path_search_skips_the_router_and_its_alias(self):
+    def test_primary_alias_to_router_is_not_recursively_executed(self):
         self.primary.unlink()
-        alias = self.home / 'aliases'; alias.mkdir()
-        (alias / 'terminal-notifier').symlink_to(self.shim)
-        native = self.home / 'native'; native.mkdir()
-        (native / 'terminal-notifier').symlink_to(self.fallback)
-        self.env.pop('AGENTSTART_TERMINAL_NOTIFIER_FALLBACK')
-        result = self.run_shim(PATH=os.pathsep.join(map(str, [self.bin, alias, native])))
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(json.loads(result.stdout)['backend'], 'terminal-notifier')
+        self.primary.symlink_to(self.shim)
+        result = self.run_shim()
+        self.assertEqual(result.returncode, 127)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'terminal-notifier: AgentNotify is unavailable; no notification was submitted.\n')
+        self.assertEqual(self.calls(), [])
+
+    def test_installer_refuses_linked_homebrew_notifier_without_changing_router(self):
+        before = self.shim.read_bytes()
+        original = self.prefix / 'bin/terminal-notifier'
+        original.write_text(FIXTURE); original.chmod(0o755)
+        result = self.install()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            f'Homebrew terminal-notifier is still installed at {original}. '
+            'Uninstall it with brew uninstall terminal-notifier, then install the shim. '
+            'Otherwise launchd and scripts keep posting macOS banners.',
+            result.stderr,
+        )
+        self.assertEqual(self.shim.read_bytes(), before)
+
+    def test_installer_allows_standard_prefix_alias_to_managed_agentnotify(self):
+        (self.prefix / 'bin/terminal-notifier').symlink_to(self.primary)
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Installed AgentNotify-only terminal-notifier router:', result.stdout)
+
+    def test_installer_allows_standard_prefix_alias_to_managed_router(self):
+        (self.prefix / 'bin/terminal-notifier').symlink_to(self.shim)
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Installed AgentNotify-only terminal-notifier router:', result.stdout)
 
     def test_installer_refuses_symlinked_installation_directory(self):
         local = self.home / '.local'
@@ -123,9 +149,11 @@ class NotificationShimTests(unittest.TestCase):
         self.shim.write_text('foreign command')
         self.assertNotEqual(self.install().returncode, 0)
         self.assertEqual(self.shim.read_text(), 'foreign command')
-        self.shim.unlink(); self.shim.symlink_to(self.fallback)
+        foreign = self.home / 'foreign-notifier'
+        foreign.write_text(FIXTURE); foreign.chmod(0o755)
+        self.shim.unlink(); self.shim.symlink_to(foreign)
         self.assertNotEqual(self.install().returncode, 0)
-        self.assertEqual(self.shim.resolve(), self.fallback)
+        self.assertEqual(self.shim.resolve(), foreign)
 
 
 if __name__ == '__main__':

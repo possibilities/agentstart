@@ -99,8 +99,9 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
   `claude`/`codex`; the machine's wrapper of the same name delegates
   here. The same entrypoint installs the `~/.local/bin/terminal-notifier`
-  router: AgentNotify first, with the original notifier retained as an
-  availability fallback before submission. The full installer also converges them. Codex runtime calls receive
+  router for AgentNotify only, refusing installation while Homebrew
+  terminal-notifier remains linked. If AgentNotify is unavailable, the router
+  fails without submitting elsewhere. The full installer also converges them. Codex runtime calls receive
   [invocation profiles](config/codex/README.md) copied from Funk's personal
   defaults, with temporary cwd/project trust and the normal Codex home intact.
 - `scripts/install-agentvoice-android --install` — an explicit phone proof

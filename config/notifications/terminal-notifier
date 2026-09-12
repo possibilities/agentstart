@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # agentstart-installer-owned: terminal-notifier.router.v1
-"""Prefer AgentNotify, falling back only before a notification is submitted."""
+"""Route terminal-notifier compatibility calls exclusively to AgentNotify."""
 import os
 from pathlib import Path
 import subprocess
@@ -32,22 +32,7 @@ def main():
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-    override = os.environ.get("AGENTSTART_TERMINAL_NOTIFIER_FALLBACK")
-    candidates = [override] if override is not None else [
-        str(Path(directory) / "terminal-notifier")
-        for directory in os.environ.get("PATH", "").split(os.pathsep) if directory
-    ] + ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"]
-    for candidate in candidates:
-        if not candidate or not os.access(candidate, os.X_OK):
-            continue
-        if same_file(candidate, __file__) or same_file(candidate, primary):
-            continue
-        try:
-            print("terminal-notifier: AgentNotify unavailable; using the original notifier.", file=sys.stderr)
-            os.execv(candidate, [candidate, *sys.argv[1:]])
-        except OSError:
-            continue
-    print("terminal-notifier: neither AgentNotify nor a fallback notifier is available.", file=sys.stderr)
+    print("terminal-notifier: AgentNotify is unavailable; no notification was submitted.", file=sys.stderr)
     return 127
 
 

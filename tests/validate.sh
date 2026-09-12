@@ -783,7 +783,7 @@ grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
-    'install ~/.local/bin/terminal-notifier router  # prefer AgentNotify; keep the real notifier as an availability fallback' \
+    'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
@@ -1424,8 +1424,8 @@ grep -Fq '<string>webhook-daemon</string>' config/launchd/io.arthack.agentsource
     || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
 grep -Fq '<string>notify-daemon</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not enter through the installed notify-daemon subcommand"
-# The notifier uses the managed terminal-notifier router before Homebrew;
-# the standard service PATH keeps both the primary and fallback reachable.
+# The notifier uses the managed AgentNotify-only terminal-notifier router;
+# the standard service PATH keeps that managed command reachable.
 grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
 grep -Fq '<string>serve</string>' config/launchd/io.arthack.agentattention.serve.plist \

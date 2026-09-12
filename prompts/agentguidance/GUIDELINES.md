@@ -10,8 +10,8 @@
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for
   structured calls. Legacy callers use the AgentStart `terminal-notifier`
-  router, which retains the original notifier as an availability fallback
-  before submission; the `notify` skill explains it. Sound is opt-in; time-sensitive delivery does not guarantee
+  router, which submits only through AgentNotify and fails before submission
+  when AgentNotify is unavailable; the `notify` skill explains it. Sound is opt-in; time-sensitive delivery does not guarantee
   a Focus bypass. Read is not completion or approval.
 - In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
   working: verify `upstream` names the original repository, `fork` names our
