@@ -30,6 +30,8 @@ run_installer() {
 }
 
 plan=$(run_installer --check)
+printf '%s\n' "$plan" | grep -F "skipped io.arthack.agentchats.serve (no $bin_dir/agentchats)" >/dev/null \
+    || fail "missing Agentchats binary was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
     || fail "absent current Agentattention service was not planned for install"
 HOME="$test_home" \
@@ -39,6 +41,8 @@ HOME="$test_home" \
     AGENTSTART_INSTALL_LAUNCHCTL=none \
     "$root/scripts/install-launchagents" --install >/dev/null
 attention_plist="$launch_agents/io.arthack.agentattention.serve.plist"
+[ ! -e "$launch_agents/io.arthack.agentchats.serve.plist" ] \
+    || fail "missing Agentchats binary still published a service"
 grep -Fq 'agentstart-installer-owned: io.arthack.agentattention.serve.v1' "$attention_plist" \
     || fail "current service lacks its exact ownership marker"
 plan=$(run_installer --check)
@@ -106,6 +110,22 @@ with open(sys.argv[1], "rb") as handle:
 assert value["ProgramArguments"] == [sys.argv[2], "daemon", "run"]
 PYTHON
 rm -- "$bin_dir/agentusage" "$launch_agents/io.arthack.agentusage.observe.plist"
+
+# The resident web reader uses the public serve verb and standard render paths.
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentchats"
+chmod +x "$bin_dir/agentchats"
+run_installer --install >/dev/null
+/usr/bin/python3 - "$launch_agents/io.arthack.agentchats.serve.plist" "$bin_dir/agentchats" "$test_home" "$state_dir" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
+assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentchats/server.log"
+PYTHON
+rm -- "$bin_dir/agentchats" "$launch_agents/io.arthack.agentchats.serve.plist"
 
 # Install Agentbrain for the status and session-persistence checks below.
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentbrain"

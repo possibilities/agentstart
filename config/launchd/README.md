@@ -77,6 +77,10 @@ Add the template here, add its entry to the manifest in
 The plan line in `scripts/install.sh --check` comes from the manifest, so it
 follows automatically.
 
+`io.arthack.agentchats.serve` keeps Agentchats' local web reader resident;
+`agentchats serve` owns its portless name `agentchats` at
+`https://agentchats.localhost`. AgentStart owns the LaunchAgent lifecycle.
+
 `io.arthack.agentstart.watch-config` is a resident configuration watcher. It
 invokes `agentstart config watch --notify`, reconciles filesystem events and
 a 30-second fallback, and uses Funk notifications. Its [one-way preference

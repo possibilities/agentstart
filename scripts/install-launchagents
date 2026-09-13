@@ -45,6 +45,7 @@ SERVICES=(
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
+    "io.arthack.agentchats.serve|agentchats|server.log|resident"
     "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
     "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
     "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
