@@ -13,3 +13,5 @@ The role's native mode file and a server-config mode cannot both own the slot.
 Changes load on the next call or explicit runtime replacement. Existing workspace
 role snapshots retain their captured settings. Updating source files or syncing
 resources does not restart an active call.
+
+The high-volume per-call debug log remains disabled by default.

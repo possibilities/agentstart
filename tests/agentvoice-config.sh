@@ -31,7 +31,7 @@ if "$helper" install >/dev/null 2>&1; then exit 1; fi
 python3 - "$root/config/agentvoice/server.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])) == {
-    'allow-full-access': True, 'debug': True,
+    'allow-full-access': True, 'debug': False,
     'role': '~/.local/share/agentstart/resources/roles/manager',
     'orchestrator': {'model': 'gpt-6-astra', 'effort': 'low'},
 }
