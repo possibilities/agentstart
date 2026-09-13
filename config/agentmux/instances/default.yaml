@@ -22,21 +22,6 @@ panels:
   left:
     command: tray
     description: The agent list
-    needs-agents: true
+    needs-agents: false
     visible: true
     width: 26
-  bottom_drawer:
-    description: ""
-    needs-agents: false
-    visible: false
-    height: 8
-  dock:
-    description: ""
-    needs-agents: false
-    visible: false
-    width: 40
-  right:
-    description: ""
-    needs-agents: false
-    visible: false
-    width: 40

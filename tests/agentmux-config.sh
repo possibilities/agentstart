@@ -49,8 +49,8 @@ if AGENTSTART_AGENTMUX_CONFIG_TARGET="$empty_target" "$helper" install >/dev/nul
 fi
 [ -f "$empty_target" ] && [ ! -L "$empty_target" ] || fail "independent empty agentmux instance config changed"
 
-# The tracked config puts the tray app in the left panel; the other panels
-# name no command and show agentmux's placeholder. The file is YAML: a
+# The tracked config keeps only the agent-list tray beside the main canvas,
+# including before the first Agent launches. The file is YAML: a
 # panel's command is the `command:` line indented under its name under
 # `panels:`, so the check reads entry by entry.
 tracked="$root/config/agentmux/instances/default.yaml"
@@ -64,12 +64,17 @@ panel_has() {
         END { exit !found }
     ' "$tracked"
 }
-for panel in left bottom_drawer dock right; do
-    panel_has "$panel" '^    ' \
-        || fail "tracked agentmux instance config has no entry for the $panel panel"
+for panel in top_drawer bottom_drawer dock right popup; do
+    if grep -Eq "^  $panel:" "$tracked"; then
+        fail "tracked agentmux instance config declares the unwanted $panel panel"
+    fi
 done
 panel_has left '^    command: tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"
+panel_has left '^    needs-agents: false$' \
+    || fail "tracked agentmux instance config hides the agent list before the first Agent"
+panel_has left '^    visible: true$' \
+    || fail "tracked agentmux instance config does not initially show the agent list"
 grep -Fqx 'setup: ~/code/agentwork' "$tracked" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"
 # The operator removed the prefix override; leave selection to agentmux.
