@@ -60,8 +60,6 @@ flags, and skip-versus-fail semantics are load-bearing:
     AgentLaunch or Herdr integration yet);
   - Gog through its Homebrew formula, with separate MCP registrations for the
     two declared Gmail accounts and Google-owned sign-in;
-  - the pinned FastMCP HTTP transport, private toolset configuration and
-    credentials, and an authenticated Tailscale route;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
     pinned Plannotator review CLI with its managed agent-terminal runtime and
     version-matched core skills, and the Homebrew-installed Hunk review TUI
@@ -119,12 +117,9 @@ migration. Grok Build is its CLI-only cask exception.
 AgentStart renders [one MCP inventory](config/resources/mcp-servers.json) into
 the private shared resources. AgentLaunch loads it for Claude and Codex;
 AgentVoice's prepared default role links the same file. Discovery happens in
-the MCP host, without a repository scan at launch. Shadcn retains project cwd.
-
-The [HTTP gateway](gateway/README.md) exposes configured toolsets at
-/mcp/<toolset>. Each set has a separate bearer credential and a server-enforced
-tool selection. It preserves stdio session state and native MCP results.
-Grok Build remains outside AgentLaunch and Herdr.
+the MCP host, without a repository scan at launch. AgentStart exposes no HTTP
+projection of this inventory. Shadcn retains project cwd. Grok Build remains
+outside AgentLaunch and Herdr.
 
 For a full install while a voice call is active, set
 AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1. This uses AgentVoice's supported

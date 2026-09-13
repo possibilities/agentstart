@@ -40,7 +40,6 @@ render_temp=""
 # subcommand; the fleet does not grow parallel *d executables.
 SERVICES=(
     "io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident"
-    "io.arthack.agentstart.serve-mcp|agentstart|mcp-gateway.log|resident"
     "io.arthack.agentbrain.work|agentbrain|worker.log|resident"
     "io.arthack.agentbrain.share|agentbrain|share.log|resident"
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
@@ -140,7 +139,7 @@ if flag in args:
 service_tokens() {
     local label="$1"
     case "$label" in
-        io.arthack.agentstart.watch-config | io.arthack.agentstart.serve-mcp)
+        io.arthack.agentstart.watch-config)
             printf 'STATE_ROOT=%s\n' "$state_root"
             ;;
         io.arthack.agentbrain.work)

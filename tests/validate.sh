@@ -130,10 +130,7 @@ tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
-uv sync --frozen --project gateway
-PYTHONDONTWRITEBYTECODE=1 python3 tests/mcp-install.py
-PYTHONDONTWRITEBYTECODE=1 gateway/.venv/bin/python -m unittest discover -s gateway -p 'test_*.py'
-for script in render-mcp-resources install-gog install-mcp-gateway; do
+for script in render-mcp-resources install-gog; do
     [ -x "scripts/$script" ] || fail "MCP delivery helper is not executable: $script"
 done
 scripts/render-mcp-resources --check config/resources/mcp-servers.json
@@ -141,14 +138,26 @@ python3 - <<'PYTHON'
 from pathlib import Path
 source = Path("scripts/install.sh").read_text()
 content = source.rindex("\nconverge_repo_content\n")
-prepare = source.index('"$script_dir/install-mcp-gateway" --install')
 services = source.index('"$script_dir/install-launchagents" --install')
-expose = source.index('"$script_dir/install-mcp-gateway" --expose')
-assert content < prepare < services < expose
-for name in ["sync-skills", "render-capabilities"]:
-    body = Path("scripts", name).read_text()
-    assert "install-mcp-gateway" not in body
+assert content < services
+
+retired = [
+    Path("gateway"),
+    Path("scripts/install-mcp-gateway"),
+    Path("config/mcp-gateway.json"),
+    Path("config/launchd/io.arthack.agentstart.serve-mcp.plist"),
+    Path("tests/mcp-install.py"),
+]
+assert not any(path.exists() or path.is_symlink() for path in retired)
+assert "install-mcp-gateway" not in source
+assert "serve-mcp" not in Path("scripts/install-launchagents").read_text()
+assert "mcp-gateway" not in Path("scripts/install-launchagents").read_text()
 PYTHON
+
+agentstart_contract=$(scripts/agentstart guide --json)
+printf '%s\n' "$agentstart_contract" | jq -e '
+    [.data.commands[] | select(.name == "mcp") | .subcommands[].name] == ["shadcn"]
+' >/dev/null || fail "agentstart retained a gateway MCP command or lost mcp shadcn"
 
 for manifest in config/resources/*.json; do
     /usr/bin/jq -e . "$manifest" >/dev/null \
@@ -212,7 +221,7 @@ grep -F 'public indexing was explicitly' prompts/agentguidance/GUIDELINES.md >/d
 # Content convergence is one function with one call site, because two lists of
 # what "content" means would drift apart on the first step somebody adds to
 # only one of them. --content runs it alone; full installation publishes it
-# before starting the HTTP gateway that consumes the same inventory.
+# before starting resident services that consume rendered resources.
 grep -q '^converge_repo_content() {$' scripts/install.sh \
     || fail "install.sh does not define converge_repo_content"
 [ "$(grep -c '^converge_repo_content$' scripts/install.sh)" -eq 1 ] \
@@ -816,9 +825,7 @@ for required_install in \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
     'scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli' \
-    'scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport' \
-    'scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes' \
-    'render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets' \
+    'render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions' \
     'https://github.com/vercel-labs/skills: find-skills' \
     'https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices' \
     'https://github.com/vercel/ai: ai-sdk' \

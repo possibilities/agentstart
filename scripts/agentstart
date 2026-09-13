@@ -9,7 +9,7 @@ const jsonFlag = { name: "--json", type: "boolean", description: "Emit a structu
 const notifyFlag = { name: "--notify", type: "boolean", description: "Notify on meaningful changes, drift, failures, and recovery." };
 const contract = {
   contract_version: 1,
-  meta: { name: "agentstart", version: "0.1.0", purpose: "Manage authored harness preferences and the fleet HTTP MCP gateway.", audience: "operator" },
+  meta: { name: "agentstart", version: "0.1.0", purpose: "Manage authored harness preferences and fleet-owned MCP services.", audience: "operator" },
   global_arguments: [jsonFlag],
   commands: [
     { name: "guide", summary: "Print the command contract", audience: "operator", mutates: false, arguments: [] },
@@ -21,9 +21,7 @@ const contract = {
       { name: "resolve", summary: "Resolve a snapshot for a managed harness invocation", audience: "internal", mutates: true,
         arguments: [{ name: "--harness", type: "string", choices: ["claude", "codex"], required: true, description: "Harness whose preferences to resolve." }] },
     ] },
-    { name: "mcp", summary: "Run fleet MCP services and authenticated toolsets", audience: "operator", subcommands: [
-      { name: "serve", summary: "Run the loopback HTTP gateway from its private configuration", audience: "operator", mutates: true, blocking: true, arguments: [] },
-      { name: "check", summary: "Validate the gateway configuration without starting servers", audience: "operator", mutates: false, arguments: [] },
+    { name: "mcp", summary: "Run fleet-owned MCP services", audience: "operator", subcommands: [
       { name: "shadcn", summary: "Run the fleet shadcn registry MCP server", audience: "internal", mutates: false, blocking: true, arguments: [] },
     ] },
   ],
@@ -70,23 +68,14 @@ try {
   else {
     const [group, command, ...options] = args;
     if (group === "mcp") {
-      if (!["serve", "check", "shadcn"].includes(command) || options.length) throw new Error("expected mcp serve|check|shadcn");
-      const root = join(import.meta.dir, "..");
-      if (command === "shadcn") {
-        const resources = process.env.AGENTSTART_RESOURCES_ROOT || join(homedir(), ".local/share/agentstart/resources");
-        const registry = join(resources, "shadcn");
-        if (!(await Bun.file(join(registry, "components.json")).exists()) ||
-            !(await Bun.file(join(registry, "package.json")).exists())) {
-          throw new Error(`fleet shadcn resources are missing at ${registry}; run ~/code/agentstart/scripts/sync-skills`);
-        }
-        process.exitCode = await runChild(["npx", "--prefix", "/", "--yes", "shadcn@latest", "mcp"], registry);
-      } else {
-        process.exitCode = await runChild([
-          join(root, "gateway/.venv/bin/python"), join(root, "gateway/gateway.py"),
-          join(homedir(), ".config/agentstart/mcp-gateway.json"),
-          ...(command === "check" ? ["--check"] : []),
-        ]);
+      if (command !== "shadcn" || options.length) throw new Error("expected mcp shadcn");
+      const resources = process.env.AGENTSTART_RESOURCES_ROOT || join(homedir(), ".local/share/agentstart/resources");
+      const registry = join(resources, "shadcn");
+      if (!(await Bun.file(join(registry, "components.json")).exists()) ||
+          !(await Bun.file(join(registry, "package.json")).exists())) {
+        throw new Error(`fleet shadcn resources are missing at ${registry}; run ~/code/agentstart/scripts/sync-skills`);
       }
+      process.exitCode = await runChild(["npx", "--prefix", "/", "--yes", "shadcn@latest", "mcp"], registry);
     } else {
     if (group !== "config") throw new Error("expected config or guide; use --help");
     const spec = contract.commands[1].subcommands!.find(item => item.name === command);

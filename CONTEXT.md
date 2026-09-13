@@ -16,11 +16,11 @@ the rule).
 
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
-extension prompts, every fixed private fleet resource, and the authenticated
-HTTP gateway. Individual stdio MCPs share one installed inventory across
-AgentLaunch and AgentVoice; external clients receive configurable toolsets at
-/mcp/<toolset>, each with separate authentication. General-purpose AI desktop
-clients belong to the machine layer. Gog owns its Google credential store.
+extension prompts, and every fixed private fleet resource. Individual stdio
+MCPs share one installed inventory across AgentLaunch and AgentVoice. AgentStart
+does not translate that inventory into an HTTP gateway or publish it through
+Tailscale. General-purpose AI desktop clients belong to the machine layer. Gog
+owns its Google credential store.
 _Avoid_: stack, setup.
 
 **Smolmux source installation** — Smolmux's repository-owned `scripts/install.sh`,
@@ -64,8 +64,8 @@ path).
 canonical guidance, the fleet-owned shadcn registry MCP, the session-only Claude
 plugin, and the globally installed but inert Codex skills-only plugin. Every
 managed AgentLaunch and AgentVoice session receives the skills and MCP inventory;
-authenticated HTTP toolsets can include the same shadcn service. There are no
-selectable packs. _Avoid_: capability pack, common pack, projection.
+the inventory has no AgentStart-owned HTTP projection. There are no selectable
+packs. _Avoid_: capability pack, common pack, projection.
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every

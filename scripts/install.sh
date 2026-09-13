@@ -312,9 +312,7 @@ Agent guidance:
 Fixed private fleet resources:
   install external skill packs with --copy into ~/.local/share/agentstart/resources/skills
   scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli
-  scripts/install-mcp-gateway --install  # private toolsets and per-toolset credentials; pinned FastMCP transport
-  scripts/install-mcp-gateway --expose  # authenticated /mcp/<toolset> through Tailscale, preserving unrelated routes
-  render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions and HTTP toolsets
+  render the individual fleet MCPs, termctrl, agent-browser, gog, and fleet shadcn registry service for managed sessions
   https://github.com/vercel-labs/skills: find-skills
   https://github.com/vercel-labs/agent-skills: web-design-guidelines, vercel-react-best-practices
   https://github.com/vercel/ai: ai-sdk
@@ -858,11 +856,10 @@ else
         "$agentdesk_root"
 fi
 
-# Publish the shared inventory before the gateway starts. The content updater
-# uses the same renderer without installing, uninstalling or restarting anything.
+# Publish the shared inventory before starting resident services. The content
+# updater uses the same renderer without installing, uninstalling or restarting anything.
 converge_repo_content
 "$script_dir/agentvoice-config" install
-"$script_dir/install-mcp-gateway" --install
 
 # The fleet's long-running services. This runs after every CLI above, because
 # a service is only installed once the binary it supervises exists — a tool
@@ -877,7 +874,3 @@ printf 'Installing the fleet launch agents.\n'
 # exist; incomplete state prints an agent-ready handoff while a healthy machine
 # remains quiet.
 "$script_dir/configure-agentsource-webhooks" --check || true
-
-# Replace only the inspected MCP Funnel route after the authenticated listener
-# is healthy.
-"$script_dir/install-mcp-gateway" --expose

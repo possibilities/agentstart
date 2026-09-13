@@ -3,8 +3,8 @@ import { preservedRoutes, routePlan } from "../scripts/agentvoice-network.ts";
 
 const dns = "desktop.example";
 const settings = { version: 1 as const, endpoint: `wss://${dns}:48414/v2/client`, port: 44414 };
-const existing = { TCP: { "443": { HTTPS: true } }, Web: { [`${dns}:443`]: { Handlers: { "/mcp": { Proxy: "http://127.0.0.1:4790/mcp" } } } }, AllowFunnel: { [`${dns}:443`]: true } };
-test("dedicated voice route is idempotent and preserves public MCP routes", () => {
+const existing = { TCP: { "443": { HTTPS: true } }, Web: { [`${dns}:443`]: { Handlers: { "/": { Proxy: "http://127.0.0.1:8787" } } } }, AllowFunnel: { [`${dns}:443`]: true } };
+test("dedicated voice route is idempotent and preserves the public webhook route", () => {
   const plan = routePlan(settings, dns, existing);
   expect(plan.install).toBe(true);
   const after = { ...existing, TCP: { ...existing.TCP, "48414": { HTTPS: true } }, Web: { ...existing.Web, [plan.host]: { Handlers: { "/": { Proxy: plan.proxy } } } } };

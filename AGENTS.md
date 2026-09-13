@@ -31,9 +31,8 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
-  or registration. AgentStart owns the direct MCP resource inventory and
-  the authenticated HTTP gateway. Each configured toolset has its own route,
-  credential, and enforced tool selection. Gog owns its Google credentials;
+  or registration. AgentStart owns the direct MCP resource inventory used by
+  managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.
   Nothing outside these installer contracts installs a fleet component.
 - Outside projects are Clones under `~/source/<upstream-owner>--<repo>`, with
