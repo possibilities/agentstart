@@ -63,10 +63,13 @@ and an absolute PNG `path`. It returns the saved path, not an inline image;
 open it with the harness's native image viewer. Retain terminal text, images,
 arguments, and recordings only when needed for the task.
 
-Stop an owned test session with `stop_session({ name })` when finished,
-including after a failed check, unless the user asked to keep it running.
-Confirm it is no longer running. Do not stop a session merely because it
-appears in discovery.
+Application exit does not dispose of a named session. After collecting needed
+evidence, stop the exact owned test session with `stop_session({ name })`
+(or `termctrl stop NAME`), even if the application has already exited or the
+check failed. Verify that the name is absent from `termctrl list --all`.
+Preserve sessions deliberately retained for the user or ongoing work. Do not
+stop sessions merely because they appear in discovery, or use global prune
+for routine cleanup.
 
 MCP also omits CLI restart, retained logs, semantic/text exports, recording,
 markers, and video editing. Use the [CLI reference](terminal-control-cli.md)
