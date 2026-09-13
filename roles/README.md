@@ -37,3 +37,22 @@ or rendered. Its previous installed files are left untouched; this render does
 not delete independently used roles or restart sessions.
 
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
+
+## Routing evidence
+
+Both working roles use AgentChats `routing-receipt` when available to retain
+short decision and acceptance records through existing native tool results.
+AgentChats validates the schema but stores no new log. Its `routing` command
+joins those receipts with exact Codex rollout calls, ancestry and native turn
+configuration; missing receipts, native settings and acceptance remain unknown.
+The tool's guide owns its detailed schema. Direct work, fresh delegation,
+follow-up assignments and escalation all qualify when substantive; small
+conversational exchanges do not need another tool call.
+
+Land the AgentChats commands before publishing this guidance. Use the existing
+resource sync for future role loads; do not restart calls or migrate snapshots.
+This records concise reasons, not hidden reasoning, raw source bodies or a
+training archive. The parent owns acceptance of a delegated result. Native
+transcript retention remains the only automatic retention path.
+
+See [routing receipt decision](../docs/adr/0008-native-history-routing-receipts.md).
