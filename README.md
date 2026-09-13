@@ -172,9 +172,11 @@ their prefix.
 into `~/.config/agentmux/instances/default.yaml`: the default agentmux instance's
 config, in agentmux's grammar: the prefix, the harness defaults, the setup
 (`~/code/agentwork`, whose `bin/tray` is the agent list), and a section per
-panel (left, left drawer, dock, right) saying which program runs there and whether
-it starts shown. agentmux reads it at start and never
-writes it. agentmux and agentwork install in the fleet CLI loop; agentwork
+configured Panel saying which program runs there and its visibility wish. The
+agent-list program ships its own identity; AgentMux automatically keeps that
+Panel hidden with no Agents, reveals it with the first and hides it after the
+last. This is product behavior, independent of the personal `needs-agents` flag.
+AgentMux reads Config at start or explicit `config.apply` and never writes it. agentmux and agentwork install in the fleet CLI loop; agentwork
 puts nothing on PATH.
 
 `scripts/agentbrowse-config install` links the version-2 Hypeman deployment:

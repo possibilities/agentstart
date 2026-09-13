@@ -50,7 +50,7 @@ fi
 [ -f "$empty_target" ] && [ ! -L "$empty_target" ] || fail "independent empty agentmux instance config changed"
 
 # The tracked config keeps only the agent-list tray beside the main canvas,
-# including before the first Agent launches. The file is YAML: a
+# with list visibility owned intrinsically by AgentMux. The file is YAML: a
 # panel's command is the `command:` line indented under its name under
 # `panels:`, so the check reads entry by entry.
 tracked="$root/config/agentmux/instances/default.yaml"
@@ -72,9 +72,9 @@ done
 panel_has left '^    command: tray$' \
     || fail "tracked agentmux instance config does not put the tray app in the left panel"
 panel_has left '^    needs-agents: false$' \
-    || fail "tracked agentmux instance config hides the agent list before the first Agent"
+    || fail "tracked agentmux instance config should not need a personal list-visibility gate"
 panel_has left '^    visible: true$' \
-    || fail "tracked agentmux instance config does not initially show the agent list"
+    || fail "tracked agentmux instance config does not retain the agent-list visibility wish"
 grep -Fqx 'setup: ~/code/agentwork' "$tracked" \
     || fail "tracked agentmux instance config does not name agentwork as its setup"
 # The operator removed the prefix override; leave selection to agentmux.
