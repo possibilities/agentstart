@@ -15,7 +15,7 @@ case "$1" in
   derive and audit Codex invocation policy from portable skill frontmatter
   render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory
   render and refresh the skills-only Codex plugin agent@agentstart-managed
-  render a standard AgentVoice role from its default prompts and the fixed fleet resources
+  render manager and worker roles from AgentStart prompts and their own MCP inventories
   persistently disable every agent:<skill> outside managed Codex sessions
   leave binary installation and service restarts to the explicit full installer
 EOF
@@ -45,6 +45,9 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # Resolve the MCP package outside a project so npm never validates project
 # dependency overrides. The fleet command gives shadcn a fixed registry config.
 "$script_dir/render-mcp-resources" --check "$template_root/mcp-servers.json"
+for role in manager worker; do
+    "$script_dir/render-mcp-resources" --check "$repo_root/roles/$role/mcp.json"
+done
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
@@ -132,8 +135,7 @@ mv "$next_marketplace" "$marketplace_root"
 mv "$render_root/mcp-servers.json" "$mcp_servers"
 mv "$render_root/shadcn" "$resources_root/shadcn"
 
-"$script_dir/render-agentvoice-role" "$resources_root" \
-    "${AGENTSTART_AGENTVOICE_ROLE_SOURCE:-$HOME/code/agentvoice/roles/default}"
+python3 "$script_dir/render-roles" "$resources_root" "$repo_root/roles"
 
 # Disable names before registering refreshed plugin content: a newly added
 # skill must never be ambiently visible for even one successful convergence.

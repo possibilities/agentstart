@@ -244,33 +244,19 @@ installed by this integration.
 
 `scripts/agentvoice-config install` links `config/agentvoice/server.json` into
 `$XDG_CONFIG_HOME/agentvoice/server.json` (default `~/.config/agentvoice/server.json`).
-Full installation runs it before the fleet CLI installers. The tracked settings
-request full access, debug logs, gpt-6-astra at low effort and the default AgentVoice
+Full installation runs it after role resource publication. The tracked settings
+request full access, debug logs, gpt-6-astra at low effort and the manager
 role. Missing or empty local placeholders can be linked; nonempty independent
 configuration and unrelated links are preserved with an error. AgentVoice loads
 settings once per runtime generation. Installation does not restart an active
 call or service; new settings apply when AgentVoice next loads its runtime.
 
-The fixed-resource renderer prepares
-`~/.local/share/agentstart/resources/agentvoice/default` as a standard role.
-The tracked server configuration selects this prepared role.
-Its prompt files link to the app-owned `~/code/agentvoice/roles/default`, and
-its `skills` and `mcp.json` link to the already synchronized portable skills
-and MCP resources. The role therefore keeps AgentVoice's default instructions
-and native delegation while supplying the same fleet workflows. Its skills
-use their bare names (`$board`, for example); the source invocation policy
-still controls implicit use. Each MCP is configured directly for the thread.
-Shadcn runs from the fixed fleet registry directory, independent of the
-conversation workspace, and is also available through authenticated HTTP
-toolsets.
-
-Publish these role resources before selecting their path in the operator's
-server config. The native role mechanism registers skill roots only with the
-owned child and adds MCP config to its thread; this does not enable a global
-plugin or rewrite prompt files. The renderer preserves independent roles and
-refuses modified generated files or app-owned skill/MCP definitions that
-would require an explicit composition decision. The public role format stays
-the AgentRoles/AgentVoice contract, with no extra runtime layer.
+AgentStart owns [manager and worker roles](roles/README.md). Each contains
+prompt Markdown and an independent MCP inventory. Capability sync renders them
+at `~/.local/share/agentstart/resources/roles/{manager,worker}`, expands account
+paths, and links the shared skills. The AgentVoice configuration selects manager.
+Publish the role resources before switching the configured path. Existing
+workspace snapshots and active calls retain their loaded contents.
 
 ### Account integration credits
 

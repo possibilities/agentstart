@@ -766,7 +766,6 @@ native skills list >/dev/null
 # contract (frozen deps, ~/.local/bin symlink, deployed-SHA receipt). AgentStart
 # only invokes it; a machine without a checkout skips inside the script, so
 # only a present-but-broken checkout fails here.
-"$script_dir/agentvoice-config" install
 
 agent_clis_status=0
 "$script_dir/install-agent-clis" || agent_clis_status=$?
@@ -838,6 +837,7 @@ fi
 # Publish the shared inventory before the gateway starts. The content updater
 # uses the same renderer without installing, uninstalling or restarting anything.
 converge_repo_content
+"$script_dir/agentvoice-config" install
 "$script_dir/install-mcp-gateway" --install
 
 # The fleet's long-running services. This runs after every CLI above, because

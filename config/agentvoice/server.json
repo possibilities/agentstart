@@ -1,7 +1,7 @@
 {
   "allow-full-access": true,
   "debug": true,
-  "role": "~/.local/share/agentstart/resources/agentvoice/default",
+  "role": "~/.local/share/agentstart/resources/roles/manager",
   "orchestrator": {
     "model": "gpt-6-astra",
     "effort": "low"

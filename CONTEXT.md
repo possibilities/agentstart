@@ -105,3 +105,8 @@ retire it. _Avoid_: noun-role label, ownership namespace.
 means model-invocable. The fixed-resource render derives Codex's inverse
 `allow_implicit_invocation` field from it, while Claude consumes the fact
 directly. _Avoid_: OpenAI policy (that is one rendered representation).
+
+**Working role** — An AgentStart-owned directory of prompt Markdown and its own
+MCP inventory: `manager` owns human dialogue and overall delivery; `worker`
+owns an assignment. Resource sync renders both with shared skills for explicit
+harness selection. _Avoid_: default role, AgentVoice-owned prompt.

@@ -171,6 +171,12 @@ Where things go:
 
 ## Skills
 
+AgentStart owns `roles/manager` and `roles/worker`: prompt Markdown and separate
+MCP inventories. `scripts/render-roles` assembles them through the normal resource
+sync. Keep shared doctrine aligned and preserve each role's responsibility;
+changing the common inventory does not automatically change role rosters.
+See [role ownership](docs/adr/0006-own-manager-worker-roles.md).
+
 This checkout participates in the same convention it administers: skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
 `scripts/sync-skills`. AgentLaunch loads them into each managed session:

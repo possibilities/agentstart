@@ -88,7 +88,7 @@ done
 /usr/bin/python3 -c \
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
-PYTHONDONTWRITEBYTECODE=1 python3 tests/render-agentvoice-role.py
+PYTHONDONTWRITEBYTECODE=1 python3 tests/render-roles.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/codex-herdr-session-fallback.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/project-docs.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
