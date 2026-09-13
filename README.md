@@ -54,9 +54,10 @@ flags, and skip-versus-fail semantics are load-bearing:
 - `scripts/install.sh --install` — the whole AI toolchain, each piece by its
   own checkout's contract, skipping checkouts that are absent:
 
-  - Claude Code and Codex, by their official installers, plus the official
-    Homebrew cask for the standalone Grok Build CLI/TUI (without AgentLaunch
-    or Herdr integration yet);
+  - Claude Code and Codex, by their official installers; Pi as a bare CLI from
+    its official installer, without fleet resources or integration; plus the
+    official Homebrew cask for the standalone Grok Build CLI/TUI (without
+    AgentLaunch or Herdr integration yet);
   - Gog through its Homebrew formula, with separate MCP registrations for the
     two declared Gmail accounts and Google-owned sign-in;
   - the pinned FastMCP HTTP transport, private toolset configuration and

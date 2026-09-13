@@ -787,6 +787,7 @@ for required_install in \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
+    'curl -fsSL https://pi.dev/install.sh | sh  # no controlling terminal; bare CLI only, with no fleet integration or resources' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
@@ -867,6 +868,19 @@ grep -F 'trap '\''rm -f -- "$installer_file"'\'' EXIT' scripts/install.sh >/dev/
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '"$interpreter" "$@" <"$installer_file"' scripts/install.sh >/dev/null \
     || fail "official installers are not executed from their completed downloads"
+
+# Pi is intentionally only a bare official CLI install. Its installer runs
+# without a controlling terminal so it cannot prompt to edit the shell profile,
+# and no former fleet-facing configuration may return with the binary.
+grep -F 'install_official "Pi CLI only (no fleet integration or resources)"' \
+    scripts/install.sh >/dev/null \
+    || fail "the full installer does not install the bare Pi CLI"
+grep -F 'run_without_controlling_terminal /bin/sh' scripts/install.sh >/dev/null \
+    || fail "Pi's official installer can still prompt through the controlling terminal"
+if grep -ER '/[.]pi|install-pi-subagents|integration install.*pi|for harness in.*pi' \
+    scripts config >/dev/null; then
+    fail "Pi's retired fleet integration or resources returned beside the bare CLI install"
+fi
 
 # Plannotator is one versioned unit: the official installer contributes only
 # the binary, that binary installs its managed agent-terminal runtime, and the

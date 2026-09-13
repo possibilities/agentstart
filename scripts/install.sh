@@ -88,6 +88,25 @@ install_official() {
     )
 }
 
+# Pi's installer reads its action prompt from /dev/tty, so stdin redirection
+# alone is not non-interactive. Give it its own session without a controlling
+# terminal: this selects the documented install/reinstall default and prevents
+# the optional shell-profile PATH edit. AgentStart installs only the CLI; Pi's
+# MCP, skills, extensions, guidance, and fleet launch integration stay absent.
+run_without_controlling_terminal() {
+    /usr/bin/perl -e '
+        use POSIX ();
+        my $pid = fork();
+        die "fork failed: $!\n" unless defined $pid;
+        if ($pid == 0) {
+            POSIX::setsid();
+            exec { $ARGV[0] } @ARGV or exit 127;
+        }
+        waitpid($pid, 0);
+        exit($? >> 8);
+    ' -- "$@"
+}
+
 install_private_skill_pack() {
     local source="$1"
     shift
@@ -250,6 +269,7 @@ Homebrew casks:
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+  curl -fsSL https://pi.dev/install.sh | sh  # no controlling terminal; bare CLI only, with no fleet integration or resources
   scripts/install-agentlaunch-shims  # Codex native profiles and Stowed Claude preferences with cwd/worktree trust
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
@@ -386,6 +406,10 @@ XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code" \
 printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
+
+install_official "Pi CLI only (no fleet integration or resources)" \
+    https://pi.dev/install.sh \
+    run_without_controlling_terminal /bin/sh
 
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:

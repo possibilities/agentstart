@@ -36,9 +36,10 @@ Fx maintenance cycle advances it, so a moving remote branch is never treated
 as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
-**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx.
+**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi.
 AgentLaunch balances Claude Code and Codex and loads their fleet resources;
-Fx has its own workshop-owned installation and is outside that launch path. _Avoid_: agent (ambiguous with the fleet apps), IDE.
+Fx has its own workshop-owned installation, while Pi is installed as a bare
+CLI. Both are outside that launch path. _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's
