@@ -12,7 +12,6 @@ set -eu
 [ "${HERDR_ENV:-}" = "1" ] || exit 0
 [ -n "${HERDR_SOCKET_PATH:-}" ] || exit 0
 [ -n "${HERDR_PANE_ID:-}" ] || exit 0
-[ -n "${CODEX_THREAD_ID:-}" ] || exit 0
 command -v python3 >/dev/null 2>&1 || exit 0
 
 managed_hook="${CODEX_HOME:-${HOME:-}/.codex}/herdr-agent-state.sh"
@@ -51,7 +50,9 @@ if isinstance(transcript_path, str) and transcript_path.strip():
 
 session_id = hook_input.get("session_id")
 thread_id = os.environ.get("CODEX_THREAD_ID")
-if not isinstance(session_id, str) or not session_id or session_id != thread_id:
+if not isinstance(session_id, str) or not session_id:
+    raise SystemExit(0)
+if thread_id and session_id != thread_id:
     raise SystemExit(0)
 
 herdr_bin = os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")

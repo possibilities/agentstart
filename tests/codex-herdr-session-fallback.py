@@ -17,14 +17,15 @@ def run_installer(codex_home: Path, mode: str = "--install", check: bool = True)
 
 
 def run_hook(codex_home: Path, fake_herdr: Path, payload: dict, **overrides: str):
+    inherited_env = dict(os.environ)
+    inherited_env.pop("CODEX_THREAD_ID", None)
     env = {
-        **os.environ,
+        **inherited_env,
         "CODEX_HOME": str(codex_home),
         "AGENTLAUNCH_LAUNCH": "1",
         "HERDR_ENV": "1",
         "HERDR_SOCKET_PATH": str(codex_home / "herdr.sock"),
         "HERDR_PANE_ID": "wTEST:p1",
-        "CODEX_THREAD_ID": "thread-test",
         "HERDR_BIN_PATH": str(fake_herdr),
         **overrides,
     }
@@ -97,6 +98,7 @@ with tempfile.TemporaryDirectory(prefix="agentstart-herdr-codex-test.") as direc
         ({"AGENTLAUNCH_LAUNCH": ""}, payload),
         ({"HERDR_ENV": ""}, payload),
         ({"CODEX_THREAD_ID": "another-thread"}, payload),
+        ({}, {**payload, "session_id": None}),
         ({}, {**payload, "transcript_path": "/a/resumed/transcript.jsonl"}),
     ]:
         capture.unlink(missing_ok=True)
