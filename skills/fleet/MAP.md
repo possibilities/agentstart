@@ -316,7 +316,7 @@ remains intact, with no Responses provider injection into its Realtime path.
 
 | From | Routes to | Notable natures |
 | --- | --- | --- |
-| hud | attention | durable Work stores the exact Attention reference when a human answer or resource lease is required. It does not infer approval or replace the Attention owner (`agenthud/skills/hud/SKILL.md`) |
+| hud | attention, notifications | durable Work stores an explicitly affirmative resolved Attention or AgentNotify response as grant evidence for a resource lease. The manager also records the actual stable holder, scope/team coverage, sharing/capacity rules, physical state, recheck and expiry. The HUD record does not infer or grant permission; delivery, read state, silence, timeout, expiry, revocation or a missing agent does not prove authority or physical release (`agenthud/skills/hud/SKILL.md`; `agentstart/prompts/agentguidance/GUIDELINES.md`; `agentstart/docs/adr/0014-record-resource-leases-without-granting-permission.md`) |
 | brain | chats, wiki | prior conversations route to chats and authored documents to wiki. Saved research is useful context; a local miss is not a prerequisite for current web research. The worker's Agentscrape extraction is a runtime dependency, not a skill-routing edge (`agentbrain/skills/brain/SKILL.md`; `agentbrain/skills/brain/references/ingestion.md`) |
 | scrape | brain, browser, search | URL discovery routes to search, page interaction and sign-in to browser, and worthwhile source ingestion to brain. Immediate extraction does not require ingestion first (`agentscrape/skills/scrape/SKILL.md`) |
 | search | brain, chats, scrape, wiki | saved reading and prior conversations supply context; known-source reading routes to scrape, saved sources to brain, and a requested durable synthesis to wiki. An explicit current-research request does not depend on empty local results (`agentsearch/skills/search/SKILL.md`) |
@@ -688,6 +688,13 @@ web dependencies, optional production build, and fixed
 status operations isolate HUD from every other service, and repeated
 convergence leaves an identical healthy job running. AgentHUD's own installer
 remains service-free; Board preservation remains unchanged.
+
+Updated 2026-09-14 for manager-owned resource lease records. Managers reconcile
+actual holders, exact scope/team coverage, sharing/capacity rules, grant and
+physical-state evidence, recheck and expiry at start/resume and lease changes.
+HUD records coordinate evidence but never grant permission or turn missing,
+expired or revoked state into proof of physical release. Workers report facts
+and limitations to their parent without HUD writes.
 
 
 **2026-09-08 — current-state cleanup.** Removed completed compatibility and

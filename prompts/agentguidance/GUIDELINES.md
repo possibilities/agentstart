@@ -8,7 +8,14 @@
   assignments, evidence and next decisions. Workers report to their parent;
   managers record those reports under their own actor with worker attribution.
   Returned results, lead acceptance, human presentation and completion remain
-  separate facts. Tiny replies need no record. Legacy Board history stays
+  separate facts. For limited resources, reconcile the HUD resource/lease record
+  at start/resume and at grant, claim, holder/scope change and release. Retain
+  the actual human/self/other-agent holder and stable identity, exact scope/team
+  coverage, exclusive/shared capacity and rules, direct-user or explicitly
+  affirmative resolved Attention/AgentNotify grant evidence, and physical-state evidence,
+  recheck and expiry. A HUD record is never permission; resolve conflict or
+  uncertainty before use. Missing agents, expiry and revocation do not prove
+  physical release. Tiny replies need no record. Legacy Board history stays
   read-only; do not dual-write or redirect new work into it.
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable

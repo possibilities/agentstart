@@ -219,6 +219,8 @@ grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELI
 grep -F "Managers keep substantive work visible with \`hud\`" \
     prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route durable work through HUD"
+grep -F 'A HUD record is never permission' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md treats a resource record as permission"
 if grep -F "visible with \`board\`" prompts/agentguidance/GUIDELINES.md >/dev/null; then
     fail "GUIDELINES.md retains active Board routing"
 fi

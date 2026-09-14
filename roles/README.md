@@ -113,3 +113,22 @@ source sync neither revokes inherited tools nor reloads a live generation. Worke
 with older or inherited HUD tools must still return reports to their manager.
 
 See [manager HUD ownership](../docs/adr/0013-managers-own-hud-recording.md).
+
+## Resource lease records
+
+The manager reconciles HUD resource and lease records at start/resume and every
+grant, claim, holder/scope change and release. The record identifies the actual
+holder and stable identity, exact scope and team coverage, sharing/capacity
+rules, exact direct-user or explicitly affirmative Attention/AgentNotify grant evidence, current physical
+state evidence, recheck and expiry. It represents evidence and coordination;
+it never grants permission. Conflicting or uncertain records must be reconciled
+before use. Missing agents, elapsed expiry and revocation do not prove a physical
+release, so unresolved state stays reported under the manager's own actor.
+
+Workers report resource facts, evidence and limitations to their parent and do
+not write HUD. The existing human-granted lease rules for a real phone, desktop
+and headful browser remain authoritative, as does explicit permission for
+emulator/VM creation or start. Role rendering neither creates a grant nor
+changes live resources.
+
+See [resource lease decision](../docs/adr/0014-record-resource-leases-without-granting-permission.md).

@@ -161,6 +161,10 @@ class RoleRender(unittest.TestCase):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
             self.assertLessEqual(len((role / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md").read_bytes()), 1600)
             self.assertEqual((role / "skills/hud/SKILL.md").exists(), name == "manager")
+        self.assertIn("A HUD record is never permission",
+                      (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
+        self.assertIn("include resource facts and limitations",
+                      (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
 
 
 if __name__ == "__main__":
