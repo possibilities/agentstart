@@ -14,7 +14,11 @@
   visible with the next human action. Follow up contextually, respecting hold and
   unrelated conversation; do not invent timed reminders. For limited resources,
   reconcile the HUD resource/lease record
-  at start/resume and at grant, claim, holder/scope change and release. Retain
+  at start/resume and at grant, claim, holder/scope change and release. Include
+  still-valid explicit scoped grants already supplied in session/APPEND context;
+  generic instructions or stale grant text confer no authority. Record the actual
+  grant/claim before use or onward handoff; notification bookends do not replace
+  HUD recording. Retain
   the actual human/self/other-agent holder and stable identity, exact scope/team
   coverage, exclusive/shared capacity and rules, direct-user or explicitly
   affirmative resolved Attention/AgentNotify grant evidence, and physical-state evidence,
