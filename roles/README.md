@@ -76,3 +76,17 @@ training archive. The parent owns acceptance of a delegated result. Native
 transcript retention remains the only automatic retention path.
 
 See [routing receipt decision](../docs/adr/0008-native-history-routing-receipts.md).
+
+## Conversation hold and spoken acknowledgments
+
+The speech front owns spoken hold/resume acknowledgments when present; the
+working lead and workers propagate the preference internally without an echo.
+Explicit conversational intent is distinct from physical audio commands/status
+and push-to-talk. Mere typed work steering does not resume a held conversation.
+Authorized work and internal returns continue while human presentation waits.
+
+Mailbox entries and cached openings follow AgentVoice's server workspace session:
+frontend detach and runtime replacement retain them; new_session and server
+shutdown clear them. No shared semantic hold state or exactly-once speech
+mechanism is introduced. Source/render checks do not establish live behavior.
+See [hold guidance decision](../docs/adr/0012-conversation-hold-guidance.md).
