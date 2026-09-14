@@ -1339,12 +1339,13 @@ case "$agent_cli_order" in
     *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
-grep -F "\"\$tool_root/scripts/install-hud.sh\" --install" scripts/install-agent-clis >/dev/null \
-    || fail "AgentVoice installation does not delegate the standalone HUD command installer"
+if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
+    fail "AgentStart still sources AgentHUD from AgentVoice"
+fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentnotify; do
+    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
@@ -1428,6 +1429,7 @@ io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agentchats.serve|agentchats|server.log|resident
+io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
 io.arthack.agentsource.receive|agentsource|receiver.log|resident
 io.arthack.agentsource.notify|agentsource|notifier.log|resident
@@ -1497,6 +1499,22 @@ import plistlib
 
 template = pathlib.Path("config/launchd/io.arthack.agentchats.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentchats.serve.v1 -->"
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
+assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
+assert value["KeepAlive"] is True
+assert value["RunAtLoad"] is True
+assert value["ProcessType"] == "Standard"
+assert value["Umask"] == 63
+assert value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+PYTHON
+/usr/bin/python3 - <<'PYTHON'
+import pathlib
+import plistlib
+
+template = pathlib.Path("config/launchd/io.arthack.agenthud.serve.plist")
+assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agenthud.serve.v1 -->"
 value = plistlib.loads(template.read_bytes())
 assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
 assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}

@@ -31,7 +31,10 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
-  or registration. AgentStart owns the direct MCP resource inventory used by
+  or registration. That exception covers the voice server only: AgentStart owns
+  the separate `io.arthack.agenthud.serve` web-view LaunchAgent through the
+  independent AgentHUD checkout's installed `agenthud serve` contract.
+  AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.
   Nothing outside these installer contracts installs a fleet component.
@@ -125,11 +128,11 @@ Where things go:
   if it has one. The `agent*` skills scan needs nothing. A loop member's
   installer must be rerunnable, because a present checkout that fails stops
   the whole install.
-- The AgentHUD command is the source-ownership exception: AgentVoice owns it
-  in the same checkout but exposes a separate `scripts/install-hud.sh --install`
-  contract with no service or voice-runtime effects. AgentStart invokes that
-  contract after AgentVoice installation; it does not invent an `agenthud`
-  checkout or route the command through `agentvoice`.
+- AgentHUD is an ordinary independent fleet checkout under `~/code/agenthud`.
+  Its `scripts/install.sh --install` owns the editable command, dependencies,
+  and production assets without service effects. `install-agent-clis` invokes
+  that contract directly. AgentStart separately owns the resident HUD
+  LaunchAgent; no AgentVoice installer or redirect sits between them.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than
@@ -146,6 +149,8 @@ Where things go:
   contract — what every service shares and what is deliberately
   per-service. Labels use `io.arthack.<project>.<verb>`; the exact ownership
   marker, not the namespace, decides what this installer may replace.
+  Use `scripts/install-launchagents --<mode> --service <label>` when one service
+  must be checked, diagnosed, or converged without touching its neighbors.
 - A fleet TUI bound to a Herdr popup: always add a pane entrypoint to the
   `agentsurface` plugin, then bind the key to `herdr plugin pane open`. The
   tool continues to own its TUI; the shared plugin owns the popup title and

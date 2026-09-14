@@ -27,7 +27,8 @@ The frame is identical for every service, and deviating from it is a bug:
   service without publishing anything.
 - **Publication** — rendered to a temporary file inside the destination
   directory, `chmod 600`, then renamed, so a reader never sees a half-written
-  service.
+  service. An identical rendered service that is already loaded stays running;
+  convergence does not restart it.
 - **`HOME` and `PATH` are always pinned absolutely.** launchd sources no shell
   rc file, so an unpinned `PATH` cannot reach uv-, nvm-, or Homebrew-managed
   tools.
@@ -77,9 +78,23 @@ Add the template here, add its entry to the manifest in
 The plan line in `scripts/install.sh --check` comes from the manifest, so it
 follows automatically.
 
+Use `scripts/install-launchagents --install --service <exact-label>` for a
+narrow convergence, with `--check` and `--status` providing the matching
+read-only views. The selector accepts only a manifest label. It never renders,
+loads, or restarts a neighboring job; a changed selected plist is reloaded, an
+unloaded selected plist is bootstrapped, and a healthy identical selected job
+is left running.
+
 `io.arthack.agentchats.serve` keeps Agentchats' local web reader resident;
 `agentchats serve` owns its portless name `agentchats` at
 `https://agentchats.localhost`. AgentStart owns the LaunchAgent lifecycle.
+
+`io.arthack.agenthud.serve` keeps the durable Work view resident. It invokes
+`agenthud serve`, whose default is the editable Vite/HMR view from AgentHUD's
+canonical checkout and whose fixed portless origin is
+`https://agenthud.localhost`. AgentHUD's own installer prepares the command,
+dependencies, and optional production build without touching this service;
+AgentStart alone owns the LaunchAgent lifecycle.
 
 `io.arthack.agentstart.watch-config` is a resident configuration watcher. It
 invokes `agentstart config watch --notify`, reconciles filesystem events and

@@ -55,11 +55,12 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # it reads the Grok Build CLI's login and shells out to `grok models` to renew
 # it; the `grok` cask is installed by scripts/install.sh, not by this loop.
 # AgentVoice needs stock Codex and a C compiler, provisioned by the outer
-# installer. Its installer owns the default waiting server. Its separate
-# install-hud.sh contract installs the agenthud command and prepared web assets
-# without touching that service. During a live-call
+# installer. Its installer owns the default waiting server. During a live-call
 # cutover, AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1 selects its supported
 # --command-only mode so no call or service is restarted.
+# AgentHUD is an independent checkout and ordinary installer participant. Its
+# installer prepares the editable command, dependencies, and production assets
+# without touching the AgentStart-owned HUD LaunchAgent, which converges later.
 #
 # agentroles follows agentvoice: it runs claude, codex and agentvoice through
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
@@ -69,7 +70,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # install-agentlaunch-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agentroles agentmux agentnotify agentwork; do
+    agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentroles agentmux agentnotify agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"
@@ -82,10 +83,5 @@ for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsear
         "$tool_root/scripts/install.sh" --install --command-only
     else
         "$tool_root/scripts/install.sh" --install
-    fi
-    if [ "$tool" = agentvoice ]; then
-        [ -x "$tool_root/scripts/install-hud.sh" ] \
-            || die "AgentVoice checkout has no executable HUD installer: $tool_root/scripts/install-hud.sh"
-        "$tool_root/scripts/install-hud.sh" --install
     fi
 done

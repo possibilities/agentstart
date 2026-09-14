@@ -67,13 +67,15 @@ managed AgentLaunch and AgentVoice session receives the skills and MCP inventory
 the inventory has no AgentStart-owned HTTP projection. There are no selectable
 packs. _Avoid_: capability pack, common pack, projection.
 
-**AgentHUD** — AgentVoice's separately installed `agenthud` command and `hud`
-skill: the durable Work owner and read-only HUD projection for managed sessions.
-Its installer prepares only the command and web assets. Legacy AgentBoard data,
+**AgentHUD** — the independent `~/code/agenthud` project, `agenthud` command,
+and `hud` skill: the durable Work owner and read-only HUD projection for managed
+sessions. Its installer prepares only the command, dependencies, and web assets;
+AgentStart owns the resident `io.arthack.agenthud.serve` LaunchAgent that runs
+the editable default view at `https://agenthud.localhost`. Legacy AgentBoard data,
 CLI, and stdio MCP implementation remain available for archival queries, while
 Board/Groom skills and the AgentBoard MCP are absent from active fleet
 resources. AgentBoard has no socket service endpoint.
-_Avoid_: Board redirect, dual write, AgentVoice service install.
+_Avoid_: Board redirect, dual write, AgentVoice-owned AgentHUD.
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every

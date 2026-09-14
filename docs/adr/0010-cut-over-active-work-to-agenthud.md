@@ -1,22 +1,25 @@
 # 0010: Cut active work over to AgentHUD
 
+Service-lifecycle portion superseded September 14, 2026 by
+[ADR 0011](0011-keep-agenthud-resident.md). The work-owner cutover and Board
+preservation decisions remain current.
+
 Accepted September 13, 2026. The human chose AgentHUD as the single active
 durable Work owner for managed sessions and explicitly rejected a Board
 redirect or dual-write transition.
 
 The shared MCP inventory and both AgentStart roles expose `agenthud mcp` and no
-longer expose `agentboard mcp`. The fixed-resource sync ships AgentVoice's
+longer expose `agentboard mcp`. The fixed-resource sync ships AgentHUD's
 tool-owned `hud` skill while excluding and pruning the exact legacy skill names
 `board` and `groom`. Operator guidance and Wiki routing send new durable work to
 HUD. Existing loaded sessions can retain their old MCP and skill snapshot until
 they are reloaded.
 
-AgentVoice owns the `agenthud` source and a separate
-`scripts/install-hud.sh --install` contract. AgentStart invokes that contract
-after the existing AgentVoice installer. The HUD installer prepares the command
-and web assets only; it does not restart or configure the AgentVoice service.
-This preserves checkout ownership without creating a fictitious `agenthud`
-repository or an `agentvoice` command redirect.
+AgentHUD now owns the `agenthud` source in the independent `~/code/agenthud`
+checkout and publishes the normal fleet `scripts/install.sh --install`
+contract. AgentStart invokes that owner directly. The HUD installer prepares
+the command, dependencies, and web assets only; it does not restart or
+configure AgentVoice or a service. No `agentvoice` command redirect exists.
 
 AgentBoard remains installed and its existing data, operation history, command,
 and stdio MCP implementation remain intact for archival queries and migration

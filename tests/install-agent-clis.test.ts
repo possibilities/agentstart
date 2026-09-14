@@ -22,9 +22,6 @@ function fixture() {
     const dir = join(root, name, "scripts");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "install.sh"), `#!/bin/bash\nprintf '%s:%s\\n' '${name}' "$*" >> "$FIXTURE_LOG"\nexit ${code}\n`, { mode: 0o755 });
-    if (name === "agentvoice") {
-      writeFileSync(join(dir, "install-hud.sh"), "#!/bin/bash\nprintf '%s:%s\\n' 'agenthud' \"$*\" >> \"$FIXTURE_LOG\"\n", { mode: 0o755 });
-    }
   }
   function run(args: string[] = [], extraEnv: Record<string, string> = {}) {
     return Bun.spawnSync(["/bin/bash", join(import.meta.dir, "../scripts/install-agent-clis"), ...args], {
@@ -36,9 +33,10 @@ function fixture() {
   return { base, root, installer, run };
 }
 
-test("missing checkouts skip and AgentVoice delegates both owned installers; rerunnable", () => {
+test("AgentVoice and independent AgentHUD use their own installers; rerunnable", () => {
   const f = fixture();
   f.installer("agentvoice");
+  f.installer("agenthud");
   for (let count = 0; count < 2; count++) {
     const result = f.run();
     expect(result.exitCode, result.stderr.toString()).toBe(0);
@@ -78,6 +76,7 @@ test("argument errors and an earlier failed contract stop before AgentVoice", ()
 test("live-call convergence uses AgentVoice's command-only contract", () => {
   const f = fixture();
   f.installer("agentvoice");
+  f.installer("agenthud");
   const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
   expect(result.exitCode).toBe(0);
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
@@ -85,12 +84,12 @@ test("live-call convergence uses AgentVoice's command-only contract", () => {
   );
 });
 
-test("AgentVoice without its standalone HUD installer fails after the voice install", () => {
+test("a broken independent AgentHUD checkout fails after AgentVoice", () => {
   const f = fixture();
   f.installer("agentvoice");
-  rmSync(join(f.root, "agentvoice/scripts/install-hud.sh"));
+  mkdirSync(join(f.root, "agenthud"));
   const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
   expect(result.exitCode).toBe(1);
-  expect(result.stderr.toString()).toContain("no executable HUD installer");
+  expect(result.stderr.toString()).toContain("present checkout has no executable installer");
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install --command-only\n");
 });

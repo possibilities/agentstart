@@ -78,7 +78,7 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the external skills and fixed private fleet resources;
   - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,
     agentattention, agentsearch, agentkeys, agentusage, agentlaunch, and
-    agentgrok CLIs, plus AgentVoice's standalone `agenthud` command;
+    agentgrok, and independent agenthud CLIs;
   - AgentUsage’s owned Claude/Codex accounts and single proxy through its
     existing observer daemon; enroll/import accounts before switching balanced
     consumers, then converge the service after AgentUsage and AgentLaunch.
@@ -88,6 +88,12 @@ flags, and skip-versus-fail semantics are load-bearing:
 
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.
+- `scripts/install-launchagents --install --service io.arthack.agenthud.serve`
+  — converge only the resident editable HUD at
+  `https://agenthud.localhost`. The same selector works with `--check` and
+  `--status`; a healthy unchanged job is not restarted. AgentHUD's own installer
+  prepares its editable command, dependencies, and assets first, without
+  managing this or any other service.
 - `scripts/sync-skills` — the cheap convergence path: the active agent* checkout
   scan into `~/.local/share/agentstart/resources`, followed by harness render
   refresh. The scheduled updater calls this every six hours. It

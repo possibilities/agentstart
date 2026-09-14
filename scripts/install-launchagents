@@ -20,6 +20,7 @@ set -euo pipefail
 
 check_only=0
 status_only=0
+selected_service=""
 script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 repo_root=$(cd -P -- "$script_dir/.." && pwd)
 source_dir="$repo_root/config/launchd"
@@ -46,6 +47,7 @@ SERVICES=(
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agentchats.serve|agentchats|server.log|resident"
+    "io.arthack.agenthud.serve|agenthud|server.log|resident"
     "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
     "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
     "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
@@ -59,7 +61,7 @@ AGENTWIKI_ARTIFACT_PORT="${AGENTSTART_INSTALL_AGENTWIKI_ARTIFACT_PORT:-7778}"
 
 usage() {
     cat <<'EOF'
-Usage: scripts/install-launchagents [--install|--check|--status]
+Usage: scripts/install-launchagents [--install|--check|--status] [--service LABEL]
 
 Install the fleet's launch agents from config/launchd/.
 
@@ -67,6 +69,7 @@ Options:
   --install  Install or converge every fleet service
   --check    Print the plan without changing the system
   --status   Report installed state, last exit, and log size without changes
+  --service  Restrict the operation to one exact manifest label
 EOF
 }
 
@@ -279,9 +282,22 @@ PYTHON
     if command -v plutil >/dev/null 2>&1; then
         plutil -lint "$temp" >/dev/null || die "rendered an invalid plist for $label"
     fi
-    mv -f -- "$temp" "$destination"
+    render_changed=1
+    if [ -f "$destination" ] && [ ! -L "$destination" ] \
+        && cmp -s "$temp" "$destination"; then
+        rm -f -- "$temp"
+        render_changed=0
+    else
+        mv -f -- "$temp" "$destination"
+    fi
     render_temp=""
     trap - EXIT
+}
+
+service_loaded() {
+    local label="$1"
+    launchctl_available || return 1
+    "$launchctl_bin" print "gui/$(id -u)/$label" >/dev/null 2>&1
 }
 
 # Reload rather than restart-in-place: launchd caches the plist it bootstrapped,
@@ -358,7 +374,15 @@ install_service() {
     [ -e "$log" ] || : >"$log"
     chmod 600 "$log"
     render_plist "$label" "$program" "$log" "$destination" "$tokens"
+    if [ "$render_changed" -eq 0 ] && service_loaded "$label"; then
+        note "unchanged and loaded $label"
+        return 0
+    fi
     reload_service "$label" "$destination"
+}
+
+service_selected() {
+    [ -z "$selected_service" ] || [ "$(field "$1" 1)" = "$selected_service" ]
 }
 
 status_services() {
@@ -366,6 +390,7 @@ status_services() {
     local ownership service state pid last_exit log log_bytes
     printf 'Fleet launch service status (%s):\n' "$launch_agents_dir"
     for entry in "${SERVICES[@]}"; do
+        service_selected "$entry" || continue
         label="$(field "$entry" 1)"
         tool="$(field "$entry" 2)"
         log_name="$(field "$entry" 3)"
@@ -426,6 +451,12 @@ while [ "$#" -gt 0 ]; do
         --install) check_only=0; status_only=0 ;;
         --check) check_only=1; status_only=0 ;;
         --status) check_only=0; status_only=1 ;;
+        --service)
+            [ -z "$selected_service" ] || die "--service may be supplied only once"
+            shift
+            [ "$#" -gt 0 ] || die "--service requires an exact manifest label"
+            selected_service="$1"
+            ;;
         -h | --help)
             usage
             exit 0
@@ -440,6 +471,17 @@ done
 
 [ -d "$source_dir" ] || die "missing template directory: $source_dir"
 
+if [ -n "$selected_service" ]; then
+    service_known=0
+    for entry in "${SERVICES[@]}"; do
+        if [ "$(field "$entry" 1)" = "$selected_service" ]; then
+            service_known=1
+            break
+        fi
+    done
+    [ "$service_known" -eq 1 ] || die "unknown service label: $selected_service"
+fi
+
 if [ "$status_only" -eq 1 ]; then
     status_services
     exit $?
@@ -453,5 +495,6 @@ else
 fi
 
 for entry in "${SERVICES[@]}"; do
+    service_selected "$entry" || continue
     install_service "$entry"
 done

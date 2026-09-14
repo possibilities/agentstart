@@ -25,13 +25,15 @@ run_installer() {
         XDG_STATE_HOME="$state_dir" \
         AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
         AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
-        AGENTSTART_INSTALL_LAUNCHCTL=none \
+        AGENTSTART_INSTALL_LAUNCHCTL="${AGENTSTART_INSTALL_LAUNCHCTL:-none}" \
         "$root/scripts/install-launchagents" "$@"
 }
 
 plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F "skipped io.arthack.agentchats.serve (no $bin_dir/agentchats)" >/dev/null \
     || fail "missing Agentchats binary was not skipped"
+printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
+    || fail "missing AgentHUD binary was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
     || fail "absent current Agentattention service was not planned for install"
 HOME="$test_home" \
@@ -126,6 +128,103 @@ assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].sp
 assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentchats/server.log"
 PYTHON
 rm -- "$bin_dir/agentchats" "$launch_agents/io.arthack.agentchats.serve.plist"
+
+# AgentHUD follows the same resident editable-reader frame, and its exact
+# selector is the deployment path that must not converge or restart neighbors.
+hud_label=io.arthack.agenthud.serve
+hud_plist="$launch_agents/$hud_label.plist"
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agenthud"
+chmod +x "$bin_dir/agenthud"
+target_plan=$(run_installer --check --service "$hud_label")
+printf '%s\n' "$target_plan" | grep -F "$hud_label" | grep -F 'install' >/dev/null \
+    || fail "targeted HUD plan omitted its absent service"
+if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentattention.serve' >/dev/null; then
+    fail "targeted HUD plan included a neighboring service"
+fi
+if run_installer --check --service io.arthack.unknown.serve >/dev/null 2>&1; then
+    fail "targeted convergence accepted an unknown service label"
+fi
+if run_installer --check --service >/dev/null 2>&1; then
+    fail "targeted convergence accepted a missing service label"
+fi
+
+target_launchctl="$test_root/target-launchctl"
+target_launchctl_log="$test_root/target-launchctl.log"
+target_launchctl_state="$test_root/target-launchctl.loaded"
+cat >"$target_launchctl" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$AGENTSTART_TEST_LAUNCHCTL_LOG"
+case "$1" in
+    print)
+        [ -f "$AGENTSTART_TEST_LAUNCHCTL_STATE" ] || exit 1
+        printf 'state = running\npid = 73\n'
+        ;;
+    bootstrap)
+        : >"$AGENTSTART_TEST_LAUNCHCTL_STATE"
+        ;;
+    bootout)
+        rm -f -- "$AGENTSTART_TEST_LAUNCHCTL_STATE"
+        ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$target_launchctl"
+cp "$attention_plist" "$test_root/attention-before-targeted.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$hud_label" >/dev/null
+/usr/bin/python3 - "$hud_plist" "$bin_dir/agenthud" "$test_home" "$state_dir" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
+assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
+assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
+assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agenthud/server.log"
+PYTHON
+cmp "$attention_plist" "$test_root/attention-before-targeted.plist" \
+    || fail "targeted HUD installation rewrote a neighboring service"
+cp "$hud_plist" "$test_root/hud-before-repeat.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$hud_label" >/dev/null
+cmp "$hud_plist" "$test_root/hud-before-repeat.plist" \
+    || fail "repeat targeted HUD installation changed an identical plist"
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "repeat targeted HUD installation reloaded its healthy unchanged service"
+if grep -q '^bootout ' "$target_launchctl_log"; then
+    fail "repeat targeted HUD installation stopped its healthy unchanged service"
+fi
+if grep -v -F "$hud_label" "$target_launchctl_log" >/dev/null; then
+    fail "targeted HUD installation called launchctl for a neighboring service"
+fi
+target_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        run_installer --status --service "$hud_label"
+)
+printf '%s\n' "$target_status" | grep -F "$hud_label" | grep -F 'state=running' | grep -F 'pid=73' >/dev/null \
+    || fail "targeted HUD status omitted its healthy job"
+if printf '%s\n' "$target_status" | grep -F 'io.arthack.agentattention.serve' >/dev/null; then
+    fail "targeted HUD status included a neighboring service"
+fi
+printf '<!-- independent HUD -->\n' >"$hud_plist"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$hud_label" >/dev/null 2>&1; then
+    fail "targeted HUD installation accepted a foreign ownership marker"
+fi
+grep -Fxq '<!-- independent HUD -->' "$hud_plist" \
+    || fail "targeted HUD installation overwrote a foreign service"
+rm -- "$bin_dir/agenthud" "$hud_plist"
 
 # Install Agentbrain for the status and session-persistence checks below.
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentbrain"
