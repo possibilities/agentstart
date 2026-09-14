@@ -49,8 +49,12 @@ strong model's completion as approval or repeating its whole audit. This is
 an existing-role responsibility pattern, not a new router role or mandatory
 delegation layer. Worker responsibilities and inventories remain independent.
 
-The manager's deployment guide now defaults new children to **Sol/medium**,
-using high/xhigh for difficult ordinary work and Astra when creativity, design,
+The manager's deployment guide treats **Sol/medium as a strong starting point
+and midpoint, not a fixed default**. Actively choose smaller available models
+for well-specified mechanical work, Sol for strong ordinary work, and higher
+effort or capability when the expected benefit warrants it. Optimize accepted
+results and whole-workflow subscription resources, including context, handoffs,
+retries and review. Astra is appropriate when creativity, design,
 design engineering, product engineering, deep thinking or architecture is central,
 as well as for complex workflows. Valuable design/product judgment does not need
 an exceptionally complex implementation to merit Astra. It identifies the current

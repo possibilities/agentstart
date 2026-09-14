@@ -11,8 +11,13 @@ The human requested Sol extensively for ordinary work, explicitly including
 high/xhigh. The human clarified that Astra is appropriate when creativity, design,
 design engineering, product engineering, deep thinking or architecture is central,
 as well as for large complex workflows. Judgment-heavy design/product work does
-not require an exceptionally complex implementation to merit Astra. Routine
-implementation retains the approved default child setting of Sol/medium.
+not require an exceptionally complex implementation to merit Astra. The latest
+clarification makes Sol/medium a strong starting point and midpoint, not a fixed
+default. Actively choose smaller, cheaper available models for well-specified
+mechanical work, Sol for strong ordinary work, and higher effort or capability
+when its expected benefit warrants it. Optimize the accepted result and
+whole-workflow subscription resources, including context, handoffs, retries and
+review; neither Sol nor Astra should be selected reflexively.
 The current AgentVoice conversational root is Astra/low; that does not identify
 other manager launches or override actual runtime settings.
 
@@ -49,10 +54,10 @@ returned `not_found`. Do not describe the following live reads as retrieved Brai
 cards. Their official pages were searched and opened on September 14:
 
 - [Astra card](https://developers.openai.com/api/docs/models/gpt-6-astra): strongest end-to-end model positioning; the creative/design routing boundary is the operator's explicit preference.
-- [Sol card](https://developers.openai.com/api/docs/models/gpt-5.6-sol): capable professional-work model; the ordinary-work default is the operator's policy.
+- [Sol card](https://developers.openai.com/api/docs/models/gpt-5.6-sol): capable professional-work model; the ordinary-work starting point is the operator's policy, not a fixed default.
 - [Terra card](https://developers.openai.com/api/docs/models/gpt-5.6-terra): balances capability and cost; consider total accepted-result cost.
 - [Luna card](https://developers.openai.com/api/docs/models/gpt-5.6-luna): designed for economical high-volume work; narrow extraction and transformation are local routing recommendations.
-- [GPT-5.5 card](https://developers.openai.com/api/docs/models/gpt-5.5): retained advertised option, without a claim that it should replace the new default.
+- [GPT-5.5 card](https://developers.openai.com/api/docs/models/gpt-5.5): retained advertised option; select it for a concrete task-specific reason or explicit human preference.
 
 The freshly opened [GPT-5.6 prompting guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6#favor-leaner-prompts)
 supports reducing repetition and supplying only relevant tools/context. The
