@@ -16,6 +16,7 @@ case "$1" in
   render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory
   render and refresh the skills-only Codex plugin agent@agentstart-managed
   render manager and worker roles from AgentStart prompts and their own MCP inventories
+  audit installed Codex manager and worker skill copies without refreshing them
   persistently disable every agent:<skill> outside managed Codex sessions
   leave binary installation and service restarts to the explicit full installer
 EOF

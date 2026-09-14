@@ -197,6 +197,7 @@ fi
 
 if [ "$check_only" -eq 1 ]; then
     "$script_dir/render-capabilities" --check
+    "$script_dir/check-role-plugins"
 elif [ "$synchronized" -gt 0 ] || [ "$retired_removed" -gt 0 ]; then
     "$script_dir/render-capabilities" --install \
         || die "rendering the refreshed fixed resource set failed"

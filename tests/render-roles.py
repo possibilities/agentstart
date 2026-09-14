@@ -37,7 +37,7 @@ class RoleRender(unittest.TestCase):
         for name in ("manager", "worker"):
             role = self.resources / "roles" / name
             self.assertEqual((role / "APPEND_SYSTEM_PROMPT.md").resolve(),
-                             self.sources / name / "APPEND_SYSTEM_PROMPT.md")
+                             (self.sources / name / "APPEND_SYSTEM_PROMPT.md").resolve())
             self.assertTrue((role / "skills/example/SKILL.md").is_file())
             self.assertEqual(json.loads((role / "mcp.json").read_text()), {"mcpServers": {
                 name: {"command": str(Path.home() / ".local/bin/example"), "args": ["mcp"]}}})
@@ -64,6 +64,44 @@ class RoleRender(unittest.TestCase):
         mcp.write_text("independent change")
         self.render(1)
         self.assertEqual(mcp.read_text(), "independent change")
+
+    def test_receipt_tracks_resolved_prompt_and_skill_content(self):
+        self.render()
+        manager = self.resources / "roles/manager"
+        worker = self.resources / "roles/worker"
+        receipt = json.loads((manager / ".agentstart-role.json").read_text())
+        self.assertEqual(receipt["owner"], "agentstart-role-v4")
+        self.assertEqual(receipt["content"]["format"], "agentvoice-role-content-v1")
+        for component in ("content", "prompts", "mcp", "skills"):
+            self.assertRegex(receipt["content"][component], r"^[a-f0-9]{64}$")
+
+        manager_inode = manager.stat().st_ino
+        worker_inode = worker.stat().st_ino
+        old_content = receipt["content"]
+        (self.sources / "manager/APPEND_SYSTEM_PROMPT.md").write_text("manager changed")
+        self.render()
+        receipt = json.loads((manager / ".agentstart-role.json").read_text())
+        self.assertNotEqual(manager.stat().st_ino, manager_inode)
+        self.assertEqual(worker.stat().st_ino, worker_inode)
+        self.assertNotEqual(receipt["content"]["prompts"], old_content["prompts"])
+        self.assertEqual(receipt["content"]["skills"], old_content["skills"])
+
+        manager_inode = manager.stat().st_ino
+        worker_inode = worker.stat().st_ino
+        manager_skills = receipt["content"]["skills"]
+        worker_skills = json.loads((worker / ".agentstart-role.json").read_text())["content"]["skills"]
+        (self.resources / "skills/example/SKILL.md").write_text("fixture changed")
+        self.render()
+        self.assertNotEqual(manager.stat().st_ino, manager_inode)
+        self.assertNotEqual(worker.stat().st_ino, worker_inode)
+        self.assertNotEqual(
+            json.loads((manager / ".agentstart-role.json").read_text())["content"]["skills"],
+            manager_skills,
+        )
+        self.assertNotEqual(
+            json.loads((worker / ".agentstart-role.json").read_text())["content"]["skills"],
+            worker_skills,
+        )
 
     def test_independent_destination_and_redirect_are_preserved(self):
         parent = self.resources / "roles"

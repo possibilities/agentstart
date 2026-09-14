@@ -1,0 +1,53 @@
+#!/bin/bash
+
+set -euo pipefail
+
+usage() { printf 'Usage: check-role-plugins\n'; }
+
+[ "$#" -eq 0 ] || { usage >&2; exit 64; }
+
+resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
+
+# A fresh machine reaches the installation plan before AgentStart has rendered
+# role resources or installed the fleet CLIs. Keep that bootstrap plan usable;
+# once both inputs exist, stale installed copies are a real failed check.
+for role in manager worker; do
+    if [ ! -d "$resources_root/roles/$role" ]; then
+        printf 'AgentStart role plugin check: unavailable until manager and worker roles are rendered.\n' >&2
+        exit 0
+    fi
+done
+
+if [ -n "${AGENTSTART_AGENTROLES_BIN:-}" ]; then
+    [ -x "$AGENTSTART_AGENTROLES_BIN" ] || {
+        printf 'AgentStart role plugin check: configured AgentRoles command is unavailable: %s\n' \
+            "$AGENTSTART_AGENTROLES_BIN" >&2
+        exit 1
+    }
+    agentroles_bin="$AGENTSTART_AGENTROLES_BIN"
+elif command -v agentroles >/dev/null 2>&1; then
+    agentroles_bin=$(command -v agentroles)
+else
+    printf 'AgentStart role plugin check: unavailable until agentroles is installed.\n' >&2
+    exit 0
+fi
+
+if ! agentroles_help=$("$agentroles_bin" --help 2>/dev/null) \
+    || ! grep -F 'agentroles install --check <role>' <<<"$agentroles_help" >/dev/null; then
+    printf 'AgentStart role plugin check: unavailable until agentroles supports install --check.\n' >&2
+    exit 0
+fi
+
+status=0
+for role in manager worker; do
+    if "$agentroles_bin" install --check "$resources_root/roles/$role"; then
+        continue
+    else
+        result=$?
+    fi
+    case "$result" in
+        1) status=1 ;;
+        *) exit "$result" ;;
+    esac
+done
+exit "$status"

@@ -99,7 +99,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   refresh. The scheduled updater calls this every six hours. It
   removes the retired Board and Groom copies only from its owned private
   resources and never restarts services.
-  `--check` prints the plan.
+  `--check` prints the plan and, when rendered roles and AgentRoles are present,
+  audits the installed Codex manager and worker skill copies without changing them.
 - [`docs/agent-interfaces.md`](docs/agent-interfaces.md) — the policy and
   support matrix for MCP, native harness, and CLI/TUI workflows. A workflow
   needs one authoritative surface; an MCP wrapper is not required when the

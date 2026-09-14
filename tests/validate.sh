@@ -55,7 +55,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     shellcheck --shell=bash $shell_files
 fi
 
-for script in scripts/install.sh scripts/sync-skills scripts/install-agent-clis scripts/install-agentvoice-android \
+for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android \
     scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
@@ -89,6 +89,7 @@ done
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-roles.py
+tests/check-role-plugins.sh
 PYTHONDONTWRITEBYTECODE=1 python3 tests/codex-herdr-session-fallback.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/project-docs.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"

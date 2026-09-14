@@ -11,7 +11,11 @@ The normal `scripts/sync-skills` path renders launchable directories at
 expands `${HOME}` in MCP commands and links prompts to their authored files.
 The manager links shared skills; the worker gets a checked, filtered directory
 of per-skill links. Sync converges added or removed shared skills while keeping
-HUD excluded. Independently changed role contents are refused, not overwritten. Use the rendered role for launches:
+HUD excluded. Each ownership receipt records content-only hashes using the same
+`agentvoice-role-content-v1` framing that AgentVoice reports for directory roles;
+it covers resolved prompt, rendered MCP, and resolved skill bytes without storing
+their bodies. Independently changed role contents are refused, not overwritten.
+Use the rendered role for launches:
 source MCP commands are templates.
 
 ```sh
@@ -24,6 +28,10 @@ AgentRoles can deliver these directories to Claude and Codex too. Codex CLI
 skills require its explicit `agentroles install <role-path>` workflow; this
 render does not register a global role name or automatically assign workers
 to native children. AgentVoice registers role skills on its owned child.
+`scripts/sync-skills --check` runs AgentRoles' read-only
+`install --check` comparison for both rendered roles when the resources and CLI
+are available. It fails on stale copies but never refreshes them; run the
+explicit install command for each role to accept and publish a change.
 
 Keep the two responsibility variants' shared working standards aligned.
 Each has its own speech suffix, so either source directory can be moved
@@ -38,6 +46,7 @@ or rendered. Its previous installed files are left untouched; this render does
 not delete independently used roles or restart sessions.
 
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
+See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
 ## Conversational front and selective managers
 
