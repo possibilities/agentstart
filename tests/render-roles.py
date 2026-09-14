@@ -154,8 +154,17 @@ class RoleRender(unittest.TestCase):
             inventory = json.loads((source / "mcp.json").read_text())["mcpServers"]
             self.assertTrue(inventory)
             self.assertEqual("agenthud" in inventory, name == "manager")
+            self.assertEqual(inventory["agentmux"], {
+                "command": "${HOME}/.local/bin/agentmux",
+                "args": ["mcp", "--instance", "default"],
+            })
             role = self.resources / "roles" / name
-            self.assertEqual(set(json.loads((role / "mcp.json").read_text())["mcpServers"]), set(inventory))
+            rendered = json.loads((role / "mcp.json").read_text())["mcpServers"]
+            self.assertEqual(set(rendered), set(inventory))
+            self.assertEqual(rendered["agentmux"], {
+                "command": str(Path.home() / ".local/bin/agentmux"),
+                "args": ["mcp", "--instance", "default"],
+            })
             for filename in ("APPEND_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
                              "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md"):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())

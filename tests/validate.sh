@@ -180,6 +180,10 @@ for name in ["mikebannister","notimpossiblemike"]:
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
 for role in ["manager", "worker"]:
     role_servers=json.loads(Path(f"roles/{role}/mcp.json").read_text())["mcpServers"]
+    assert role_servers["agentmux"] == {
+        "command":"${HOME}/.local/bin/agentmux",
+        "args":["mcp","--instance","default"],
+    }
     if role == "manager":
         assert role_servers["agenthud"] == servers["agenthud"]
     else:

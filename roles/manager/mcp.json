@@ -56,6 +56,14 @@
         "mcp"
       ]
     },
+    "agentmux": {
+      "command": "${HOME}/.local/bin/agentmux",
+      "args": [
+        "mcp",
+        "--instance",
+        "default"
+      ]
+    },
     "agentnotify": {
       "command": "${HOME}/.local/bin/agentnotify",
       "args": [
