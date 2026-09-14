@@ -26,3 +26,16 @@ objects may remain older until the corresponding authorized future reload.
 Evidence: manager APPEND prompt, shared GUIDELINES, roles README and AgentHUD's
 owned skill/CLI guide/protocol. Validation uses role/resource rendering, native
 mode length checks and installed-output inspection, without service restarts.
+
+## September 14 clarification: reconcile every accepted outcome
+
+An accepted historical no-dispatch resolution remained awaiting presentation after
+the replacement guidance shipped. Delivery, closure and recovery must reconcile
+all accepted Results, including superseded and interrupted outcomes, against
+actual human communication. Replacement delivery or internal acceptance alone
+does not establish presentation of the earlier disposition. Record missing
+presentation with its evidence when already communicated; otherwise explain the
+obsolete resolution at a suitable conversational boundary before recording it.
+Preserve unpresented findings, hold and real pending decisions. This clarifies
+manager procedure without automatic presentation, an acknowledgment gate, changed
+store semantics or worker recording.
