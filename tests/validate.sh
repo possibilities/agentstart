@@ -180,7 +180,11 @@ for name in ["mikebannister","notimpossiblemike"]:
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
 for role in ["manager", "worker"]:
     role_servers=json.loads(Path(f"roles/{role}/mcp.json").read_text())["mcpServers"]
-    assert "agenthud" in role_servers and role_servers["agenthud"] == servers["agenthud"]
+    if role == "manager":
+        assert role_servers["agenthud"] == servers["agenthud"]
+    else:
+        assert "agenthud" not in role_servers
+        assert json.loads(Path("roles/worker/skills-exclude.json").read_text()) == ["hud"]
     assert "agentboard" not in role_servers
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())
 assert components["$schema"] == "https://ui.shadcn.com/schema.json"
@@ -212,7 +216,7 @@ grep -F 'https://vercel.com/design.md' prompts/agentguidance/GUIDELINES.md >/dev
     || fail "GUIDELINES.md does not require Vercel design guidance as the design baseline"
 grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route design work through the wiki"
-grep -F "Keep work that spans agents or sessions visible with \`hud\`" \
+grep -F "Managers keep substantive work visible with \`hud\`" \
     prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route durable work through HUD"
 if grep -F "visible with \`board\`" prompts/agentguidance/GUIDELINES.md >/dev/null; then

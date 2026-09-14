@@ -44,12 +44,6 @@
         "mcp"
       ]
     },
-    "agenthud": {
-      "command": "${HOME}/.local/bin/agenthud",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentkeys": {
       "command": "${HOME}/.local/bin/agentkeys",
       "args": [

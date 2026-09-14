@@ -3,12 +3,13 @@
 - Reuse collected research with `brain` when prior reading is relevant, and
   consult `chats` when prior sessions may contain relevant work. Do not add an
   unrelated lookup to a task that already has the necessary evidence.
-- Keep work that spans agents or sessions visible with `hud`: reuse its durable
-  Work record when one exists, or create one with the authorized scope, lead,
-  and next action. Record returned results, lead acceptance, human presentation,
-  and completion as separate facts. A simple answer or isolated small edit does
-  not need a new tracking ritual. Legacy Board history stays read-only; do not
-  dual-write or redirect new work into it.
+- Managers keep substantive work visible with `hud`: reconcile its durable Work
+  record at start/resume and meaningful boundaries, retaining authorized scope,
+  assignments, evidence and next decisions. Workers report to their parent;
+  managers record those reports under their own actor with worker attribution.
+  Returned results, lead acceptance, human presentation and completion remain
+  separate facts. Tiny replies need no record. Legacy Board history stays
+  read-only; do not dual-write or redirect new work into it.
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for

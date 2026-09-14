@@ -2,7 +2,9 @@
 
 Service-lifecycle portion superseded September 14, 2026 by
 [ADR 0011](0011-keep-agenthud-resident.md). The work-owner cutover and Board
-preservation decisions remain current.
+preservation decisions remain current. The original both-role exposure is
+superseded by [ADR 0013](0013-managers-own-hud-recording.md): managers retain HUD
+and workers report to them without direct HUD recording.
 
 Accepted September 13, 2026. The human chose AgentHUD as the single active
 durable Work owner for managed sessions and explicitly rejected a Board

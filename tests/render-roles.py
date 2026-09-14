@@ -87,18 +87,80 @@ class RoleRender(unittest.TestCase):
         (self.sources / "worker/VOICE_ORCHESTRATOR_SYSTEM_PROMPT.md").write_text("conflict")
         self.render(1)
 
+    def test_filtered_worker_migrates_owned_shared_link_and_tracks_skill_changes(self):
+        hud = self.resources / "skills/hud"
+        hud.mkdir()
+        (hud / "SKILL.md").write_text("manager-only")
+        self.render()
+        manager = self.resources / "roles/manager"
+        worker = self.resources / "roles/worker"
+        manager_inode = manager.stat().st_ino
+        self.assertTrue((worker / "skills").is_symlink())
+        (self.sources / "worker/skills-exclude.json").write_text('["hud"]')
+        self.render()
+        self.assertEqual(manager.stat().st_ino, manager_inode)
+        self.assertFalse((worker / "skills").is_symlink())
+        self.assertFalse((worker / "skills/hud").exists())
+        self.assertTrue((manager / "skills/hud/SKILL.md").is_file())
+        self.assertEqual((worker / "skills/example/SKILL.md").read_text(), "fixture")
+        worker_inode = worker.stat().st_ino
+        self.render()
+        self.assertEqual(worker.stat().st_ino, worker_inode)
+        extra = self.resources / "skills/new-skill"
+        extra.mkdir()
+        (extra / "SKILL.md").write_text("new")
+        self.render()
+        self.assertTrue((worker / "skills/new-skill/SKILL.md").is_file())
+        self.assertFalse((worker / "skills/hud").exists())
+        (extra / "SKILL.md").unlink()
+        extra.rmdir()
+        self.render()
+        self.assertFalse((worker / "skills/new-skill").exists())
+
+    def test_filtered_skill_tampering_prevents_both_role_updates(self):
+        (self.sources / "worker/skills-exclude.json").write_text('["hud"]')
+        self.render()
+        manager = self.resources / "roles/manager"
+        before = (manager / "mcp.json").read_bytes()
+        skill = self.resources / "roles/worker/skills/example"
+        skill.unlink()
+        skill.mkdir()
+        (skill / "independent").write_text("preserve")
+        source = self.sources / "manager/mcp.json"
+        source.write_text(source.read_text().replace('"mcp"', '"different"'))
+        self.render(1)
+        self.assertEqual((skill / "independent").read_text(), "preserve")
+        self.assertEqual((manager / "mcp.json").read_bytes(), before)
+
+    def test_invalid_or_redirected_exclusions_do_not_publish_roles(self):
+        path = self.sources / "worker/skills-exclude.json"
+        for value in ('{}', '["../hud"]', '["hud", "hud"]', '[null]'):
+            path.write_text(value)
+            self.render(1)
+            self.assertFalse((self.resources / "roles/manager").exists())
+        path.unlink()
+        elsewhere = self.root / "excluded.json"
+        elsewhere.write_text('["hud"]')
+        path.symlink_to(elsewhere)
+        self.render(1)
+        self.assertFalse((self.resources / "roles/manager").exists())
+
     def test_shipped_roles_are_complete_and_modes_fit_native_limit(self):
+        (self.resources / "skills/hud").mkdir()
+        (self.resources / "skills/hud/SKILL.md").write_text("manager-only")
         self.render(sources=ROOT / "roles")
         for name in ("manager", "worker"):
             source = ROOT / "roles" / name
             inventory = json.loads((source / "mcp.json").read_text())["mcpServers"]
             self.assertTrue(inventory)
+            self.assertEqual("agenthud" in inventory, name == "manager")
             role = self.resources / "roles" / name
             self.assertEqual(set(json.loads((role / "mcp.json").read_text())["mcpServers"]), set(inventory))
             for filename in ("APPEND_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
                              "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md"):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
             self.assertLessEqual(len((role / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md").read_bytes()), 1600)
+            self.assertEqual((role / "skills/hud/SKILL.md").exists(), name == "manager")
 
 
 if __name__ == "__main__":

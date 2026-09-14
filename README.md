@@ -261,7 +261,8 @@ call or service; new settings apply when AgentVoice next loads its runtime.
 AgentStart owns [manager and worker roles](roles/README.md). Each contains
 prompt Markdown and an independent MCP inventory. Capability sync renders them
 at `~/.local/share/agentstart/resources/roles/{manager,worker}`, expands account
-paths, and links the shared skills. The AgentVoice configuration selects manager.
+paths, and links shared skills with the worker HUD exclusion. Managers own HUD
+recording; workers return evidence to their parent. The AgentVoice configuration selects manager.
 Publish the role resources before switching the configured path. Existing
 workspace snapshots and active calls retain their loaded contents.
 

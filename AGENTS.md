@@ -183,7 +183,9 @@ Where things go:
 AgentStart owns `roles/manager` and `roles/worker`: prompt Markdown and separate
 MCP inventories. `scripts/render-roles` assembles them through the normal resource
 sync. Keep shared doctrine aligned and preserve each role's responsibility;
-changing the common inventory does not automatically change role rosters.
+changing the common inventory does not automatically change role rosters. The
+worker omits HUD MCP and filters its skill; managers record worker reports under
+their own actor. Preserve this boundary through explicit-role launch rendering.
 See [role ownership](docs/adr/0006-own-manager-worker-roles.md).
 
 This checkout participates in the same convention it administers: active skills

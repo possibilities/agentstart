@@ -2,15 +2,16 @@
 
 AgentStart owns the human-facing `manager` role (formerly AgentVoice's
 `default`) and assignment-focused `worker`. Each source directory contains
-its prompt Markdown and its own `mcp.json`. Both initially carry the full
-19-server fleet roster. Edit each role's inventory independently when their
-needs diverge; changing the general fleet inventory does not silently change
-either role's roster.
+its prompt Markdown and its own `mcp.json`. The manager exposes AgentHUD; the
+worker omits its MCP and excludes the `hud` skill through `skills-exclude.json`.
+Changing the general fleet inventory does not silently change either MCP roster.
 
 The normal `scripts/sync-skills` path renders launchable directories at
 `~/.local/share/agentstart/resources/roles/manager` and `worker`. The renderer
-expands `${HOME}` in MCP commands, links the shared skills directory, and links
-prompts to their authored files here. Use the rendered role for launches:
+expands `${HOME}` in MCP commands and links prompts to their authored files.
+The manager links shared skills; the worker gets a checked, filtered directory
+of per-skill links. Sync converges added or removed shared skills while keeping
+HUD excluded. Independently changed role contents are refused, not overwritten. Use the rendered role for launches:
 source MCP commands are templates.
 
 ```sh
@@ -90,3 +91,25 @@ frontend detach and runtime replacement retain them; new_session and server
 shutdown clear them. No shared semantic hold state or exactly-once speech
 mechanism is introduced. Source/render checks do not establish live behavior.
 See [hold guidance decision](../docs/adr/0012-conversation-hold-guidance.md).
+
+## Manager-owned HUD records
+
+Managers use HUD for substantive objectives, authority, assignments, dependencies,
+reported results, acceptance, presentation and next decisions. Reconcile at start
+or resume and meaningful work boundaries. Workers report to their parent through
+the native harness; the manager records that report using its own actor and exact
+worker/native/evidence attribution. Tiny replies need no record. Missing HUD
+access leaves an explicit recovery note and pending reconciliation.
+
+AgentRoles marks its immediate AgentLaunch invocation as an explicit role resource
+layer; AgentLaunch consumes that marker and does not add the global fleet overlay.
+Default managed launches retain the global manager-oriented inventory. A role's
+own MCP and skill paths remain the source for an explicit role launch.
+
+This configures explicit role exposure, not native-child authorization. Native
+children may inherit a manager's tools and prompts instead of loading the worker
+role. Existing sessions and workspace snapshots keep their loaded resources;
+source sync neither revokes inherited tools nor reloads a live generation. Workers
+with older or inherited HUD tools must still return reports to their manager.
+
+See [manager HUD ownership](../docs/adr/0013-managers-own-hud-recording.md).

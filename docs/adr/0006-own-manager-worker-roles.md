@@ -8,7 +8,9 @@ Each `roles/{manager,worker}` directory owns prompt Markdown and a complete
 `mcp.json` template, initially identical to the current fleet inventory.
 Separate inventories make role changes explicit without a roster selector
 language or an implicit dependency on future additions to the common inventory.
-Shared skills continue to come from the fixed resource set.
+Shared skills continue to come from the fixed resource set. The worker HUD
+exclusion and filtered rendering in [0013](0013-managers-own-hud-recording.md)
+supersede the original shared-directory behavior for that role.
 
 The existing capability convergence calls `scripts/render-roles`, replacing
 `render-agentvoice-role`. It needs no AgentVoice checkout: it renders each MCP
