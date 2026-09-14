@@ -8,8 +8,11 @@ records the operator's decision; the worker prompt is outside this change.
 ## Selection policy and native support
 
 The human requested Sol extensively for ordinary work, explicitly including
-high/xhigh, and Astra for difficult architecture, design/product decisions and
-large complex workflows. The approved default child setting is Sol/medium.
+high/xhigh. The human clarified that Astra is appropriate when creativity, design,
+design engineering, product engineering, deep thinking or architecture is central,
+as well as for large complex workflows. Judgment-heavy design/product work does
+not require an exceptionally complex implementation to merit Astra. Routine
+implementation retains the approved default child setting of Sol/medium.
 The current AgentVoice conversational root is Astra/low; that does not identify
 other manager launches or override actual runtime settings.
 
@@ -45,7 +48,7 @@ did not return the relevant primary cards. Exact Astra and Sol card URI lookups
 returned `not_found`. Do not describe the following live reads as retrieved Brain
 cards. Their official pages were searched and opened on September 14:
 
-- [Astra card](https://developers.openai.com/api/docs/models/gpt-6-astra): strongest end-to-end model positioning supports the exceptional-work use case.
+- [Astra card](https://developers.openai.com/api/docs/models/gpt-6-astra): strongest end-to-end model positioning; the creative/design routing boundary is the operator's explicit preference.
 - [Sol card](https://developers.openai.com/api/docs/models/gpt-5.6-sol): capable professional-work model; the ordinary-work default is the operator's policy.
 - [Terra card](https://developers.openai.com/api/docs/models/gpt-5.6-terra): balances capability and cost; consider total accepted-result cost.
 - [Luna card](https://developers.openai.com/api/docs/models/gpt-5.6-luna): designed for economical high-volume work; narrow extraction and transformation are local routing recommendations.

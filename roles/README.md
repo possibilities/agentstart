@@ -50,8 +50,10 @@ an existing-role responsibility pattern, not a new router role or mandatory
 delegation layer. Worker responsibilities and inventories remain independent.
 
 The manager's deployment guide now defaults new children to **Sol/medium**,
-using high/xhigh for difficult ordinary work and Astra for exceptional
-architecture, design/product or complex workflows. It identifies the current
+using high/xhigh for difficult ordinary work and Astra when creativity, design,
+design engineering, product engineering, deep thinking or architecture is central,
+as well as for complex workflows. Valuable design/product judgment does not need
+an exceptionally complex implementation to merit Astra. It identifies the current
 AgentVoice root as Astra/low without asserting that every manager or native
 child has those settings. Explicit human choices and actual native capabilities
 win. The previously provisional Sol/low front was not activated by this change.

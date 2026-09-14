@@ -10,9 +10,13 @@ An audit found economical generic prose but no explicit Sol worker preference,
 while most sampled native launches selected Astra. The human authorized a
 manager-only guide: the AgentVoice root currently uses Astra/low, ordinary new
 children default to Sol/medium, and high/xhigh Sol remains a normal choice for
-harder implementation. Astra is reserved for exceptional architecture,
-design/product or complex workflows unless the human explicitly chooses it.
-Receipts explain the model and effort, not just the value of delegation.
+harder implementation. Astra is appropriate when creativity, design, design
+engineering, product engineering, deep thinking or architecture is central, as
+well as for large complex workflows. The human's same-day clarification removes
+the original exceptional-complexity threshold: valuable design/product judgment
+can merit Astra even with a small implementation. Routine implementation stays
+on Sol/medium, and explicit human model/effort choices win. Receipts explain the
+model and effort, not just the value of delegation.
 
 Keep the small model/effort table and briefing advice in the manager APPEND so
 they reach the actual delegator through existing role rendering. The live native
