@@ -169,8 +169,8 @@ python3 - <<'PYTHON'
 import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
-fleet=["agentattention","agentboard","agentbrain","agentbrowse","agentchats",
-       "agentdesk","agentgrok","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
+fleet=["agentattention","agentbrain","agentbrowse","agentchats",
+       "agentdesk","agentgrok","agenthud","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
     assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
@@ -178,6 +178,10 @@ assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser"
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
+for role in ["manager", "worker"]:
+    role_servers=json.loads(Path(f"roles/{role}/mcp.json").read_text())["mcpServers"]
+    assert "agenthud" in role_servers and role_servers["agenthud"] == servers["agenthud"]
+    assert "agentboard" not in role_servers
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())
 assert components["$schema"] == "https://ui.shadcn.com/schema.json"
 assert components["registries"] == {}
@@ -208,6 +212,12 @@ grep -F 'https://vercel.com/design.md' prompts/agentguidance/GUIDELINES.md >/dev
     || fail "GUIDELINES.md does not require Vercel design guidance as the design baseline"
 grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route design work through the wiki"
+grep -F "Keep work that spans agents or sessions visible with \`hud\`" \
+    prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md does not route durable work through HUD"
+if grep -F "visible with \`board\`" prompts/agentguidance/GUIDELINES.md >/dev/null; then
+    fail "GUIDELINES.md retains active Board routing"
+fi
 # Gist publication is a GitHub CLI operation over the durable wiki file. Pin
 # both the create-and-open route and the existing-Gist route so agents do not
 # fall back to a browser app or create a duplicate merely to open it.
@@ -468,12 +478,18 @@ set -e
 # The agent* skill scan finds participants by convention instead of by list:
 # an agent* checkout that exports skills/<name>/SKILL.md is a participant, and
 # everything else under the root is not. The scan must batch one invocation
-# per project naming every skill it found, and no participant is exempt.
+# per project naming every active skill it found. Board and Groom are the
+# explicit retired exceptions: their source and data stay intact while the
+# fixed resource set prunes their old copies.
 code_skills_root="$skip_test_dir/code-root"
 code_skills_home="$skip_test_dir/code-home"
 code_skills_log="$skip_test_dir/npx.log"
 mkdir -p \
     "$code_skills_home" \
+    "$code_skills_home/.local/share/agentstart/resources/skills/board" \
+    "$code_skills_home/.local/share/agentstart/resources/skills/groom" \
+    "$code_skills_root/agentboard/skills/board" \
+    "$code_skills_root/agentboard/skills/groom" \
     "$code_skills_root/agentbus/skills/bus" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
@@ -481,6 +497,8 @@ mkdir -p \
     "$code_skills_root/agentquiet/src" \
     "$code_skills_root/notagent/skills/x"
 for code_skills_fixture in \
+    agentboard/skills/board \
+    agentboard/skills/groom \
     agentbus/skills/bus \
     agentdemo/skills/demo \
     agentdemo/skills/second \
@@ -490,6 +508,8 @@ for code_skills_fixture in \
     printf -- '---\nname: %s\ndescription: fixture skill\n---\n' "$code_skills_name" \
         >"$code_skills_root/$code_skills_fixture/SKILL.md"
 done
+printf 'stale board copy\n' >"$code_skills_home/.local/share/agentstart/resources/skills/board/SKILL.md"
+printf 'stale groom copy\n' >"$code_skills_home/.local/share/agentstart/resources/skills/groom/SKILL.md"
 # A vendor skill may enumerate provider origins outside the managed fleet.
 # The fixed-resource renderer preserves the variable contract but narrows its
 # documented values before copying resources into either managed plugin.
@@ -551,6 +571,14 @@ printf '%s\n' "$sync_plan" \
 if printf '%s\n' "$sync_plan" | grep -Eq 'agentquiet|notagent'; then
     fail "skill sync plan includes a checkout that is not a participant"
 fi
+if printf '%s\n' "$sync_plan" | grep -F 'skills add' | grep -F 'agentboard' >/dev/null; then
+    fail "skill sync plan still installs retired Board guidance"
+fi
+for retired_skill in board groom; do
+    printf '%s\n' "$sync_plan" \
+        | grep -F "retire the $retired_skill skill from the fixed private fleet resources" >/dev/null \
+        || fail "skill sync plan omits retired $retired_skill guidance"
+done
 printf '%s\n' "$sync_plan" \
     | grep -F "npx --yes skills add \"$code_skills_root/agentbus\" --agent claude-code --skill bus --global --copy --yes" \
         >/dev/null \
@@ -599,6 +627,9 @@ grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentexample> <--age
 if grep -E 'agentquiet|notagent' "$code_skills_log" >/dev/null; then
     fail "skill sync synchronized a checkout that is not a participant"
 fi
+if grep -F 'agentboard' "$code_skills_log" >/dev/null; then
+    fail "skill sync synchronized retired Board guidance"
+fi
 grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentbus> <--agent> <claude-code> <--skill> <bus> <--global> <--copy> <--yes>" \
     "$code_skills_log" >/dev/null \
     || fail "skill sync skipped the bus skill, back in service since 2026-08-17"
@@ -610,6 +641,12 @@ grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentbus> <--agent> 
 fixture_resources_root="$code_skills_home/.local/share/agentstart/resources"
 fixture_claude_root="$fixture_resources_root/claude/agent"
 fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
+[ ! -e "$fixture_resources_root/skills/board" ] \
+    && [ ! -e "$fixture_resources_root/skills/groom" ] \
+    || fail "skill sync retained active Board or Groom guidance"
+[ ! -e "$fixture_claude_root/skills/board" ] \
+    && [ ! -e "$fixture_codex_root/skills/groom" ] \
+    || fail "rendered harness resources retained Board or Groom guidance"
 [ -f "$fixture_resources_root/skills/demo/SKILL.md" ] \
     || fail "skill sync did not copy a participant into the fixed resources"
 if grep -F 'unsupported-origin fixture' "$fixture_resources_root/skills/demo/SKILL.md" >/dev/null; then
@@ -1302,6 +1339,8 @@ case "$agent_cli_order" in
     *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
+grep -F "\"\$tool_root/scripts/install-hud.sh\" --install" scripts/install-agent-clis >/dev/null \
+    || fail "AgentVoice installation does not delegate the standalone HUD command installer"
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \

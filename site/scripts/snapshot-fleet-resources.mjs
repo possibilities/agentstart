@@ -16,7 +16,7 @@ const categoryCatalog = [
     id: "work",
     label: "Shape and run work",
     description: "Turn an idea into the right kind of collaboration, plan, or autonomous run.",
-    skills: ["collab", "build", "board", "groom"],
+    skills: ["collab", "build", "hud"],
   },
   {
     id: "knowledge",
@@ -64,7 +64,6 @@ const categoryCatalog = [
 const displayNames = {
   "ai-elements": "AI Elements",
   "ai-sdk": "AI SDK",
-  board: "Board",
   brain: "Brain",
   browser: "Browser",
   build: "Build",
@@ -75,7 +74,7 @@ const displayNames = {
   email: "Email",
   "find-skills": "Find Skills",
   fleet: "Fleet Map",
-  groom: "Groom the Plan",
+  hud: "Durable Work HUD",
   herdr: "Herdr",
   "hunk-review": "Hunk Review",
   keys: "Keyboard Shortcuts",
@@ -212,8 +211,18 @@ const inventory = await Promise.all(
     // Role skill roots alias the common pack. Fingerprint the link without
     // recursively traversing a second copy (or following a directory cycle).
     // Linked prompt/MCP files also include their bytes so source edits count.
-    const directoryLink = link !== null && (await stat(absolutePath)).isDirectory();
-    const bytes = directoryLink ? Buffer.alloc(0) : await readFile(absolutePath);
+    // Retired role links can outlive their source briefly; retain the link in
+    // the inventory instead of making an otherwise valid snapshot impossible.
+    let bytes = Buffer.alloc(0);
+    if (link === null) {
+      bytes = await readFile(absolutePath);
+    } else {
+      try {
+        if (!(await stat(absolutePath)).isDirectory()) bytes = await readFile(absolutePath);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
     const content = link === null ? bytes : Buffer.concat([Buffer.from(`symlink\0${link}\0`), bytes]);
     return { absolutePath, path, hash: sha256(content) };
   }),

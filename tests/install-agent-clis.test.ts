@@ -22,6 +22,9 @@ function fixture() {
     const dir = join(root, name, "scripts");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "install.sh"), `#!/bin/bash\nprintf '%s:%s\\n' '${name}' "$*" >> "$FIXTURE_LOG"\nexit ${code}\n`, { mode: 0o755 });
+    if (name === "agentvoice") {
+      writeFileSync(join(dir, "install-hud.sh"), "#!/bin/bash\nprintf '%s:%s\\n' 'agenthud' \"$*\" >> \"$FIXTURE_LOG\"\n", { mode: 0o755 });
+    }
   }
   function run(args: string[] = [], extraEnv: Record<string, string> = {}) {
     return Bun.spawnSync(["/bin/bash", join(import.meta.dir, "../scripts/install-agent-clis"), ...args], {
@@ -33,7 +36,7 @@ function fixture() {
   return { base, root, installer, run };
 }
 
-test("missing checkouts skip and AgentVoice delegates once with only --install; rerunnable", () => {
+test("missing checkouts skip and AgentVoice delegates both owned installers; rerunnable", () => {
   const f = fixture();
   f.installer("agentvoice");
   for (let count = 0; count < 2; count++) {
@@ -41,7 +44,9 @@ test("missing checkouts skip and AgentVoice delegates once with only --install; 
     expect(result.exitCode, result.stderr.toString()).toBe(0);
     expect(result.stdout.toString()).toContain("no checkout");
   }
-  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install\nagentvoice:--install\n");
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
+    "agentvoice:--install\nagenthud:--install\nagentvoice:--install\nagenthud:--install\n",
+  );
 });
 
 for (const kind of ["missing-installer", "non-executable", "broken-checkout-link", "failed-installer"]) {
@@ -75,5 +80,17 @@ test("live-call convergence uses AgentVoice's command-only contract", () => {
   f.installer("agentvoice");
   const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
   expect(result.exitCode).toBe(0);
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
+    "agentvoice:--install --command-only\nagenthud:--install\n",
+  );
+});
+
+test("AgentVoice without its standalone HUD installer fails after the voice install", () => {
+  const f = fixture();
+  f.installer("agentvoice");
+  rmSync(join(f.root, "agentvoice/scripts/install-hud.sh"));
+  const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr.toString()).toContain("no executable HUD installer");
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install --command-only\n");
 });

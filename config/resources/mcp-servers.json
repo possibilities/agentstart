@@ -14,12 +14,6 @@
         "mcp"
       ]
     },
-    "agentboard": {
-      "command": "${HOME}/.local/bin/agentboard",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentbrain": {
       "command": "${HOME}/.local/bin/agentbrain",
       "args": [
@@ -46,6 +40,12 @@
     },
     "agentgrok": {
       "command": "${HOME}/.local/bin/agentgrok",
+      "args": [
+        "mcp"
+      ]
+    },
+    "agenthud": {
+      "command": "${HOME}/.local/bin/agenthud",
       "args": [
         "mcp"
       ]

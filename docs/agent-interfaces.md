@@ -17,7 +17,7 @@ second prompt catalog.
 | Workflow | Authoritative surface | Why |
 | --- | --- | --- |
 | Browser automation | `agent-browser` and AgentBrowse MCPs | Typed browser actions, durable sessions, and handoff targets cross process boundaries. |
-| Planning, memory, research, and authored knowledge | AgentBoard, AgentBrain, AgentChats, AgentSearch, AgentScrape, and AgentWiki MCPs | Structured reads and writes are useful in every managed session. |
+| Durable work, memory, research, and authored knowledge | AgentHUD, AgentBrain, AgentChats, AgentSearch, AgentScrape, and AgentWiki MCPs | Structured reads and writes are useful in every managed session. Legacy Board history remains outside the active MCP inventory. |
 | Desktop control, human handoff, cross-session messages, keyboard audit, Grok Bot, sounds, and terminal control | Agentdesk, AgentAttention, AgentSurface, AgentKeys, AgentGrok, AgentSounds, and Terminal Control MCPs | Each owner exposes its agent command contract as typed tools. |
 | Gmail | Account-bound Gog MCPs for semantic reads; Gog CLI for sends, drafts, exact MIME, and complete pagination | The two surfaces share Gog authentication and divide work at their current schema boundary. |
 | shadcn registry work | Fleet shadcn MCP | The fixed registry configuration must be independent of the caller's project directory. |

@@ -125,6 +125,11 @@ Where things go:
   if it has one. The `agent*` skills scan needs nothing. A loop member's
   installer must be rerunnable, because a present checkout that fails stops
   the whole install.
+- The AgentHUD command is the source-ownership exception: AgentVoice owns it
+  in the same checkout but exposes a separate `scripts/install-hud.sh --install`
+  contract with no service or voice-runtime effects. AgentStart invokes that
+  contract after AgentVoice installation; it does not invent an `agenthud`
+  checkout or route the command through `agentvoice`.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than
@@ -176,13 +181,16 @@ sync. Keep shared doctrine aligned and preserve each role's responsibility;
 changing the common inventory does not automatically change role rosters.
 See [role ownership](docs/adr/0006-own-manager-worker-roles.md).
 
-This checkout participates in the same convention it administers: skills
+This checkout participates in the same convention it administers: active skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
 `scripts/sync-skills`. AgentLaunch loads them into each managed session:
 Claude Code exposes `/agent:<name>` and Codex uses `$agent:<name>`. The
 `fleet` skill is the dependency map of the ecosystem;
 its `MAP.md` claims to be current, so a stale edge there is a bug, not a doc
-nit.
+nit. The explicit Board cutover exception prunes only `board` and `groom` from
+the owned resource tree while preserving AgentBoard's checkout, command, data,
+history, and stdio MCP implementation for legacy queries. Current AgentBoard
+has no socket service endpoint.
 
 ## Validation
 

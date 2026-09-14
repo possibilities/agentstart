@@ -71,14 +71,14 @@ flags, and skip-versus-fail semantics are load-bearing:
   - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
-  - individual fleet MCPs, Agentdesk, termctrl, agent-browser, account-bound Gog,
+  - individual fleet MCPs including AgentHUD, Agentdesk, termctrl, agent-browser, account-bound Gog,
     and the fleet-owned shadcn registry through one shared resource inventory;
   - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
     the extension prompt links;
   - the external skills and fixed private fleet resources;
-  - the agentwiki, agentboard, agentbrowse-infra, agentbrowse, agentattention,
-    agentsearch, agentkeys, agentusage, agentlaunch, and agentgrok
-    CLIs;
+  - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,
+    agentattention, agentsearch, agentkeys, agentusage, agentlaunch, and
+    agentgrok CLIs, plus AgentVoice's standalone `agenthud` command;
   - AgentUsage’s owned Claude/Codex accounts and single proxy through its
     existing observer daemon; enroll/import accounts before switching balanced
     consumers, then converge the service after AgentUsage and AgentLaunch.
@@ -88,10 +88,11 @@ flags, and skip-versus-fail semantics are load-bearing:
 
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.
-- `scripts/sync-skills` — the cheap convergence path: the agent* checkout
+- `scripts/sync-skills` — the cheap convergence path: the active agent* checkout
   scan into `~/.local/share/agentstart/resources`, followed by harness render
   refresh. The scheduled updater calls this every six hours. It
-  never removes a skill from a compatibility root or restarts services.
+  removes the retired Board and Groom copies only from its owned private
+  resources and never restarts services.
   `--check` prints the plan.
 - [`docs/agent-interfaces.md`](docs/agent-interfaces.md) — the policy and
   support matrix for MCP, native harness, and CLI/TUI workflows. A workflow

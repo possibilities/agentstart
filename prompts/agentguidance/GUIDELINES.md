@@ -3,9 +3,12 @@
 - Reuse collected research with `brain` when prior reading is relevant, and
   consult `chats` when prior sessions may contain relevant work. Do not add an
   unrelated lookup to a task that already has the necessary evidence.
-- Keep ongoing, tracked work visible with `board`: use its existing item or
-  claim the relevant one, and close it when the authorized work is finished.
-  A simple answer or isolated small edit does not need a new tracking ritual.
+- Keep work that spans agents or sessions visible with `hud`: reuse its durable
+  Work record when one exists, or create one with the authorized scope, lead,
+  and next action. Record returned results, lead acceptance, human presentation,
+  and completion as separate facts. A simple answer or isolated small edit does
+  not need a new tracking ritual. Legacy Board history stays read-only; do not
+  dual-write or redirect new work into it.
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for

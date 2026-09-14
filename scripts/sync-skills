@@ -46,7 +46,8 @@ esac
 # without touching any binary. scripts/install.sh ends with this, and the scheduled
 # updater calls it directly every six hours, because a stale runbook misleads
 # a session as badly as a stale binary does. Every agent* checkout under
-# ~/code that exports skills/<name>/SKILL.md is a source.
+# ~/code that exports skills/<name>/SKILL.md is a source, except for the two
+# explicitly retired Board entrypoints below.
 #
 #   That convention is the whole interface: AgentStart discovers participants
 #   instead of listing them, so a project that grows or renames a skill is
@@ -60,6 +61,19 @@ script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 skills_root="$resources_root/skills"
 skills_state_root="$resources_root/skills-state"
+# Board remains installed for archival reads, but its planning entrypoints are
+# retired from managed sessions. Keep this list narrow: it controls both source
+# discovery and exact-name pruning from AgentStart's owned resource tree.
+retired_fleet_skills=(board groom)
+
+is_retired_fleet_skill() {
+    local candidate="$1"
+    local retired
+    for retired in "${retired_fleet_skills[@]}"; do
+        [ "$candidate" = "$retired" ] && return 0
+    done
+    return 1
+}
 
 if [ "$check_only" -ne 1 ]; then
     [ "$(uname -s)" = Darwin ] || die "macOS is required"
@@ -113,7 +127,9 @@ for project in "$code_root"/agent*/; do
         for skill_dir in "$project"/skills/*/; do
             [ -f "$skill_dir/SKILL.md" ] || continue
             skill_dir=${skill_dir%/}
-            printf '%s\n' "${skill_dir##*/}"
+            skill_name=${skill_dir##*/}
+            is_retired_fleet_skill "$skill_name" && continue
+            printf '%s\n' "$skill_name"
         done | LC_ALL=C sort
     )
     [ "${#skill_names[@]}" -gt 0 ] || continue
@@ -157,6 +173,23 @@ for project in "$code_root"/agent*/; do
     fi
 done
 
+retired_removed=0
+for retired_skill in "${retired_fleet_skills[@]}"; do
+    retired_path="$skills_root/$retired_skill"
+    if [ "$check_only" -eq 1 ]; then
+        printf '  retire the %s skill from the fixed private fleet resources; preserve its source checkout and data\n' \
+            "$retired_skill"
+        continue
+    fi
+    [ -e "$retired_path" ] || [ -L "$retired_path" ] || continue
+    [ -d "$retired_path" ] && [ ! -L "$retired_path" ] \
+        || die "refusing to retire unexpected skill path: $retired_path"
+    rm -rf -- "$retired_path"
+    retired_removed=1
+    printf 'Retired the %s skill from the fixed private fleet resources; source and data were preserved.\n' \
+        "$retired_skill"
+done
+
 if [ "$check_only" -eq 0 ] && [ "$synchronized" -eq 0 ]; then
     printf 'AgentStart skill sync: no agent* checkout under %s exports skills; nothing to synchronize.\n' \
         "$code_root"
@@ -164,7 +197,7 @@ fi
 
 if [ "$check_only" -eq 1 ]; then
     "$script_dir/render-capabilities" --check
-elif [ "$synchronized" -gt 0 ]; then
+elif [ "$synchronized" -gt 0 ] || [ "$retired_removed" -gt 0 ]; then
     "$script_dir/render-capabilities" --install \
         || die "rendering the refreshed fixed resource set failed"
 fi
