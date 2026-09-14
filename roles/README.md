@@ -38,6 +38,26 @@ not delete independently used roles or restart sessions.
 
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
 
+## Conversational front and selective managers
+
+The manager role keeps intent, authority, short status, steering and checked
+delivery with the conversational lead. Brief coupled work stays direct;
+substantial interacting judgments can go to a capable manager with bounded
+outcome ownership. The lead checks decisive evidence rather than treating a
+strong model's completion as approval or repeating its whole audit. This is
+an existing-role responsibility pattern, not a new router role or mandatory
+delegation layer. Worker responsibilities and inventories remain independent.
+
+The accepted provisional model choice is Sol/low for the AgentVoice work
+front, with selective stronger managers. Models remain configuration choices,
+not prompt constants or a universal ranking. Existing snapshots and loaded
+generations do not update when these sources converge. A future explicit
+launch can select `--model gpt-5.6-sol --effort low`; inspect raw overrides and
+saved-role ownership first, as described in AgentVoice's launch contract.
+Frontend reattachment alone does not apply pending prompts or settings.
+
+See [selective manager decision](../docs/adr/0009-conversational-front-selective-managers.md).
+
 ## Routing evidence
 
 Both working roles use AgentChats `routing-receipt` when available to retain
