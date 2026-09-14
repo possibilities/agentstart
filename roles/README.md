@@ -49,15 +49,25 @@ strong model's completion as approval or repeating its whole audit. This is
 an existing-role responsibility pattern, not a new router role or mandatory
 delegation layer. Worker responsibilities and inventories remain independent.
 
-The accepted provisional model choice is Sol/low for the AgentVoice work
-front, with selective stronger managers. Models remain configuration choices,
-not prompt constants or a universal ranking. Existing snapshots and loaded
-generations do not update when these sources converge. A future explicit
-launch can select `--model gpt-5.6-sol --effort low`; inspect raw overrides and
-saved-role ownership first, as described in AgentVoice's launch contract.
-Frontend reattachment alone does not apply pending prompts or settings.
+The manager's deployment guide now defaults new children to **Sol/medium**,
+using high/xhigh for difficult ordinary work and Astra for exceptional
+architecture, design/product or complex workflows. It identifies the current
+AgentVoice root as Astra/low without asserting that every manager or native
+child has those settings. Explicit human choices and actual native capabilities
+win. The previously provisional Sol/low front was not activated by this change.
+
+The concise catalog and briefing advice are in the manager APPEND only; the
+worker prompt, inventories, native modes and runtime configuration are unchanged.
+[Model-routing sources and limits](../docs/manager-model-routing.md) distinguish
+the native model/effort catalog, AgentUsage's subscription observations and
+public model/prompting guidance. Spark's separate finite quota is documented;
+it is not enabled for this Codex-led role. Existing snapshots and loaded
+generations do not update when these sources converge, and frontend reattachment
+alone does not apply pending prompts or settings.
 
 See [selective manager decision](../docs/adr/0009-conversational-front-selective-managers.md).
+The operator-specific selection policy is recorded in
+[manager model guide decision](../docs/adr/0016-manager-model-selection-guide.md).
 
 ## Routing evidence
 
