@@ -132,3 +132,20 @@ emulator/VM creation or start. Role rendering neither creates a grant nor
 changes live resources.
 
 See [resource lease decision](../docs/adr/0014-record-resource-leases-without-granting-permission.md).
+
+## Scoped closure and human dependencies
+
+The manager closes implementation Work when its actual delivery objective is met
+and tells the human what was delivered and is closing. Technical acceptance,
+human presentation and an actual human dependency remain distinct. A universal
+acknowledgment gate would create obligations the human did not request.
+
+Tracked answers not acknowledged as heard stay visible; required approval,
+validation or a decision stays unresolved with a specific next human action.
+A clear natural response can settle it. Presentation and silence alone cannot.
+The manager follows up at a useful conversational boundary, respecting hold and
+unrelated topics, with no invented timed reminders. Deferred delivery remains
+pending presentation rather than disappearing. Workers continue returning evidence
+to the manager and do not take over human closure or HUD writes.
+
+See [scoped closure decision](../docs/adr/0015-close-scoped-work-with-explicit-delivery.md).

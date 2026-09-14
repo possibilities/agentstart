@@ -8,7 +8,12 @@
   assignments, evidence and next decisions. Workers report to their parent;
   managers record those reports under their own actor with worker attribution.
   Returned results, lead acceptance, human presentation and completion remain
-  separate facts. For limited resources, reconcile the HUD resource/lease record
+  separate facts. Close implementation Work when its scoped delivery goal is met
+  and tell the human it is delivered/closing; there is no universal acknowledgment
+  gate. Keep unheard answers and genuine required approvals, validation or decisions
+  visible with the next human action. Follow up contextually, respecting hold and
+  unrelated conversation; do not invent timed reminders. For limited resources,
+  reconcile the HUD resource/lease record
   at start/resume and at grant, claim, holder/scope change and release. Retain
   the actual human/self/other-agent holder and stable identity, exact scope/team
   coverage, exclusive/shared capacity and rules, direct-user or explicitly
