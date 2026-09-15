@@ -57,7 +57,8 @@ flags, and skip-versus-fail semantics are load-bearing:
   own checkout's contract, skipping checkouts that are absent:
 
   - Claude Code and Codex, by their official installers; Pi as a bare CLI from
-    its official installer, without fleet resources or integration; plus the
+    the explicit npm action published by its upstream installer, without that
+    installer's choice menu, fleet resources, or integration; plus the
     official Homebrew cask for the standalone Grok Build CLI/TUI (without
     AgentLaunch or Herdr integration yet);
   - Gog through its Homebrew formula, with separate MCP registrations for the

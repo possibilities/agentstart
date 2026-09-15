@@ -19,6 +19,7 @@ scripts/render-capabilities
 scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentvoice-android
+scripts/install-pi
 scripts/install-agentlaunch-shims
 scripts/install-herdr-codex-session-fallback
 scripts/install-notification-shim
@@ -55,7 +56,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     shellcheck --shell=bash $shell_files
 fi
 
-for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android \
+for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi \
     scripts/run-skills-cli \
     scripts/install-agentlaunch-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
@@ -332,6 +333,7 @@ bun test tests/agent-contract.test.ts
 bun test tests/install-agent-clis.test.ts
 PYTHONDONTWRITEBYTECODE=1 python3 tests/notification-shim.py
 bun test tests/install-agentvoice-android.test.ts
+bun test tests/install-pi.test.ts
 bun test tests/agentvoice-network.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
@@ -848,7 +850,7 @@ for required_install in \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
-    'curl -fsSL https://pi.dev/install.sh | sh  # no controlling terminal; bare CLI only, with no fleet integration or resources' \
+    'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
@@ -928,14 +930,21 @@ grep -F 'trap '\''rm -f -- "$installer_file"'\'' EXIT' scripts/install.sh >/dev/
 grep -F '"$interpreter" "$@" <"$installer_file"' scripts/install.sh >/dev/null \
     || fail "official installers are not executed from their completed downloads"
 
-# Pi is intentionally only a bare official CLI install. Its installer runs
-# without a controlling terminal so it cannot prompt to edit the shell profile,
-# and no former fleet-facing configuration may return with the binary.
-grep -F 'install_official "Pi CLI only (no fleet integration or resources)"' \
+# Pi is intentionally only a bare CLI install. AgentStart invokes the exact
+# explicit npm action published by Pi upstream instead of entering the vendor
+# installer's choice/default path, and no former fleet-facing configuration may
+# return with the binary.
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F '"$script_dir/install-pi" --install' \
     scripts/install.sh >/dev/null \
     || fail "the full installer does not install the bare Pi CLI"
-grep -F 'run_without_controlling_terminal /bin/sh' scripts/install.sh >/dev/null \
-    || fail "Pi's official installer can still prompt through the controlling terminal"
+# shellcheck disable=SC2016 # Match the literal helper variable.
+grep -F '"$npm_bin" install -g --ignore-scripts --min-release-age=0' scripts/install-pi >/dev/null \
+    || fail "Pi installation does not use an explicit npm action"
+if grep -E 'pi[.]dev/install[.]sh|/dev/tty|run_without_controlling_terminal' \
+    scripts/install.sh scripts/install-pi >/dev/null; then
+    fail "Pi installation can still enter the vendor choice/default path"
+fi
 if grep -ER '/[.]pi|install-pi-subagents|integration install.*pi|for harness in.*pi' \
     scripts config >/dev/null; then
     fail "Pi's retired fleet integration or resources returned beside the bare CLI install"

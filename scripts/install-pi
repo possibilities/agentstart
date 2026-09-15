@@ -1,0 +1,146 @@
+#!/bin/bash
+
+set -euo pipefail
+
+pi_package=@earendil-works/pi-coding-agent
+minimum_node_version=22.19.0
+
+die() {
+    printf 'AgentStart Pi installer: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    printf 'Usage: install-pi [--install|--check]\n'
+}
+
+path_is_writable_or_creatable() {
+    local check_path="$1"
+    local parent
+
+    while [ ! -e "$check_path" ]; do
+        parent=${check_path%/*}
+        if [ -z "$parent" ] || [ "$parent" = "$check_path" ]; then
+            return 1
+        fi
+        check_path=$parent
+    done
+
+    [ -d "$check_path" ] && [ -w "$check_path" ]
+}
+
+case "${1:-}" in
+    --install)
+        ;;
+    --check)
+        printf '  npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false %s  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources\n' "$pi_package"
+        exit 0
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac
+[ "$#" -eq 1 ] || {
+    usage >&2
+    exit 64
+}
+
+node_bin=${AGENTSTART_PI_NODE_BIN:-}
+if [ -z "$node_bin" ]; then
+    node_bin=$(command -v node) || die "Node.js $minimum_node_version or newer is required"
+fi
+[ -x "$node_bin" ] || die "Node.js executable is missing: $node_bin"
+
+npm_bin=${AGENTSTART_PI_NPM_BIN:-}
+if [ -z "$npm_bin" ]; then
+    npm_bin=$(command -v npm) || die "npm is required"
+fi
+[ -x "$npm_bin" ] || die "npm executable is missing: $npm_bin"
+
+node_version=$("$node_bin" --version) || die "could not read the Node.js version"
+node_version=${node_version#v}
+node_major=${node_version%%.*}
+node_remainder=${node_version#*.}
+node_minor=${node_remainder%%.*}
+case "$node_major" in ''|*[!0-9]*) die "could not parse the Node.js version: $node_version" ;; esac
+case "$node_minor" in ''|*[!0-9]*) die "could not parse the Node.js version: $node_version" ;; esac
+if [ "$node_major" -lt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -lt 19 ]; }; then
+    die "Pi requires Node.js $minimum_node_version or newer; found v$node_version"
+fi
+
+global_prefix=$("$npm_bin" prefix -g) || die "could not resolve npm's global prefix"
+case "$global_prefix" in
+    /*) ;;
+    *) die "npm returned an invalid global prefix: $global_prefix" ;;
+esac
+
+install_prefix=$global_prefix
+use_explicit_prefix=0
+if ! path_is_writable_or_creatable "$global_prefix/lib/node_modules" \
+    || ! path_is_writable_or_creatable "$global_prefix/bin"; then
+    global_pi="$global_prefix/bin/pi"
+    if [ -e "$global_pi" ] || [ -L "$global_pi" ]; then
+        die "npm's global prefix is not writable and already contains Pi: $global_pi"
+    fi
+    install_prefix=$HOME/.local
+    use_explicit_prefix=1
+fi
+
+expected_pi="$install_prefix/bin/pi"
+existing_pi=$(command -v pi 2>/dev/null || true)
+if [ -n "$existing_pi" ] && [ "$existing_pi" != "$expected_pi" ]; then
+    die "refusing to install another Pi while PATH resolves pi to $existing_pi"
+fi
+
+npm_list_pi() {
+    if [ "$use_explicit_prefix" -eq 1 ]; then
+        "$npm_bin" list -g --prefix "$install_prefix" --depth=0 "$pi_package"
+    else
+        "$npm_bin" list -g --depth=0 "$pi_package"
+    fi
+}
+
+if { [ -e "$expected_pi" ] || [ -L "$expected_pi" ]; } \
+    && ! npm_list_pi >/dev/null 2>&1; then
+    die "refusing to replace an unrecognized executable: $expected_pi"
+fi
+
+printf 'Installing or updating the bare Pi CLI explicitly with npm.\n'
+if [ "$use_explicit_prefix" -eq 1 ]; then
+    "$npm_bin" install -g --ignore-scripts --min-release-age=0 \
+        --prefix "$install_prefix" \
+        --no-fund --no-audit --loglevel=error --progress=false \
+        "$pi_package"
+else
+    "$npm_bin" install -g --ignore-scripts --min-release-age=0 \
+        --no-fund --no-audit --loglevel=error --progress=false \
+        "$pi_package"
+fi
+
+npm_list_pi >/dev/null
+[ -x "$expected_pi" ] \
+    || die "npm did not install an executable Pi command at $expected_pi"
+
+package_json="$install_prefix/lib/node_modules/$pi_package/package.json"
+installed_version=$(
+    "$node_bin" -e '
+const pkg = require(process.argv[1]);
+if (typeof pkg.version !== "string" || !pkg.version) process.exit(1);
+process.stdout.write(pkg.version);
+' "$package_json"
+) || die "could not verify Pi's installed package version"
+command_version=$("$expected_pi" --version) || die "the installed Pi command failed its version check"
+[ "$command_version" = "$installed_version" ] \
+    || die "Pi command version $command_version does not match installed package $installed_version"
+
+hash -r
+active_pi=$(command -v pi 2>/dev/null || true)
+[ "$active_pi" = "$expected_pi" ] \
+    || die "Pi was installed at $expected_pi but PATH resolves pi to ${active_pi:-nothing}"
+
+printf 'Pi %s is installed at %s.\n' "$installed_version" "$expected_pi"
