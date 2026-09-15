@@ -101,6 +101,16 @@ flags, and skip-versus-fail semantics are load-bearing:
   `https://agentvoice.localhost`. The matching `--check` and `--status` forms
   inspect only that label; this path does not operate the separately owned
   AgentVoice waiting server, menu app, clients, or calls.
+- `scripts/install-launchagents --install --service io.arthack.agentvoice-test.wait`
+  and `--service io.arthack.agentvoice-test.serve` — after any foreground test
+  processes have been stopped, converge the isolated test server and the named
+  reader at `https://agentvoice-test.localhost`. Both run the prepared
+  `~/worktrees/agentvoice/parallel-test-environment/agentvoice` checkout against
+  `~/.local/state/agentvoice/test-workspace`; the matching `--check` and
+  `--status` forms stay exact-label. These are replaceable interim services and
+  never operate the default server, reader, menu, call, or network gateway.
+  Absent labels are skipped by ordinary full convergence; each exact selector
+  is the deliberate first-activation path after its foreground owner exits.
 - `scripts/sync-skills` — the cheap convergence path: the active agent* checkout
   scan into `~/.local/share/agentstart/resources`, followed by harness render
   refresh. The scheduled updater calls this every six hours. It

@@ -85,6 +85,14 @@ the separately owned AgentVoice waiting server but has no call, menu, client, or
 server lifecycle authority. _Avoid_: AgentVoice server service, reader-owned call,
 Native SDK shell service.
 
+**AgentVoice isolated test services** — The bounded interim pair supervised by
+AgentStart as `io.arthack.agentvoice-test.wait` and `.serve`. Both execute the
+dedicated `~/worktrees/agentvoice/parallel-test-environment/agentvoice` checkout
+against `~/.local/state/agentvoice/test-workspace`; only the reader claims
+`https://agentvoice-test.localhost`. They are one replaceable deployment unit,
+not a named-session model. _Avoid_: second production server, session registry,
+default endpoint, permanent multi-session service.
+
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every
 `agent:<skill>`; AgentLaunch name-enables the fixed set in its session layer,

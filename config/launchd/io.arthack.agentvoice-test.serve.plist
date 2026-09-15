@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- agentstart-installer-owned: io.arthack.agentvoice-test.serve.v1 -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>io.arthack.agentvoice-test.serve</string>
+	<!-- This interim reader pins both the test workspace and its non-default origin. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__PROGRAM__</string>
+		<string>run</string>
+		<string>__TEST_ENTRYPOINT__</string>
+		<string>serve</string>
+		<string>--workspace</string>
+		<string>__TEST_WORKSPACE__</string>
+		<string>--name</string>
+		<string>agentvoice-test</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__TEST_CHECKOUT__</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- A committed source change makes convergence reload the resident process. -->
+		<key>AGENTSTART_SOURCE_REVISION</key>
+		<string>__TEST_SOURCE_REVISION__</string>
+		<key>HOME</key>
+		<string>__HOME__</string>
+		<key>PATH</key>
+		<string>__PATH__</string>
+		<key>XDG_STATE_HOME</key>
+		<string>__STATE_ROOT__</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<true/>
+	<!-- Resident: keep the named test reader available across test-server restarts. -->
+	<key>KeepAlive</key>
+	<true/>
+	<!-- Standard: a person can be watching this local interface. -->
+	<key>ProcessType</key>
+	<string>Standard</string>
+	<key>Umask</key>
+	<integer>63</integer>
+	<!-- Throttle retries when AgentVoice or the shared portless proxy is unavailable. -->
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>__LOG__</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG__</string>
+</dict>
+</plist>

@@ -29,6 +29,7 @@ launch_agents_dir="${AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchA
 bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
 launchctl_bin="${AGENTSTART_INSTALL_LAUNCHCTL:-launchctl}"
+agentvoice_test_checkout="${AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT:-$HOME/worktrees/agentvoice/parallel-test-environment/agentvoice}"
 render_temp=""
 
 # Every service in the fleet, in install order:
@@ -48,6 +49,8 @@ SERVICES=(
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
     "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
+    "io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident"
+    "io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident"
     "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
     "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
     "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
@@ -98,15 +101,41 @@ field() {
     printf '%s' "$1" | cut -d'|' -f"$2"
 }
 
+# The two interim AgentVoice test jobs deliberately execute their isolated
+# source checkout. Every other service continues to enter through the one
+# installed public tool named in the manifest.
+service_program() {
+    local label="$1" tool="$2"
+    case "$label" in
+        io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+            command -v bun 2>/dev/null || true
+            ;;
+        *)
+            printf '%s/%s' "$bin_dir" "$tool"
+            ;;
+    esac
+}
+
+# The interim jobs enter default convergence only after each exact label has
+# been activated once. This prevents an ordinary full install from racing a
+# foreground proof process during the handoff.
+agentvoice_test_service_enabled() {
+    local label="$1" plist="$launch_agents_dir/$1.plist"
+    [ "$selected_service" = "$label" ] || [ -e "$plist" ] || [ -L "$plist" ]
+}
+
 # launchd sources no shell rc file, so PATH has to name every directory the
 # services reach: bun's own, our bin directory, then the ordinary system set.
 service_path() {
-    local bun_dir=""
+    local bun_dir="" node_dir=""
     if command -v bun >/dev/null 2>&1; then
         bun_dir="$(dirname -- "$(command -v bun)"):"
     fi
-    printf '%s%s:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
-        "$bun_dir" "$bin_dir"
+    if command -v node >/dev/null 2>&1; then
+        node_dir="$(dirname -- "$(command -v node)"):"
+    fi
+    printf '%s%s%s:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin' \
+        "$bun_dir" "$node_dir" "$bin_dir"
 }
 
 tailnet_address() {
@@ -206,6 +235,41 @@ service_tokens() {
         io.arthack.agentvoice.serve)
             printf 'STATE_ROOT=%s\n' "$state_root"
             ;;
+        io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+            agentvoice_test_service_enabled "$label" || return 10
+            [ -f "$agentvoice_test_checkout/src/main.ts" ] || return 10
+            local bun_program node_program source_revision
+            bun_program="$(command -v bun 2>/dev/null || true)"
+            [ -n "$bun_program" ] && [ -x "$bun_program" ] || return 10
+            # Probe the exact packages imported before the server can listen.
+            # Manifests alone admit partially installed dependency trees.
+            (
+                cd -P -- "$agentvoice_test_checkout" &&
+                    "$bun_program" -e '
+                        await import("zod");
+                        await import("@modelcontextprotocol/sdk/server/mcp.js");
+                        await import("@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js");
+                    '
+            ) >/dev/null 2>&1 || return 10
+            # Keep first activation atomic at the dependency boundary: either
+            # label is skipped until both halves of the pair can run.
+            [ -x "$agentvoice_test_checkout/web/node_modules/.bin/portless" ] || return 10
+            [ -f "$agentvoice_test_checkout/web/node_modules/vite/package.json" ] || return 10
+            node_program="$(command -v node 2>/dev/null || true)"
+            [ -n "$node_program" ] && [ -x "$node_program" ] || return 10
+            source_revision="${AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION:-}"
+            if [ -z "$source_revision" ]; then
+                source_revision=$(git -C "$agentvoice_test_checkout" rev-parse HEAD 2>/dev/null) || return 10
+            fi
+            case "$source_revision" in
+                *[!0-9a-f]* | "") return 10 ;;
+            esac
+            printf 'STATE_ROOT=%s\n' "$state_root"
+            printf 'TEST_WORKSPACE=%s\n' "$state_root/agentvoice/test-workspace"
+            printf 'TEST_CHECKOUT=%s\n' "$agentvoice_test_checkout"
+            printf 'TEST_ENTRYPOINT=%s\n' "$agentvoice_test_checkout/src/main.ts"
+            printf 'TEST_SOURCE_REVISION=%s\n' "$source_revision"
+            ;;
         io.arthack.agentscrape.process-queue)
             # The directory launchd watches. Agentscrape's CLI enqueues into it
             # and the service drains it, so it is shared state rather than
@@ -221,6 +285,18 @@ service_tokens() {
         io.arthack.agentwiki.serve)
             printf 'PORT=%s\n' "$AGENTWIKI_PORT"
             printf 'ARTIFACT_PORT=%s\n' "$AGENTWIKI_ARTIFACT_PORT"
+            ;;
+    esac
+}
+
+# Prepare state that the public command contract expects. Keep this bounded to
+# the interim AgentVoice test services so ordinary service rendering stays a
+# pure template operation.
+prepare_service() {
+    local label="$1"
+    case "$label" in
+        io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+            mkdir -p "$state_root/agentvoice/test-workspace"
             ;;
     esac
 }
@@ -347,22 +423,40 @@ install_service() {
     log_name="$(field "$entry" 3)"
     lifecycle="$(field "$entry" 4)"
 
-    local program="$bin_dir/$tool"
+    local program
+    program="$(service_program "$label" "$tool")"
     local log="$state_root/$tool/$log_name"
     local destination="$launch_agents_dir/$label.plist"
+    local ownership
+    ownership="$(plist_ownership "$label")"
+
+    if [ "$ownership" = foreign ]; then
+        if [ "$check_only" -eq 1 ]; then
+            printf '  %-28s %-18s %-22s %s\n' \
+                "$label" "$lifecycle" "REFUSE — not ours to replace" "${program:-unavailable}"
+            return 0
+        fi
+        die "refusing to replace a service this installer does not own: $destination"
+    fi
 
     # A tool that is not installed has no service. This mirrors the rest of the
     # installer: a missing optional fleet checkout is a skip, never an error.
-    if [ ! -x "$program" ]; then
-        note "skipped $label (no $program)"
+    # Once either interim test service is owned, loss of Bun is dependency loss
+    # and must fail convergence instead of disguising a dead service as absent.
+    if [ -z "$program" ] || [ ! -x "$program" ]; then
+        case "$label:$ownership" in
+            io.arthack.agentvoice-test.wait:ours | io.arthack.agentvoice-test.serve:ours)
+                die "installed service program is unavailable: $label (${program:-bun})"
+                ;;
+        esac
+        note "skipped $label (no ${program:-bun})"
         return 0
     fi
-
-    local ownership
-    ownership="$(plist_ownership "$label")"
     local tokens status=0
     tokens="$(service_tokens "$label")" || status=$?
     if [ "$status" -eq 10 ]; then
+        [ "$ownership" != ours ] ||
+            die "installed service configuration is unavailable: $label"
         if [ "$check_only" -eq 1 ]; then
             printf '  %-20s %s\n' "$label" "not configured; would skip"
         else
@@ -377,15 +471,12 @@ install_service() {
         case "$ownership" in
             absent) plan="install" ;;
             ours) plan="converge" ;;
-            foreign) plan="REFUSE — not ours to replace" ;;
         esac
         printf '  %-28s %-18s %-22s %s\n' "$label" "$lifecycle" "$plan" "$program"
         return 0
     fi
 
-    if [ "$ownership" = foreign ]; then
-        die "refusing to replace a service this installer does not own: $destination"
-    fi
+    prepare_service "$label"
     mkdir -p "$(dirname -- "$log")"
     [ -e "$log" ] || : >"$log"
     chmod 600 "$log"
@@ -461,7 +552,8 @@ service_selected() {
 
 status_services() {
     local failures=0 entry label tool log_name lifecycle program plist target
-    local ownership service state pid last_exit log log_bytes
+    local ownership service state pid last_exit log log_bytes tokens token_status
+    local desired_revision installed_revision
     printf 'Fleet launch service status (%s):\n' "$launch_agents_dir"
     for entry in "${SERVICES[@]}"; do
         service_selected "$entry" || continue
@@ -469,14 +561,49 @@ status_services() {
         tool="$(field "$entry" 2)"
         log_name="$(field "$entry" 3)"
         lifecycle="$(field "$entry" 4)"
-        program="$bin_dir/$tool"
+        program="$(service_program "$label" "$tool")"
         plist="$launch_agents_dir/$label.plist"
         log="$state_root/$tool/$log_name"
-        if [ ! -x "$program" ]; then
-            printf '  %-42s %-15s %s\n' "$label" skipped "no $program"
+        ownership="$(plist_ownership "$label")"
+        if [ -z "$program" ] || [ ! -x "$program" ]; then
+            case "$label:$ownership" in
+                io.arthack.agentvoice-test.wait:ours | io.arthack.agentvoice-test.serve:ours)
+                    printf '  %-42s %-15s %s\n' "$label" FAIL \
+                        "installed program unavailable (${program:-bun})"
+                    failures=$((failures + 1))
+                    ;;
+                io.arthack.agentvoice-test.wait:foreign | io.arthack.agentvoice-test.serve:foreign)
+                    printf '  %-42s %-15s ownership=%s\n' "$label" FAIL "$ownership"
+                    failures=$((failures + 1))
+                    ;;
+                *)
+                    printf '  %-42s %-15s %s\n' "$label" skipped "no ${program:-bun}"
+                    ;;
+            esac
             continue
         fi
-        ownership="$(plist_ownership "$label")"
+        token_status=0
+        tokens="$(service_tokens "$label")" || token_status=$?
+        if [ "$token_status" -eq 10 ] && [ "$ownership" = absent ]; then
+            case "$label" in
+                io.arthack.agentbrain.share)
+                    printf '  %-42s %-15s %s\n' "$label" optional 'not configured'
+                    ;;
+                io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+                    printf '  %-42s %-15s %s\n' "$label" optional 'not activated'
+                    ;;
+                *)
+                    printf '  %-42s %-15s %s\n' "$label" FAIL 'service configuration unavailable'
+                    failures=$((failures + 1))
+                    ;;
+            esac
+            continue
+        fi
+        [ "$token_status" -eq 0 ] || {
+            printf '  %-42s %-15s %s\n' "$label" FAIL 'could not resolve service configuration'
+            failures=$((failures + 1))
+            continue
+        }
         if [ "$ownership" = absent ] && [ "$label" = io.arthack.agentbrain.share ]; then
             printf '  %-42s %-15s %s\n' "$label" optional 'not configured'
             continue
@@ -486,6 +613,18 @@ status_services() {
             failures=$((failures + 1))
             continue
         fi
+        case "$label" in
+            io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+                desired_revision=$(printf '%s\n' "$tokens" |
+                    sed -n 's/^TEST_SOURCE_REVISION=//p' | sed -n '1p')
+                installed_revision="$(preserved_env "$label" AGENTSTART_SOURCE_REVISION)"
+                if [ -z "$installed_revision" ] || [ "$installed_revision" != "$desired_revision" ]; then
+                    printf '  %-42s %-15s source_revision=stale\n' "$label" FAIL
+                    failures=$((failures + 1))
+                    continue
+                fi
+                ;;
+        esac
         if ! launchctl_available; then
             printf '  %-42s %-15s %s\n' "$label" unknown 'launchctl unavailable'
             failures=$((failures + 1))

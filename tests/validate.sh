@@ -1459,6 +1459,8 @@ io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
+io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
+io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident
 io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
 io.arthack.agentsource.receive|agentsource|receiver.log|resident
 io.arthack.agentsource.notify|agentsource|notifier.log|resident
@@ -1551,6 +1553,58 @@ assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned:
 value = plistlib.loads(template.read_bytes())
 assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
 assert value["EnvironmentVariables"] == {
+    "HOME": "__HOME__",
+    "PATH": "__PATH__",
+    "XDG_STATE_HOME": "__STATE_ROOT__",
+}
+assert value["KeepAlive"] is True
+assert value["RunAtLoad"] is True
+assert value["ProcessType"] == "Standard"
+assert value["Umask"] == 63
+assert value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+template = pathlib.Path("config/launchd/io.arthack.agentvoice-test.wait.plist")
+assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice-test.wait.v1 -->"
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == [
+    "__PROGRAM__",
+    "run",
+    "__TEST_ENTRYPOINT__",
+    "server",
+    "--workspace",
+    "__TEST_WORKSPACE__",
+]
+assert value["WorkingDirectory"] == "__TEST_CHECKOUT__"
+assert value["EnvironmentVariables"] == {
+    "AGENTSTART_SOURCE_REVISION": "__TEST_SOURCE_REVISION__",
+    "HOME": "__HOME__",
+    "PATH": "__PATH__",
+    "XDG_STATE_HOME": "__STATE_ROOT__",
+}
+assert value["KeepAlive"] is True
+assert value["RunAtLoad"] is True
+assert value["ProcessType"] == "Standard"
+assert value["Umask"] == 63
+assert value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+template = pathlib.Path("config/launchd/io.arthack.agentvoice-test.serve.plist")
+assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice-test.serve.v1 -->"
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == [
+    "__PROGRAM__",
+    "run",
+    "__TEST_ENTRYPOINT__",
+    "serve",
+    "--workspace",
+    "__TEST_WORKSPACE__",
+    "--name",
+    "agentvoice-test",
+]
+assert value["WorkingDirectory"] == "__TEST_CHECKOUT__"
+assert value["EnvironmentVariables"] == {
+    "AGENTSTART_SOURCE_REVISION": "__TEST_SOURCE_REVISION__",
     "HOME": "__HOME__",
     "PATH": "__PATH__",
     "XDG_STATE_HOME": "__STATE_ROOT__",

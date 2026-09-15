@@ -15,7 +15,10 @@ test_home="$test_root/home"
 launch_agents="$test_home/Library/LaunchAgents"
 bin_dir="$test_home/.local/bin"
 state_dir="$test_home/.local/state"
+test_voice_checkout="$test_root/agentvoice-checkout"
 mkdir -p "$launch_agents" "$bin_dir" "$state_dir"
+export AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT="$test_voice_checkout"
+export AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION=1111111111111111111111111111111111111111
 
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentattention"
 chmod +x "$bin_dir/agentattention"
@@ -103,6 +106,10 @@ rm -- "$chats_plist"
 plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
     || fail "missing AgentHUD binary was not skipped"
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not configured; would skip' >/dev/null \
+    || fail "unprepared AgentVoice test server was not skipped"
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not configured; would skip' >/dev/null \
+    || fail "unprepared AgentVoice test reader was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
     || fail "absent current Agentattention service was not planned for install"
 HOME="$test_home" \
@@ -377,6 +384,225 @@ assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[2]
 PYTHON
 rm -- "$bin_dir/agentvoice" "$voice_plist"
 
+# The interim AgentVoice test services remain exact-label neighbors: both pin
+# the isolated workspace, only the reader names the non-default origin, and a
+# targeted convergence does not touch production or the other test service.
+mkdir -p "$test_voice_checkout/src" "$test_voice_checkout/node_modules" \
+    "$test_voice_checkout/web/node_modules/.bin"
+printf '// isolated fixture entrypoint\n' >"$test_voice_checkout/src/main.ts"
+pair_plan=$(run_installer --check --service io.arthack.agentvoice-test.wait)
+printf '%s\n' "$pair_plan" | grep -F 'not configured; would skip' >/dev/null \
+    || fail "AgentVoice test server activated before reader dependencies were prepared"
+printf '#!/bin/sh\nexit 0\n' >"$test_voice_checkout/web/node_modules/.bin/portless"
+chmod +x "$test_voice_checkout/web/node_modules/.bin/portless"
+mkdir -p "$test_voice_checkout/web/node_modules/vite"
+printf '{"name":"vite"}\n' >"$test_voice_checkout/web/node_modules/vite/package.json"
+mkdir -p "$test_voice_checkout/node_modules/zod"
+printf '{"name":"zod","type":"module","main":"index.js"}\n' \
+    >"$test_voice_checkout/node_modules/zod/package.json"
+printf 'export const z = {};\n' >"$test_voice_checkout/node_modules/zod/index.js"
+mkdir -p "$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server"
+cat >"$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/package.json" <<'JSON'
+{"name":"@modelcontextprotocol/sdk","type":"module","exports":{"./server/mcp.js":"./server/mcp.js","./server/webStandardStreamableHttp.js":"./server/webStandardStreamableHttp.js"}}
+JSON
+printf 'export class McpServer {}\n' \
+    >"$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/mcp.js"
+printf 'export class WebStandardStreamableHTTPServerTransport {}\n' \
+    >"$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
+guarded_plan=$(run_installer --check)
+printf '%s\n' "$guarded_plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not configured; would skip' >/dev/null \
+    || fail "ordinary full convergence activated the absent AgentVoice test server"
+printf '%s\n' "$guarded_plan" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not configured; would skip' >/dev/null \
+    || fail "ordinary full convergence activated the absent AgentVoice test reader"
+test_voice_workspace="$voice_state_dir/agentvoice/test-workspace"
+test_server_label=io.arthack.agentvoice-test.wait
+test_reader_label=io.arthack.agentvoice-test.serve
+test_server_plist="$launch_agents/$test_server_label.plist"
+test_reader_plist="$launch_agents/$test_reader_label.plist"
+printf '<!-- production reader sentinel -->\n' >"$voice_plist"
+cp "$voice_plist" "$test_root/voice-before-test-targets.plist"
+
+for test_label in "$test_server_label" "$test_reader_label"; do
+    target_plan=$(AGENTSTART_TEST_STATE_DIR="$voice_state_dir" run_installer --check --service "$test_label")
+    printf '%s\n' "$target_plan" | grep -F "$test_label" | grep -F 'install' >/dev/null \
+        || fail "targeted AgentVoice test plan omitted $test_label"
+    if printf '%s\n' "$target_plan" | grep -F "$voice_label" >/dev/null; then
+        fail "targeted AgentVoice test plan included the production reader"
+    fi
+
+    : >"$target_launchctl_log"
+    : >"$target_launchctl_state"
+    cp "$attention_plist" "$test_root/attention-before-$test_label.plist"
+    if [ "$test_label" = "$test_reader_label" ]; then
+        cp "$test_server_plist" "$test_root/test-server-before-reader.plist"
+    fi
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+        run_installer --install --service "$test_label" >/dev/null
+    cmp "$attention_plist" "$test_root/attention-before-$test_label.plist" \
+        || fail "targeted AgentVoice test installation rewrote a neighboring service"
+    cmp "$voice_plist" "$test_root/voice-before-test-targets.plist" \
+        || fail "targeted AgentVoice test installation rewrote the production reader"
+    if [ "$test_label" = "$test_server_label" ]; then
+        [ ! -e "$test_reader_plist" ] \
+            || fail "targeted AgentVoice test-server installation created its sibling reader"
+    else
+        cmp "$test_server_plist" "$test_root/test-server-before-reader.plist" \
+            || fail "targeted AgentVoice test-reader installation rewrote its sibling server"
+    fi
+    [ -d "$test_voice_workspace" ] \
+        || fail "AgentVoice test installation did not prepare its isolated workspace"
+    [ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
+        || fail "AgentVoice test convergence did not replace the temporary $test_label job"
+    [ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
+        || fail "AgentVoice test convergence did not bootstrap $test_label exactly once"
+    if grep -v -F "$test_label" "$target_launchctl_log" >/dev/null; then
+        fail "targeted AgentVoice test installation called launchctl for a neighboring service"
+    fi
+
+    target_status=$(
+        AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+            AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+            AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+            AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+            run_installer --status --service "$test_label"
+    )
+    printf '%s\n' "$target_status" | grep -F "$test_label" | grep -F 'state=running' | grep -F 'pid=73' >/dev/null \
+        || fail "targeted AgentVoice test status omitted $test_label"
+    if printf '%s\n' "$target_status" | grep -F "$voice_label" >/dev/null; then
+        fail "targeted AgentVoice test status included the production reader"
+    fi
+done
+
+/usr/bin/python3 - "$test_server_plist" "$test_reader_plist" "$(command -v bun)" "$test_home" "$voice_state_dir" "$test_voice_workspace" "$test_voice_checkout" <<'PYTHON'
+import os
+import plistlib
+import shutil
+import sys
+
+server_path, reader_path, program, home, state_root, workspace, checkout = sys.argv[1:]
+with open(server_path, "rb") as handle:
+    server = plistlib.load(handle)
+with open(reader_path, "rb") as handle:
+    reader = plistlib.load(handle)
+
+entrypoint = checkout + "/src/main.ts"
+assert server["ProgramArguments"] == [program, "run", entrypoint, "server", "--workspace", workspace]
+assert reader["ProgramArguments"] == [
+    program,
+    "run",
+    entrypoint,
+    "serve",
+    "--workspace",
+    workspace,
+    "--name",
+    "agentvoice-test",
+]
+for value, log_name in ((server, "test-server.log"), (reader, "test-reader.log")):
+    assert value["WorkingDirectory"] == checkout
+    assert value["EnvironmentVariables"] == {
+        "AGENTSTART_SOURCE_REVISION": "1111111111111111111111111111111111111111",
+        "HOME": home,
+        "PATH": value["EnvironmentVariables"]["PATH"],
+        "XDG_STATE_HOME": state_root,
+    }
+    assert program.rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
+    assert os.path.dirname(shutil.which("node")) in value["EnvironmentVariables"]["PATH"].split(":")
+    assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
+    assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
+    assert value["StandardOutPath"] == value["StandardErrorPath"] == state_root + "/agentvoice/" + log_name
+
+assert "agentvoice-test" not in server["ProgramArguments"]
+assert "agentvoice.localhost" not in reader["ProgramArguments"]
+PYTHON
+
+mv "$test_voice_checkout/node_modules/zod/index.js" \
+    "$test_voice_checkout/node_modules/zod/index.js.missing"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null 2>&1; then
+    fail "activated AgentVoice test service silently skipped missing dependencies"
+fi
+mv "$test_voice_checkout/node_modules/zod/index.js.missing" \
+    "$test_voice_checkout/node_modules/zod/index.js"
+
+mv "$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/mcp.js" \
+    "$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/mcp.js.missing"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null 2>&1; then
+    fail "activated AgentVoice test service accepted a partial MCP SDK installation"
+fi
+mv "$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/mcp.js.missing" \
+    "$test_voice_checkout/node_modules/@modelcontextprotocol/sdk/server/mcp.js"
+
+if PATH=/usr/bin:/bin \
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null 2>&1; then
+    fail "activated AgentVoice test service silently skipped missing Bun"
+fi
+if bun_loss_status=$(PATH=/usr/bin:/bin \
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --status --service "$test_server_label" 2>&1); then
+    fail "AgentVoice test-server status accepted missing Bun"
+fi
+printf '%s\n' "$bun_loss_status" | grep -F "$test_server_label" | grep -F 'installed program unavailable' >/dev/null \
+    || fail "AgentVoice test-server status did not explain missing Bun"
+
+cp "$test_server_plist" "$test_root/test-server-before-repeat.plist"
+export AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION=2222222222222222222222222222222222222222
+if drift_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+        run_installer --status --service "$test_server_label"
+); then
+    fail "AgentVoice test-server status accepted a stale source revision"
+fi
+printf '%s\n' "$drift_status" | grep -F "$test_server_label" | grep -F 'source_revision=stale' >/dev/null \
+    || fail "AgentVoice test-server status did not explain stale source revision"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null
+if cmp -s "$test_server_plist" "$test_root/test-server-before-repeat.plist"; then
+    fail "AgentVoice test-server convergence ignored a committed source change"
+fi
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 2 ] \
+    || fail "AgentVoice test-server source change was not loaded"
+[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 2 ] \
+    || fail "AgentVoice test-server source change did not replace the prior job"
+
+cp "$test_server_plist" "$test_root/test-server-before-repeat.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null
+cmp "$test_server_plist" "$test_root/test-server-before-repeat.plist" \
+    || fail "repeat AgentVoice test-server convergence changed an identical plist"
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 2 ] \
+    || fail "repeat AgentVoice test-server convergence reloaded its healthy service"
+[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 2 ] \
+    || fail "repeat AgentVoice test-server convergence stopped its healthy service"
+
+rm -- "$test_server_plist" "$test_reader_plist" "$voice_plist"
+export AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT="$test_root/missing-agentvoice-checkout"
+
 # Install Agentbrain for the status and session-persistence checks below.
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentbrain"
 chmod +x "$bin_dir/agentbrain"
@@ -419,6 +645,10 @@ printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.doctor' | grep -
     || fail "status omitted the healthy periodic doctor"
 printf '%s\n' "$status_output" | grep -F 'io.arthack.agentbrain.share' | grep -F 'optional' >/dev/null \
     || fail "status treated an unconfigured share ingress as unhealthy"
+printf '%s\n' "$status_output" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not activated' >/dev/null \
+    || fail "status treated an unprepared AgentVoice test server as unhealthy"
+printf '%s\n' "$status_output" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not activated' >/dev/null \
+    || fail "status treated an unprepared AgentVoice test reader as unhealthy"
 
 install_brain_session() {
     HOME="$test_home" \

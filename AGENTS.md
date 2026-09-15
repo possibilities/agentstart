@@ -31,7 +31,11 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
-  or registration. That exception covers the voice server only: AgentStart owns
+  or registration. That exception covers the default voice server only. As a
+  bounded interim test environment, AgentStart owns
+  `io.arthack.agentvoice-test.wait` and `.serve`, which execute the dedicated
+  AgentVoice test checkout with one explicit isolated workspace and one named
+  reader; they never claim the default endpoint. AgentStart also owns
   the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
   through AgentVoice's installed `agentvoice serve` contract, and the separate
   `io.arthack.agenthud.serve` web-view LaunchAgent through the independent
@@ -153,6 +157,9 @@ Where things go:
   marker, not the namespace, decides what this installer may replace.
   Use `scripts/install-launchagents --<mode> --service <label>` when one service
   must be checked, diagnosed, or converged without touching its neighbors.
+  The replaceable AgentVoice test pair is the one source-checkout exception to
+  the installed-public-command rule; ADR 0023 keeps its fixed checkout,
+  workspace, origin, two labels, and eventual deletion as one boundary.
 - A fleet TUI bound to a Herdr popup: always add a pane entrypoint to the
   `agentsurface` plugin, then bind the key to `herdr plugin pane open`. The
   tool continues to own its TUI; the shared plugin owns the popup title and

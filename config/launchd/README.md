@@ -41,9 +41,12 @@ The frame is identical for every service, and deviating from it is a bug:
 - **`RunAtLoad`** — every service is expected to be correct at login.
 - **Missing tool, no service.** A service whose checkout or program is absent
   is skipped, never failed, matching the rest of the AgentStart installer.
-- **One executable per tool.** Every plist invokes `~/.local/bin/<tool>` and an
-  explicit subcommand. Parallel `<tool>d` executables are not a fleet service
-  interface.
+- **One executable per tool.** Every ordinary plist invokes
+  `~/.local/bin/<tool>` and an explicit subcommand. Parallel `<tool>d`
+  executables are not a fleet service interface. The bounded AgentVoice test
+  pair is the only exception: it executes the prepared test checkout through
+  Bun so a production command-link change cannot switch its source underneath
+  it. ADR 0023 defines that exception and its deletion boundary.
 
 ## What is deliberately per-service
 
@@ -63,6 +66,8 @@ comment beside the key:
   discovered from another service at install time.
 - **Conditional installation.** `io.arthack.agentbrain.share` installs only
   when an operator names a bind address; there is no default, by its ADR 0017.
+  The AgentVoice test pair installs only while its dedicated checkout and
+  dependencies are prepared.
 
 Agentbrain's Worker can reuse a Browser profile authenticated through
 Agentbrowse. Supply `AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=SESSION`
@@ -107,6 +112,44 @@ operate AgentVoice's separately owned
 `io.arthack.agentvoice.server`, menu app, clients, calls, or future Native SDK
 shell. Exact-label convergence can replace a temporary submitted reader job;
 later identical convergence leaves the canonical loaded reader running.
+
+`io.arthack.agentvoice-test.wait` and
+`io.arthack.agentvoice-test.serve` are one interim test deployment. They run
+the prepared `~/worktrees/agentvoice/parallel-test-environment/agentvoice`
+checkout against `~/.local/state/agentvoice/test-workspace`; the reader also
+pins the `agentvoice-test` Portless name. The server's explicit workspace keeps
+the default Android/network gateway disabled, and the reader stays offline if
+that exact workspace socket is absent instead of falling back to production.
+The jobs have separate `test-server.log` and `test-reader.log` files under the
+AgentVoice state directory. An isolated installer test may override the source
+checkout with `AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT`; ordinary operation
+uses the fixed path. Both labels wait for the pair's root and web dependencies,
+including Node.js, Portless, and Vite. A rendered Git revision makes later
+convergence reload a job after the test checkout advances to another commit.
+Status reports that committed revision drift, and an activated service fails
+convergence if its checkout or dependencies disappear.
+Uncommitted edits remain development state and do not themselves trigger a
+service reload.
+
+Before first convergence, stop any foreground processes using the same test
+workspace or Portless name. Then install and inspect only these labels:
+
+```sh
+scripts/install-launchagents --install --service io.arthack.agentvoice-test.wait
+scripts/install-launchagents --install --service io.arthack.agentvoice-test.serve
+scripts/install-launchagents --status --service io.arthack.agentvoice-test.wait
+scripts/install-launchagents --status --service io.arthack.agentvoice-test.serve
+```
+
+An absent test label is skipped during ordinary full convergence. Its exact
+selector is the first-activation gate; once installed, later full convergence
+keeps that label current. This lets the foreground owner hand off each process
+without a routine install claiming it first.
+
+Removing or replacing this proof means retiring both labels, templates, fixed
+checkout wiring, tests, glossary text, ADR references, and fleet-map edges
+together. A future multi-session AgentVoice server supersedes the pair rather
+than growing a registry or session selector in AgentStart.
 
 `io.arthack.agentstart.watch-config` is a resident configuration watcher. It
 invokes `agentstart config watch --notify`, reconciles filesystem events and
