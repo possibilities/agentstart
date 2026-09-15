@@ -166,6 +166,13 @@ and tells the human what was delivered and is closing. Technical acceptance,
 human presentation and an actual human dependency remain distinct. A universal
 acknowledgment gate would create obligations the human did not request.
 
+An investigation normally serves the human's underlying practical objective.
+The manager preserves its diagnosis as evidence and, when remediation becomes
+known, revises or reopens Work so the remaining delivery, validation or human
+decision stays visible. Information-only requests, a human decision that no action
+is warranted, and evidence that no change is needed can end as information; no
+rule assumes remediation must be code.
+
 Tracked answers not acknowledged as heard stay visible; required approval,
 validation or a decision stays unresolved with a specific next human action.
 A clear natural response can settle it. Presentation and silence alone cannot.

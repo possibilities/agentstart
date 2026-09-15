@@ -39,3 +39,14 @@ obsolete resolution at a suitable conversational boundary before recording it.
 Preserve unpresented findings, hold and real pending decisions. This clarifies
 manager procedure without automatic presentation, an acknowledgment gate, changed
 store semantics or worker recording.
+
+## September 15 clarification: investigation follows the practical objective
+
+Diagnosis usually informs an underlying practical objective; it does not by itself
+close or hide Work when the findings identify remediation. Keep the accepted
+diagnosis as evidence, then revise or reopen Work and track the required delivery,
+validation or concrete human decision. An investigation can instead end as
+information when the human explicitly requested only that, decides no action is
+warranted, or the evidence establishes that no change is needed. Remediation need
+not be code. This is manager procedure over existing scope revisions, evidence and
+next actions, without a fixed workflow or schema change.
