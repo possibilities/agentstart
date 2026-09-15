@@ -134,6 +134,11 @@ outside AgentLaunch and Herdr.
 For a full install while a voice call is active, set
 AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1. This uses AgentVoice's supported
 --command-only installer mode; the prepared role applies to subsequent calls.
+Otherwise full convergence passes `--quit-menu`: an outdated running owned menu
+app is asked to quit gracefully, updated, and reopened only if it was previously
+running. A current or stopped menu keeps its presence unchanged, and a refusal
+still fails the install without replacing the app. The six-hour `sync-skills`
+path never performs this lifecycle operation.
 
 To deploy the experimental Android browser/Termux proof separately, run:
 

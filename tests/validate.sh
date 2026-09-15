@@ -842,7 +842,7 @@ grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
-    '~/code/agentvoice/scripts/install.sh --install  # via install-agent-clis: editable command + native audio build + waiting default LaunchAgent; no voice call' \
+    '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + native audio + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
     'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \

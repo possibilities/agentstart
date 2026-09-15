@@ -33,7 +33,7 @@ function fixture() {
   return { base, root, installer, run };
 }
 
-test("AgentVoice and independent AgentHUD use their own installers; rerunnable", () => {
+test("AgentVoice full convergence opts into graceful menu updates; rerunnable", () => {
   const f = fixture();
   f.installer("agentvoice");
   f.installer("agenthud");
@@ -43,7 +43,7 @@ test("AgentVoice and independent AgentHUD use their own installers; rerunnable",
     expect(result.stdout.toString()).toContain("no checkout");
   }
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
-    "agentvoice:--install\nagenthud:--install\nagentvoice:--install\nagenthud:--install\n",
+    "agentvoice:--install --quit-menu\nagenthud:--install\nagentvoice:--install --quit-menu\nagenthud:--install\n",
   );
 });
 
