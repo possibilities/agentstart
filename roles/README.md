@@ -105,7 +105,8 @@ See [routing receipt decision](../docs/adr/0008-native-history-routing-receipts.
 
 ## Conversation hold and spoken acknowledgments
 
-The speech front owns spoken hold/resume acknowledgments when present; the
+The speech front owns spoken acknowledgments when present: “On hold” / “Off hold”
+for conversational hold and “Muted” / “Unmuted” for conversational mute. The
 working lead and workers propagate the preference internally without an echo.
 Explicit conversational intent is distinct from physical audio commands/status
 and push-to-talk. Mere typed work steering does not resume a held conversation.

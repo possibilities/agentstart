@@ -27,3 +27,15 @@ speech guarantee. Resource sync prepares source/installed bytes without reloadin
 calls or independent workspace role snapshots. Loaded behavior and the historical
 mute-click report remain separate human qualification; no runtime restart, model
 change, new UI or automatic HUD mutation is part of this decision.
+
+## September 14 clarification: distinct brief acknowledgments
+
+The human requested that a conversational hold be acknowledged as “On hold,”
+not “Muted.” The speech owner uses “On hold” / “Off hold” for hold and
+“Muted” / “Unmuted” for conversational mute. Both role speech appends and the
+manager's directly owned speech fallback use this distinction. A separate
+working backend remains silent; authorized work and internal reporting continue.
+Physical audio commands/status and ambiguous bare terms retain their existing
+boundaries. This changes authored speech guidance only, without physical audio
+code, a runtime hold state or a call restart. Live spoken behavior still needs
+observation after the relevant prompt-loading boundary.

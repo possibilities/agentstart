@@ -830,8 +830,12 @@ printf '%s\n' "$scan_failure" | grep -F 'skills-cli-failure-detail' >/dev/null \
 grep -F '"$script_dir/run-skills-cli" npx --yes skills add' scripts/install.sh >/dev/null \
     || fail "the full installer does not quiet successful external skill installs"
 # The installation plan embeds the skill sync's own plan, pointed at the
-# fixture tree so the asserted lines are the same on every machine.
-install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" "$root/scripts/install.sh" --check)
+# fixture tree so the asserted lines are the same on every machine. This tree
+# has no installed Codex role plugins: use the bootstrap AgentRoles capability
+# here rather than inspecting the host command. check-role-plugins.sh above
+# independently verifies supported fresh/stale checks and sync failure propagation.
+install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root" \
+    AGENTSTART_AGENTROLES_BIN=/usr/bin/true "$root/scripts/install.sh" --check)
 
 # The full installer owns the current CLI-only cask.
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
