@@ -69,7 +69,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     with its version-matched bundled skill;
   - smolmux's repository-owned source installer and pinned Companion, plus the
     generated live Herdr config and linked smolmux key config;
-  - the pinned `@native-sdk/cli` and `agent-browser` npm globals, plus the
+  - the current released `@native-sdk/cli` and pinned `agent-browser` npm globals, plus the
     linked ordered agentbrowse deployment and provider configs backed by
     `agentbrowse provider`;
   - individual fleet MCPs including AgentHUD, Agentdesk, termctrl, agent-browser, account-bound Gog,

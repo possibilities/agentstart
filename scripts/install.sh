@@ -273,7 +273,7 @@ Command-line tools:
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
-  npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents
+  npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
   npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
@@ -284,6 +284,7 @@ Command-line tools:
   bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
 Agent documentation:
   native skills list
+  native skills get core
 
 Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
@@ -643,12 +644,11 @@ AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install
 
 command -v npm >/dev/null 2>&1 || die "npm is required to install the Native SDK CLI"
 
-# The native-sdk skill documents the 0.7 line and its agent helpers are
-# version-matched to it, so pin that line here instead of tracking latest.
-native_sdk_version=0.7
-printf 'Installing the Native SDK CLI %s and its version-matched agent helpers.\n' \
-    "$native_sdk_version"
-npm install --global "@native-sdk/cli@$native_sdk_version"
+# Native SDK publishes the agent-facing discovery skill upstream, separately
+# from this CLI package. Install npm's current released package so `native`
+# follows that public contract instead of retaining a version-line pin here.
+printf 'Installing or upgrading the Native SDK CLI to the current released package.\n'
+npm install --global @native-sdk/cli
 
 # agent-browser is the driver shared by Agentbrowse and Agentscrape. It is
 # pinned rather than tracked: Agentbrowse implements this release's provider
@@ -762,6 +762,7 @@ install_herdr_skill
 
 printf 'Verifying the installed Native SDK agent documentation helpers.\n'
 native skills list >/dev/null
+native skills get core >/dev/null
 
 # The fleet CLIs install by their own hardened
 # contract (frozen deps, ~/.local/bin symlink, deployed-SHA receipt). AgentStart

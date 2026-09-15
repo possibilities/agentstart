@@ -868,12 +868,13 @@ for required_install in \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
-    'npm install --global @native-sdk/cli@0.7  # the line the native-sdk skill documents' \
+    'npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
     'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
     'native skills list' \
+    'native skills get core' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
@@ -1066,15 +1067,19 @@ grep -F 'source="$resources_root/guidance/AGENTS.md"' scripts/install.sh >/dev/n
 grep -F 'install_or_upgrade_formula llm' scripts/install.sh >/dev/null \
     || fail "installer does not converge the llm CLI"
 
-# The native-sdk skill documents the 0.7 line and Zig builds Native SDK
-# applications, so both stay pinned rather than tracking latest. agent-browser is pinned because
+# The Native SDK CLI follows its current published release. Its discovery skill
+# is installed separately from the upstream repository, and the installer must
+# exercise the core helper surface that skill directs agents to use. Zig remains
+# installed for Native SDK application packaging. agent-browser is pinned because
 # Agentbrowse's provider protocol and Agentscrape's driver behavior are tested
 # against that exact build.
-grep -F 'native_sdk_version=0.7' scripts/install.sh >/dev/null \
-    || fail "installer does not pin the Native SDK CLI to the compatible 0.7 line"
-if grep -F '@native-sdk/cli@latest' scripts/install.sh >/dev/null; then
-    fail "installer tracks the latest Native SDK CLI release"
+grep -F 'npm install --global @native-sdk/cli' scripts/install.sh >/dev/null \
+    || fail "installer does not install the current Native SDK CLI package"
+if grep -E 'npm install --global[[:space:]]+[^#]*@native-sdk/cli@' scripts/install.sh >/dev/null; then
+    fail "installer pins the Native SDK CLI to a version or dist-tag"
 fi
+grep -F 'native skills get core >/dev/null' scripts/install.sh >/dev/null \
+    || fail "installer does not verify the Native SDK core documentation helper"
 grep -F 'install_or_upgrade_formula zig' scripts/install.sh >/dev/null \
     || fail "installer does not converge the Zig toolchain"
 
