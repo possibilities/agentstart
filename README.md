@@ -85,7 +85,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     consumers, then converge the service after AgentUsage and AgentLaunch.
     No Claude/Codex swap checkout or command is an installation prerequisite;
     existing checkouts, backups and credentials are preserved;
-  - agentchats, the fleet launch agents, and finally `sync-skills`.
+  - agentchats' CLI, index, OpenTUI picker, and MCP; the fleet launch agents;
+    and finally `sync-skills`.
 
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.

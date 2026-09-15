@@ -1452,7 +1452,6 @@ io.arthack.agentbrain.share|agentbrain|share.log|resident
 io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
-io.arthack.agentchats.serve|agentchats|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
 io.arthack.agentsource.receive|agentsource|receiver.log|resident
@@ -1462,6 +1461,11 @@ for entry in $expected_services; do
     grep -Fq "\"$entry\"" scripts/install-launchagents \
         || fail "launch agent manifest omits canonical entry: $entry"
 done
+
+grep -Fq 'io.arthack.agentchats.serve' scripts/install-launchagents \
+    || fail "retired AgentChats service lacks its bounded cleanup label"
+[ ! -e config/launchd/io.arthack.agentchats.serve.plist ] \
+    || fail "retired AgentChats web service template still exists"
 for template in config/launchd/*.plist; do
     label=$(basename "$template" .plist)
     # The marker is what lets the installer tell its own service from a
@@ -1517,22 +1521,6 @@ grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notif
     || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
 grep -Fq '<string>serve</string>' config/launchd/io.arthack.agentattention.serve.plist \
     || fail "Agentattention server does not enter through the installed serve subcommand"
-/usr/bin/python3 - <<'PYTHON'
-import pathlib
-import plistlib
-
-template = pathlib.Path("config/launchd/io.arthack.agentchats.serve.plist")
-assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentchats.serve.v1 -->"
-value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
-assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
-assert value["KeepAlive"] is True
-assert value["RunAtLoad"] is True
-assert value["ProcessType"] == "Standard"
-assert value["Umask"] == 63
-assert value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
-PYTHON
 /usr/bin/python3 - <<'PYTHON'
 import pathlib
 import plistlib

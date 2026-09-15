@@ -46,12 +46,19 @@ SERVICES=(
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
-    "io.arthack.agentchats.serve|agentchats|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
     "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
     "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
     "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
     "io.arthack.agentwiki.serve|agentwiki|server.log|resident"
+)
+
+# One-time retirement labels stay here only while a previously installed,
+# installer-owned job may still exist. They are not active services and have
+# no templates. Full convergence removes them before touching current jobs;
+# --service provides the exact-target cleanup path.
+RETIRED_SERVICES=(
+    io.arthack.agentchats.serve
 )
 
 # agentwiki's two loopback origins. Named here rather than left to the CLI's
@@ -69,7 +76,7 @@ Options:
   --install  Install or converge every fleet service
   --check    Print the plan without changing the system
   --status   Report installed state, last exit, and log size without changes
-  --service  Restrict the operation to one exact manifest label
+  --service  Restrict the operation to one exact active or retirement label
 EOF
 }
 
@@ -381,6 +388,64 @@ install_service() {
     reload_service "$label" "$destination"
 }
 
+# Retire one obsolete job only when its installed plist carries the exact
+# ownership marker this installer originally rendered. A symlink, directory,
+# modified marker, or absent marker is foreign and is never unloaded or removed.
+retired_plist_ownership() {
+    local label="$1" plist="$launch_agents_dir/$1.plist"
+    if [ -L "$plist" ]; then printf 'foreign'; return 0; fi
+    [ -e "$plist" ] || { printf 'absent'; return 0; }
+    if [ -f "$plist" ] &&
+        sed -n '2p' "$plist" 2>/dev/null | grep -Fqx "<!-- $(owned_marker "$label") -->"; then
+        printf 'ours'
+        return 0
+    fi
+    printf 'foreign'
+}
+
+retire_service() {
+    local label="$1"
+    local ownership plist target
+    ownership="$(retired_plist_ownership "$label")"
+    plist="$launch_agents_dir/$label.plist"
+    target="gui/$(id -u)/$label"
+
+    if [ "$ownership" = absent ]; then
+        if [ "$check_only" -eq 1 ]; then
+            printf '  %-28s %-18s %s\n' "$label" retired 'absent; nothing to remove'
+        fi
+        return 0
+    fi
+
+    if [ "$ownership" = foreign ]; then
+        if [ "$check_only" -eq 1 ]; then
+            printf '  %-28s %-18s %s\n' "$label" retired 'REFUSE — not ours to remove'
+            return 0
+        fi
+        die "refusing to remove a retired service this installer does not own: $plist"
+    fi
+
+    if [ "$check_only" -eq 1 ]; then
+        printf '  %-28s %-18s %s\n' "$label" retired 'would boot out and remove owned plist'
+        return 0
+    fi
+
+    if launchctl_available && "$launchctl_bin" print "$target" >/dev/null 2>&1; then
+        "$launchctl_bin" bootout "$target" >/dev/null 2>&1 ||
+            die "failed to stop retired service $label"
+        local waited=0
+        while "$launchctl_bin" print "$target" >/dev/null 2>&1 && [ "$waited" -lt 30 ]; do
+            sleep 0.2
+            waited=$((waited + 1))
+        done
+        ! "$launchctl_bin" print "$target" >/dev/null 2>&1 ||
+            die "retired service remained loaded after bootout: $label"
+    fi
+
+    rm -- "$plist"
+    note "removed retired owned service $label"
+}
+
 service_selected() {
     [ -z "$selected_service" ] || [ "$(field "$1" 1)" = "$selected_service" ]
 }
@@ -479,10 +544,26 @@ if [ -n "$selected_service" ]; then
             break
         fi
     done
+    if [ "$service_known" -eq 0 ]; then
+        for label in "${RETIRED_SERVICES[@]}"; do
+            if [ "$label" = "$selected_service" ]; then
+                service_known=1
+                break
+            fi
+        done
+    fi
     [ "$service_known" -eq 1 ] || die "unknown service label: $selected_service"
 fi
 
 if [ "$status_only" -eq 1 ]; then
+    for label in "${RETIRED_SERVICES[@]}"; do
+        if [ "$label" = "$selected_service" ]; then
+            ownership="$(retired_plist_ownership "$label")"
+            printf 'Retired fleet launch service (%s):\n' "$launch_agents_dir"
+            printf '  %-42s %-15s ownership=%s\n' "$label" retired "$ownership"
+            exit 0
+        fi
+    done
     status_services
     exit $?
 fi
@@ -493,6 +574,11 @@ else
     mkdir -p "$launch_agents_dir"
     chmod 700 "$launch_agents_dir"
 fi
+
+for label in "${RETIRED_SERVICES[@]}"; do
+    [ -z "$selected_service" ] || [ "$label" = "$selected_service" ] || continue
+    retire_service "$label"
+done
 
 for entry in "${SERVICES[@]}"; do
     service_selected "$entry" || continue

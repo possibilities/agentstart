@@ -80,14 +80,17 @@ follows automatically.
 
 Use `scripts/install-launchagents --install --service <exact-label>` for a
 narrow convergence, with `--check` and `--status` providing the matching
-read-only views. The selector accepts only a manifest label. It never renders,
-loads, or restarts a neighboring job; a changed selected plist is reloaded, an
-unloaded selected plist is bootstrapped, and a healthy identical selected job
-is left running.
+read-only views. The selector accepts a current manifest label or a bounded
+retirement label. It never renders, loads, or restarts a neighboring job; a
+changed selected plist is reloaded, an unloaded selected plist is bootstrapped,
+and a healthy identical selected job is left running.
 
-`io.arthack.agentchats.serve` keeps Agentchats' local web reader resident;
-`agentchats serve` owns its portless name `agentchats` at
-`https://agentchats.localhost`. AgentStart owns the LaunchAgent lifecycle.
+`io.arthack.agentchats.serve` is retired. During the bounded cleanup window,
+`scripts/install-launchagents --check --service io.arthack.agentchats.serve`
+reports whether its old plist is absent, owned, or foreign. The matching
+`--install` invocation boots out and removes only an exact-marker-owned plist;
+it refuses symlinks and foreign occupants. AgentChats' CLI, OpenTUI picker,
+index, and stdio MCP remain installed independently of this retired web job.
 
 `io.arthack.agenthud.serve` keeps the durable Work view resident. It invokes
 `agenthud serve`, whose default is the editable Vite/HMR view from AgentHUD's

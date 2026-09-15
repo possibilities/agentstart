@@ -1,8 +1,8 @@
 # 0011: Keep the AgentHUD view resident under AgentStart
 
 Accepted September 14, 2026. The human wants the HUD continuously available at
-the same kind of editable, fixed local origin used by the AgentChats and
-AgentVoice web interfaces.
+the same kind of editable, fixed local origin used by the AgentVoice web
+interface.
 
 AgentStart owns `io.arthack.agenthud.serve`, a resident user LaunchAgent that
 invokes `~/.local/bin/agenthud serve`. The command owns the fixed Portless route
@@ -25,7 +25,7 @@ reloaded, a selected unloaded service is bootstrapped, and a healthy selected
 service with identical rendered bytes remains running. Other manifest members
 are never rendered or sent to launchctl during a targeted operation. This is
 the supported deployment path for bringing up HUD without restarting
-AgentVoice, AgentChats, the shared Portless proxy, or another fleet service.
+AgentVoice, the shared Portless proxy, or another fleet service.
 
 Existing AgentBoard data, CLI, and stdio MCP access remain preserved for
 historical queries. This service adds no Board import, redirect, or write path.

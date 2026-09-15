@@ -29,9 +29,78 @@ run_installer() {
         "$root/scripts/install-launchagents" "$@"
 }
 
+# The retired web reader is an exact-target cleanup: check is read-only,
+# install boots out only the loaded exact-marker-owned job, and no neighboring
+# service is sent to launchctl.
+chats_label=io.arthack.agentchats.serve
+chats_plist="$launch_agents/$chats_label.plist"
+printf '<?xml version="1.0"?>\n<!-- agentstart-installer-owned: io.arthack.agentchats.serve.v1 -->\n' >"$chats_plist"
+retired_plan=$(run_installer --check --service "$chats_label")
+printf '%s\n' "$retired_plan" | grep -F "$chats_label" | grep -F 'would boot out and remove owned plist' >/dev/null \
+    || fail "owned retired AgentChats service was not planned for removal"
+[ -f "$chats_plist" ] || fail "check mode removed the retired AgentChats plist"
+
+retired_launchctl="$test_root/retired-launchctl"
+retired_launchctl_log="$test_root/retired-launchctl.log"
+retired_launchctl_state="$test_root/retired-launchctl.loaded"
+cat >"$retired_launchctl" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$AGENTSTART_TEST_LAUNCHCTL_LOG"
+case "$1" in
+    print)
+        [ "$2" = "gui/$(id -u)/io.arthack.agentchats.serve" ]
+        [ -f "$AGENTSTART_TEST_LAUNCHCTL_STATE" ]
+        ;;
+    bootout)
+        [ "$2" = "gui/$(id -u)/io.arthack.agentchats.serve" ]
+        rm -f -- "$AGENTSTART_TEST_LAUNCHCTL_STATE"
+        ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$retired_launchctl"
+: >"$retired_launchctl_state"
+AGENTSTART_INSTALL_LAUNCHCTL="$retired_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$retired_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$retired_launchctl_state" \
+    run_installer --install --service "$chats_label" >/dev/null
+[ ! -e "$chats_plist" ] || fail "owned retired AgentChats plist survived targeted cleanup"
+[ ! -e "$retired_launchctl_state" ] || fail "loaded retired AgentChats job was not booted out"
+[ "$(grep -c '^bootout ' "$retired_launchctl_log")" -eq 1 ] \
+    || fail "retired AgentChats cleanup did not issue exactly one bootout"
+if grep -v -F "$chats_label" "$retired_launchctl_log" >/dev/null; then
+    fail "retired AgentChats cleanup called launchctl for a neighboring service"
+fi
+
+# Mentioning the marker anywhere except the exact second line remains foreign.
+printf '<?xml version="1.0"?>\n<!-- foreign service -->\n<!-- agentstart-installer-owned: io.arthack.agentchats.serve.v1 -->\n' >"$chats_plist"
+foreign_plan=$(run_installer --check --service "$chats_label")
+printf '%s\n' "$foreign_plan" | grep -F "$chats_label" | grep -F 'REFUSE' >/dev/null \
+    || fail "foreign retired AgentChats plist was not planned for refusal"
+foreign_status=$(run_installer --status --service "$chats_label")
+printf '%s\n' "$foreign_status" | grep -F "$chats_label" | grep -F 'ownership=foreign' >/dev/null \
+    || fail "retired AgentChats status disagreed with exact-marker cleanup ownership"
+if run_installer --install --service "$chats_label" >/dev/null 2>&1; then
+    fail "foreign retired AgentChats plist was removed"
+fi
+grep -Fxq '<!-- foreign service -->' "$chats_plist" \
+    || fail "foreign retired AgentChats plist was changed"
+rm -- "$chats_plist"
+
+retired_foreign_target="$test_root/foreign-retired-chats.plist"
+printf '<?xml version="1.0"?>\n<!-- agentstart-installer-owned: io.arthack.agentchats.serve.v1 -->\n' >"$retired_foreign_target"
+ln -s "$retired_foreign_target" "$chats_plist"
+if run_installer --install --service "$chats_label" >/dev/null 2>&1; then
+    fail "symlinked retired AgentChats plist was removed"
+fi
+[ -L "$chats_plist" ] && [ "$(readlink "$chats_plist")" = "$retired_foreign_target" ] \
+    || fail "symlinked retired AgentChats plist was changed"
+grep -Fq 'agentstart-installer-owned: io.arthack.agentchats.serve.v1' "$retired_foreign_target" \
+    || fail "symlinked retired AgentChats target was changed"
+rm -- "$chats_plist"
+
 plan=$(run_installer --check)
-printf '%s\n' "$plan" | grep -F "skipped io.arthack.agentchats.serve (no $bin_dir/agentchats)" >/dev/null \
-    || fail "missing Agentchats binary was not skipped"
 printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
     || fail "missing AgentHUD binary was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
@@ -43,8 +112,6 @@ HOME="$test_home" \
     AGENTSTART_INSTALL_LAUNCHCTL=none \
     "$root/scripts/install-launchagents" --install >/dev/null
 attention_plist="$launch_agents/io.arthack.agentattention.serve.plist"
-[ ! -e "$launch_agents/io.arthack.agentchats.serve.plist" ] \
-    || fail "missing Agentchats binary still published a service"
 grep -Fq 'agentstart-installer-owned: io.arthack.agentattention.serve.v1' "$attention_plist" \
     || fail "current service lacks its exact ownership marker"
 plan=$(run_installer --check)
@@ -112,22 +179,6 @@ with open(sys.argv[1], "rb") as handle:
 assert value["ProgramArguments"] == [sys.argv[2], "daemon", "run"]
 PYTHON
 rm -- "$bin_dir/agentusage" "$launch_agents/io.arthack.agentusage.observe.plist"
-
-# The resident web reader uses the public serve verb and standard render paths.
-printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentchats"
-chmod +x "$bin_dir/agentchats"
-run_installer --install >/dev/null
-/usr/bin/python3 - "$launch_agents/io.arthack.agentchats.serve.plist" "$bin_dir/agentchats" "$test_home" "$state_dir" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve"]
-assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
-assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentchats/server.log"
-PYTHON
-rm -- "$bin_dir/agentchats" "$launch_agents/io.arthack.agentchats.serve.plist"
 
 # AgentHUD follows the same resident editable-reader frame, and its exact
 # selector is the deployment path that must not converge or restart neighbors.
