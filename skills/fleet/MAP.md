@@ -713,8 +713,8 @@ its terminal and agent contracts. AgentStart no longer renders or supervises
 `io.arthack.agentchats.serve`; a bounded exact-marker cleanup remains available
 for the previously installed job. Funk no longer builds or installs the
 AgentChats Transcripts kiosk, and AgentVoice no longer consumes an AgentChats UI
-runtime package. Previously installed app bytes and transcript/index data are
-left for explicit cleanup. The AgentSurface-hosted OpenTUI picker on `prefix+h`,
+runtime package. Previously installed app bytes await explicit cleanup;
+transcript and index data remain untouched. The AgentSurface-hosted OpenTUI picker on `prefix+h`,
 its resume directives and row enrichment, AgentChats CLI/index/stdio MCP, and
 the transcript-vault index consumer edges above remain current.
 
