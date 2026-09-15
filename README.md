@@ -253,7 +253,7 @@ installed by this integration.
 `scripts/agentvoice-config install` links `config/agentvoice/server.json` into
 `$XDG_CONFIG_HOME/agentvoice/server.json` (default `~/.config/agentvoice/server.json`).
 Full installation runs it after role resource publication. The tracked settings
-request full access, debug logs, gpt-6-astra at low effort and the manager
+request full access, debug logs, gpt-5.6-sol at high effort and the manager
 role. Missing or empty local placeholders can be linked; nonempty independent
 configuration and unrelated links are preserved with an error. AgentVoice loads
 settings once per runtime generation. Installation does not restart an active
