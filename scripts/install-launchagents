@@ -47,6 +47,7 @@ SERVICES=(
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
+    "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
     "io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered"
     "io.arthack.agentsource.receive|agentsource|receiver.log|resident"
     "io.arthack.agentsource.notify|agentsource|notifier.log|resident"
@@ -202,6 +203,9 @@ service_tokens() {
             esac
             printf 'SHARE_HOST=%s\n' "$host"
             ;;
+        io.arthack.agentvoice.serve)
+            printf 'STATE_ROOT=%s\n' "$state_root"
+            ;;
         io.arthack.agentscrape.process-queue)
             # The directory launchd watches. Agentscrape's CLI enqueues into it
             # and the service drains it, so it is shared state rather than
@@ -230,7 +234,12 @@ plist_ownership() {
     local label="$1" plist="$launch_agents_dir/$1.plist"
     if [ -L "$plist" ]; then printf 'foreign'; return 0; fi
     [ -e "$plist" ] || { printf 'absent'; return 0; }
-    if grep -Fq "$(owned_marker "$label")" "$plist" 2>/dev/null; then
+    local marker marker_line source
+    marker="<!-- $(owned_marker "$label") -->"
+    source="$source_dir/$label.plist"
+    marker_line=$(grep -n -F -x "$marker" "$source" 2>/dev/null | cut -d: -f1 | head -n 1)
+    if [ -n "$marker_line" ] && [ -f "$plist" ] &&
+        sed -n "${marker_line}p" "$plist" 2>/dev/null | grep -Fqx "$marker"; then
         printf 'ours'
         return 0
     fi

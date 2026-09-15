@@ -17,8 +17,9 @@ The frame is identical for every service, and deviating from it is a bug:
   The final component names the action (`work`, `observe`, `serve`,
   `process-queue`), not the process shape (`worker`, `observer`, `server`,
   `daemon`).
-- **Ownership marker** — the second line is
-  `<!-- agentstart-installer-owned: <label>.v1 -->`. The installer refuses to
+- **Ownership marker** — the template carries exactly one standalone
+  `<!-- agentstart-installer-owned: <label>.v1 -->` line. The installed marker
+  must remain at that template-defined position. The installer refuses to
   unload or replace a service carrying anything else, so a hand-written or
   third-party agent that happens to share a label is never touched.
 - **Tokens** — `__UPPER_SNAKE__`, replaced with XML-escaped absolute values at
@@ -98,6 +99,14 @@ canonical checkout and whose fixed portless origin is
 `https://agenthud.localhost`. AgentHUD's own installer prepares the command,
 dependencies, and optional production build without touching this service;
 AgentStart alone owns the LaunchAgent lifecycle.
+
+`io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
+reader resident at `https://agentvoice.localhost`. It invokes the public
+`agentvoice serve` command with AgentVoice's configured state root and does not
+operate AgentVoice's separately owned
+`io.arthack.agentvoice.server`, menu app, clients, calls, or future Native SDK
+shell. Exact-label convergence can replace a temporary submitted reader job;
+later identical convergence leaves the canonical loaded reader running.
 
 `io.arthack.agentstart.watch-config` is a resident configuration watcher. It
 invokes `agentstart config watch --notify`, reconciles filesystem events and

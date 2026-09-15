@@ -22,7 +22,7 @@ chmod +x "$bin_dir/agentattention"
 
 run_installer() {
     HOME="$test_home" \
-        XDG_STATE_HOME="$state_dir" \
+        XDG_STATE_HOME="${AGENTSTART_TEST_STATE_DIR:-$state_dir}" \
         AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
         AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
         AGENTSTART_INSTALL_LAUNCHCTL="${AGENTSTART_INSTALL_LAUNCHCTL:-none}" \
@@ -276,6 +276,106 @@ fi
 grep -Fxq '<!-- independent HUD -->' "$hud_plist" \
     || fail "targeted HUD installation overwrote a foreign service"
 rm -- "$bin_dir/agenthud" "$hud_plist"
+
+# The AgentVoice reader uses the same exact-label frame independently of the
+# AgentVoice-owned waiting server. Its first canonical convergence replaces the
+# known temporary submitted reader at this label, then becomes restart-free.
+voice_label=io.arthack.agentvoice.serve
+voice_plist="$launch_agents/$voice_label.plist"
+voice_state_dir="$test_root/voice-state"
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentvoice"
+chmod +x "$bin_dir/agentvoice"
+target_plan=$(run_installer --check --service "$voice_label")
+printf '%s\n' "$target_plan" | grep -F "$voice_label" | grep -F 'install' >/dev/null \
+    || fail "targeted AgentVoice reader plan omitted its absent service"
+if printf '%s\n' "$target_plan" | grep -F "$hud_label" >/dev/null; then
+    fail "targeted AgentVoice reader plan included the HUD service"
+fi
+
+: >"$target_launchctl_log"
+: >"$target_launchctl_state"
+cp "$attention_plist" "$test_root/attention-before-voice-targeted.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$voice_label" >/dev/null
+/usr/bin/python3 - "$voice_plist" "$bin_dir/agentvoice" "$test_home" "$voice_state_dir" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
+assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
+assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[4]
+assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
+assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentvoice/server.log"
+PYTHON
+cmp "$attention_plist" "$test_root/attention-before-voice-targeted.plist" \
+    || fail "targeted AgentVoice reader installation rewrote a neighboring service"
+[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "canonical reader convergence did not replace the temporary submitted job"
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "canonical reader convergence did not bootstrap exactly once"
+if grep -v -F "$voice_label" "$target_launchctl_log" >/dev/null; then
+    fail "targeted AgentVoice reader installation called launchctl for a neighboring service"
+fi
+
+cp "$voice_plist" "$test_root/voice-before-repeat.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$voice_label" >/dev/null
+cmp "$voice_plist" "$test_root/voice-before-repeat.plist" \
+    || fail "repeat targeted AgentVoice reader installation changed an identical plist"
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "repeat targeted AgentVoice reader installation reloaded its healthy service"
+[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "repeat targeted AgentVoice reader installation stopped its healthy service"
+target_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+        run_installer --status --service "$voice_label"
+)
+printf '%s\n' "$target_status" | grep -F "$voice_label" | grep -F 'state=running' | grep -F 'pid=73' >/dev/null \
+    || fail "targeted AgentVoice reader status omitted its healthy job"
+if printf '%s\n' "$target_status" | grep -F "$hud_label" >/dev/null; then
+    fail "targeted AgentVoice reader status included the HUD service"
+fi
+printf '<?xml version="1.0"?>\n<!-- foreign AgentVoice reader -->\n<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->\n' >"$voice_plist"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$voice_label" >/dev/null 2>&1; then
+    fail "targeted AgentVoice reader installation accepted a foreign ownership marker"
+fi
+grep -Fxq '<!-- foreign AgentVoice reader -->' "$voice_plist" \
+    || fail "targeted AgentVoice reader installation overwrote a foreign service"
+rm -- "$bin_dir/agentvoice" "$voice_plist"
+
+# With no configured XDG root, the managed reader receives AgentVoice's
+# documented default explicitly rather than inheriting launchd's environment.
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentvoice"
+chmod +x "$bin_dir/agentvoice"
+env -u XDG_STATE_HOME \
+    HOME="$test_home" \
+    AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
+    AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
+    AGENTSTART_INSTALL_LAUNCHCTL=none \
+    "$root/scripts/install-launchagents" --install --service "$voice_label" >/dev/null
+/usr/bin/python3 - "$voice_plist" "$state_dir" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[2]
+PYTHON
+rm -- "$bin_dir/agentvoice" "$voice_plist"
 
 # Install Agentbrain for the status and session-persistence checks below.
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentbrain"

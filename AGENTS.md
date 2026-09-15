@@ -32,8 +32,10 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.
   AgentStart delegates to that installer and must not add a competing template
   or registration. That exception covers the voice server only: AgentStart owns
-  the separate `io.arthack.agenthud.serve` web-view LaunchAgent through the
-  independent AgentHUD checkout's installed `agenthud serve` contract.
+  the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
+  through AgentVoice's installed `agentvoice serve` contract, and the separate
+  `io.arthack.agenthud.serve` web-view LaunchAgent through the independent
+  AgentHUD checkout's installed `agenthud serve` contract.
   AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.

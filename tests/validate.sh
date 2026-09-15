@@ -1458,6 +1458,7 @@ io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
+io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
 io.arthack.agentsource.receive|agentsource|receiver.log|resident
 io.arthack.agentsource.notify|agentsource|notifier.log|resident
@@ -1471,12 +1472,15 @@ grep -Fq 'io.arthack.agentchats.serve' scripts/install-launchagents \
     || fail "retired AgentChats service lacks its bounded cleanup label"
 [ ! -e config/launchd/io.arthack.agentchats.serve.plist ] \
     || fail "retired AgentChats web service template still exists"
+if grep -Fq 'io.arthack.agentvoice.server' scripts/install-launchagents config/launchd/*.plist; then
+    fail "AgentStart must not adopt AgentVoice's separately owned waiting-server LaunchAgent"
+fi
 for template in config/launchd/*.plist; do
     label=$(basename "$template" .plist)
     # The marker is what lets the installer tell its own service from a
     # stranger's, so a template whose marker does not match its own file name
     # would be refused forever.
-    grep -Fq "agentstart-installer-owned: $label.v1" "$template" \
+    [ "$(grep -Fxc "<!-- agentstart-installer-owned: $label.v1 -->" "$template")" -eq 1 ] \
         || fail "template is missing or misnaming its ownership marker: $template"
     grep -Fq "<string>$label</string>" "$template" \
         || fail "template Label does not match its file name: $template"
@@ -1535,6 +1539,22 @@ assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned:
 value = plistlib.loads(template.read_bytes())
 assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
 assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
+assert value["KeepAlive"] is True
+assert value["RunAtLoad"] is True
+assert value["ProcessType"] == "Standard"
+assert value["Umask"] == 63
+assert value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
+assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
+assert value["EnvironmentVariables"] == {
+    "HOME": "__HOME__",
+    "PATH": "__PATH__",
+    "XDG_STATE_HOME": "__STATE_ROOT__",
+}
 assert value["KeepAlive"] is True
 assert value["RunAtLoad"] is True
 assert value["ProcessType"] == "Standard"

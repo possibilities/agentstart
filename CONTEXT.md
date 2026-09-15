@@ -78,6 +78,13 @@ Board/Groom skills and the AgentBoard MCP are absent from active fleet
 resources. AgentBoard has no socket service endpoint.
 _Avoid_: Board redirect, dual write, AgentVoice-owned AgentHUD.
 
+**AgentVoice transcript reader** — AgentVoice's foreground `agentvoice serve`
+command and editable transcript UI at `https://agentvoice.localhost`, supervised
+at login by AgentStart's `io.arthack.agentvoice.serve` LaunchAgent. It observes
+the separately owned AgentVoice waiting server but has no call, menu, client, or
+server lifecycle authority. _Avoid_: AgentVoice server service, reader-owned call,
+Native SDK shell service.
+
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every
 `agent:<skill>`; AgentLaunch name-enables the fixed set in its session layer,

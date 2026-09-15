@@ -96,6 +96,11 @@ flags, and skip-versus-fail semantics are load-bearing:
   `--status`; a healthy unchanged job is not restarted. AgentHUD's own installer
   prepares its editable command, dependencies, and assets first, without
   managing this or any other service.
+- `scripts/install-launchagents --install --service io.arthack.agentvoice.serve`
+  — converge only the resident AgentVoice transcript reader at
+  `https://agentvoice.localhost`. The matching `--check` and `--status` forms
+  inspect only that label; this path does not operate the separately owned
+  AgentVoice waiting server, menu app, clients, or calls.
 - `scripts/sync-skills` — the cheap convergence path: the active agent* checkout
   scan into `~/.local/share/agentstart/resources`, followed by harness render
   refresh. The scheduled updater calls this every six hours. It
