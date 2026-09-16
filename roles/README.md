@@ -177,7 +177,14 @@ urgent corrections directly. At each useful execution boundary it alternates
 advancing the next actionable active Work with inspecting every running and
 returned Assignment. It records, reviews and lands a returned result before the
 next substantive build dispatch, so completions do not accumulate unreconciled;
-it uses the minimum correctly sized worker set.
+it uses the minimum correctly sized worker set. At the root, that can use every
+available root-owned child slot for genuinely useful, independent, non-overlapping
+active Work while preserving integration and review capacity; no fixed two-worker
+or other arbitrary cap applies. The manager does not create agents merely to fill
+slots or split inseparable work. Provider, model and effort selection — including
+Grok and cheaper models when suitable — plus avoiding duplicate work control cost.
+Each root-level pick still needs the human's confirmation when the session has
+that pick-before-dispatch preference; it is not a permanent worker cap.
 
 AgentRoles marks its immediate AgentLaunch invocation as an explicit role resource
 layer; AgentLaunch consumes that marker and does not add the global fleet overlay.
