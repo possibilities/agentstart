@@ -49,6 +49,23 @@ not delete independently used roles or restart sessions.
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
 See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
+## Manager AgentFX control
+
+The manager role exposes AgentFX's four-tool MCP against the private
+`~/.config/agentfx/quota-routing.json` configuration. This gives a newly loaded
+manager target discovery plus idempotent start, observe, and control operations
+for the already installed managed Codex/Grok controller. AgentFX and AgentUsage
+retain execution, account, quota, credential, and provider admission authority;
+the role entry does not copy credentials or make a configured target eligible.
+
+The worker role deliberately omits AgentFX. A worker receives provider-backed
+delegation authority only through a parent-issued execution, routing decision,
+and delegation envelope. Rendering and installing this role change does not
+reload an active AgentVoice generation; it becomes available at a later normal
+role load.
+
+See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
+
 ## Upstream fork patch and contribution gate
 
 Both roles detect an external/upstream fork-patch decision before changing the

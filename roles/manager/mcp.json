@@ -50,6 +50,14 @@
         "mcp"
       ]
     },
+    "agentfx": {
+      "command": "${HOME}/.local/bin/agentfx",
+      "args": [
+        "mcp",
+        "--config",
+        "${HOME}/.config/agentfx/quota-routing.json"
+      ]
+    },
     "agentkeys": {
       "command": "${HOME}/.local/bin/agentkeys",
       "args": [

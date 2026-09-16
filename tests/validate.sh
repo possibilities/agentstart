@@ -188,8 +188,13 @@ for role in ["manager", "worker"]:
     }
     if role == "manager":
         assert role_servers["agenthud"] == servers["agenthud"]
+        assert role_servers["agentfx"] == {
+            "command":"${HOME}/.local/bin/agentfx",
+            "args":["mcp","--config","${HOME}/.config/agentfx/quota-routing.json"],
+        }
     else:
         assert "agenthud" not in role_servers
+        assert "agentfx" not in role_servers
         assert json.loads(Path("roles/worker/skills-exclude.json").read_text()) == ["hud"]
     assert "agentboard" not in role_servers
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())

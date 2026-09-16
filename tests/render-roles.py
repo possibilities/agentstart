@@ -192,6 +192,12 @@ class RoleRender(unittest.TestCase):
             inventory = json.loads((source / "mcp.json").read_text())["mcpServers"]
             self.assertTrue(inventory)
             self.assertEqual("agenthud" in inventory, name == "manager")
+            self.assertEqual("agentfx" in inventory, name == "manager")
+            if name == "manager":
+                self.assertEqual(inventory["agentfx"], {
+                    "command": "${HOME}/.local/bin/agentfx",
+                    "args": ["mcp", "--config", "${HOME}/.config/agentfx/quota-routing.json"],
+                })
             self.assertEqual(inventory["agentmux"], {
                 "command": "${HOME}/.local/bin/agentmux",
                 "args": ["mcp", "--instance", "default"],
@@ -203,6 +209,11 @@ class RoleRender(unittest.TestCase):
                 "command": str(Path.home() / ".local/bin/agentmux"),
                 "args": ["mcp", "--instance", "default"],
             })
+            if name == "manager":
+                self.assertEqual(rendered["agentfx"], {
+                    "command": str(Path.home() / ".local/bin/agentfx"),
+                    "args": ["mcp", "--config", str(Path.home() / ".config/agentfx/quota-routing.json")],
+                })
             for filename in ("APPEND_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
                              "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md"):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
