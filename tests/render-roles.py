@@ -212,6 +212,22 @@ class RoleRender(unittest.TestCase):
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("include resource facts and limitations",
                       (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
+        retired_mailbox_terms = (
+            "agentvoice_thread_mailbox_open",
+            "agentvoice.thread_mailbox_notice",
+            "remainingCompleted",
+            "expectedInstanceId",
+        )
+        for name in ("manager", "worker"):
+            role = self.resources / "roles" / name
+            guidance = "\n".join(
+                path.read_text()
+                for path in role.glob("*.md")
+            )
+            self.assertIn("agentvoice.subagent_completion", guidance)
+            self.assertIn("immediate native parent", guidance)
+            for retired in retired_mailbox_terms:
+                self.assertNotIn(retired, guidance)
 
 
 if __name__ == "__main__":

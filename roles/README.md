@@ -38,7 +38,8 @@ Each has its own speech suffix, so either source directory can be moved
 without a sibling prompt dependency. Keep native mode text within 1,600
 UTF-8 bytes. AgentVoice alone consumes the `VOICE_*` files; other harnesses
 retain their own native delegation restrictions. Only the actual AgentVoice
-call root receives the controller's mailbox capability.
+call root receives `agentvoice.subagent_completion` payloads for its direct
+native children; nested children continue returning to their immediate parent.
 
 Existing workspace role snapshots and running calls retain their contents.
 The old `resources/agentvoice/default` role is retired and no longer selected
@@ -112,11 +113,11 @@ Explicit conversational intent is distinct from physical audio commands/status
 and push-to-talk. Mere typed work steering does not resume a held conversation.
 Authorized work and internal returns continue while human presentation waits.
 
-Mailbox entries and cached openings follow AgentVoice's server workspace session:
-frontend detach and runtime replacement retain them; new_session and server
-shutdown clear them. No shared semantic hold state or exactly-once speech
-mechanism is introduced. Source/render checks do not establish live behavior.
+Direct-child completion delivery does not introduce a shared semantic hold state
+or exactly-once speech mechanism. Source/render checks do not establish live
+behavior.
 See [hold guidance decision](../docs/adr/0012-conversation-hold-guidance.md).
+See [direct completion decision](../docs/adr/0024-deliver-agentvoice-child-completions-directly.md).
 
 ## Manager-owned HUD records
 

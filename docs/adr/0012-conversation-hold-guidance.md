@@ -16,6 +16,10 @@ internally without an echo. A directly speaking agent without a separate front
 retains its explicitly assigned presentation contract. Pending results remain
 pending until presented; no replay, inferred approval or work cancellation follows.
 
+The mailbox wording in the next paragraph was superseded September 16, 2026 by
+[ADR 0024](0024-deliver-agentvoice-child-completions-directly.md). It is retained
+as historical context for the prompt state this decision originally qualified.
+
 Mailbox wording must match AgentVoice's retained workspace-session controller:
 entries and cached openings survive frontend detach and runtime replacement;
 explicit new_session or server shutdown clears them. Replacement interrupts native
