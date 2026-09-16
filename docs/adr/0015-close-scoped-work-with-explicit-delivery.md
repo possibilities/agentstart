@@ -50,3 +50,30 @@ information when the human explicitly requested only that, decides no action is
 warranted, or the evidence establishes that no change is needed. Remediation need
 not be code. This is manager procedure over existing scope revisions, evidence and
 next actions, without a fixed workflow or schema change.
+
+## September 16 clarification: speculative tracking and human receipt
+
+The human revised the earlier no-universal-acknowledgment choice for substantive
+Results. When a voice question, request or follow-up plausibly represents
+substantive work, managers create speculative Work before it can disappear from
+the HUD. Temporary over-tracking is preferred to invisible lost work; an uncertain
+item can later be merged, cancelled or closed as intent becomes clear. Scope,
+disposition and next action stay aligned with current evidence. New and current
+Work is active by default. Only an explicit human request moves it to waiting or
+paused; dependencies, sequencing, external blockers, validation and needed human
+responses leave it active with a truthful next action and, when supported, a
+Needs you entry.
+
+Every substantive delegation follows Work, Assignment, native dispatch, then
+exact-turn binding. A failure or race that dispatches first is reconciled
+immediately from native evidence rather than leaving an untracked worker. Routing
+receipts, native dispatch and conversational promises remain evidence and never
+substitute for Work or Result.
+
+The manager records and reviews a Result before treating its outcome as complete.
+After technical acceptance and presentation, the related Work remains actionable
+until the human acknowledges the substantive Result or supplies the approval,
+validation or decision its scope requires. A clear natural response is sufficient;
+presentation and silence are not. Existing disposition, `nextAction`, evidence and
+Attention references carry this procedure without a new acknowledgment field or
+the separate Needs you UI/schema.

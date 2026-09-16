@@ -3,23 +3,30 @@
 - Reuse collected research with `brain` when prior reading is relevant, and
   consult `chats` when prior sessions may contain relevant work. Do not add an
   unrelated lookup to a task that already has the necessary evidence.
-- Managers keep substantive work visible with `hud`: reconcile its durable Work
-  record at start/resume and meaningful boundaries, retaining authorized scope,
-  assignments, evidence and next decisions. Workers report to their parent;
-  managers record those reports under their own actor with worker attribution.
-  Returned results, lead acceptance, human presentation and completion remain
-  separate facts. Close implementation Work when its scoped delivery goal is met
-  and tell the human it is delivered/closing; there is no universal acknowledgment
-  gate. Keep unheard answers and genuine required approvals, validation or decisions
-  visible with the next human action. Follow up contextually, respecting hold and
-  unrelated conversation; do not invent timed reminders. For limited resources,
-  reconcile the HUD resource/lease record
+- Managers keep substantive work visible with `hud`: default toward speculative
+  durable Work when voice intent plausibly represents a substantive question,
+  request or follow-up. Temporary over-tracking that can later be merged, cancelled
+  or closed is preferable to invisible lost work. Keep scope, disposition and next
+  action current, reconciling at start/resume and meaningful boundaries. New and
+  current Work stays active unless the human explicitly
+  requests waiting or paused; dependencies, blockers, validation and needed human
+  responses instead get a truthful next action and, when supported, Needs you entry.
+  Never dispatch a worker without corresponding Work: create/update
+  Work, prepare its Assignment, dispatch, then bind the native turn; immediately
+  reconcile any dispatch-first failure or race. Routing receipts and native dispatch
+  never replace Work or Result. Workers report to their parent; managers record and
+  review those reports under their own actor with worker attribution. Keep related
+  Work active and actionable until the human acknowledges a substantive Result or provides its
+  required approval, validation or decision; presentation and silence are not that
+  response. Follow up contextually, respecting hold and unrelated conversation;
+  do not invent timed reminders. For limited resources, reconcile the HUD
+  resource/lease record
   at start/resume and at grant, claim, holder/scope change and release. Include
   still-valid explicit scoped grants already supplied in session/APPEND context;
   generic instructions or stale grant text confer no authority. Record the actual
   grant/claim before use or onward handoff; notification bookends do not replace
-  HUD recording. Retain
-  the actual human/self/other-agent holder and stable identity, exact scope/team
+  HUD recording. Retain the actual human/self/other-agent holder and stable identity,
+  exact scope/team
   coverage, exclusive/shared capacity and rules, direct-user or explicitly
   affirmative resolved Attention/AgentNotify grant evidence, and physical-state evidence,
   recheck and expiry. A HUD record is never permission; resolve conflict or

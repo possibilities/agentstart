@@ -128,6 +128,25 @@ the native harness; the manager records that report using its own actor and exac
 worker/native/evidence attribution. Tiny replies need no record. Missing HUD
 access leaves an explicit recovery note and pending reconciliation.
 
+Managers default toward speculative durable tracking when voice intent plausibly
+represents substantive work. Temporary over-tracking is preferable to invisible
+lost work: an uncertain item can later be merged, cancelled or closed as intent
+becomes clear. Managers keep scope, disposition and `nextAction` current, record
+and review a Result before treating the outcome as complete, and keep the Work
+actionable until the human acknowledges that substantive Result or supplies its
+required approval, validation or decision. Routing receipts, native dispatch and
+chat promises remain evidence; they never replace Work or Result.
+
+New and current Work is `active` by default. Only an explicit human request moves
+it to `waiting` or `paused`; dependencies, sequencing, external blockers,
+validation and needed human responses stay active with a truthful `nextAction`
+and, when supported, a Needs you entry.
+
+Every worker dispatch has corresponding durable Work. The manager creates or
+updates Work, prepares its Assignment, dispatches the native worker, then binds
+the observed turn. A dispatch-first failure or race is reconciled immediately as
+an exception from exact native evidence rather than left untracked.
+
 AgentRoles marks its immediate AgentLaunch invocation as an explicit role resource
 layer; AgentLaunch consumes that marker and does not add the global fleet overlay.
 Default managed launches retain the global manager-oriented inventory. A role's
@@ -162,10 +181,13 @@ See [resource lease decision](../docs/adr/0014-record-resource-leases-without-gr
 
 ## Scoped closure and human dependencies
 
-The manager closes implementation Work when its actual delivery objective is met
-and tells the human what was delivered and is closing. Technical acceptance,
-human presentation and an actual human dependency remain distinct. A universal
-acknowledgment gate would create obligations the human did not request.
+After technical acceptance and delivery, the manager keeps the related Work active
+and actionable until the human acknowledges the substantive Result. When the scope
+requires approval, validation or a decision, the Work stays active with that exact
+response in `nextAction` and, when supported, a Needs you entry. A clear natural
+response is sufficient evidence;
+presentation and silence are not. The manager then closes Work whose scoped goal
+and human-response obligation are met and tells the human it is closing.
 
 An investigation normally serves the human's underlying practical objective.
 The manager preserves its diagnosis as evidence and, when remediation becomes
@@ -174,10 +196,9 @@ decision stays visible. Information-only requests, a human decision that no acti
 is warranted, and evidence that no change is needed can end as information; no
 rule assumes remediation must be code.
 
-Tracked answers not acknowledged as heard stay visible; required approval,
-validation or a decision stays unresolved with a specific next human action.
-A clear natural response can settle it. Presentation and silence alone cannot.
-The manager follows up at a useful conversational boundary, respecting hold and
+Unacknowledged substantive Results and required approval, validation or decision
+responses stay visible with a specific next human action. The manager follows up
+at a useful conversational boundary, respecting hold and
 unrelated topics, with no invented timed reminders. Deferred delivery remains
 pending presentation rather than disappearing. Workers continue returning evidence
 to the manager and do not take over human closure or HUD writes.

@@ -212,6 +212,17 @@ class RoleRender(unittest.TestCase):
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("When the human asks for a sketch",
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
+        manager_prompt = (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text()
+        self.assertIn("Default toward speculative durable tracking", manager_prompt)
+        self.assertIn("invisible lost work", manager_prompt)
+        self.assertIn("never a substitute for Work or Result", manager_prompt)
+        self.assertIn("Record and review a Result", manager_prompt)
+        self.assertIn("Never create or dispatch a worker", manager_prompt)
+        self.assertIn("create or update Work, prepare its Assignment", manager_prompt)
+        self.assertIn("New and current Work is `active` by default", manager_prompt)
+        self.assertIn("without inferring `waiting`", manager_prompt)
+        self.assertIn("until the human acknowledges the substantive Result", manager_prompt)
+        self.assertNotIn("There is no universal acknowledgment gate", manager_prompt)
         self.assertNotIn("When the human asks for a sketch",
                          (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("include resource facts and limitations",
