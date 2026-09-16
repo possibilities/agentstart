@@ -213,6 +213,16 @@ class RoleRender(unittest.TestCase):
         self.assertIn("When the human asks for a sketch",
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         manager_prompt = (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text()
+        worker_prompt = (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text()
+        for prompt in (manager_prompt, worker_prompt):
+            self.assertIn("Detect an external/upstream fork-patch decision before modifying the fork", prompt)
+            self.assertIn("Do not create, maintain, rebase or apply a patch", prompt)
+            self.assertIn("ongoing maintenance burden", prompt)
+            self.assertIn("recommended route that avoids a carried patch", prompt)
+            self.assertIn("maintainer preferences, accepted contribution patterns", prompt)
+            self.assertIn("do not open or materially update an upstream issue or pull request", prompt)
+            self.assertIn("first-party repository", prompt)
+        self.assertIn("return the candidate action and evidence to the parent", worker_prompt)
         self.assertIn("Default toward speculative durable tracking", manager_prompt)
         self.assertIn("invisible lost work", manager_prompt)
         self.assertIn("never a substitute for Work or Result", manager_prompt)

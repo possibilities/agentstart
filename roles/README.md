@@ -49,6 +49,25 @@ not delete independently used roles or restart sessions.
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
 See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
+## Upstream fork patch and contribution gate
+
+Both roles detect an external/upstream fork-patch decision before changing the
+fork. Creating, maintaining, rebasing or applying a carried patch requires the
+human's explicit approval after the agent presents the need, alternatives,
+maintenance burden and a recommended non-patch route when available. Existing
+workshop maintenance procedures govern execution only after that decision.
+
+Before proposing or drafting an upstream issue or pull request, inspect current
+contribution, security, template and reporting guidance and assess recent social
+behavior for maintainer preferences, accepted patterns, review expectations and
+communication norms. Opening or materially updating the concrete issue or pull
+request requires explicit human approval. The manager owns that decision; a
+worker returns its prepared candidate and evidence to the parent unless direct
+human coordination was assigned. Ordinary authorized first-party implementation
+continues under repository instructions without this extra gate.
+
+See [upstream fork patch decision](../docs/adr/0025-require-human-approval-for-upstream-fork-patches.md).
+
 ## Conversational front and selective managers
 
 The manager role keeps intent, authority, short status, steering and checked

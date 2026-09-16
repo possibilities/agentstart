@@ -41,10 +41,15 @@
   when AgentNotify is unavailable; the `notify` skill explains it. Sound is opt-in; time-sensitive delivery does not guarantee
   a Focus bypass. Read is not completion or approval.
 - In someone else's Clone (`~/source/<upstream-owner>--<repo>`), orient before
-  working: verify `upstream` names the original repository, `fork` names our
-  optional fork, and the branch is the one the task means — the default, or
-  our fork's branch when we carry patches — then pull and fast-forward. A
-  genuinely diverged branch is reported, not resolved in passing.
+  working: verify `upstream` names the original repository and `fork` names our
+  optional fork. Detect any choice to create, maintain, rebase or apply a patch
+  carried against the external upstream before modifying the fork. It requires
+  explicit human approval after surfacing the need, alternatives, ongoing
+  maintenance burden and a recommended non-patch route when available. Once
+  approved, verify the branch is the one the task means, then pull and
+  fast-forward. Report a genuinely diverged branch rather than resolving it in
+  passing. Ordinary authorized work in a first-party repository continues under
+  that repository's instructions without this additional gate.
 - A fork we patch is owned by a workshop repository (`fxnk` for Fx, `zmax`
   for zmx): its `MAINTAIN.md` is the contract for that fork, `/maintain` the
   procedure, and `integration` the only ref a consumer binds — through the
@@ -111,13 +116,18 @@
   `~/code/<name>` first. Either way it initializes the repository and
   binds a private GitHub origin with the first push — never hand-assemble
   `git init` and `gh repo create`.
-- Upstream messages — a pull request and its body, a comment, or a reply to a
-  reviewer — require the human's authorization for that scope. Existing
-  explicit authorization counts. Prepare the concrete result before asking
-  for any missing decision. Clear code changes answering a review may proceed
-  within the task; a recap comment still needs communication authority.
-  Review offered changes before pushing, using bounded independent review
-  when required by the project or useful and permitted by the active role.
+- Before recommending or preparing an upstream issue or pull request, inspect
+  the current `CONTRIBUTING`, `SECURITY`, issue and pull-request templates and
+  reporting channels. Assess recent repository behavior for maintainer
+  preferences, accepted contribution patterns, review expectations and
+  communication norms. Opening or materially updating an upstream issue or pull
+  request requires explicit human approval of the concrete reviewable action;
+  existing explicit authorization for that exact scope counts. This includes a
+  pull-request body, patch-set update, issue or review comment, and reviewer
+  reply. Clear first-party code changes remain authorized by their task and
+  repository instructions, but a recap comment still needs communication
+  authority. Review offered changes before pushing, using bounded independent
+  review when required by the project or useful and permitted by the active role.
 - A fleet full-screen TUI uses exactly one complete design language: fxnk or
   Signal Room. Never combine their tokens, components, borders, layout
   vocabulary, or interaction shell. An explicit user or project choice wins;
