@@ -10,6 +10,7 @@
 	<array>
 		<string>__PROGRAM__</string>
 		<string>serve</string>
+		<string>--tailscale</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>

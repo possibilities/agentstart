@@ -100,7 +100,7 @@ index, and stdio MCP remain installed independently of this retired web job.
 
 `io.arthack.agenthud.serve` keeps the durable Work view resident. It invokes
 `agenthud serve`, whose default is the editable Vite/HMR view from AgentHUD's
-canonical checkout and whose fixed portless origin is
+canonical checkout and whose fixed local Portless origin is
 `https://agenthud.localhost`. AgentHUD's own installer prepares the command,
 dependencies, and optional production build without touching this service;
 AgentStart alone owns the LaunchAgent lifecycle.

@@ -238,7 +238,7 @@ import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
     value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["ProgramArguments"] == [sys.argv[2], "serve", "--tailscale"]
 assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
 assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
 assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
@@ -312,7 +312,7 @@ import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
     value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["ProgramArguments"] == [sys.argv[2], "serve", "--tailscale"]
 assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
 assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
 assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[4]
@@ -495,6 +495,7 @@ assert reader["ProgramArguments"] == [
     "run",
     entrypoint,
     "serve",
+    "--tailscale",
     "--workspace",
     workspace,
     "--name",

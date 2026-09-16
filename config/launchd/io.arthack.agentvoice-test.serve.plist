@@ -12,6 +12,7 @@
 		<string>run</string>
 		<string>__TEST_ENTRYPOINT__</string>
 		<string>serve</string>
+		<string>--tailscale</string>
 		<string>--workspace</string>
 		<string>__TEST_WORKSPACE__</string>
 		<string>--name</string>

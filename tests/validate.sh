@@ -1539,7 +1539,7 @@ import plistlib
 template = pathlib.Path("config/launchd/io.arthack.agenthud.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agenthud.serve.v1 -->"
 value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--tailscale"]
 assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
 assert value["KeepAlive"] is True
 assert value["RunAtLoad"] is True
@@ -1551,7 +1551,7 @@ assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"
 value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--tailscale"]
 assert value["EnvironmentVariables"] == {
     "HOME": "__HOME__",
     "PATH": "__PATH__",
@@ -1597,6 +1597,7 @@ assert value["ProgramArguments"] == [
     "run",
     "__TEST_ENTRYPOINT__",
     "serve",
+    "--tailscale",
     "--workspace",
     "__TEST_WORKSPACE__",
     "--name",
