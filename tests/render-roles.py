@@ -210,6 +210,10 @@ class RoleRender(unittest.TestCase):
             self.assertEqual((role / "skills/hud/SKILL.md").exists(), name == "manager")
         self.assertIn("A HUD record is never permission",
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
+        self.assertIn("When the human asks for a sketch",
+                      (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
+        self.assertNotIn("When the human asks for a sketch",
+                         (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("include resource facts and limitations",
                       (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
         retired_mailbox_terms = (
