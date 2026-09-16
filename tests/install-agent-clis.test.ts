@@ -93,3 +93,9 @@ test("a broken independent AgentHUD checkout fails after AgentVoice", () => {
   expect(result.stderr.toString()).toContain("present checkout has no executable installer");
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install --command-only\n");
 });
+
+test("AgentFX owner installer follows AgentUsage without a service action", () => {
+  const f = fixture(); f.installer("agentusage"); f.installer("agentfx");
+  const result = f.run(); expect(result.exitCode).toBe(0);
+  expect(readFileSync(join(f.base,"calls"),"utf8")).toBe("agentusage:--install\nagentfx:--install\n");
+});

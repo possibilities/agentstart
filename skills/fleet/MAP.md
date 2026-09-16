@@ -776,3 +776,13 @@ and shared skills. It no longer reads AgentVoice prompt sources. AgentVoice's
 tracked server configuration selects manager; its generic role loader and
 controller MCP remain unchanged. Evidence: `roles/README.md`,
 `scripts/render-roles`, `config/agentvoice/server.json`, `tests/render-roles.py`.
+
+
+## Quota-aware managed delegation (2026-09-16)
+
+| Caller | Owner | Contract and boundary | Evidence |
+| --- | --- | --- | --- |
+| AgentFX | AgentUsage | Private `agentusage fx-bridge` child prepares one source-revision-fenced Codex/Grok account binding, activates it against the exact Fx build/process/session, forwards bounded Responses requests, and releases it. Credentials and raw account identities remain in AgentUsage; ephemeral loopback capabilities stay in child memory, never manager receipts. | `agentfx/src/{usage-bridge,controller}.ts`; `agentusage/src/fx-broker/{bridge,codex-authority,grok-authority}.ts` |
+| AgentFX | Fx | Installed fxnk-owned binary runs ACP initialize/session/new/set_config_option/prompt/cancel with host-managed loopback transport, isolated state, native tools and MCP disabled. A parent-liveness watchdog reaps owned execution groups. This adds no Fx patch, pin or upstream fork action. | `agentfx/src/{acp-client,controller}.ts`; `agentfx/docs/adr/0003-reap-fx-through-parent-liveness-watchdog.md` |
+| AgentStart | AgentFX | Calls the checkout-owned `scripts/install.sh --install` after AgentUsage. Installs the editable command without a service or active-call restart. Manager-facing MCP and bounded `run --config --file` share the durable ledger and idempotency fence. | `agentstart/scripts/install-agent-clis`; `agentfx/scripts/install.sh`; `agentfx/src/{main,mcp}.ts` |
+| AgentHUD | AgentUsage evidence/context contract | Persists sanitized routing evidence v1/v2 and native/Fx context with producer-generation/revision/digest CAS. Read-only `routing state` returns full snapshots after gaps/generation changes; consumer revisions require explicit, separate acknowledgment. No credential or account switching authority is inferred. | `agenthud/src/{routing-contract,routing-ledger}.ts`; `agentusage/docs/routing-evidence.md` |
