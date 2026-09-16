@@ -156,15 +156,28 @@ actionable until the human acknowledges that substantive Result or supplies its
 required approval, validation or decision. Routing receipts, native dispatch and
 chat promises remain evidence; they never replace Work or Result.
 
-New and current Work is `active` by default. Only an explicit human request moves
-it to `waiting` or `paused`; dependencies, sequencing, external blockers,
+New and current Work is `active` by default. Active and open Work is eligible to
+advance, but does not select itself for dispatch. Only an explicit human request
+moves it to `waiting` or `paused`; dependencies, sequencing, external blockers,
 validation and needed human responses stay active with a truthful `nextAction`
-and, when supported, a Needs you entry.
+and, when supported, a Needs you entry. When the session establishes a
+pick-before-dispatch preference, the manager obtains confirmation of the specific
+eligible Work before preparing or dispatching its worker.
 
 Every worker dispatch has corresponding durable Work. The manager creates or
 updates Work, prepares its Assignment, dispatches the native worker, then binds
 the observed turn. A dispatch-first failure or race is reconciled immediately as
 an exception from exact native evidence rather than left untracked.
+
+The conversational manager retains intent, questions, HUD tracking, dispatch,
+review, integration, acceptance, presentation and delivery. It delegates
+substantive code implementation through the tracked Work and Assignment while
+handling tiny answers, bounded inspection, HUD bookkeeping and genuinely cheaper
+urgent corrections directly. At each useful execution boundary it alternates
+advancing the next actionable active Work with inspecting every running and
+returned Assignment. It records, reviews and lands a returned result before the
+next substantive build dispatch, so completions do not accumulate unreconciled;
+it uses the minimum correctly sized worker set.
 
 AgentRoles marks its immediate AgentLaunch invocation as an explicit role resource
 layer; AgentLaunch consumes that marker and does not add the global fleet overlay.
