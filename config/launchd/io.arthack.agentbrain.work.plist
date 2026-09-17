@@ -18,6 +18,10 @@
 		<string>__PATH__</string>
 		<key>AGENTSCRAPE_BROWSER_SESSION</key>
 		<string>__AGENTBRAIN_BROWSER_SESSION__</string>
+		<!-- The worker is serialized and owns each target lifecycle. The stable
+		     Agentbrowse profile survives while idle browser VMs do not. -->
+		<key>AGENTSCRAPE_OWN_PINNED_SESSION</key>
+		<string>1</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

@@ -665,8 +665,10 @@ assert_brain_session() {
 import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
-    actual = plistlib.load(handle)["EnvironmentVariables"]["AGENTSCRAPE_BROWSER_SESSION"]
+    environment = plistlib.load(handle)["EnvironmentVariables"]
+    actual = environment["AGENTSCRAPE_BROWSER_SESSION"]
 assert actual == sys.argv[2], (actual, sys.argv[2])
+assert environment["AGENTSCRAPE_OWN_PINNED_SESSION"] == "1"
 PYTHON
 }
 
