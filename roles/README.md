@@ -64,6 +64,16 @@ and delegation envelope. Rendering and installing this role change does not
 reload an active AgentVoice generation; it becomes available at a later normal
 role load.
 
+For an eligible bounded assignment, the manager compares fresh native Codex and
+AgentFX targets. A fresh compatible included-quota Grok target is preferred for
+routine, well-specified work; native Codex remains available when the target is
+incompatible, the work needs higher judgment, or it has the better evidenced fit.
+Before AgentFX start, prepare Work and an Assignment whose explicit `slug_like`
+`taskName` exactly equals the AgentFX `task_slug`, emit the routing receipt, and
+bind the returned handle after start. Observe through AgentFX and reconcile the
+normalized completion before parent review. Failed or unknown admission is never
+a silent native fallback: reconcile it before a new routing decision and attempt.
+
 See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
 
 ## Upstream fork patch and contribution gate

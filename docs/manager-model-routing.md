@@ -37,6 +37,31 @@ neither changes this tool's controls. Full-history forks inherit model/effort;
 reuse does not change them. Fresh or bounded forks can select them where the host
 permits it. Consult the live catalog when it differs from this dated evidence.
 
+## Provider routing for bounded work
+
+For each eligible bounded assignment, the manager compares the current native
+Codex option with AgentFX's current targets. Fresh routing context that identifies
+an eligible included-quota Grok account and a compatible AgentFX target makes that
+Grok target the preferred route for routine, well-specified work. Compatibility,
+task fit, the delegation envelope, and AgentFX admission remain required. Native
+Codex remains the route for incompatible targets, higher-judgment work, and cases
+where its fit is better evidenced; this is not a universal provider mandate.
+
+AgentFX dispatch has a deliberate identity sequence: create or update Work,
+prepare the Assignment, select one explicit short `slug_like` Assignment
+`taskName`, use that exact string as AgentFX `task_slug`, then emit the routing
+receipt and start through AgentFX. Bind the returned exact AgentFX source,
+execution, attempt, slug, routing decision, and invoker handle; observe the
+execution through AgentFX; then record its normalized completion and parent
+review in AgentHUD. The task-name equality is an AgentHUD binding invariant, not
+a naming preference. A failed or unknown admission is reconciled as that attempt;
+do not silently fall back to native Codex. A later route needs a new decision and,
+when it is a new attempt, a new Assignment.
+
+Native `collaboration.spawn_agent` remains a separate Codex path. It does not
+inspect AgentFX targets or automatically use the provider preference, so managers
+must make the comparison before choosing either dispatch surface.
+
 ## Brain retrieval and primary model guidance
 
 The requested Brain search and full retrieval returned these saved sources:
