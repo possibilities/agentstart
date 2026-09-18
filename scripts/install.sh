@@ -107,11 +107,9 @@ install_private_skill_pack() {
 # rendered into the collab and build skills, not in a file loaded into every
 # session. An independent non-symlink file with content at either target is
 # preserved and reported — the same conflict rule the guidance file itself
-# prescribes for repositories. Retire only the old Claude link that this
-# installer owned; an independent CLAUDE.md remains outside this contract.
+# prescribes for repositories.
 link_agent_guidance() {
     local source="$resources_root/guidance/AGENTS.md"
-    local retired="$HOME/.claude/CLAUDE.md"
     local target
 
     [ -f "$source" ] \
@@ -126,12 +124,6 @@ link_agent_guidance() {
         cmp -s "$source" "$target" \
             || die "linked guidance does not resolve to $source: $target"
     done
-
-    if [ -L "$retired" ]; then
-        [ "$(readlink "$retired")" = "$source" ] \
-            || die "refusing to remove independent guidance link: $retired"
-        rm -- "$retired"
-    fi
 }
 
 # The operator extension prompts are cross-project guidance, so AgentStart
@@ -296,7 +288,6 @@ Agent documentation:
 Agent guidance:
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/AGENTS.md
   ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md
-  remove the retired managed ~/.claude/CLAUDE.md link; preserve independent files and links
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
 
 Fixed private fleet resources:

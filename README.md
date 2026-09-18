@@ -75,8 +75,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     `agentbrowse provider`;
   - individual fleet MCPs including AgentHUD, Agentdesk, termctrl, agent-browser, account-bound Gog,
     and the fleet-owned shadcn registry through one shared resource inventory;
-  - the `~/.claude/AGENTS.md` and `~/.codex/AGENTS.md` guidance links, plus
-    removal of AgentStart's retired `~/.claude/CLAUDE.md` link;
+  - the `~/.claude/AGENTS.md` and `~/.codex/AGENTS.md` guidance links;
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,

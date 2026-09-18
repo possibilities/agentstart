@@ -279,8 +279,8 @@ printf '%s' "$content_body" | grep -q 'sync-skills' \
     || fail "the harness guidance source is missing: prompts/AGENTS.md"
 [ ! -s prompts/AGENTS.md ] \
     || fail "prompts/AGENTS.md should stay empty — global advice belongs in the operator extension prompts"
-[ ! -e CLAUDE.md ] && [ ! -L CLAUDE.md ] \
-    || fail "the retired root CLAUDE.md entrypoint must stay absent"
+[ -s AGENTS.md ] \
+    || fail "the repository guidance entrypoint is missing or empty: AGENTS.md"
 
 # This checkout participates in its own agent* scan: the fleet skill is how a
 # session reads the dependency map, and the map is the skill's payload. The
@@ -890,7 +890,6 @@ for required_install in \
     'native skills get core' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/AGENTS.md' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md' \
-    'remove the retired managed ~/.claude/CLAUDE.md link; preserve independent files and links' \
     'ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against' \
     'install external skill packs with --copy into ~/.local/share/agentstart/resources/skills' \
     'scripts/install-gog --install  # direct Google MCP access; existing account credentials stay in gogcli' \
@@ -1067,15 +1066,6 @@ grep -F 'refusing to replace independent guidance' scripts/install.sh >/dev/null
 # shellcheck disable=SC2016 # Match the literal direct-link operation.
 grep -F 'ln -sfn "$source" "$target"' scripts/install.sh >/dev/null \
     || fail "installer does not link each harness slot directly to the guidance source"
-# shellcheck disable=SC2016 # Match the literal retired guidance path.
-grep -F 'retired="$HOME/.claude/CLAUDE.md"' scripts/install.sh >/dev/null \
-    || fail "installer does not identify the retired Claude guidance link"
-# shellcheck disable=SC2016 # Match the literal ownership check.
-grep -F '[ "$(readlink "$retired")" = "$source" ]' scripts/install.sh >/dev/null \
-    || fail "installer can remove a Claude guidance link it does not own"
-# shellcheck disable=SC2016 # Match the literal removal command.
-grep -F 'rm -- "$retired"' scripts/install.sh >/dev/null \
-    || fail "installer does not remove its retired Claude guidance link"
 grep -F 'link_extension_prompts' scripts/install.sh >/dev/null \
     || fail "installer does not link the operator extension prompts"
 grep -F 'refusing to replace independent extension prompt' scripts/install.sh >/dev/null \
