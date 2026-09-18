@@ -58,6 +58,14 @@ a naming preference. A failed or unknown admission is reconciled as that attempt
 do not silently fall back to native Codex. A later route needs a new decision and,
 when it is a new attempt, a new Assignment.
 
+An AgentFX observation timeout is only a bounded read; keep the Execution handle
+and observe again. A known terminal Execution can be continued with AgentFX
+`resume`, which preserves the Fx session ID while creating a fresh Execution,
+Attempt, Assignment association and provider admission. Use fresh routing
+evidence for each managed continuation. `outcome_unknown` is deliberately not
+resumable because the prior provider or tool effects may already have happened.
+Do not replay that prompt or silently switch providers.
+
 Native `collaboration.spawn_agent` remains a separate Codex path. It does not
 inspect AgentFX targets or automatically use the provider preference, so managers
 must make the comparison before choosing either dispatch surface.

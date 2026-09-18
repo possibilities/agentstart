@@ -9,8 +9,10 @@ Add AgentFX's installed stdio MCP to the manager role with the private
 `~/.config/agentfx/quota-routing.json` configuration. Keep it absent from the
 worker role and from the shared global MCP inventory.
 
-The MCP contributes exactly AgentFX's existing `targets`, `start`, `observe`,
-and `control` operations. AgentFX retains durable execution/idempotency state,
+The MCP contributes exactly AgentFX's existing `targets`, `start`, `resume`,
+`observe`, and `control` operations. `resume` uses stock Fx session loading only
+after a known terminal outcome and creates a fresh Execution, routing admission
+and Assignment association; unknown outcomes remain non-resumable. AgentFX retains durable execution/idempotency state,
 Fx child ownership, and exact routing associations. AgentUsage retains account,
 quota, credential, and provider-admission authority. AgentHUD retains semantic
 Work, Assignment, Result, acceptance, and presentation state. Loading the MCP
@@ -28,3 +30,6 @@ instead of preparing one-shot request files. Workers cannot start sibling Fx
 executions through their explicit role. Existing AgentVoice generations keep
 their loaded MCP inventory until a later normal restart or replacement; role
 sync and AgentRoles installation do not restart production AgentVoice.
+
+Revised September 18, 2026 to include the resumable-session operation and its
+fresh-admission boundary.

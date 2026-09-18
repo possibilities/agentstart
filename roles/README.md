@@ -51,9 +51,9 @@ See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-cod
 
 ## Manager AgentFX control
 
-The manager role exposes AgentFX's four-tool MCP against the private
+The manager role exposes AgentFX's five-tool MCP against the private
 `~/.config/agentfx/quota-routing.json` configuration. This gives a newly loaded
-manager target discovery plus idempotent start, observe, and control operations
+manager target discovery plus idempotent start, resume, observe, and control operations
 for the already installed managed Codex/Grok controller. AgentFX and AgentUsage
 retain execution, account, quota, credential, and provider admission authority;
 the role entry does not copy credentials or make a configured target eligible.
@@ -73,6 +73,13 @@ Before AgentFX start, prepare Work and an Assignment whose explicit `slug_like`
 bind the returned handle after start. Observe through AgentFX and reconcile the
 normalized completion before parent review. Failed or unknown admission is never
 a silent native fallback: reconcile it before a new routing decision and attempt.
+
+A bounded `observe` wait ending does not end the Execution. Continue observing
+the same handle. After a known terminal outcome, `resume` may continue the same
+persisted Fx session as a new Execution and Assignment. Managed resumes require
+fresh routing evidence and acquire a fresh AgentUsage lease. Never resume an
+`outcome_unknown` Execution or replay its prompt; reconcile that uncertainty as
+its own result before making a new-session routing decision.
 
 See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
 
