@@ -70,6 +70,49 @@ Native `collaboration.spawn_agent` remains a separate Codex path. It does not
 inspect AgentFX targets or automatically use the provider preference, so managers
 must make the comparison before choosing either dispatch surface.
 
+## Approved Stage 1 comparison profile
+
+When a Work calls for the approved comparison, the manager selects
+`agentfx-stage-1-shadow` revision 1 and records its canonical profile digest.
+Only this Stage 1 recipe is enabled. Stage 2 candidate ownership and Stage 3
+ordinary routing are disabled recipe descriptions; their presence is not launch
+or promotion authority.
+
+The manager freezes one bounded task packet, repository base, required untracked
+inputs, fixtures, dependency lock, instructions, tool inventory, authority/file/
+network bounds, and acceptance checks before dispatching either lane. It resolves
+one immutable run manifest with the exact Work scope, task class, profile digest,
+lane settings, bounds, Assignment and routing IDs, isolated worktree and artifact
+roots, and predetermined binding-evidence references. The native control must be
+a fresh, explicitly resolved Sol, Terra, or Luna model/effort/tier; a full-history
+fork is not equivalent. The shadow is a fresh compatible AgentFX Grok 4.6 medium
+target admitted through current AgentUsage evidence. Each lane has one repetition,
+one prompt, and a zero delegation envelope. There is no steering, resume, chaining,
+or automatic integration.
+
+The manifest's queue, concurrency, execution and review values are operator
+bounds, not AgentFX wall-clock guarantees. Launch only while a live supervisor
+and durable recovery handoff can enforce them. At a deadline, issue the supported
+cancel/close operation and verify the resulting terminal and cleanup evidence;
+cancellation does not undo effects or prove zero further provider use.
+
+Use one Work for the real task, one Assignment per lane/repetition, a routing
+receipt per dispatch, and one manager-recorded comparison Result. Runtime bindings
+and requested-versus-observed settings append at the manifest's evidence
+references; they do not rewrite it. Preserve admission, terminal and cleanup
+states literally. Unknown delivery, authority breach, setting drift, stale quota,
+reserve refusal, or exhausted attempt budget stops further admissions for that
+run. It does not create a retry, replacement lane, or native fallback. Unmatched
+starting context makes the pair unsuitable for quality or economics claims.
+
+Stage 1 artifacts are evidence only, even when accepted. Neither is integrated.
+Any ordinary delivery obligation remains separately tracked and uses the normal
+authority, review and delivery path. Promotion and rollback are explicit manager
+records followed by the required human decision; a score never promotes a stage.
+AgentUsage retains account and admission authority, AgentFX retains Fx Execution
+and cleanup ownership, and AgentHUD retains Work, Assignment, Result, acceptance
+and presentation state.
+
 ## Brain retrieval and primary model guidance
 
 The requested Brain search and full retrieval returned these saved sources:

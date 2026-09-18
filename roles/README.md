@@ -83,20 +83,16 @@ inside its locked preparation transaction before AgentFX launches Fx. Supply an
 exact aggregate revision only when the caller intentionally fences admission to
 that exact snapshot; it is not the default freshness mechanism.
 
-The manager also supports a named automatic comparison profile that exists only
-when the human explicitly enables it and remains active until disabled or changed.
-A bounded profile may configure source and counterpart harness, provider, model,
-effort, and repetition; unspecified variants are never inferred, and the role
-does not become a general benchmark system. The initial profile,
-`grok-4.6-counterpart`, gives each new eligible Sol-, Terra-, or Luna-level root
-assignment one isolated Grok 4.6 counterpart through a compatible eligible
-AgentFX target when the work is repeatable and safe. The counterpart has a
-separate tracked Work/Assignment lineage, starts from the same source state, and
-stays isolated for review; routing receipts identify the profile and pair.
-Astra-level judgment, irreversible or non-repeatable external actions, and
-shared-device or headful-resource work are excluded. Comparison artifacts are
-never integrated automatically. The profile is explicit opt-in state, not a
-fleet default or a replacement for routing judgment outside its bounded scope.
+For approved comparison Work, the manager selects AgentFX's enabled Stage 1
+profile and records its exact revision and digest in an immutable resolved run
+manifest. It uses one fresh native control and one isolated Grok 4.6 medium shadow
+from the same frozen packet and base, with distinct Assignments, routing receipts,
+worktrees, artifacts, and runtime-binding evidence. Each lane is one-shot with
+zero delegation; neither output is integrated. An unknown or invalid pair stops
+further run admissions without replay or fallback. Stage 2 and Stage 3 remain
+disabled until explicit human promotion. This workflow uses existing AgentHUD,
+native dispatch, AgentFX, and AgentUsage ownership; the role adds no scheduler or
+comparison control surface.
 
 A bounded `observe` wait ending does not end the Execution. Continue observing
 the same handle. After a known terminal outcome, `resume` may continue the same
@@ -106,6 +102,7 @@ fresh routing evidence and acquire a fresh AgentUsage lease. Never resume an
 its own result before making a new-session routing decision.
 
 See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
+See [comparison profile decision](../docs/adr/0029-select-stage-one-comparison-profile.md).
 
 ## Upstream fork patch and contribution gate
 
