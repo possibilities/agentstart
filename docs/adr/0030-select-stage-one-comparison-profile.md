@@ -1,4 +1,4 @@
-# 0029: Select the Stage 1 AgentFX comparison profile
+# 0030: Select the Stage 1 AgentFX comparison profile
 
 Accepted September 18, 2026.
 
@@ -17,6 +17,10 @@ chain, automatically integrate, retry an uncertain attempt, or silently replace
 a refused/unknown lane. Stages 2 and 3 remain disabled recipes until a later
 explicit human promotion. Ordinary delivery obligations continue under their
 existing Work, authority, review, and delivery contracts.
+
+This supersedes the automatic comparison-profile exception in
+[ADR 0028](0028-expose-agentfx-to-managers.md). The former named state is
+historical context, not selectable manager behavior.
 
 ## Ownership
 

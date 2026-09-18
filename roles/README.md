@@ -102,7 +102,7 @@ fresh routing evidence and acquire a fresh AgentUsage lease. Never resume an
 its own result before making a new-session routing decision.
 
 See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
-See [comparison profile decision](../docs/adr/0029-select-stage-one-comparison-profile.md).
+See [comparison profile decision](../docs/adr/0030-select-stage-one-comparison-profile.md).
 
 ## Upstream fork patch and contribution gate
 

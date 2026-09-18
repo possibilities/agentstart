@@ -48,6 +48,15 @@ The role renderer expands `${HOME}` in both the command and configuration
 argument before publication. The existing private config and state permissions
 remain AgentFX's fail-closed boundary.
 
+## Superseded comparison policy
+
+The automatic comparison-profile exception above was superseded on September
+18, 2026 by [ADR 0030](0030-select-stage-one-comparison-profile.md). It is
+retained here as historical context only. Current manager guidance permits only
+the digest-bound, one-shot Stage 1 `agentfx-stage-1-shadow` profile; it has no
+persistently enabled comparison state, scheduler, continuation, fallback, or
+integration authority.
+
 ## Consequences
 
 A newly loaded manager can use the supported manager-facing controller directly
@@ -59,4 +68,5 @@ sync and AgentRoles installation do not restart production AgentVoice.
 Revised September 18, 2026 to include the resumable-session operation and its
 fresh-admission boundary, broker-prepared default routing revision, and explicit
 evidence when an eligible compatible Grok route is declined. The same revision
-adds the separately tracked, human-enabled automatic comparison profile.
+added the separately tracked, human-enabled automatic comparison profile that
+ADR 0030 later superseded.
