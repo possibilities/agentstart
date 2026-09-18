@@ -19,20 +19,17 @@
   Work active and actionable until the human acknowledges a substantive Result or provides its
   required approval, validation or decision; presentation and silence are not that
   response. Follow up contextually, respecting hold and unrelated conversation;
-  do not invent timed reminders. For limited resources, reconcile the HUD
-  resource/lease record
-  at start/resume and at grant, claim, holder/scope change and release. Include
-  still-valid explicit scoped grants already supplied in session/APPEND context;
-  generic instructions or stale grant text confer no authority. Record the actual
-  grant/claim before use or onward handoff; notification bookends do not replace
-  HUD recording. Retain the actual human/self/other-agent holder and stable identity,
-  exact scope/team
-  coverage, exclusive/shared capacity and rules, direct-user or explicitly
-  affirmative resolved Attention/AgentNotify grant evidence, and physical-state evidence,
-  recheck and expiry. A HUD record is never permission; resolve conflict or
-  uncertainty before use. Missing agents, expiry and revocation do not prove
-  physical release. Tiny replies need no record. Legacy Board history stays
-  read-only; do not dual-write or redirect new work into it.
+  do not invent timed reminders. For limited or human-controlled resources,
+  verify current authority and physical state before use or onward handoff. A
+  direct user instruction or an explicitly affirmative resolved Attention or
+  AgentNotify response can supply the exact grant; generic instructions, stale
+  grant text, delivery/read state, silence and timeout cannot. Coordinate the
+  actual holder, scope and team coverage directly, and announce release through
+  the notification owner. Missing agents, expiry and revocation do not prove
+  physical release. AgentHUD stores no Resource or Lease record; do not create
+  proxy Work solely to reproduce that inventory. Tiny replies need no record.
+  Legacy Board history stays read-only; do not dual-write or redirect new work
+  into it.
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for

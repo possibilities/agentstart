@@ -230,8 +230,14 @@ grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELI
 grep -F "Managers keep substantive work visible with \`hud\`" \
     prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route durable work through HUD"
-grep -F 'A HUD record is never permission' prompts/agentguidance/GUIDELINES.md >/dev/null \
-    || fail "GUIDELINES.md treats a resource record as permission"
+grep -F 'AgentHUD stores no Resource or Lease record' prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md retains AgentHUD resource recording"
+grep -F 'AgentNotify response can supply the exact grant' \
+    prompts/agentguidance/GUIDELINES.md >/dev/null \
+    || fail "GUIDELINES.md loses direct human and notification authority evidence"
+if grep -F 'reconcile the HUD' prompts/agentguidance/GUIDELINES.md >/dev/null; then
+    fail "GUIDELINES.md still instructs HUD resource reconciliation"
+fi
 if grep -F "visible with \`board\`" prompts/agentguidance/GUIDELINES.md >/dev/null; then
     fail "GUIDELINES.md retains active Board routing"
 fi

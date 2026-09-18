@@ -219,8 +219,10 @@ class RoleRender(unittest.TestCase):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
             self.assertLessEqual(len((role / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md").read_bytes()), 1600)
             self.assertEqual((role / "skills/hud/SKILL.md").exists(), name == "manager")
-        self.assertIn("A HUD record is never permission",
+        self.assertIn("AgentHUD stores no Resource or Lease records",
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
+        self.assertNotIn("reconcile its HUD resource and lease records",
+                         (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("When the human asks for a sketch",
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         manager_prompt = (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text()
@@ -267,8 +269,11 @@ class RoleRender(unittest.TestCase):
         self.assertNotIn("There is no universal acknowledgment gate", manager_prompt)
         self.assertNotIn("When the human asks for a sketch",
                          (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
-        self.assertIn("include resource facts and limitations",
+        self.assertIn("AgentHUD stores no resource/lease record",
                       (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
+        self.assertNotIn("include resource facts and limitations", worker_prompt)
+        self.assertIn("explicitly affirmative resolved Attention or AgentNotify response",
+                      manager_prompt)
         retired_mailbox_terms = (
             "agentvoice_thread_mailbox_open",
             "agentvoice.thread_mailbox_notice",

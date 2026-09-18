@@ -325,7 +325,7 @@ remains intact, with no Responses provider injection into its Realtime path.
 
 | From | Routes to | Notable natures |
 | --- | --- | --- |
-| hud | attention, notifications, chats | durable Work stores an explicitly affirmative resolved Attention or AgentNotify response as grant evidence for a resource lease. For a Codex collaboration worker absent from AgentVoice observation, the manager uses AgentChats `routing` to obtain exact attempt, parent/child turn, model and effort citations for a transcript binding; AgentHUD never scans transcripts or treats the receipt as live activity. The manager also records the actual stable holder, scope/team coverage, sharing/capacity rules, physical state, recheck and expiry. The HUD record does not infer or grant permission; delivery, read state, silence, timeout, expiry, revocation or a missing agent does not prove authority or physical release (`agenthud/skills/hud/SKILL.md`; `agenthud/docs/adr/0009-bind-codex-collaboration-transcripts.md`; `agentchats/skills/chats/SKILL.md`; `agentstart/prompts/agentguidance/GUIDELINES.md`; `agentstart/docs/adr/0014-record-resource-leases-without-granting-permission.md`) |
+| hud | chats | for a Codex collaboration worker absent from AgentVoice observation, the manager uses AgentChats `routing` to obtain exact attempt, parent/child turn, model and effort citations for a transcript binding. AgentHUD never scans transcripts or treats the receipt as live activity. Resource permission and physical-state coordination use their direct human and notification owners rather than an AgentHUD record (`agenthud/skills/hud/SKILL.md`; `agenthud/docs/adr/0009-bind-codex-collaboration-transcripts.md`; `agentchats/skills/chats/SKILL.md`; `agentstart/docs/adr/0029-retire-agenthud-resource-lease-recording.md`) |
 | brain | chats, wiki | prior conversations route to chats and authored documents to wiki. Saved research is useful context; a local miss is not a prerequisite for current web research. The worker's Agentscrape extraction is a runtime dependency, not a skill-routing edge (`agentbrain/skills/brain/SKILL.md`; `agentbrain/skills/brain/references/ingestion.md`) |
 | scrape | brain, browser, search | URL discovery routes to search, page interaction and sign-in to browser, and worthwhile source ingestion to brain. Immediate extraction does not require ingestion first (`agentscrape/skills/scrape/SKILL.md`) |
 | search | brain, chats, scrape, wiki | saved reading and prior conversations supply context; known-source reading routes to scrape, saved sources to brain, and a requested durable synthesis to wiki. An explicit current-research request does not depend on empty local results (`agentsearch/skills/search/SKILL.md`) |
@@ -703,12 +703,18 @@ status operations isolate HUD from every other service, and repeated
 convergence leaves an identical healthy job running. AgentHUD's own installer
 remains service-free; Board preservation remains unchanged.
 
-Updated 2026-09-14 for manager-owned resource lease records. Managers reconcile
+Historical update from 2026-09-14, superseded below: managers reconcile
 actual holders, exact scope/team coverage, sharing/capacity rules, grant and
 physical-state evidence, recheck and expiry at start/resume and lease changes.
 HUD records coordinate evidence but never grant permission or turn missing,
 expired or revoked state into proof of physical release. Workers report facts
 and limitations to their parent without HUD writes.
+
+Superseded 2026-09-17 by the retirement of AgentHUD Resource and Lease recording.
+Direct human permission, Attention/AgentNotify grant evidence and physical-state
+coordination remain authoritative; AgentHUD now retains only Work, Assignment and
+Result evidence. The HUD fleet route keeps only the AgentChats transcript-binding
+dependency.
 
 Updated 2026-09-14 for AgentMux's offline-safe role MCP. Both explicit roles
 start the fixed `agentmux mcp --instance default` stdio bridge, whose stable

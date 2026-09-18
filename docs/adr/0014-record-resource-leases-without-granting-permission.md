@@ -1,5 +1,8 @@
 # 0014: Record resource leases without granting permission
 
+Status: Superseded by
+[0029](0029-retire-agenthud-resource-lease-recording.md).
+
 Accepted September 14, 2026. Extends [manager-owned HUD recording](0013-managers-own-hud-recording.md).
 
 Managers reconcile HUD resource and lease records at start/resume and at each
