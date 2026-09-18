@@ -101,22 +101,23 @@ install_private_skill_pack() {
         || die "installing agent skills failed: $source ($*)"
 }
 
-# AgentStart owns one guidance slot for each managed harness. Link both to the
-# fixed resource set's canonical AGENTS.md, which stays deliberately empty — global
-# advice belongs
-# in the extension prompts below, rendered into the collab and build skills,
-# not in a file loaded into every session. Claude Code reads only CLAUDE.md,
-# while Codex skips empty guidance files. An independent non-symlink file with
-# content at either target is preserved and reported — the same conflict rule
-# the guidance file itself prescribes for repositories.
+# AgentStart owns one guidance slot for each managed harness. Link both AGENTS.md
+# locations to the fixed resource set's canonical AGENTS.md, which stays
+# deliberately empty — global advice belongs in the extension prompts below,
+# rendered into the collab and build skills, not in a file loaded into every
+# session. An independent non-symlink file with content at either target is
+# preserved and reported — the same conflict rule the guidance file itself
+# prescribes for repositories. Retire only the old Claude link that this
+# installer owned; an independent CLAUDE.md remains outside this contract.
 link_agent_guidance() {
     local source="$resources_root/guidance/AGENTS.md"
+    local retired="$HOME/.claude/CLAUDE.md"
     local target
 
     [ -f "$source" ] \
         || die "agent guidance source is missing: $source"
 
-    for target in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md"; do
+    for target in "$HOME/.claude/AGENTS.md" "$HOME/.codex/AGENTS.md"; do
         if [ ! -L "$target" ] && [ -s "$target" ]; then
             die "refusing to replace independent guidance: $target"
         fi
@@ -125,6 +126,12 @@ link_agent_guidance() {
         cmp -s "$source" "$target" \
             || die "linked guidance does not resolve to $source: $target"
     done
+
+    if [ -L "$retired" ]; then
+        [ "$(readlink "$retired")" = "$source" ] \
+            || die "refusing to remove independent guidance link: $retired"
+        rm -- "$retired"
+    fi
 }
 
 # The operator extension prompts are cross-project guidance, so AgentStart
@@ -287,8 +294,9 @@ Agent documentation:
   native skills get core
 
 Agent guidance:
-  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/CLAUDE.md  # Claude Code reads CLAUDE.md, not AGENTS.md
-  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md  # Codex skips empty guidance files
+  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/AGENTS.md
+  ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.codex/AGENTS.md
+  remove the retired managed ~/.claude/CLAUDE.md link; preserve independent files and links
   ln -sfn prompts/agentguidance/{SYSTEM,GUIDELINES}.md into ~/.config/agentguidance  # the extension prompts agentguidance renders against
 
 Fixed private fleet resources:

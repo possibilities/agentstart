@@ -222,5 +222,5 @@ tests/validate.sh
 After changing installation behavior, also run
 `scripts/install.sh --install` and compare the installed `collab` manifest
 with its agentguidance source template — the same convergence check the
-fleet's guidance prescribes. `AGENTS.md` is the canonical guidance file;
-`CLAUDE.md` is a symlink to it.
+fleet's guidance prescribes. `AGENTS.md` is the sole repository guidance
+entrypoint.

@@ -70,9 +70,8 @@
   Apply the project's established design language and explicit human direction
   on top; this is a decision-making foundation, not an instruction to imitate
   Vercel's brand.
-- Repository guidance is `AGENTS.md` at the repo root, with `CLAUDE.md` a
-  symlink to it — or, where tooling refuses tracked symlinks, a short
-  pointer file naming `AGENTS.md`; never a second set of instructions.
+- Repository guidance is `AGENTS.md` at the repo root. Do not create a second
+  harness-specific entrypoint or duplicate its instructions.
 - Do not use harness-provided agent memory. Persistent instructions live only
   in repository `AGENTS.md` or in global guidance maintained in
   `~/code/agentstart` and/or `~/code/agentguidance`. This concerns persistent

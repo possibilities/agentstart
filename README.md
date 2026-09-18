@@ -36,8 +36,9 @@ believing any of this.
     Linked into `~/.config/agentguidance/`. Skills are discovered through
     their names and descriptions; there is no separate tool catalog.
   - `AGENTS.md` — the deliberately empty harness guidance source, copied into
-    the fixed private resources and linked from there into the Claude Code and
-    Codex global slots. Advice belongs in the extension prompts.
+    the fixed private resources and linked from there to `AGENTS.md` in the
+    Claude Code and Codex global directories. Advice belongs in the extension
+    prompts.
 - `config/` — harness configuration and resource manifests, the
   agent-browser, Herdr, and smolmux operator configs, and the launchd templates for
   fleet services AgentStart owns.
@@ -74,7 +75,8 @@ flags, and skip-versus-fail semantics are load-bearing:
     `agentbrowse provider`;
   - individual fleet MCPs including AgentHUD, Agentdesk, termctrl, agent-browser, account-bound Gog,
     and the fleet-owned shadcn registry through one shared resource inventory;
-  - the `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` guidance links, and
+  - the `~/.claude/AGENTS.md` and `~/.codex/AGENTS.md` guidance links, plus
+    removal of AgentStart's retired `~/.claude/CLAUDE.md` link;
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,

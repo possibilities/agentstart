@@ -72,12 +72,12 @@ Read [`the guide`](docs/with%20space.md#part).
         self.assertEqual(len(self.findings()), 2)
 
     def test_entrypoint_symlink_is_checked_and_regular_pointer_is_allowed(self):
-        (self.root / "CLAUDE.md").symlink_to("AGENTS.md")
+        (self.root / "GUIDE.md").symlink_to("AGENTS.md")
         self.assertEqual([item["code"] for item in self.findings()], ["broken-symlink"])
         self.write("AGENTS.md", "# Guidance\n")
         self.assertEqual(self.findings(), [])
-        (self.root / "CLAUDE.md").unlink()
-        self.write("CLAUDE.md", "Read AGENTS.md.\n")
+        (self.root / "GUIDE.md").unlink()
+        self.write("GUIDE.md", "Read AGENTS.md.\n")
         self.assertEqual(self.findings(), [])
 
     def test_git_ignored_documents_are_outside_the_check(self):
