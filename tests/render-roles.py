@@ -266,7 +266,11 @@ class RoleRender(unittest.TestCase):
         self.assertIn("finite numeric limits for direct children and total descendant assignments", manager_prompt)
         self.assertIn("without inferring `waiting`", manager_prompt)
         self.assertIn("until the human acknowledges the substantive Result", manager_prompt)
+        self.assertIn("Default a repository README to a one-line elevator pitch and very little else", manager_prompt)
+        self.assertIn("substantive architecture, research, plans, operations, and design documentation", manager_prompt)
+        self.assertIn("Add material to a README only through explicit collaboration with the human", manager_prompt)
         self.assertNotIn("There is no universal acknowledgment gate", manager_prompt)
+        self.assertNotIn("Default a repository README to a one-line elevator pitch", worker_prompt)
         self.assertNotIn("When the human asks for a sketch",
                          (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("AgentHUD stores no resource/lease record",
