@@ -68,11 +68,35 @@ For an eligible bounded assignment, the manager compares fresh native Codex and
 AgentFX targets. A fresh compatible included-quota Grok target is preferred for
 routine, well-specified work; native Codex remains available when the target is
 incompatible, the work needs higher judgment, or it has the better evidenced fit.
+Choosing native Codex while that fresh compatible Grok target is available needs
+a concise task-specific rationale in the routing receipt; provider selection
+remains an explicit judgment for each assignment.
 Before AgentFX start, prepare Work and an Assignment whose explicit `slug_like`
 `taskName` exactly equals the AgentFX `task_slug`, emit the routing receipt, and
 bind the returned handle after start. Observe through AgentFX and reconcile the
 normalized completion before parent review. Failed or unknown admission is never
 a silent native fallback: reconcile it before a new routing decision and attempt.
+
+Ordinary fixed-target AgentFX starts and resumes set `routing_source_revision`
+to `"broker_prepare"`, letting AgentUsage resolve the current exact revision
+inside its locked preparation transaction before AgentFX launches Fx. Supply an
+exact aggregate revision only when the caller intentionally fences admission to
+that exact snapshot; it is not the default freshness mechanism.
+
+The manager also supports a named automatic comparison profile that exists only
+when the human explicitly enables it and remains active until disabled or changed.
+A bounded profile may configure source and counterpart harness, provider, model,
+effort, and repetition; unspecified variants are never inferred, and the role
+does not become a general benchmark system. The initial profile,
+`grok-4.6-counterpart`, gives each new eligible Sol-, Terra-, or Luna-level root
+assignment one isolated Grok 4.6 counterpart through a compatible eligible
+AgentFX target when the work is repeatable and safe. The counterpart has a
+separate tracked Work/Assignment lineage, starts from the same source state, and
+stays isolated for review; routing receipts identify the profile and pair.
+Astra-level judgment, irreversible or non-repeatable external actions, and
+shared-device or headful-resource work are excluded. Comparison artifacts are
+never integrated automatically. The profile is explicit opt-in state, not a
+fleet default or a replacement for routing judgment outside its bounded scope.
 
 A bounded `observe` wait ending does not end the Execution. Continue observing
 the same handle. After a known terminal outcome, `resume` may continue the same
