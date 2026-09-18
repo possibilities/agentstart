@@ -32,30 +32,30 @@ the existing per-assignment judgment; it does not make Grok routing automatic.
 An explicitly human-enabled named automatic comparison profile is the narrow
 exception. A profile may configure bounded source and counterpart harness,
 provider, model, effort, and repetition values, but the manager infers no
-unspecified variants and does not implement a general benchmark system. The
-initial `grok-4.6-counterpart` profile gives each new eligible Sol-, Terra-, or
-Luna-level root assignment one isolated Grok 4.6 AgentFX counterpart until the
-human disables or changes it, when the work is repeatable and safe. The two
-candidates begin from the same source state, while the counterpart keeps a
-separate tracked Work/Assignment lineage and an output isolated for review;
-their routing receipts identify the profile and pair. Astra-level judgment,
+unspecified variants and does not implement a general benchmark system. While
+enabled, the profile gives every eligible Sol-, Terra-, or Luna-level root
+assignment one isolated Grok AgentFX counterpart until the human disables or
+changes it, when the work is repeatable and safe. The two candidates begin from
+the same frozen packet and repository base, while the counterpart keeps a
+separate tracked Work/Assignment lineage and output isolated for review; their
+routing receipts identify the profile and pair. Astra-level judgment,
 irreversible or otherwise non-repeatable external actions, and shared-device or
 headful-resource work are ineligible. No comparison artifact is integrated
-automatically. The named profile is opt-in session state, not a universal routing
-default.
+automatically. The named profile is opt-in durable manager-role state: automatic
+inside its explicit scope, not a universal routing default.
 
 The role renderer expands `${HOME}` in both the command and configuration
 argument before publication. The existing private config and state permissions
 remain AgentFX's fail-closed boundary.
 
-## Superseded comparison policy
+## Revised comparison policy
 
-The automatic comparison-profile exception above was superseded on September
-18, 2026 by [ADR 0030](0030-select-stage-one-comparison-profile.md). It is
-retained here as historical context only. Current manager guidance permits only
-the digest-bound, one-shot Stage 1 `agentfx-stage-1-shadow` profile; it has no
-persistently enabled comparison state, scheduler, continuation, fallback, or
-integration authority.
+The initial profile identifier and loose counterpart definition above were
+superseded on September 18, 2026 by
+[ADR 0030](0030-select-stage-one-comparison-profile.md). ADR 0030 retains the
+human-enabled automatic and persistent behavior while narrowing it to the
+digest-bound, one-shot Stage 1 `agentfx-stage-1-shadow` profile. It adds no
+scheduler, continuation, fallback, or integration authority.
 
 ## Consequences
 
@@ -68,5 +68,5 @@ sync and AgentRoles installation do not restart production AgentVoice.
 Revised September 18, 2026 to include the resumable-session operation and its
 fresh-admission boundary, broker-prepared default routing revision, and explicit
 evidence when an eligible compatible Grok route is declined. The same revision
-added the separately tracked, human-enabled automatic comparison profile that
-ADR 0030 later superseded.
+added the separately tracked, human-enabled automatic comparison profile; ADR
+0030 later replaced its identifier and run contract without disabling it.

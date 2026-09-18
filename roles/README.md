@@ -83,16 +83,17 @@ inside its locked preparation transaction before AgentFX launches Fx. Supply an
 exact aggregate revision only when the caller intentionally fences admission to
 that exact snapshot; it is not the default freshness mechanism.
 
-For approved comparison Work, the manager selects AgentFX's enabled Stage 1
-profile and records its exact revision and digest in an immutable resolved run
-manifest. It uses one fresh native control and one isolated Grok 4.6 medium shadow
-from the same frozen packet and base, with distinct Assignments, routing receipts,
-worktrees, artifacts, and runtime-binding evidence. Each lane is one-shot with
-zero delegation; neither output is integrated. An unknown or invalid pair stops
-further run admissions without replay or fallback. Stage 2 and Stage 3 remain
-disabled until explicit human promotion. This workflow uses existing AgentHUD,
-native dispatch, AgentFX, and AgentUsage ownership; the role adds no scheduler or
-comparison control surface.
+The human-enabled Stage 1 profile is persistent and automatic until the human
+disables or changes it. Every eligible repeatable root assignment that would use
+native Sol, Terra, or Luna gets a separate Grok 4.6 medium shadow from the same
+frozen first-round packet and repository base, with equivalent authority and
+separate Work, Assignment, routing, worktree, artifact, and binding evidence.
+The native lane remains the delivery owner. The shadow is one-shot comparison
+evidence with zero delegation and no steering, resume, chaining, retry, or
+automatic integration. Astra work, nonrepeatable effects, shared or headful
+resources, incompatible targets, and unsafe replays are excluded. Stage 2 and
+Stage 3 remain disabled. ADR 0030 records the durable enabled state; the role
+adds no scheduler or comparison control surface.
 
 A bounded `observe` wait ending does not end the Execution. Continue observing
 the same handle. After a known terminal outcome, `resume` may continue the same

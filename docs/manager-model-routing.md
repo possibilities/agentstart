@@ -70,25 +70,35 @@ Native `collaboration.spawn_agent` remains a separate Codex path. It does not
 inspect AgentFX targets or automatically use the provider preference, so managers
 must make the comparison before choosing either dispatch surface.
 
-## Approved Stage 1 comparison profile
+## Enabled automatic Stage 1 comparison profile
 
-When a Work calls for the approved comparison, the manager selects
-`agentfx-stage-1-shadow` revision 1 and records its canonical profile digest.
-Only this Stage 1 recipe is enabled. Stage 2 candidate ownership and Stage 3
-ordinary routing are disabled recipe descriptions; their presence is not launch
-or promotion authority.
+The human has enabled `agentfx-stage-1-shadow` revision 1 as an automatic profile.
+It remains enabled until the human explicitly disables or changes it. For every
+eligible repeatable root assignment that would use native Codex Sol, Terra, or
+Luna, the manager prepares the shadow before dispatching the native assignment;
+there is no per-assignment approval gate. Only this Stage 1 recipe is enabled.
+Stage 2 candidate ownership and Stage 3 ordinary routing remain disabled.
 
-The manager freezes one bounded task packet, repository base, required untracked
+The manager freezes the native assignment's first-round task packet, starting
+repository commit/base state, required untracked
 inputs, fixtures, dependency lock, instructions, tool inventory, authority/file/
 network bounds, and acceptance checks before dispatching either lane. It resolves
-one immutable run manifest with the exact Work scope, task class, profile digest,
-lane settings, bounds, Assignment and routing IDs, isolated worktree and artifact
-roots, and predetermined binding-evidence references. The native control must be
-a fresh, explicitly resolved Sol, Terra, or Luna model/effort/tier; a full-history
-fork is not equivalent. The shadow is a fresh compatible AgentFX Grok 4.6 medium
-target admitted through current AgentUsage evidence. Each lane has one repetition,
-one prompt, and a zero delegation envelope. There is no steering, resume, chaining,
-or automatic integration.
+one immutable run manifest with the exact paired Work scopes, task class, profile
+digest, lane settings, equivalent authority and tool bounds, Assignment and
+routing IDs, isolated worktree and artifact roots, and predetermined
+binding-evidence references. The two lanes receive the same frozen task packet.
+The native delivery owner must be a fresh, explicitly resolved Sol, Terra, or
+Luna model/effort/tier; a full-history fork is not equivalent. The shadow is a
+fresh compatible AgentFX Grok 4.6 medium target admitted through current
+AgentUsage evidence. It has one prompt, zero delegation and one admission attempt.
+Never steer, resume, chain or retry the shadow, including after unknown acceptance
+or outcome, and never automatically integrate it. The native lane remains the
+delivery owner and may continue, integrate and deliver normally after the matched
+first round.
+
+Do not create a shadow for Astra work, irreversible or otherwise nonrepeatable
+effects, shared or headful resources, incompatible targets, or any task that
+cannot be safely replayed with equivalent authority.
 
 The manifest's queue, concurrency, execution and review values are operator
 bounds, not AgentFX wall-clock guarantees. Launch only while a live supervisor
@@ -96,18 +106,20 @@ and durable recovery handoff can enforce them. At a deadline, issue the supporte
 cancel/close operation and verify the resulting terminal and cleanup evidence;
 cancellation does not undo effects or prove zero further provider use.
 
-Use one Work for the real task, one Assignment per lane/repetition, a routing
-receipt per dispatch, and one manager-recorded comparison Result. Runtime bindings
-and requested-versus-observed settings append at the manifest's evidence
-references; they do not rewrite it. Preserve admission, terminal and cleanup
-states literally. Unknown delivery, authority breach, setting drift, stale quota,
-reserve refusal, or exhausted attempt budget stops further admissions for that
-run. It does not create a retry, replacement lane, or native fallback. Unmatched
-starting context makes the pair unsuitable for quality or economics claims.
+Use one delivery Work and Assignment for the native task and a separate comparison
+Work and Assignment for the shadow, with a routing receipt per dispatch and a
+Result under each Work. Link them through the profile digest and pair identifier.
+Runtime bindings and requested-versus-observed settings append at the manifest's
+evidence references; they do not rewrite it. Preserve admission, terminal and
+cleanup states literally. Unknown delivery, authority breach, setting drift,
+stale quota, reserve refusal, or exhausted attempt budget stops further shadow
+admissions for that pair. It does not create a retry or replacement lane, and the
+already planned native owner is not a fallback. Unmatched starting context makes
+the pair unsuitable for quality or economics claims.
 
-Stage 1 artifacts are evidence only, even when accepted. Neither is integrated.
-Any ordinary delivery obligation remains separately tracked and uses the normal
-authority, review and delivery path. Promotion and rollback are explicit manager
+The shadow's Stage 1 artifact is evidence only, even when accepted, and is never
+integrated automatically. The native owner follows the normal authority, review,
+integration and delivery path. Promotion and rollback are explicit manager
 records followed by the required human decision; a score never promotes a stage.
 AgentUsage retains account and admission authority, AgentFX retains Fx Execution
 and cleanup ownership, and AgentHUD retains Work, Assignment, Result, acceptance
