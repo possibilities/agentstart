@@ -4,6 +4,9 @@
   "role": "~/.local/share/agentstart/resources/roles/manager",
   "orchestrator": {
     "model": "gpt-5.6-sol",
-    "effort": "high"
+    "effort": "high",
+    "config": {
+      "model_context_window": 872000
+    }
   }
 }

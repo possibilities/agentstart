@@ -33,7 +33,11 @@ import json, sys
 assert json.load(open(sys.argv[1])) == {
     'allow-full-access': True, 'debug': False,
     'role': '~/.local/share/agentstart/resources/roles/manager',
-    'orchestrator': {'model': 'gpt-5.6-sol', 'effort': 'high'},
+    'orchestrator': {
+        'model': 'gpt-5.6-sol',
+        'effort': 'high',
+        'config': {'model_context_window': 872000},
+    },
 }
 PY
 printf 'agentvoice-config tests passed\n'
