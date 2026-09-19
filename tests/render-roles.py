@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Verify independent role inventories and ownership-safe convergence."""
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -182,6 +184,42 @@ class RoleRender(unittest.TestCase):
         path.symlink_to(elsewhere)
         self.render(1)
         self.assertFalse((self.resources / "roles/manager").exists())
+
+    def test_shipped_worker_mcp_is_one_attested_agentfx_roster(self):
+        self.render(sources=ROOT / "roles")
+        source = json.loads((ROOT / "roles/worker/mcp.json").read_text())
+        role = self.resources / "roles/worker"
+        mcp_bytes = (role / "mcp.json").read_bytes()
+        rendered = json.loads(mcp_bytes)
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+
+        servers = rendered["mcpServers"]
+        self.assertEqual(set(servers), set(source["mcpServers"]))
+        self.assertTrue(servers)
+        self.assertTrue({"agenthud", "agentfx"}.isdisjoint(
+            name.lower() for name in servers))
+        for server in servers.values():
+            self.assertEqual(set(server), {"command", "args"})
+            command = server["command"]
+            self.assertTrue(Path(command).is_absolute() or
+                            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}",
+                                         command))
+            self.assertIsInstance(server["args"], list)
+            self.assertTrue(all(isinstance(argument, str)
+                                for argument in server["args"]))
+
+        mcp_sha256 = hashlib.sha256(mcp_bytes).hexdigest()
+        framed = json.dumps([
+            "agentvoice-role-content-v1",
+            [{"path": "mcp.json", "kind": "file", "hash": mcp_sha256}],
+        ], separators=(",", ":")).encode()
+        self.assertEqual(receipt["owner"], "agentstart-role-v4")
+        self.assertEqual(receipt["mcp_sha256"], mcp_sha256)
+        self.assertEqual(receipt["content"]["mcp"],
+                         hashlib.sha256(framed).hexdigest())
+        self.assertEqual((role / "mcp.json").stat().st_mode & 0o777, 0o600)
+        self.assertEqual((role / ".agentstart-role.json").stat().st_mode & 0o777,
+                         0o600)
 
     def test_shipped_roles_are_complete_and_modes_fit_native_limit(self):
         (self.resources / "skills/hud").mkdir()

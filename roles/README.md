@@ -64,6 +64,14 @@ and delegation envelope. Rendering and installing this role change does not
 reload an active AgentVoice generation; it becomes available at a later normal
 role load.
 
+AgentFX `code` executions consume this same ownership-attested rendered worker
+`mcp.json` as their only authored MCP roster. AgentFX validates the private v4
+receipt and hashes, forbids AgentHUD and AgentFX, and derives its stock-Fx launch
+configuration without copying policy back into AgentStart. Its `read_only`
+profile receives no role MCPs. Tool availability grants no device or headful
+lease, messaging or email authority, provider authority, or additional
+delegation; the parent-issued scope remains controlling.
+
 For an eligible bounded assignment, the manager compares fresh native Codex and
 AgentFX targets. A fresh compatible included-quota Grok target is preferred for
 routine, well-specified work; native Codex remains available when the target is
@@ -104,6 +112,7 @@ its own result before making a new-session routing decision.
 
 See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
 See [comparison profile decision](../docs/adr/0030-select-stage-one-comparison-profile.md).
+See [worker MCP export decision](../docs/adr/0032-export-worker-mcp-role-to-agentfx.md).
 
 ## Upstream fork patch and contribution gate
 
