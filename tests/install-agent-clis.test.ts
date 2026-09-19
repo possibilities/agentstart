@@ -37,13 +37,14 @@ test("AgentVoice full convergence opts into graceful menu updates; rerunnable", 
   const f = fixture();
   f.installer("agentvoice");
   f.installer("agenthud");
+  f.installer("agentlab");
   for (let count = 0; count < 2; count++) {
     const result = f.run();
     expect(result.exitCode, result.stderr.toString()).toBe(0);
     expect(result.stdout.toString()).toContain("no checkout");
   }
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
-    "agentvoice:--install --quit-menu\nagenthud:--install\nagentvoice:--install --quit-menu\nagenthud:--install\n",
+    "agentvoice:--install --quit-menu\nagenthud:--install\nagentlab:--install\nagentvoice:--install --quit-menu\nagenthud:--install\nagentlab:--install\n",
   );
 });
 
@@ -77,10 +78,11 @@ test("live-call convergence uses AgentVoice's command-only contract", () => {
   const f = fixture();
   f.installer("agentvoice");
   f.installer("agenthud");
+  f.installer("agentlab");
   const result = f.run([], { AGENTSTART_PRESERVE_AGENTVOICE_SERVICE: "1" });
   expect(result.exitCode).toBe(0);
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe(
-    "agentvoice:--install --command-only\nagenthud:--install\n",
+    "agentvoice:--install --command-only\nagenthud:--install\nagentlab:--install\n",
   );
 });
 
@@ -92,6 +94,16 @@ test("a broken independent AgentHUD checkout fails after AgentVoice", () => {
   expect(result.exitCode).toBe(1);
   expect(result.stderr.toString()).toContain("present checkout has no executable installer");
   expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentvoice:--install --command-only\n");
+});
+
+test("a broken independent AgentLab checkout fails after AgentHUD", () => {
+  const f = fixture();
+  f.installer("agenthud");
+  mkdirSync(join(f.root, "agentlab"));
+  const result = f.run();
+  expect(result.exitCode).toBe(1);
+  expect(result.stderr.toString()).toContain("present checkout has no executable installer");
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agenthud:--install\n");
 });
 
 test("AgentFX owner installer follows AgentUsage without a service action", () => {

@@ -39,7 +39,11 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
   through AgentVoice's installed `agentvoice serve` contract, and the separate
   `io.arthack.agenthud.serve` web-view LaunchAgent through the independent
-  AgentHUD checkout's installed `agenthud serve` contract.
+  AgentHUD checkout's installed `agenthud serve` contract. AgentStart also owns
+  `io.arthack.agentlab.serve` through AgentLab's installed `agentlab serve`
+  Portless contract; AgentLab retains its cumulative UI/backend build,
+  `agentlab.localhost` name, server-only Jev credential lookup, and feedback
+  database.
   AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.
@@ -139,6 +143,13 @@ Where things go:
   and production assets without service effects. `install-agent-clis` invokes
   that contract directly. AgentStart separately owns the resident HUD
   LaunchAgent; no AgentVoice installer or redirect sits between them.
+- AgentLab is an ordinary independent fleet checkout under `~/code/agentlab`.
+  Its `scripts/install.sh --install` owns the editable `agentlab` command,
+  frozen dependencies, cumulative client/server build, and deployed-SHA
+  receipt without service effects. AgentStart separately owns the resident
+  `io.arthack.agentlab.serve` LaunchAgent. The command fixes its Portless name
+  and internal loopback port; the plist fixes the existing feedback database
+  path but contains no Jev credential.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than

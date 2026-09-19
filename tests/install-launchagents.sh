@@ -106,6 +106,8 @@ rm -- "$chats_plist"
 plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
     || fail "missing AgentHUD binary was not skipped"
+printf '%s\n' "$plan" | grep -F "skipped io.arthack.agentlab.serve (no $bin_dir/agentlab)" >/dev/null \
+    || fail "missing AgentLab binary was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not configured; would skip' >/dev/null \
     || fail "unprepared AgentVoice test server was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not configured; would skip' >/dev/null \
@@ -283,6 +285,87 @@ fi
 grep -Fxq '<!-- independent HUD -->' "$hud_plist" \
     || fail "targeted HUD installation overwrote a foreign service"
 rm -- "$bin_dir/agenthud" "$hud_plist"
+
+# AgentLab's exact selector renders one resident full-stack service. Status
+# additionally proves its public read-only readiness contract.
+lab_label=io.arthack.agentlab.serve
+lab_plist="$launch_agents/$lab_label.plist"
+cat >"$bin_dir/agentlab" <<'EOF'
+#!/bin/sh
+if [ "${1:-}" = status ] && [ "${AGENTSTART_TEST_AGENTLAB_UNREADY:-0}" = 1 ]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$bin_dir/agentlab"
+target_plan=$(run_installer --check --service "$lab_label")
+printf '%s\n' "$target_plan" | grep -F "$lab_label" | grep -F 'install' >/dev/null \
+    || fail "targeted AgentLab plan omitted its absent service"
+if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentvoice.serve' >/dev/null; then
+    fail "targeted AgentLab plan included the AgentVoice reader"
+fi
+
+: >"$target_launchctl_log"
+: >"$target_launchctl_state"
+cp "$attention_plist" "$test_root/attention-before-agentlab-targeted.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_label" >/dev/null
+/usr/bin/python3 - "$lab_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2], "serve"]
+assert value["EnvironmentVariables"] == {
+    "HOME": sys.argv[3],
+    "PATH": value["EnvironmentVariables"]["PATH"],
+    "AGENTLAB_FEEDBACK_DB_PATH": sys.argv[3] + "/Library/Application Support/AgentLab/feedback-v1.sqlite3",
+}
+assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
+assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
+assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentlab/server.log"
+PYTHON
+cmp "$attention_plist" "$test_root/attention-before-agentlab-targeted.plist" \
+    || fail "targeted AgentLab installation rewrote a neighboring service"
+cp "$lab_plist" "$test_root/agentlab-before-repeat.plist"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_label" >/dev/null
+cmp "$lab_plist" "$test_root/agentlab-before-repeat.plist" \
+    || fail "repeat targeted AgentLab installation changed an identical plist"
+[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "repeat targeted AgentLab installation reloaded its healthy service"
+[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
+    || fail "repeat targeted AgentLab installation stopped its healthy service"
+target_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        run_installer --status --service "$lab_label"
+)
+printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'state=running' | grep -F 'readiness=ready' >/dev/null \
+    || fail "targeted AgentLab status omitted its running ready backend"
+if AGENTSTART_TEST_AGENTLAB_UNREADY=1 \
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --status --service "$lab_label" >/dev/null 2>&1; then
+    fail "targeted AgentLab status accepted a failed backend readiness probe"
+fi
+printf '<!-- independent AgentLab -->\n' >"$lab_plist"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_label" >/dev/null 2>&1; then
+    fail "targeted AgentLab installation accepted a foreign ownership marker"
+fi
+grep -Fxq '<!-- independent AgentLab -->' "$lab_plist" \
+    || fail "targeted AgentLab installation overwrote a foreign service"
+rm -- "$bin_dir/agentlab" "$lab_plist"
 
 # The AgentVoice reader uses the same exact-label frame independently of the
 # AgentVoice-owned waiting server. Its first canonical convergence replaces the

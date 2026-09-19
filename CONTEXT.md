@@ -78,6 +78,16 @@ Board/Groom skills and the AgentBoard MCP are absent from active fleet
 resources. AgentBoard has no socket service endpoint.
 _Avoid_: Board redirect, dual write, AgentVoice-owned AgentHUD.
 
+**AgentLab cumulative service** — AgentLab's installed `agentlab serve`
+foreground contract supervised by AgentStart as
+`io.arthack.agentlab.serve`. AgentLab builds and serves the current cumulative
+UI and backend at `agentlab.localhost` through the existing shared Portless
+proxy, keeps Jev credentials behind the server boundary, and retains feedback
+in its established server-owned SQLite database. AgentStart owns only the
+LaunchAgent, deterministic environment, private log, and readiness/status
+projection. _Avoid_: browser credential, second service owner, feature-slice
+service, separate Portless proxy.
+
 **AgentVoice transcript reader** — AgentVoice's foreground `agentvoice serve`
 command and editable transcript UI at `https://agentvoice.localhost`, supervised
 at login by AgentStart's `io.arthack.agentvoice.serve` LaunchAgent. It observes

@@ -1378,7 +1378,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # launcher shells prepare). AgentUsage owns all three account inventories.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentfx agentlaunch agentsurface"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentfx agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1387,7 +1387,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentfx agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentnotify; do
+    agentscrape agentbrain agentusage agentfx agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
@@ -1471,6 +1471,7 @@ io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
+io.arthack.agentlab.serve|agentlab|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
 io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident
@@ -1554,6 +1555,22 @@ assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned:
 value = plistlib.loads(template.read_bytes())
 assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--tailscale"]
 assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
+assert value["KeepAlive"] is True
+assert value["RunAtLoad"] is True
+assert value["ProcessType"] == "Standard"
+assert value["Umask"] == 63
+assert value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+template = pathlib.Path("config/launchd/io.arthack.agentlab.serve.plist")
+assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentlab.serve.v1 -->"
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
+assert value["EnvironmentVariables"] == {
+    "HOME": "__HOME__",
+    "PATH": "__PATH__",
+    "AGENTLAB_FEEDBACK_DB_PATH": "__FEEDBACK_DB__",
+}
 assert value["KeepAlive"] is True
 assert value["RunAtLoad"] is True
 assert value["ProcessType"] == "Standard"

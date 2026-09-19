@@ -48,6 +48,7 @@ SERVICES=(
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
+    "io.arthack.agentlab.serve|agentlab|server.log|resident"
     "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
     "io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident"
     "io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident"
@@ -234,6 +235,9 @@ service_tokens() {
             ;;
         io.arthack.agentvoice.serve)
             printf 'STATE_ROOT=%s\n' "$state_root"
+            ;;
+        io.arthack.agentlab.serve)
+            printf 'FEEDBACK_DB=%s\n' "$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3"
             ;;
         io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
             agentvoice_test_service_enabled "$label" || return 10
@@ -553,7 +557,7 @@ service_selected() {
 status_services() {
     local failures=0 entry label tool log_name lifecycle program plist target
     local ownership service state pid last_exit log log_bytes tokens token_status
-    local desired_revision installed_revision
+    local desired_revision installed_revision readiness
     printf 'Fleet launch service status (%s):\n' "$launch_agents_dir"
     for entry in "${SERVICES[@]}"; do
         service_selected "$entry" || continue
@@ -647,13 +651,21 @@ status_services() {
             printf '  %-42s %-15s state=%s last_exit=%s log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${last_exit:-unknown}" "$log_bytes"
             failures=$((failures + 1))
+        elif [ "$label" = io.arthack.agentlab.serve ] && ! env PATH="$(service_path)" \
+            AGENTLAB_FEEDBACK_DB_PATH="$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3" \
+            "$program" status >/dev/null 2>&1; then
+            printf '  %-42s %-15s state=%s pid=%s readiness=failed log_bytes=%s\n' \
+                "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
+            failures=$((failures + 1))
         elif [ -n "$last_exit" ] && [ "$last_exit" != 0 ] && [ "$last_exit" != '(never exited)' ]; then
             printf '  %-42s %-15s state=%s pid=%s last_exit=%s log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$last_exit" "$log_bytes"
             failures=$((failures + 1))
         else
-            printf '  %-42s %-15s state=%s pid=%s last_exit=%s log_bytes=%s\n' \
-                "$label" ok "${state:-unknown}" "${pid:--}" "${last_exit:-unknown}" "$log_bytes"
+            readiness=""
+            [ "$label" != io.arthack.agentlab.serve ] || readiness=" readiness=ready"
+            printf '  %-42s %-15s state=%s pid=%s last_exit=%s%s log_bytes=%s\n' \
+                "$label" ok "${state:-unknown}" "${pid:--}" "${last_exit:-unknown}" "$readiness" "$log_bytes"
         fi
     done
     return "$failures"

@@ -105,6 +105,22 @@ canonical checkout and whose fixed local Portless origin is
 dependencies, and optional production build without touching this service;
 AgentStart alone owns the LaunchAgent lifecycle.
 
+`io.arthack.agentlab.serve` keeps the current cumulative AgentLab laboratory
+resident at `http://agentlab.localhost`, which the shared Portless proxy
+redirects to its canonical `https://agentlab.localhost` route. It invokes the
+installed `agentlab serve` contract, which rebuilds the browser UI and Node
+backend together and registers that same supervised process under Portless name
+`agentlab`. The command pins the internal loopback port. The template pins the
+established `~/Library/Application Support/AgentLab/feedback-v1.sqlite3`
+database while
+leaving TypeSafe credential resolution inside the server; no credential is
+rendered. Targeted status also runs `agentlab status`, so a running launchd job
+is not reported healthy unless the Jev endpoint reports a coherent server-only
+credential state and the SQLite feedback endpoint is ready. A missing optional
+credential keeps live evaluation unavailable without failing the UI service.
+The command requires the existing fleet Portless proxy and never installs or
+restarts it.
+
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public
 `agentvoice serve` command with AgentVoice's configured state root and does not
