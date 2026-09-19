@@ -378,6 +378,61 @@ grep -Fxq '<!-- independent AgentLab -->' "$lab_plist" \
     || fail "targeted AgentLab installation overwrote a foreign service"
 rm -- "$bin_dir/agentlab" "$lab_plist"
 
+# AgentLab's Codex app-server is a separate daemon and exact selector. Its
+# readiness check observes the socket without opening it or attaching a client.
+codex_label=io.arthack.agentlab.codex-app-server
+codex_plist="$launch_agents/$codex_label.plist"
+codex_socket="$test_root/codex.sock"
+export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$codex_socket"
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
+chmod +x "$bin_dir/codex"
+target_plan=$(run_installer --check --service "$codex_label")
+printf '%s\n' "$target_plan" | grep -F "$codex_label" | grep -F 'install' >/dev/null \
+    || fail "targeted AgentLab Codex daemon plan omitted its absent service"
+if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentvoice.serve' >/dev/null; then
+    fail "targeted AgentLab Codex daemon plan included AgentVoice"
+fi
+: >"$target_launchctl_log"
+: >"$target_launchctl_state"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$codex_label" >/dev/null
+/usr/bin/python3 - "$codex_plist" "$bin_dir/codex" "$test_home" "$state_dir" "$codex_socket" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+socket = sys.argv[5]
+assert value["Label"] == "io.arthack.agentlab.codex-app-server"
+assert value["ProgramArguments"] == [sys.argv[2], "app-server", "--listen", "unix://" + socket]
+assert value["EnvironmentVariables"] == {"HOME": sys.argv[3], "PATH": value["EnvironmentVariables"]["PATH"]}
+assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
+assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/codex/codex-app-server.log"
+PYTHON
+if run_installer --status --service "$codex_label" >/dev/null 2>&1; then
+    fail "AgentLab Codex daemon readiness accepted a missing socket"
+fi
+mkdir -p "$(dirname -- "$codex_socket")"
+/usr/bin/python3 - "$codex_socket" <<'PYTHON'
+import socket
+import sys
+sock = socket.socket(socket.AF_UNIX)
+sock.bind(sys.argv[1])
+sock.close()
+PYTHON
+target_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        run_installer --status --service "$codex_label"
+)
+printf '%s\n' "$target_status" | grep -F "$codex_label" | grep -F 'readiness=socket-ready' >/dev/null \
+    || fail "AgentLab Codex daemon status omitted socket readiness"
+rm -- "$bin_dir/codex" "$codex_plist" "$codex_socket"
+unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET
+
 # The AgentVoice reader uses the same exact-label frame independently of the
 # AgentVoice-owned waiting server. Its first canonical convergence replaces the
 # known temporary submitted reader at this label, then becomes restart-free.

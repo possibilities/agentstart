@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- agentstart-installer-owned: io.arthack.agentlab.codex-app-server.v1 -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>io.arthack.agentlab.codex-app-server</string>
+	<!-- A dedicated external daemon. AgentLab only attaches to this socket. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>__PROGRAM__</string>
+		<string>app-server</string>
+		<string>--listen</string>
+		<string>unix://__SOCKET__</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>HOME</key><string>__HOME__</string>
+		<key>PATH</key><string>__PATH__</string>
+	</dict>
+	<key>RunAtLoad</key><true/>
+	<key>KeepAlive</key><true/>
+	<key>ProcessType</key><string>Standard</string>
+	<key>Umask</key><integer>63</integer>
+	<key>ThrottleInterval</key><integer>10</integer>
+	<key>StandardOutPath</key><string>__LOG__</string>
+	<key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

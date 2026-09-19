@@ -121,6 +121,20 @@ credential keeps live evaluation unavailable without failing the UI service.
 The command requires the existing fleet Portless proxy and never installs or
 restarts it.
 
+`io.arthack.agentlab.codex-app-server` is the dedicated Codex daemon boundary
+for AgentLab. It invokes the installed `codex app-server --listen` command on
+the private Unix socket
+`~/.local/state/agentlab/codex-app-server.sock`. It is a separate LaunchAgent
+from AgentVoice and has no AgentVoice endpoint or state. AgentLab is only a
+client: it may attach, resume, watch and send protocol commands, but it never
+spawns, stops or owns this daemon process. Targeted status considers the job
+ready only when launchd reports it running and the configured Unix socket is
+present. This readiness check does not open the socket, initialize a protocol
+connection, access credentials or create a thread. Activation remains an
+AgentStart installer operation; the exact selector is
+`scripts/install-launchagents --install --service
+io.arthack.agentlab.codex-app-server`.
+
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public
 `agentvoice serve` command with AgentVoice's configured state root and does not
