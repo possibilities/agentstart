@@ -657,7 +657,11 @@ status_services() {
             printf '  %-42s %-15s state=%s pid=%s readiness=failed log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
             failures=$((failures + 1))
-        elif [ -n "$last_exit" ] && [ "$last_exit" != 0 ] && [ "$last_exit" != '(never exited)' ]; then
+        # launchd retains the previous process exit after a successful restart.
+        # A currently running job is healthy by lifecycle state (and, for
+        # AgentLab, the readiness probe above); only an inactive job's last
+        # exit can describe its present health.
+        elif [ "$state" != running ] && [ -n "$last_exit" ] && [ "$last_exit" != 0 ] && [ "$last_exit" != '(never exited)' ]; then
             printf '  %-42s %-15s state=%s pid=%s last_exit=%s log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$last_exit" "$log_bytes"
             failures=$((failures + 1))

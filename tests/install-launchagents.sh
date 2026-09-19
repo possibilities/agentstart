@@ -219,6 +219,8 @@ case "$1" in
     print)
         [ -f "$AGENTSTART_TEST_LAUNCHCTL_STATE" ] || exit 1
         printf 'state = running\npid = 73\n'
+        [ -z "${AGENTSTART_TEST_LAUNCHCTL_LAST_EXIT:-}" ] ||
+            printf 'last exit code = %s\n' "$AGENTSTART_TEST_LAUNCHCTL_LAST_EXIT"
         ;;
     bootstrap)
         : >"$AGENTSTART_TEST_LAUNCHCTL_STATE"
@@ -349,6 +351,15 @@ target_status=$(
 )
 printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'state=running' | grep -F 'readiness=ready' >/dev/null \
     || fail "targeted AgentLab status omitted its running ready backend"
+target_status=$(
+    AGENTSTART_TEST_LAUNCHCTL_LAST_EXIT=143 \
+        AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        run_installer --status --service "$lab_label"
+)
+printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'state=running' | grep -F 'last_exit=143' | grep -F 'readiness=ready' >/dev/null \
+    || fail "targeted AgentLab status treated a running ready job's stale prior exit as current failure"
 if AGENTSTART_TEST_AGENTLAB_UNREADY=1 \
     AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
     AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
