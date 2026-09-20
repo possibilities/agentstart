@@ -5,11 +5,11 @@
 <dict>
 	<key>Label</key>
 	<string>io.arthack.agentlab.codex-app-server</string>
-	<!-- A dedicated external daemon. AgentLab only attaches to this socket. -->
+	<!-- AgentLab owns authentication and its native child; the console only attaches. -->
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
-		<string>app-server</string>
+		<string>codex-daemon</string>
 		<string>--listen</string>
 		<string>unix://__SOCKET__</string>
 	</array>

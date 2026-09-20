@@ -124,12 +124,15 @@ The command requires the existing fleet Portless proxy and never installs or
 restarts it.
 
 `io.arthack.agentlab.codex-app-server` is the dedicated Codex daemon boundary
-for AgentLab. It invokes the installed `codex app-server --listen` command on
+for AgentLab. It invokes the installed `agentlab codex-daemon --listen` command on
 the private Unix socket
 `~/.local/state/agentlab/codex-app-server.sock`. It is a separate LaunchAgent
-from AgentVoice and has no AgentVoice endpoint or state. AgentLab is only a
-client: it may attach, resume, watch and send protocol commands, but it never
-spawns, stops or owns this daemon process. Targeted status considers the job
+from AgentVoice and has no AgentVoice endpoint or state. The AgentLab launcher
+prepares managed authentication through AgentUsage, renews its lease every 25
+seconds, and owns the stock Codex child. The console remains only a client;
+it cannot spawn or stop the daemon. AgentStart owns service lifecycle. Logs
+are private `agentlab/codex-app-server.log` files containing static wrapper
+errors; no private preparation or native output is forwarded. Targeted status considers the job
 ready only when launchd reports it running and the configured Unix socket is
 present. This readiness check does not open the socket, initialize a protocol
 connection, access credentials or create a thread. Activation remains an

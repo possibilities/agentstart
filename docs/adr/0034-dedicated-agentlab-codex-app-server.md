@@ -1,5 +1,9 @@
 # 0034: Keep AgentLab's Codex daemon separate
 
+The bare command/authentication launch is superseded by
+[0037](0037-supervise-agentlab-managed-codex-launcher.md); isolation and endpoint
+ownership below remain unchanged.
+
 Accepted September 19, 2026. AgentLab needs a reconnectable Codex app-server,
 but its application runtime must not own the daemon lifecycle or reuse an
 AgentVoice endpoint.

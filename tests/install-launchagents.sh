@@ -299,6 +299,7 @@ export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
 export AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
 chmod +x "$bin_dir/codex"
+cp "$bin_dir/codex" "$bin_dir/agentlab"
 : >"$target_launchctl_log"
 : >"$target_launchctl_state"
 AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
@@ -404,6 +405,7 @@ codex_socket="$test_root/codex.sock"
 export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$codex_socket"
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
 chmod +x "$bin_dir/codex"
+cp "$bin_dir/codex" "$bin_dir/agentlab"
 target_plan=$(run_installer --check --service "$codex_label")
 printf '%s\n' "$target_plan" | grep -F "$codex_label" | grep -F 'install' >/dev/null \
     || fail "targeted AgentLab Codex daemon plan omitted its absent service"
@@ -416,18 +418,18 @@ AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
     AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
     AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
     run_installer --install --service "$codex_label" >/dev/null
-/usr/bin/python3 - "$codex_plist" "$bin_dir/codex" "$test_home" "$state_dir" "$codex_socket" <<'PYTHON'
+/usr/bin/python3 - "$codex_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" "$codex_socket" <<'PYTHON'
 import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
     value = plistlib.load(handle)
 socket = sys.argv[5]
 assert value["Label"] == "io.arthack.agentlab.codex-app-server"
-assert value["ProgramArguments"] == [sys.argv[2], "app-server", "--listen", "unix://" + socket]
+assert value["ProgramArguments"] == [sys.argv[2], "codex-daemon", "--listen", "unix://" + socket]
 assert value["EnvironmentVariables"] == {"HOME": sys.argv[3], "PATH": value["EnvironmentVariables"]["PATH"]}
 assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
 assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/codex/codex-app-server.log"
+assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentlab/codex-app-server.log"
 PYTHON
 if run_installer --status --service "$codex_label" >/dev/null 2>&1; then
     fail "AgentLab Codex daemon readiness accepted a missing socket"

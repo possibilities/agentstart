@@ -148,7 +148,9 @@ Where things go:
   frozen dependencies, cumulative client/server build, and deployed-SHA
   receipt without service effects. AgentStart separately owns the resident
   `io.arthack.agentlab.codex-app-server` and `io.arthack.agentlab.serve`
-  LaunchAgents, in that order. The command fixes its Portless name and internal
+  LaunchAgents, in that order. The dedicated daemon enters through
+  `agentlab codex-daemon`, which owns the stock Codex child and AgentUsage
+  prepare/renew/release contract. The console command fixes its Portless name and internal
   loopback port; the console plist fixes the existing feedback database path
   and injects only the dedicated server-owned Codex Unix endpoint. It contains
   no Jev credential and never references AgentVoice's Codex process. A socket
