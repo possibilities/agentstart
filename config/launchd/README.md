@@ -105,69 +105,6 @@ canonical checkout and whose fixed local Portless origin is
 dependencies, and optional production build without touching this service;
 AgentStart alone owns the LaunchAgent lifecycle.
 
-`io.arthack.agentlab.serve` keeps the current cumulative AgentLab laboratory
-resident at `http://agentlab.localhost`, which the shared Portless proxy
-redirects to its canonical `https://agentlab.localhost` route. It invokes the
-installed `agentlab serve` contract, which rebuilds the browser UI and Node
-backend together and registers that same supervised process under Portless name
-`agentlab`. The command pins the internal loopback port. The template pins the
-established `~/Library/Application Support/AgentLab/feedback-v1.sqlite3`
-database while
-leaving TypeSafe credential resolution inside the server; no credential is
-rendered. It also injects the `unix://` endpoints of AgentLab's separately owned
-Codex daemon and Fx broker. The browser receives conversation capabilities and
-catalogs, not socket addresses. Targeted status also runs `agentlab status`, so a running launchd job
-is not reported healthy unless the Jev endpoint reports a coherent server-only
-credential state and the SQLite feedback endpoint is ready. A missing optional
-credential keeps live evaluation unavailable without failing the UI service.
-The command requires the existing fleet Portless proxy and never installs or
-restarts it.
-
-`io.arthack.agentlab.codex-app-server` is the dedicated Codex daemon boundary
-for AgentLab. It invokes the installed `agentlab codex-daemon --listen` command on
-the private Unix socket
-`~/.local/state/agentlab/codex-app-server.sock`. It is a separate LaunchAgent
-from AgentVoice and has no AgentVoice endpoint or state. The AgentLab launcher
-prepares managed authentication through AgentUsage, renews its lease every 25
-seconds, and owns the stock Codex child. The console remains only a client;
-it cannot spawn or stop the daemon. AgentStart owns service lifecycle. Logs
-are private `agentlab/codex-app-server.log` files containing static wrapper
-errors; no private preparation or native output is forwarded. Targeted status considers the job
-ready only when launchd reports it running and the configured Unix socket is
-present. This readiness check does not open the socket, initialize a protocol
-connection, access credentials or create a thread. Activation remains an
-AgentStart installer operation; the exact selector is
-`scripts/install-launchagents --install --service
-io.arthack.agentlab.codex-app-server`.
-
-Full fleet convergence installs or converges this daemon before
-`io.arthack.agentlab.serve`. Daemon convergence selects its desired absolute
-socket from an explicit installer override, its owned installed `--listen`
-value, or the stable state-root default. The console and all status operations
-observe the installed daemon identity; they never mistake an unapplied override
-for running state. A targeted console convergence requires the exact owned
-daemon plist and reads that identity without operating the daemon. When both
-jobs need an explicit restart, restart and qualify the daemon first, then
-restart the console.
-
-`io.arthack.agentlab.fx-broker` keeps AgentLab's reconnectable Fx ACP broker
-resident. It invokes `agentlab fx-broker --listen` on the private Unix socket
-`~/.local/state/agentlab/fx-acp-broker.sock`. AgentLab owns every Fx child, the
-mode-0600 generation manifest and bounded replay journals; AgentStart owns only
-LaunchAgent convergence and the fixed endpoint injection. No credential enters
-the plist, and startup performs only bounded `fx models --json` catalog
-discovery until a console lease requests ACP initialization. Targeted status
-does not connect or prompt: it requires the job to be running and observes the
-owner-only socket plus a bounded, valid owner-only identity manifest. An
-explicit installer socket override is desired state only for broker convergence;
-console-only convergence and status read the exact owned installed plist.
-
-Full fleet convergence installs both AgentLab daemons before
-`io.arthack.agentlab.serve`. If the broker process restarts, its in-memory
-sessions are gone and its generation identity changes. Restart the console only
-after broker readiness so new conversations bind the new identity; old durable
-session references then fail closed.
-
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public
 `agentvoice serve` command with AgentVoice's configured state root and does not

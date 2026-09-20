@@ -39,11 +39,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
   through AgentVoice's installed `agentvoice serve` contract, and the separate
   `io.arthack.agenthud.serve` web-view LaunchAgent through the independent
-  AgentHUD checkout's installed `agenthud serve` contract. AgentStart also owns
-  `io.arthack.agentlab.serve` through AgentLab's installed `agentlab serve`
-  Portless contract; AgentLab retains its cumulative UI/backend build,
-  `agentlab.localhost` name, server-only Jev credential lookup, and feedback
-  database.
+  AgentHUD checkout's installed `agenthud serve` contract.
   AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.
@@ -143,22 +139,12 @@ Where things go:
   and production assets without service effects. `install-agent-clis` invokes
   that contract directly. AgentStart separately owns the resident HUD
   LaunchAgent; no AgentVoice installer or redirect sits between them.
-- AgentLab is an ordinary independent fleet checkout under `~/code/agentlab`.
-  Its `scripts/install.sh --install` owns the editable `agentlab` command,
-  frozen dependencies, cumulative client/server build, and deployed-SHA
-  receipt without service effects. AgentStart separately owns the resident
-  `io.arthack.agentlab.codex-app-server`, `io.arthack.agentlab.fx-broker`, and
-  `io.arthack.agentlab.serve` LaunchAgents, with both daemons before the console.
-  The dedicated Codex daemon enters through
-  `agentlab codex-daemon`, which owns the stock Codex child and AgentUsage
-  prepare/renew/release contract. The Fx broker enters through `agentlab
-  fx-broker`, owns its Fx ACP children, identity manifest, and bounded replay,
-  and carries no provider credential in its plist. The console command fixes its
-  Portless name and internal loopback port; the console plist fixes the existing
-  feedback database path and injects only the two dedicated server-owned Unix
-  endpoints. It contains no Jev credential and never references AgentVoice's
-  process. Socket overrides are daemon-convergence inputs; console-only
-  convergence and status must observe the exact owned daemon plists instead.
+- AgentLab is retired from the active fleet and preserved as archived reference
+  source. AgentStart does not install its command, build its assets, supervise
+  its Codex or Fx daemons, or publish its Portless route. The three former exact
+  labels remain temporarily selectable only for bounded exact-marker cleanup;
+  the retirement preserves AgentLab's source history, durable records, feedback
+  database, and state rather than adopting them into another project.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than

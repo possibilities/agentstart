@@ -1,5 +1,7 @@
 # 0034: Keep AgentLab's Codex daemon separate
 
+Superseded by [0039](0039-retire-agentlab-runtime-integration.md).
+
 The bare command/authentication launch is superseded by
 [0037](0037-supervise-agentlab-managed-codex-launcher.md); isolation and endpoint
 ownership below remain unchanged.

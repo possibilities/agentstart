@@ -78,23 +78,13 @@ Board/Groom skills and the AgentBoard MCP are absent from active fleet
 resources. AgentBoard has no socket service endpoint.
 _Avoid_: Board redirect, dual write, AgentVoice-owned AgentHUD.
 
-**AgentLab cumulative service** — AgentLab's installed `agentlab serve`
-foreground contract supervised by AgentStart as
-`io.arthack.agentlab.serve`. AgentLab builds and serves the current cumulative
-UI and backend at `agentlab.localhost` through the existing shared Portless
-proxy, keeps Jev credentials behind the server boundary, and retains feedback
-in its established server-owned SQLite database. AgentStart owns only the
-LaunchAgent, deterministic environment, private log, and readiness/status
-projection. Its deterministic environment names the separate
-`io.arthack.agentlab.codex-app-server` Unix endpoint and the separate
-`io.arthack.agentlab.fx-broker` Unix endpoint. The Codex job runs
-`agentlab codex-daemon`, whose foreground launcher owns the stock Codex child
-and AgentUsage prepare/renew/release lifecycle. The Fx job runs `agentlab
-fx-broker`, whose foreground broker owns Fx ACP children, its generation
-identity and bounded replay. The browser cannot select or observe either
-socket and AgentVoice is outside this topology. _Avoid_: browser endpoint,
-browser credential, second service owner, feature-slice service, separate
-Portless proxy.
+**Archived AgentLab** — the retired AgentLab (Greybird) project preserved as
+reference source and history, outside the active fleet. AgentStart keeps no
+command-install, build, Portless, Codex-daemon, or Fx-broker edge to it. A
+bounded retirement path removes only the three exact former AgentStart-owned
+LaunchAgents; source, durable records, databases, and state remain preserved.
+_Avoid_: dormant service, compatibility route, redirected command, data
+migration.
 
 **AgentVoice transcript reader** — AgentVoice's foreground `agentvoice serve`
 command and editable transcript UI at `https://agentvoice.localhost`, supervised

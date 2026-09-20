@@ -103,11 +103,31 @@ grep -Fq 'agentstart-installer-owned: io.arthack.agentchats.serve.v1' "$retired_
     || fail "symlinked retired AgentChats target was changed"
 rm -- "$chats_plist"
 
+# Every former AgentLab job uses the same bounded exact-marker retirement path.
+# The generic loaded-job, foreign-marker, and symlink protections above cover
+# the shared implementation; this loop proves all three retired labels route to
+# it and disappear without touching another service.
+for agentlab_label in \
+    io.arthack.agentlab.codex-app-server \
+    io.arthack.agentlab.fx-broker \
+    io.arthack.agentlab.serve; do
+    agentlab_plist="$launch_agents/$agentlab_label.plist"
+    printf '<?xml version="1.0"?>\n<!-- agentstart-installer-owned: %s.v1 -->\n' \
+        "$agentlab_label" >"$agentlab_plist"
+    agentlab_plan=$(run_installer --check --service "$agentlab_label")
+    printf '%s\n' "$agentlab_plan" | grep -F "$agentlab_label" | \
+        grep -F 'would boot out and remove owned plist' >/dev/null \
+        || fail "retired AgentLab service was not planned for removal: $agentlab_label"
+    run_installer --install --service "$agentlab_label" >/dev/null
+    [ ! -e "$agentlab_plist" ] \
+        || fail "owned retired AgentLab plist survived cleanup: $agentlab_label"
+done
+
 plan=$(run_installer --check)
 printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
     || fail "missing AgentHUD binary was not skipped"
-printf '%s\n' "$plan" | grep -F "skipped io.arthack.agentlab.serve (no $bin_dir/agentlab)" >/dev/null \
-    || fail "missing AgentLab binary was not skipped"
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentlab.serve' | grep -F 'absent; nothing to remove' >/dev/null \
+    || fail "absent retired AgentLab service was not reported as inert"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not configured; would skip' >/dev/null \
     || fail "unprepared AgentVoice test server was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not configured; would skip' >/dev/null \
@@ -287,328 +307,6 @@ fi
 grep -Fxq '<!-- independent HUD -->' "$hud_plist" \
     || fail "targeted HUD installation overwrote a foreign service"
 rm -- "$bin_dir/agenthud" "$hud_plist"
-
-# AgentLab's exact selector renders one resident full-stack service. Status
-# additionally proves its public read-only readiness contract.
-lab_label=io.arthack.agentlab.serve
-lab_plist="$launch_agents/$lab_label.plist"
-lab_codex_label=io.arthack.agentlab.codex-app-server
-lab_codex_plist="$launch_agents/$lab_codex_label.plist"
-lab_codex_socket="$test_root/agentlab-console-codex.sock"
-lab_fx_label=io.arthack.agentlab.fx-broker
-lab_fx_plist="$launch_agents/$lab_fx_label.plist"
-lab_fx_socket="$test_root/f.sock"
-export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
-export AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
-export AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET="$lab_fx_socket"
-export AGENTSTART_TEST_AGENTLAB_FX_SOCKET="$lab_fx_socket"
-printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
-chmod +x "$bin_dir/codex"
-cp "$bin_dir/codex" "$bin_dir/agentlab"
-: >"$target_launchctl_log"
-: >"$target_launchctl_state"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_codex_label" >/dev/null
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_fx_label" >/dev/null
-/usr/bin/python3 - "$lab_fx_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" "$lab_fx_socket" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "fx-broker", "--listen", "unix://" + sys.argv[5]]
-assert value["EnvironmentVariables"] == {"HOME": sys.argv[3], "PATH": value["EnvironmentVariables"]["PATH"]}
-assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
-assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentlab/fx-broker.log"
-PYTHON
-mkdir -p "$(dirname -- "$lab_fx_socket")"
-/usr/bin/python3 - "$lab_fx_socket" <<'PYTHON'
-import os
-import socket
-import sys
-sock = socket.socket(socket.AF_UNIX)
-sock.bind(sys.argv[1])
-os.chmod(sys.argv[1], 0o600)
-sock.close()
-PYTHON
-printf '%s\n' '{"protocol":"agentlab.fx-acp-broker.v1","endpointId":"fx","endpointIdentity":"11111111-1111-4111-8111-111111111111","replayCapacity":1024}' >"$lab_fx_socket.identity.json"
-chmod 600 "$lab_fx_socket.identity.json"
-export AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET="$test_root/unapplied-fx.sock"
-target_status=$(
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$lab_fx_label"
-)
-printf '%s\n' "$target_status" | grep -F "$lab_fx_label" | grep -F 'readiness=broker-ready' >/dev/null \
-    || fail "AgentLab Fx broker status used an unapplied socket override"
-rm -- "$lab_fx_socket.identity.json"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --status --service "$lab_fx_label" >/dev/null 2>&1; then
-    fail "AgentLab Fx broker readiness accepted a missing identity manifest"
-fi
-printf '%s\n' '{"protocol":"agentlab.fx-acp-broker.v1","endpointId":"fx","endpointIdentity":"11111111-1111-4111-8111-111111111111","replayCapacity":1024}' >"$lab_fx_socket.identity.json"
-chmod 600 "$lab_fx_socket.identity.json"
-chmod 644 "$lab_fx_socket.identity.json"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --status --service "$lab_fx_label" >/dev/null 2>&1; then
-    fail "AgentLab Fx broker readiness accepted a group-readable identity manifest"
-fi
-chmod 600 "$lab_fx_socket.identity.json"
-cat >"$bin_dir/agentlab" <<'EOF'
-#!/bin/sh
-if [ "${1:-}" = status ] && [ "${AGENTSTART_TEST_AGENTLAB_UNREADY:-0}" = 1 ]; then
-    exit 1
-fi
-if [ "${1:-}" = status ] && [ "${AGENTLAB_CODEX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET}" ]; then
-    exit 1
-fi
-if [ "${1:-}" = status ] && [ "${AGENTLAB_FX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_FX_SOCKET}" ]; then
-    exit 1
-fi
-exit 0
-EOF
-chmod +x "$bin_dir/agentlab"
-target_plan=$(run_installer --check --service "$lab_label")
-printf '%s\n' "$target_plan" | grep -F "$lab_label" | grep -F 'install' >/dev/null \
-    || fail "targeted AgentLab plan omitted its absent service"
-if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentvoice.serve' >/dev/null; then
-    fail "targeted AgentLab plan included the AgentVoice reader"
-fi
-
-: >"$target_launchctl_log"
-: >"$target_launchctl_state"
-cp "$attention_plist" "$test_root/attention-before-agentlab-targeted.plist"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null
-/usr/bin/python3 - "$lab_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" "$lab_codex_socket" "$lab_fx_socket" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve"]
-assert value["EnvironmentVariables"] == {
-    "HOME": sys.argv[3],
-    "PATH": value["EnvironmentVariables"]["PATH"],
-    "AGENTLAB_FEEDBACK_DB_PATH": sys.argv[3] + "/Library/Application Support/AgentLab/feedback-v1.sqlite3",
-    "AGENTLAB_CODEX_ENDPOINT": "unix://" + sys.argv[5],
-    "AGENTLAB_FX_ENDPOINT": "unix://" + sys.argv[6],
-}
-assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
-assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
-assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentlab/server.log"
-PYTHON
-cmp "$attention_plist" "$test_root/attention-before-agentlab-targeted.plist" \
-    || fail "targeted AgentLab installation rewrote a neighboring service"
-cp "$lab_plist" "$test_root/agentlab-before-repeat.plist"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null
-cmp "$lab_plist" "$test_root/agentlab-before-repeat.plist" \
-    || fail "repeat targeted AgentLab installation changed an identical plist"
-[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
-    || fail "repeat targeted AgentLab installation reloaded its healthy service"
-[ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
-    || fail "repeat targeted AgentLab installation stopped its healthy service"
-target_status=$(
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$lab_label"
-)
-printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'state=running' | grep -F 'readiness=ready' >/dev/null \
-    || fail "targeted AgentLab status omitted its running ready backend"
-target_status=$(
-    AGENTSTART_TEST_LAUNCHCTL_LAST_EXIT=143 \
-        AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$lab_label"
-)
-printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'state=running' | grep -F 'last_exit=143' | grep -F 'readiness=ready' >/dev/null \
-    || fail "targeted AgentLab status treated a running ready job's stale prior exit as current failure"
-if AGENTSTART_TEST_AGENTLAB_UNREADY=1 \
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --status --service "$lab_label" >/dev/null 2>&1; then
-    fail "targeted AgentLab status accepted a failed backend readiness probe"
-fi
-printf '<!-- independent AgentLab Fx broker -->\n' >"$lab_fx_plist"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_fx_label" >/dev/null 2>&1; then
-    fail "targeted AgentLab Fx broker installation accepted a foreign ownership marker"
-fi
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null 2>&1; then
-    fail "targeted AgentLab console convergence trusted a foreign Fx broker"
-fi
-grep -Fxq '<!-- independent AgentLab Fx broker -->' "$lab_fx_plist" \
-    || fail "targeted AgentLab convergence overwrote a foreign Fx broker"
-printf '<!-- independent AgentLab -->\n' >"$lab_plist"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null 2>&1; then
-    fail "targeted AgentLab installation accepted a foreign ownership marker"
-fi
-grep -Fxq '<!-- independent AgentLab -->' "$lab_plist" \
-    || fail "targeted AgentLab installation overwrote a foreign service"
-rm -- "$bin_dir/agentlab" "$lab_plist" "$bin_dir/codex" "$lab_codex_plist" "$lab_fx_plist" "$lab_fx_socket" "$lab_fx_socket.identity.json"
-unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET AGENTSTART_TEST_AGENTLAB_FX_SOCKET
-
-# AgentLab's Codex app-server is a separate daemon and exact selector. Its
-# readiness check observes the socket without opening it or attaching a client.
-codex_label=io.arthack.agentlab.codex-app-server
-codex_plist="$launch_agents/$codex_label.plist"
-codex_socket="$test_root/codex.sock"
-export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$codex_socket"
-fx_label=io.arthack.agentlab.fx-broker
-fx_plist="$launch_agents/$fx_label.plist"
-fx_socket="$test_root/fx.sock"
-export AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET="$fx_socket"
-printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
-chmod +x "$bin_dir/codex"
-cp "$bin_dir/codex" "$bin_dir/agentlab"
-target_plan=$(run_installer --check --service "$codex_label")
-printf '%s\n' "$target_plan" | grep -F "$codex_label" | grep -F 'install' >/dev/null \
-    || fail "targeted AgentLab Codex daemon plan omitted its absent service"
-if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentvoice.serve' >/dev/null; then
-    fail "targeted AgentLab Codex daemon plan included AgentVoice"
-fi
-: >"$target_launchctl_log"
-: >"$target_launchctl_state"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$codex_label" >/dev/null
-/usr/bin/python3 - "$codex_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" "$codex_socket" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-socket = sys.argv[5]
-assert value["Label"] == "io.arthack.agentlab.codex-app-server"
-assert value["ProgramArguments"] == [sys.argv[2], "codex-daemon", "--listen", "unix://" + socket]
-assert value["EnvironmentVariables"] == {"HOME": sys.argv[3], "PATH": value["EnvironmentVariables"]["PATH"]}
-assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
-assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentlab/codex-app-server.log"
-PYTHON
-if run_installer --status --service "$codex_label" >/dev/null 2>&1; then
-    fail "AgentLab Codex daemon readiness accepted a missing socket"
-fi
-mkdir -p "$(dirname -- "$codex_socket")"
-/usr/bin/python3 - "$codex_socket" <<'PYTHON'
-import socket
-import sys
-sock = socket.socket(socket.AF_UNIX)
-sock.bind(sys.argv[1])
-sock.close()
-PYTHON
-# A daemon status observes its installed endpoint even when a different desired
-# endpoint is supplied for a future convergence.
-override_socket="$test_root/unapplied-override.sock"
-export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$override_socket"
-target_status=$(
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$codex_label"
-)
-printf '%s\n' "$target_status" | grep -F "$codex_label" | grep -F 'readiness=socket-ready' >/dev/null \
-    || fail "AgentLab Codex daemon status used an unapplied socket override"
-
-# A later targeted console convergence derives exactly the daemon's installed
-# socket. A mismatched override remains only a future daemon convergence input,
-# and the console-only operation does not touch the daemon.
-export AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET="$codex_socket"
-export AGENTSTART_TEST_AGENTLAB_FX_SOCKET="$fx_socket"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$fx_label" >/dev/null
-cat >"$bin_dir/agentlab" <<'EOF'
-#!/bin/sh
-if [ "${1:-}" = status ] && [ "${AGENTLAB_CODEX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET}" ]; then
-    exit 1
-fi
-if [ "${1:-}" = status ] && [ "${AGENTLAB_FX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_FX_SOCKET}" ]; then
-    exit 1
-fi
-exit 0
-EOF
-chmod +x "$bin_dir/agentlab"
-cp "$codex_plist" "$test_root/codex-before-agentlab-targeted.plist"
-: >"$target_launchctl_log"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null
-/usr/bin/python3 - "$lab_plist" "$codex_socket" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["EnvironmentVariables"]["AGENTLAB_CODEX_ENDPOINT"] == "unix://" + sys.argv[2]
-PYTHON
-/usr/bin/python3 - "$lab_plist" "$fx_socket" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["EnvironmentVariables"]["AGENTLAB_FX_ENDPOINT"] == "unix://" + sys.argv[2]
-PYTHON
-cmp "$codex_plist" "$test_root/codex-before-agentlab-targeted.plist" \
-    || fail "targeted AgentLab console convergence rewrote its Codex daemon"
-if grep -Fq "$codex_label" "$target_launchctl_log"; then
-    fail "targeted AgentLab console convergence operated its Codex daemon"
-fi
-if grep -Fq "$fx_label" "$target_launchctl_log"; then
-    fail "targeted AgentLab console convergence operated its Fx broker"
-fi
-target_status=$(
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$lab_label"
-)
-printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'readiness=ready' >/dev/null \
-    || fail "AgentLab console status used an unapplied socket override"
-printf '<!-- independent AgentLab Codex daemon -->\n' >"$codex_plist"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$lab_label" >/dev/null 2>&1; then
-    fail "targeted AgentLab console convergence trusted a foreign Codex daemon"
-fi
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --status --service "$lab_label" >/dev/null 2>&1; then
-    fail "AgentLab console status trusted a foreign Codex daemon override"
-fi
-grep -Fxq '<!-- independent AgentLab Codex daemon -->' "$codex_plist" \
-    || fail "targeted AgentLab console convergence overwrote a foreign Codex daemon"
-rm -- "$bin_dir/agentlab" "$lab_plist" "$bin_dir/codex" "$codex_plist" "$codex_socket" "$fx_plist"
-unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET AGENTSTART_TEST_AGENTLAB_FX_SOCKET
 
 # The AgentVoice reader uses the same exact-label frame independently of the
 # AgentVoice-owned waiting server. Its first canonical convergence replaces the

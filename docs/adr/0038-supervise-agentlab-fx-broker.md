@@ -1,5 +1,7 @@
 # 0038: Supervise AgentLab's persistent Fx broker
 
+Superseded by [0039](0039-retire-agentlab-runtime-integration.md).
+
 Accepted September 20, 2026. AgentLab's Fx adapter requires one reconnectable
 ACP owner whose lifetime is independent of the console, while browser and
 console processes must not own native Fx children.

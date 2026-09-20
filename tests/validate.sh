@@ -1388,7 +1388,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # launcher shells prepare). AgentUsage owns all three account inventories.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1397,7 +1397,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentnotify; do
+    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
@@ -1481,9 +1481,6 @@ io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
-io.arthack.agentlab.codex-app-server|agentlab|codex-app-server.log|resident
-io.arthack.agentlab.fx-broker|agentlab|fx-broker.log|resident
-io.arthack.agentlab.serve|agentlab|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
 io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident
@@ -1500,6 +1497,12 @@ grep -Fq 'io.arthack.agentchats.serve' scripts/install-launchagents \
     || fail "retired AgentChats service lacks its bounded cleanup label"
 [ ! -e config/launchd/io.arthack.agentchats.serve.plist ] \
     || fail "retired AgentChats web service template still exists"
+for label in io.arthack.agentlab.codex-app-server io.arthack.agentlab.fx-broker io.arthack.agentlab.serve; do
+    grep -Fq "$label" scripts/install-launchagents \
+        || fail "retired AgentLab service lacks its bounded cleanup label: $label"
+    [ ! -e "config/launchd/$label.plist" ] \
+        || fail "retired AgentLab service template still exists: $label"
+done
 if grep -Fq 'io.arthack.agentvoice.server' scripts/install-launchagents config/launchd/*.plist; then
     fail "AgentStart must not adopt AgentVoice's separately owned waiting-server LaunchAgent"
 fi
@@ -1573,38 +1576,6 @@ assert value["ProcessType"] == "Standard"
 assert value["Umask"] == 63
 assert value["ThrottleInterval"] == 10
 assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
-
-template = pathlib.Path("config/launchd/io.arthack.agentlab.serve.plist")
-assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentlab.serve.v1 -->"
-value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve"]
-assert value["EnvironmentVariables"] == {
-    "HOME": "__HOME__",
-    "PATH": "__PATH__",
-    "AGENTLAB_FEEDBACK_DB_PATH": "__FEEDBACK_DB__",
-    "AGENTLAB_CODEX_ENDPOINT": "unix://__CODEX_SOCKET__",
-    "AGENTLAB_FX_ENDPOINT": "unix://__FX_SOCKET__",
-}
-assert value["KeepAlive"] is True
-assert value["RunAtLoad"] is True
-assert value["ProcessType"] == "Standard"
-assert value["Umask"] == 63
-assert value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
-
-template = pathlib.Path("config/launchd/io.arthack.agentlab.codex-app-server.plist")
-value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "codex-daemon", "--listen", "unix://__SOCKET__"]
-assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
-
-template = pathlib.Path("config/launchd/io.arthack.agentlab.fx-broker.plist")
-value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "fx-broker", "--listen", "unix://__SOCKET__"]
-assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
-
-manifest = pathlib.Path("scripts/install-launchagents").read_text()
-assert manifest.index('"io.arthack.agentlab.codex-app-server|') < manifest.index('"io.arthack.agentlab.serve|')
-assert manifest.index('"io.arthack.agentlab.fx-broker|') < manifest.index('"io.arthack.agentlab.serve|')
 
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"

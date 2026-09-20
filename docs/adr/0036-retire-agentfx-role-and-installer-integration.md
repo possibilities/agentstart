@@ -17,9 +17,9 @@ AgentGrok and the GrokBot skill remain in the manager, worker, and common fleet
 inventories because persistent bot collaboration is independent of the retired
 execution-provider integration. The official Grok Build installation also
 remains. AgentStart continues to install Fx through fxnk's exact Integration pin:
-Fx and the maintained fork have independent consumers, and AgentLab records Fx
-as a planned harness target once an externally owned reconnectable adapter
-exists.
+Fx and the maintained fork have independent consumers. Their installation
+remains active after AgentLab's later retirement and does not depend on its
+archived broker experiments.
 
 The role renderer continues to attest each role's own MCP bytes and skills. It
 no longer treats the worker role as an AgentFX input. Existing installed role

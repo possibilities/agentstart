@@ -1,5 +1,7 @@
 # 0037: Supervise AgentLab's managed Codex launcher
 
+Superseded by [0039](0039-retire-agentlab-runtime-integration.md).
+
 Accepted September 20, 2026. Supersedes the bare Codex command in
 [0034](0034-dedicated-agentlab-codex-app-server.md). A utility app-server launch
 inherited native default authentication, which could be revoked even while the

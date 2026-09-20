@@ -1,5 +1,7 @@
 # 0033: Supervise the cumulative AgentLab service
 
+Superseded by [0039](0039-retire-agentlab-runtime-integration.md).
+
 Accepted September 19, 2026. The human wants AgentLab's current cumulative UI
 and backend installed as one reliable local service while AgentLab's experiment
 repository continues to own its application code, credential boundary, and
