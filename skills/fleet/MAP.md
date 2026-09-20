@@ -218,7 +218,6 @@ sentence around the match, never from the name alone.
 | agentstart | agentutils | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentutils` to the checkout's TypeScript entrypoint, and records the deployed commit; the Editor utility lives at the required `agentutils editor` subcommand and follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agentutils/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agentutils/test/install.test.ts` |
 | agentstart | agentbrowse | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentbrowse` to the checkout's TypeScript entrypoint, and records the deployed commit. After the Browser command installs, AgentStart links its tracked version-2 deployment config with Artbird Hypeman first and local Hypeman second, then links the global agent-browser provider config | `agentstart/scripts/install-agent-clis`; `agentbrowse/scripts/install.sh`; `agentstart/scripts/agentbrowse-config`; `agentstart/config/agentbrowse/config.json`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; asserted by both repositories' installer tests |
 | agentstart | agentattention | immediately after Agentbrowse, `install-agent-clis` invokes Agentattention's hardened installer: frozen dependencies, an atomic editable command link and receipt, plus first-run mode-0600 server/local-client bootstrap. The order satisfies Agentattention's linked `agentbrowse/opentui` browser processor dependency before its resident service can be loaded | `agentstart/scripts/install-agent-clis`; `agentattention/scripts/install.sh`; asserted by both repositories' validation suites |
-| Funk transcript-vault | agentchats | runs one time-bounded, non-fatal `nice -n 20 agentchats index --json` incremental refresh before its independent Claude transcript archive check. The refresh reads the live Claude and Codex stores even when the archive volume is absent; removing or incompatibly changing the index command makes scheduled search freshness fail while leaving transcript preservation intact. | `funk/bin/.local/bin/transcript-vault:9-14,50-100` |
 | agent-browser | agentbrowse | the global `browser.provider` plugin named `agentbrowse` starts the AgentStart-managed `~/.local/bin/agentbrowse provider` through `$HOME` as a short-lived process for manifest, launch, and close requests, bypassing any older same-named command earlier on `PATH`. The provider tries Artbird first and falls through on classified availability failures or a pre-mutation disk-capacity refusal for a new profile to an already-enabled local Hypeman runtime; there is no provider server or configured instance URL | `agentstart/config/agent-browser/config.json`; `agentstart/config/agentbrowse/config.json`; `agentbrowse/cli/provider.ts`; `agentbrowse/README.md` |
 | agentbrowse (opt-in screencast helper) | agent-browser | `tools/screencast/run.ts` uses the installed driver with a unique disposable namespace/session and a task-only AgentBrowse configuration selecting the existing local Hypeman backend. It records the exact guest virtual display through authenticated exec; no global default or installer change. | `agentbrowse/tools/screencast/run.ts`; `agentbrowse/tools/screencast/README.md` |
 | Jobsearch | agentattention | `jobsearch attention create --file` validates one of the three bounded first-party payloads, invokes `agentattention --json create`, verifies the returned contract, title, and payload, then records only the producer-side continuation. The combined skill separately uses Agentattention's read/wait CLI surface to consume authoritative terminal outcomes | `jobsearch/cli/src/verbs/attention.ts` (`defaultAgentattentionRunner`, `commandFor`, `createAttentionRequest`); `jobsearch/.claude/skills/jobsearch/SKILL.md` |
@@ -744,8 +743,16 @@ for the previously installed job. Funk no longer builds or installs the
 AgentChats Transcripts kiosk, and AgentVoice no longer consumes an AgentChats UI
 runtime package. Previously installed app bytes await explicit cleanup;
 transcript and index data remain untouched. The AgentSurface-hosted OpenTUI picker on `prefix+h`,
-its resume directives and row enrichment, AgentChats CLI/index/stdio MCP, and
-the transcript-vault index consumer edges above remain current.
+its resume directives and row enrichment, and AgentChats CLI/index/stdio MCP
+remain current.
+
+Updated 2026-09-20 for backup/index containment. Funk's transcript vault no
+longer invokes AgentChats: it performs only additive transcript preservation
+and reports that legacy indexing is deferred pending a bounded runner. The
+former Funk transcript-vault → AgentChats runtime edge is retired; no freshness
+schedule replaces it in this stage. Evidence: `funk/bin/.local/bin/transcript-vault`,
+`funk/tests/funk-backup.sh`, and
+`funk/docs/adr/0009-preserve-transcripts-independently-of-search-freshness.md`.
 
 
 **2026-09-08 — current-state cleanup.** Removed completed compatibility and
