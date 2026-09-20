@@ -20,6 +20,9 @@
 		<!-- Preserve the established server-owned feedback database. -->
 		<key>AGENTLAB_FEEDBACK_DB_PATH</key>
 		<string>__FEEDBACK_DB__</string>
+		<!-- The browser never receives or selects this server-owned endpoint. -->
+		<key>AGENTLAB_CODEX_ENDPOINT</key>
+		<string>unix://__CODEX_SOCKET__</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

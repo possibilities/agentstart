@@ -1481,6 +1481,7 @@ io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
+io.arthack.agentlab.codex-app-server|codex|codex-app-server.log|resident
 io.arthack.agentlab.serve|agentlab|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
@@ -1580,6 +1581,7 @@ assert value["EnvironmentVariables"] == {
     "HOME": "__HOME__",
     "PATH": "__PATH__",
     "AGENTLAB_FEEDBACK_DB_PATH": "__FEEDBACK_DB__",
+    "AGENTLAB_CODEX_ENDPOINT": "unix://__CODEX_SOCKET__",
 }
 assert value["KeepAlive"] is True
 assert value["RunAtLoad"] is True
@@ -1587,6 +1589,9 @@ assert value["ProcessType"] == "Standard"
 assert value["Umask"] == 63
 assert value["ThrottleInterval"] == 10
 assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+manifest = pathlib.Path("scripts/install-launchagents").read_text()
+assert manifest.index('"io.arthack.agentlab.codex-app-server|') < manifest.index('"io.arthack.agentlab.serve|')
 
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"

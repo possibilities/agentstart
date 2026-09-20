@@ -85,8 +85,11 @@ UI and backend at `agentlab.localhost` through the existing shared Portless
 proxy, keeps Jev credentials behind the server boundary, and retains feedback
 in its established server-owned SQLite database. AgentStart owns only the
 LaunchAgent, deterministic environment, private log, and readiness/status
-projection. _Avoid_: browser credential, second service owner, feature-slice
-service, separate Portless proxy.
+projection. Its deterministic environment names the separate
+`io.arthack.agentlab.codex-app-server` Unix endpoint; the browser cannot select
+or observe the socket and AgentVoice is outside this topology. _Avoid_: browser
+endpoint, browser credential, second service owner, feature-slice service,
+separate Portless proxy.
 
 **AgentVoice transcript reader** — AgentVoice's foreground `agentvoice serve`
 command and editable transcript UI at `https://agentvoice.localhost`, supervised

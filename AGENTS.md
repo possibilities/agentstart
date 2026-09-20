@@ -147,9 +147,13 @@ Where things go:
   Its `scripts/install.sh --install` owns the editable `agentlab` command,
   frozen dependencies, cumulative client/server build, and deployed-SHA
   receipt without service effects. AgentStart separately owns the resident
-  `io.arthack.agentlab.serve` LaunchAgent. The command fixes its Portless name
-  and internal loopback port; the plist fixes the existing feedback database
-  path but contains no Jev credential.
+  `io.arthack.agentlab.codex-app-server` and `io.arthack.agentlab.serve`
+  LaunchAgents, in that order. The command fixes its Portless name and internal
+  loopback port; the console plist fixes the existing feedback database path
+  and injects only the dedicated server-owned Codex Unix endpoint. It contains
+  no Jev credential and never references AgentVoice's Codex process. A socket
+  override is a daemon-convergence input; console-only convergence and status
+  must observe the exact owned daemon plist instead.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than

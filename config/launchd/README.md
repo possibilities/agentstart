@@ -114,7 +114,9 @@ backend together and registers that same supervised process under Portless name
 established `~/Library/Application Support/AgentLab/feedback-v1.sqlite3`
 database while
 leaving TypeSafe credential resolution inside the server; no credential is
-rendered. Targeted status also runs `agentlab status`, so a running launchd job
+rendered. It also injects the `unix://` endpoint of AgentLab's separately owned
+Codex daemon. The browser receives conversation capabilities and catalogs, not
+the socket address. Targeted status also runs `agentlab status`, so a running launchd job
 is not reported healthy unless the Jev endpoint reports a coherent server-only
 credential state and the SQLite feedback endpoint is ready. A missing optional
 credential keeps live evaluation unavailable without failing the UI service.
@@ -134,6 +136,16 @@ connection, access credentials or create a thread. Activation remains an
 AgentStart installer operation; the exact selector is
 `scripts/install-launchagents --install --service
 io.arthack.agentlab.codex-app-server`.
+
+Full fleet convergence installs or converges this daemon before
+`io.arthack.agentlab.serve`. Daemon convergence selects its desired absolute
+socket from an explicit installer override, its owned installed `--listen`
+value, or the stable state-root default. The console and all status operations
+observe the installed daemon identity; they never mistake an unapplied override
+for running state. A targeted console convergence requires the exact owned
+daemon plist and reads that identity without operating the daemon. When both
+jobs need an explicit restart, restart and qualify the daemon first, then
+restart the console.
 
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public

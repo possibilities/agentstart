@@ -292,9 +292,25 @@ rm -- "$bin_dir/agenthud" "$hud_plist"
 # additionally proves its public read-only readiness contract.
 lab_label=io.arthack.agentlab.serve
 lab_plist="$launch_agents/$lab_label.plist"
+lab_codex_label=io.arthack.agentlab.codex-app-server
+lab_codex_plist="$launch_agents/$lab_codex_label.plist"
+lab_codex_socket="$test_root/agentlab-console-codex.sock"
+export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
+export AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET="$lab_codex_socket"
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/codex"
+chmod +x "$bin_dir/codex"
+: >"$target_launchctl_log"
+: >"$target_launchctl_state"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_codex_label" >/dev/null
 cat >"$bin_dir/agentlab" <<'EOF'
 #!/bin/sh
 if [ "${1:-}" = status ] && [ "${AGENTSTART_TEST_AGENTLAB_UNREADY:-0}" = 1 ]; then
+    exit 1
+fi
+if [ "${1:-}" = status ] && [ "${AGENTLAB_CODEX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET}" ]; then
     exit 1
 fi
 exit 0
@@ -314,7 +330,7 @@ AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
     AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
     AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
     run_installer --install --service "$lab_label" >/dev/null
-/usr/bin/python3 - "$lab_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" <<'PYTHON'
+/usr/bin/python3 - "$lab_plist" "$bin_dir/agentlab" "$test_home" "$state_dir" "$lab_codex_socket" <<'PYTHON'
 import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
@@ -324,6 +340,7 @@ assert value["EnvironmentVariables"] == {
     "HOME": sys.argv[3],
     "PATH": value["EnvironmentVariables"]["PATH"],
     "AGENTLAB_FEEDBACK_DB_PATH": sys.argv[3] + "/Library/Application Support/AgentLab/feedback-v1.sqlite3",
+    "AGENTLAB_CODEX_ENDPOINT": "unix://" + sys.argv[5],
 }
 assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
 assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
@@ -376,7 +393,8 @@ if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
 fi
 grep -Fxq '<!-- independent AgentLab -->' "$lab_plist" \
     || fail "targeted AgentLab installation overwrote a foreign service"
-rm -- "$bin_dir/agentlab" "$lab_plist"
+rm -- "$bin_dir/agentlab" "$lab_plist" "$bin_dir/codex" "$lab_codex_plist"
+unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET
 
 # AgentLab's Codex app-server is a separate daemon and exact selector. Its
 # readiness check observes the socket without opening it or attaching a client.
@@ -422,6 +440,10 @@ sock = socket.socket(socket.AF_UNIX)
 sock.bind(sys.argv[1])
 sock.close()
 PYTHON
+# A daemon status observes its installed endpoint even when a different desired
+# endpoint is supplied for a future convergence.
+override_socket="$test_root/unapplied-override.sock"
+export AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET="$override_socket"
 target_status=$(
     AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
         AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
@@ -429,9 +451,63 @@ target_status=$(
         run_installer --status --service "$codex_label"
 )
 printf '%s\n' "$target_status" | grep -F "$codex_label" | grep -F 'readiness=socket-ready' >/dev/null \
-    || fail "AgentLab Codex daemon status omitted socket readiness"
-rm -- "$bin_dir/codex" "$codex_plist" "$codex_socket"
-unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET
+    || fail "AgentLab Codex daemon status used an unapplied socket override"
+
+# A later targeted console convergence derives exactly the daemon's installed
+# socket. A mismatched override remains only a future daemon convergence input,
+# and the console-only operation does not touch the daemon.
+export AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET="$codex_socket"
+cat >"$bin_dir/agentlab" <<'EOF'
+#!/bin/sh
+if [ "${1:-}" = status ] && [ "${AGENTLAB_CODEX_ENDPOINT:-}" != "unix://${AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET}" ]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$bin_dir/agentlab"
+cp "$codex_plist" "$test_root/codex-before-agentlab-targeted.plist"
+: >"$target_launchctl_log"
+AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_label" >/dev/null
+/usr/bin/python3 - "$lab_plist" "$codex_socket" <<'PYTHON'
+import plistlib
+import sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["EnvironmentVariables"]["AGENTLAB_CODEX_ENDPOINT"] == "unix://" + sys.argv[2]
+PYTHON
+cmp "$codex_plist" "$test_root/codex-before-agentlab-targeted.plist" \
+    || fail "targeted AgentLab console convergence rewrote its Codex daemon"
+if grep -Fq "$codex_label" "$target_launchctl_log"; then
+    fail "targeted AgentLab console convergence operated its Codex daemon"
+fi
+target_status=$(
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+        run_installer --status --service "$lab_label"
+)
+printf '%s\n' "$target_status" | grep -F "$lab_label" | grep -F 'readiness=ready' >/dev/null \
+    || fail "AgentLab console status used an unapplied socket override"
+printf '<!-- independent AgentLab Codex daemon -->\n' >"$codex_plist"
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --install --service "$lab_label" >/dev/null 2>&1; then
+    fail "targeted AgentLab console convergence trusted a foreign Codex daemon"
+fi
+if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    run_installer --status --service "$lab_label" >/dev/null 2>&1; then
+    fail "AgentLab console status trusted a foreign Codex daemon override"
+fi
+grep -Fxq '<!-- independent AgentLab Codex daemon -->' "$codex_plist" \
+    || fail "targeted AgentLab console convergence overwrote a foreign Codex daemon"
+rm -- "$bin_dir/agentlab" "$lab_plist" "$bin_dir/codex" "$codex_plist" "$codex_socket"
+unset AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET AGENTSTART_TEST_AGENTLAB_CODEX_SOCKET
 
 # The AgentVoice reader uses the same exact-label frame independently of the
 # AgentVoice-owned waiting server. Its first canonical convergence replaces the

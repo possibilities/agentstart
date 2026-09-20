@@ -48,8 +48,8 @@ SERVICES=(
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
-    "io.arthack.agentlab.serve|agentlab|server.log|resident"
     "io.arthack.agentlab.codex-app-server|codex|codex-app-server.log|resident"
+    "io.arthack.agentlab.serve|agentlab|server.log|resident"
     "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
     "io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident"
     "io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident"
@@ -177,6 +177,48 @@ if flag in args:
 ' "$flag" || true
 }
 
+# Validate and print a bare absolute Unix-socket path.
+validate_agentlab_codex_socket() {
+    local socket="$1"
+    case "$socket" in
+        /*) ;;
+        *) die "AgentLab Codex socket must be an absolute path" ;;
+    esac
+    case "$socket" in *$'\n'* | *$'\r'*) die "AgentLab Codex socket contains a newline" ;; esac
+    printf '%s' "$socket"
+}
+
+# The desired daemon identity is an install input. An explicit override may
+# change it only while the daemon itself is being converged; otherwise retain
+# an owned installed identity or use the stable first-install default.
+desired_agentlab_codex_socket() {
+    local socket
+    if [ -n "${AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET+set}" ]; then
+        socket="$AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET"
+    elif [ "$(plist_ownership io.arthack.agentlab.codex-app-server)" = ours ]; then
+        socket="$(installed_agentlab_codex_socket)" || return $?
+    else
+        socket="$state_root/agentlab/codex-app-server.sock"
+    fi
+    validate_agentlab_codex_socket "$socket"
+}
+
+# Console convergence and every status operation observe the installed daemon
+# identity. They never reinterpret an installer override as running state.
+installed_agentlab_codex_socket() {
+    local daemon_label ownership listen socket
+    daemon_label=io.arthack.agentlab.codex-app-server
+    ownership="$(plist_ownership "$daemon_label")"
+    [ "$ownership" = ours ] ||
+        die "AgentLab Codex service is not installed with exact AgentStart ownership"
+    listen="$(preserved_arg "$daemon_label" --listen)"
+    case "$listen" in
+        unix:///*) socket="${listen#unix://}" ;;
+        *) die "installed AgentLab Codex service has no supported Unix endpoint" ;;
+    esac
+    validate_agentlab_codex_socket "$socket"
+}
+
 # Extra tokens for one service, as KEY=VALUE lines. Exit 10 means "this service
 # is not installable right now" — a deliberate skip, not a failure.
 service_tokens() {
@@ -238,22 +280,23 @@ service_tokens() {
             printf 'STATE_ROOT=%s\n' "$state_root"
             ;;
         io.arthack.agentlab.serve)
+            local socket
+            if [ "$check_only" -eq 1 ] && [ -z "$selected_service" ] && \
+                [ "$(plist_ownership io.arthack.agentlab.codex-app-server)" = absent ]; then
+                socket="$(desired_agentlab_codex_socket)" || return $?
+            else
+                socket="$(installed_agentlab_codex_socket)" || return $?
+            fi
             printf 'FEEDBACK_DB=%s\n' "$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3"
+            printf 'CODEX_SOCKET=%s\n' "$socket"
             ;;
         io.arthack.agentlab.codex-app-server)
             local socket
-            if [ -n "${AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET+set}" ]; then
-                socket="$AGENTSTART_INSTALL_AGENTLAB_CODEX_SOCKET"
+            if [ "$status_only" -eq 1 ]; then
+                socket="$(installed_agentlab_codex_socket)" || return $?
             else
-                socket="$(preserved_arg "$label" --listen)"
-                socket="${socket#unix://}"
-                [ -n "$socket" ] || socket="$state_root/agentlab/codex-app-server.sock"
+                socket="$(desired_agentlab_codex_socket)" || return $?
             fi
-            case "$socket" in
-                /*) ;;
-                *) die "AgentLab Codex socket must be an absolute path" ;;
-            esac
-            case "$socket" in *$'\n'* | *$'\r'*) die "AgentLab Codex socket contains a newline" ;; esac
             printf 'SOCKET=%s\n' "$socket"
             ;;
         io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
@@ -675,6 +718,7 @@ status_services() {
             failures=$((failures + 1))
         elif [ "$label" = io.arthack.agentlab.serve ] && ! env PATH="$(service_path)" \
             AGENTLAB_FEEDBACK_DB_PATH="$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3" \
+            AGENTLAB_CODEX_ENDPOINT="unix://$(printf '%s\n' "$tokens" | sed -n 's/^CODEX_SOCKET=//p' | sed -n '1p')" \
             "$program" status >/dev/null 2>&1; then
             printf '  %-42s %-15s state=%s pid=%s readiness=failed log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
