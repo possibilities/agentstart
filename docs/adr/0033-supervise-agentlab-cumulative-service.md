@@ -5,6 +5,9 @@ and backend installed as one reliable local service while AgentLab's experiment
 repository continues to own its application code, credential boundary, and
 feedback state.
 
+The later Fx endpoint and service ordering are recorded in
+[0038](0038-supervise-agentlab-fx-broker.md).
+
 AgentStart owns `io.arthack.agentlab.serve`, a resident user LaunchAgent that
 invokes the installed public command `~/.local/bin/agentlab serve`. AgentLab's
 own hardened installer prepares frozen dependencies, builds the cumulative

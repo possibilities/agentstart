@@ -147,15 +147,18 @@ Where things go:
   Its `scripts/install.sh --install` owns the editable `agentlab` command,
   frozen dependencies, cumulative client/server build, and deployed-SHA
   receipt without service effects. AgentStart separately owns the resident
-  `io.arthack.agentlab.codex-app-server` and `io.arthack.agentlab.serve`
-  LaunchAgents, in that order. The dedicated daemon enters through
+  `io.arthack.agentlab.codex-app-server`, `io.arthack.agentlab.fx-broker`, and
+  `io.arthack.agentlab.serve` LaunchAgents, with both daemons before the console.
+  The dedicated Codex daemon enters through
   `agentlab codex-daemon`, which owns the stock Codex child and AgentUsage
-  prepare/renew/release contract. The console command fixes its Portless name and internal
-  loopback port; the console plist fixes the existing feedback database path
-  and injects only the dedicated server-owned Codex Unix endpoint. It contains
-  no Jev credential and never references AgentVoice's Codex process. A socket
-  override is a daemon-convergence input; console-only convergence and status
-  must observe the exact owned daemon plist instead.
+  prepare/renew/release contract. The Fx broker enters through `agentlab
+  fx-broker`, owns its Fx ACP children, identity manifest, and bounded replay,
+  and carries no provider credential in its plist. The console command fixes its
+  Portless name and internal loopback port; the console plist fixes the existing
+  feedback database path and injects only the two dedicated server-owned Unix
+  endpoints. It contains no Jev credential and never references AgentVoice's
+  process. Socket overrides are daemon-convergence inputs; console-only
+  convergence and status must observe the exact owned daemon plists instead.
 - A fleet CLI's self-description: one contract per CLI, published as
   `<cli> guide --json` against `config/agent-contract/schema.json`, with
   `--agent-help`, `--agent-teaser`, and `--help` rendered from it rather than

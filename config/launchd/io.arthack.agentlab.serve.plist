@@ -23,6 +23,9 @@
 		<!-- The browser never receives or selects this server-owned endpoint. -->
 		<key>AGENTLAB_CODEX_ENDPOINT</key>
 		<string>unix://__CODEX_SOCKET__</string>
+		<!-- Fx capabilities and catalog arrive through the server-owned broker. -->
+		<key>AGENTLAB_FX_ENDPOINT</key>
+		<string>unix://__FX_SOCKET__</string>
 	</dict>
 	<key>RunAtLoad</key>
 	<true/>

@@ -1482,6 +1482,7 @@ io.arthack.agentusage.observe|agentusage|observer.log|resident
 io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentlab.codex-app-server|agentlab|codex-app-server.log|resident
+io.arthack.agentlab.fx-broker|agentlab|fx-broker.log|resident
 io.arthack.agentlab.serve|agentlab|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
@@ -1582,6 +1583,7 @@ assert value["EnvironmentVariables"] == {
     "PATH": "__PATH__",
     "AGENTLAB_FEEDBACK_DB_PATH": "__FEEDBACK_DB__",
     "AGENTLAB_CODEX_ENDPOINT": "unix://__CODEX_SOCKET__",
+    "AGENTLAB_FX_ENDPOINT": "unix://__FX_SOCKET__",
 }
 assert value["KeepAlive"] is True
 assert value["RunAtLoad"] is True
@@ -1595,8 +1597,14 @@ value = plistlib.loads(template.read_bytes())
 assert value["ProgramArguments"] == ["__PROGRAM__", "codex-daemon", "--listen", "unix://__SOCKET__"]
 assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
 
+template = pathlib.Path("config/launchd/io.arthack.agentlab.fx-broker.plist")
+value = plistlib.loads(template.read_bytes())
+assert value["ProgramArguments"] == ["__PROGRAM__", "fx-broker", "--listen", "unix://__SOCKET__"]
+assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
+
 manifest = pathlib.Path("scripts/install-launchagents").read_text()
 assert manifest.index('"io.arthack.agentlab.codex-app-server|') < manifest.index('"io.arthack.agentlab.serve|')
+assert manifest.index('"io.arthack.agentlab.fx-broker|') < manifest.index('"io.arthack.agentlab.serve|')
 
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"

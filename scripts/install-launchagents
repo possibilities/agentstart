@@ -49,6 +49,7 @@ SERVICES=(
     "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
     "io.arthack.agentlab.codex-app-server|agentlab|codex-app-server.log|resident"
+    "io.arthack.agentlab.fx-broker|agentlab|fx-broker.log|resident"
     "io.arthack.agentlab.serve|agentlab|server.log|resident"
     "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
     "io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident"
@@ -219,6 +220,78 @@ installed_agentlab_codex_socket() {
     validate_agentlab_codex_socket "$socket"
 }
 
+validate_agentlab_fx_socket() {
+    local socket="$1"
+    case "$socket" in
+        /*) ;;
+        *) die "AgentLab Fx broker socket must be an absolute path" ;;
+    esac
+    case "$socket" in *$'\n'* | *$'\r'*) die "AgentLab Fx broker socket contains a newline" ;; esac
+    printf '%s' "$socket"
+}
+
+desired_agentlab_fx_socket() {
+    local socket
+    if [ -n "${AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET+set}" ]; then
+        socket="$AGENTSTART_INSTALL_AGENTLAB_FX_SOCKET"
+    elif [ "$(plist_ownership io.arthack.agentlab.fx-broker)" = ours ]; then
+        socket="$(installed_agentlab_fx_socket)" || return $?
+    else
+        socket="$state_root/agentlab/fx-acp-broker.sock"
+    fi
+    validate_agentlab_fx_socket "$socket"
+}
+
+installed_agentlab_fx_socket() {
+    local broker_label ownership listen socket
+    broker_label=io.arthack.agentlab.fx-broker
+    ownership="$(plist_ownership "$broker_label")"
+    [ "$ownership" = ours ] ||
+        die "AgentLab Fx broker service is not installed with exact AgentStart ownership"
+    listen="$(preserved_arg "$broker_label" --listen)"
+    case "$listen" in
+        unix:///*) socket="${listen#unix://}" ;;
+        *) die "installed AgentLab Fx broker service has no supported Unix endpoint" ;;
+    esac
+    validate_agentlab_fx_socket "$socket"
+}
+
+agentlab_fx_endpoint_ready() {
+    /usr/bin/python3 - "$1" <<'PYTHON'
+import json
+import os
+import re
+import stat
+import sys
+
+socket_path = sys.argv[1]
+manifest_path = socket_path + ".identity.json"
+try:
+    socket_stat = os.lstat(socket_path)
+    manifest_stat = os.lstat(manifest_path)
+    if not stat.S_ISSOCK(socket_stat.st_mode) or socket_stat.st_uid != os.getuid() or socket_stat.st_mode & 0o077:
+        raise ValueError
+    if not stat.S_ISREG(manifest_stat.st_mode) or manifest_stat.st_uid != os.getuid() or manifest_stat.st_mode & 0o077:
+        raise ValueError
+    if manifest_stat.st_size < 2 or manifest_stat.st_size > 4096:
+        raise ValueError
+    with open(manifest_path, encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise ValueError
+    identity = value.get("endpointIdentity")
+    if value.get("protocol") != "agentlab.fx-acp-broker.v1" or value.get("endpointId") != "fx":
+        raise ValueError
+    if not isinstance(identity, str) or re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", identity) is None:
+        raise ValueError
+    capacity = value.get("replayCapacity")
+    if not isinstance(capacity, int) or isinstance(capacity, bool) or capacity < 1 or capacity > 100_000:
+        raise ValueError
+except (OSError, ValueError, json.JSONDecodeError):
+    raise SystemExit(1)
+PYTHON
+}
+
 # Extra tokens for one service, as KEY=VALUE lines. Exit 10 means "this service
 # is not installable right now" — a deliberate skip, not a failure.
 service_tokens() {
@@ -280,15 +353,22 @@ service_tokens() {
             printf 'STATE_ROOT=%s\n' "$state_root"
             ;;
         io.arthack.agentlab.serve)
-            local socket
+            local socket fx_socket
             if [ "$check_only" -eq 1 ] && [ -z "$selected_service" ] && \
                 [ "$(plist_ownership io.arthack.agentlab.codex-app-server)" = absent ]; then
                 socket="$(desired_agentlab_codex_socket)" || return $?
             else
                 socket="$(installed_agentlab_codex_socket)" || return $?
             fi
+            if [ "$check_only" -eq 1 ] && [ -z "$selected_service" ] && \
+                [ "$(plist_ownership io.arthack.agentlab.fx-broker)" = absent ]; then
+                fx_socket="$(desired_agentlab_fx_socket)" || return $?
+            else
+                fx_socket="$(installed_agentlab_fx_socket)" || return $?
+            fi
             printf 'FEEDBACK_DB=%s\n' "$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3"
             printf 'CODEX_SOCKET=%s\n' "$socket"
+            printf 'FX_SOCKET=%s\n' "$fx_socket"
             ;;
         io.arthack.agentlab.codex-app-server)
             local socket
@@ -296,6 +376,15 @@ service_tokens() {
                 socket="$(installed_agentlab_codex_socket)" || return $?
             else
                 socket="$(desired_agentlab_codex_socket)" || return $?
+            fi
+            printf 'SOCKET=%s\n' "$socket"
+            ;;
+        io.arthack.agentlab.fx-broker)
+            local socket
+            if [ "$status_only" -eq 1 ]; then
+                socket="$(installed_agentlab_fx_socket)" || return $?
+            else
+                socket="$(desired_agentlab_fx_socket)" || return $?
             fi
             printf 'SOCKET=%s\n' "$socket"
             ;;
@@ -617,7 +706,7 @@ service_selected() {
 status_services() {
     local failures=0 entry label tool log_name lifecycle program plist target
     local ownership service state pid last_exit log log_bytes tokens token_status
-    local desired_revision installed_revision readiness
+    local desired_revision installed_revision readiness socket
     printf 'Fleet launch service status (%s):\n' "$launch_agents_dir"
     for entry in "${SERVICES[@]}"; do
         service_selected "$entry" || continue
@@ -716,9 +805,15 @@ status_services() {
             printf '  %-42s %-15s state=%s pid=%s readiness=socket-missing log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
             failures=$((failures + 1))
+        elif [ "$label" = io.arthack.agentlab.fx-broker ] && \
+            ! agentlab_fx_endpoint_ready "$(printf '%s\n' "$tokens" | sed -n 's/^SOCKET=//p' | sed -n '1p')"; then
+            printf '  %-42s %-15s state=%s pid=%s readiness=broker-endpoint-invalid log_bytes=%s\n' \
+                "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
+            failures=$((failures + 1))
         elif [ "$label" = io.arthack.agentlab.serve ] && ! env PATH="$(service_path)" \
             AGENTLAB_FEEDBACK_DB_PATH="$HOME/Library/Application Support/AgentLab/feedback-v1.sqlite3" \
             AGENTLAB_CODEX_ENDPOINT="unix://$(printf '%s\n' "$tokens" | sed -n 's/^CODEX_SOCKET=//p' | sed -n '1p')" \
+            AGENTLAB_FX_ENDPOINT="unix://$(printf '%s\n' "$tokens" | sed -n 's/^FX_SOCKET=//p' | sed -n '1p')" \
             "$program" status >/dev/null 2>&1; then
             printf '  %-42s %-15s state=%s pid=%s readiness=failed log_bytes=%s\n' \
                 "$label" FAIL "${state:-unknown}" "${pid:--}" "$log_bytes"
@@ -736,6 +831,7 @@ status_services() {
             case "$label" in
                 io.arthack.agentlab.serve) readiness=" readiness=ready" ;;
                 io.arthack.agentlab.codex-app-server) readiness=" readiness=socket-ready" ;;
+                io.arthack.agentlab.fx-broker) readiness=" readiness=broker-ready" ;;
             esac
             printf '  %-42s %-15s state=%s pid=%s last_exit=%s%s log_bytes=%s\n' \
                 "$label" ok "${state:-unknown}" "${pid:--}" "${last_exit:-unknown}" "$readiness" "$log_bytes"
