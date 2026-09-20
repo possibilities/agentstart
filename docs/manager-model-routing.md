@@ -1,9 +1,9 @@
 # Manager model-routing sources and limits
 
-Verified September 14, 2026. This is the evidence behind the concise guide in
+Verified September 19, 2026. This is the evidence behind the concise guide in
 [the manager APPEND](../roles/manager/APPEND_SYSTEM_PROMPT.md), not another
 runtime configuration or model catalog. [ADR 0016](adr/0016-manager-model-selection-guide.md)
-records the operator's decision; the worker prompt is outside this change.
+records the operator's native model-selection decision.
 
 ## Selection policy and native support
 
@@ -36,94 +36,6 @@ the public API cards list `none` for some families and omit native `ultra`;
 neither changes this tool's controls. Full-history forks inherit model/effort;
 reuse does not change them. Fresh or bounded forks can select them where the host
 permits it. Consult the live catalog when it differs from this dated evidence.
-
-## Provider routing for bounded work
-
-For each eligible bounded assignment, the manager compares the current native
-Codex option with AgentFX's current targets. Fresh routing context that identifies
-an eligible included-quota Grok account and a compatible AgentFX target makes that
-Grok target the preferred route for routine, well-specified work. Compatibility,
-task fit, the delegation envelope, and AgentFX admission remain required. Native
-Codex remains the route for incompatible targets, higher-judgment work, and cases
-where its fit is better evidenced; this is not a universal provider mandate.
-
-AgentFX dispatch has a deliberate identity sequence: create or update Work,
-prepare the Assignment, select one explicit short `slug_like` Assignment
-`taskName`, use that exact string as AgentFX `task_slug`, then emit the routing
-receipt and start through AgentFX. Bind the returned exact AgentFX source,
-execution, attempt, slug, routing decision, and invoker handle; observe the
-execution through AgentFX; then record its normalized completion and parent
-review in AgentHUD. The task-name equality is an AgentHUD binding invariant, not
-a naming preference. A failed or unknown admission is reconciled as that attempt;
-do not silently fall back to native Codex. A later route needs a new decision and,
-when it is a new attempt, a new Assignment.
-
-An AgentFX observation timeout is only a bounded read; keep the Execution handle
-and observe again. A known terminal Execution can be continued with AgentFX
-`resume`, which preserves the Fx session ID while creating a fresh Execution,
-Attempt, Assignment association and provider admission. Use fresh routing
-evidence for each managed continuation. `outcome_unknown` is deliberately not
-resumable because the prior provider or tool effects may already have happened.
-Do not replay that prompt or silently switch providers.
-
-Native `collaboration.spawn_agent` remains a separate Codex path. It does not
-inspect AgentFX targets or automatically use the provider preference, so managers
-must make the comparison before choosing either dispatch surface.
-
-## Enabled automatic Stage 1 comparison profile
-
-The human has enabled `agentfx-stage-1-shadow` revision 1 as an automatic profile.
-It remains enabled until the human explicitly disables or changes it. For every
-eligible repeatable root assignment that would use native Codex Sol, Terra, or
-Luna, the manager prepares the shadow before dispatching the native assignment;
-there is no per-assignment approval gate. Only this Stage 1 recipe is enabled.
-Stage 2 candidate ownership and Stage 3 ordinary routing remain disabled.
-
-The manager freezes the native assignment's first-round task packet, starting
-repository commit/base state, required untracked
-inputs, fixtures, dependency lock, instructions, tool inventory, authority/file/
-network bounds, and acceptance checks before dispatching either lane. It resolves
-one immutable run manifest with the exact paired Work scopes, task class, profile
-digest, lane settings, equivalent authority and tool bounds, Assignment and
-routing IDs, isolated worktree and artifact roots, and predetermined
-binding-evidence references. The two lanes receive the same frozen task packet.
-The native delivery owner must be a fresh, explicitly resolved Sol, Terra, or
-Luna model/effort/tier; a full-history fork is not equivalent. The shadow is a
-fresh compatible AgentFX Grok 4.6 medium target admitted through current
-AgentUsage evidence. It has one prompt, zero delegation and one admission attempt.
-Never steer, resume, chain or retry the shadow, including after unknown acceptance
-or outcome, and never automatically integrate it. The native lane remains the
-delivery owner and may continue, integrate and deliver normally after the matched
-first round.
-
-Do not create a shadow for Astra work, irreversible or otherwise nonrepeatable
-effects, shared or headful resources, incompatible targets, or any task that
-cannot be safely replayed with equivalent authority.
-
-The manifest's queue, concurrency, execution and review values are operator
-bounds, not AgentFX wall-clock guarantees. Launch only while a live supervisor
-and durable recovery handoff can enforce them. At a deadline, issue the supported
-cancel/close operation and verify the resulting terminal and cleanup evidence;
-cancellation does not undo effects or prove zero further provider use.
-
-Use one delivery Work and Assignment for the native task and a separate comparison
-Work and Assignment for the shadow, with a routing receipt per dispatch and a
-Result under each Work. Link them through the profile digest and pair identifier.
-Runtime bindings and requested-versus-observed settings append at the manifest's
-evidence references; they do not rewrite it. Preserve admission, terminal and
-cleanup states literally. Unknown delivery, authority breach, setting drift,
-stale quota, reserve refusal, or exhausted attempt budget stops further shadow
-admissions for that pair. It does not create a retry or replacement lane, and the
-already planned native owner is not a fallback. Unmatched starting context makes
-the pair unsuitable for quality or economics claims.
-
-The shadow's Stage 1 artifact is evidence only, even when accepted, and is never
-integrated automatically. The native owner follows the normal authority, review,
-integration and delivery path. Promotion and rollback are explicit manager
-records followed by the required human decision; a score never promotes a stage.
-AgentUsage retains account and admission authority, AgentFX retains Fx Execution
-and cleanup ownership, and AgentHUD retains Work, Assignment, Result, acceptance
-and presentation state.
 
 ## Brain retrieval and primary model guidance
 

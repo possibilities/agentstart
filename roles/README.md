@@ -49,70 +49,20 @@ not delete independently used roles or restart sessions.
 See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
 See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
-## Manager AgentFX control
+## Role MCP boundary
 
-The manager role exposes AgentFX's five-tool MCP against the private
-`~/.config/agentfx/quota-routing.json` configuration. This gives a newly loaded
-manager target discovery plus idempotent start, resume, observe, and control operations
-for the already installed managed Codex/Grok controller. AgentFX and AgentUsage
-retain execution, account, quota, credential, and provider admission authority;
-the role entry does not copy credentials or make a configured target eligible.
+The manager keeps AgentHUD for durable Work, Assignment, Result, acceptance and
+presentation recording. The worker omits AgentHUD and reports to its parent.
+Both roles keep the AgentGrok MCP and the shared GrokBot skill so persistent bot
+collaboration remains available independently of execution-provider routing.
+Rendering a role change does not reload an active AgentVoice generation; it
+becomes available at a later normal role load.
 
-The worker role deliberately omits AgentFX. A worker receives provider-backed
-delegation authority only through a parent-issued execution, routing decision,
-and delegation envelope. Rendering and installing this role change does not
-reload an active AgentVoice generation; it becomes available at a later normal
-role load.
-
-AgentFX `code` executions consume this same ownership-attested rendered worker
-`mcp.json` as their only authored MCP roster. AgentFX validates the private v4
-receipt and hashes, forbids AgentHUD and AgentFX, and derives its stock-Fx launch
-configuration without copying policy back into AgentStart. Its `read_only`
-profile receives no role MCPs. Tool availability grants no device or headful
-lease, messaging or email authority, provider authority, or additional
-delegation; the parent-issued scope remains controlling.
-
-For an eligible bounded assignment, the manager compares fresh native Codex and
-AgentFX targets. A fresh compatible included-quota Grok target is preferred for
-routine, well-specified work; native Codex remains available when the target is
-incompatible, the work needs higher judgment, or it has the better evidenced fit.
-Choosing native Codex while that fresh compatible Grok target is available needs
-a concise task-specific rationale in the routing receipt; provider selection
-remains an explicit judgment for each assignment.
-Before AgentFX start, prepare Work and an Assignment whose explicit `slug_like`
-`taskName` exactly equals the AgentFX `task_slug`, emit the routing receipt, and
-bind the returned handle after start. Observe through AgentFX and reconcile the
-normalized completion before parent review. Failed or unknown admission is never
-a silent native fallback: reconcile it before a new routing decision and attempt.
-
-Ordinary fixed-target AgentFX starts and resumes set `routing_source_revision`
-to `"broker_prepare"`, letting AgentUsage resolve the current exact revision
-inside its locked preparation transaction before AgentFX launches Fx. Supply an
-exact aggregate revision only when the caller intentionally fences admission to
-that exact snapshot; it is not the default freshness mechanism.
-
-The human-enabled Stage 1 profile is persistent and automatic until the human
-disables or changes it. Every eligible repeatable root assignment that would use
-native Sol, Terra, or Luna gets a separate Grok 4.6 medium shadow from the same
-frozen first-round packet and repository base, with equivalent authority and
-separate Work, Assignment, routing, worktree, artifact, and binding evidence.
-The native lane remains the delivery owner. The shadow is one-shot comparison
-evidence with zero delegation and no steering, resume, chaining, retry, or
-automatic integration. Astra work, nonrepeatable effects, shared or headful
-resources, incompatible targets, and unsafe replays are excluded. Stage 2 and
-Stage 3 remain disabled. ADR 0030 records the durable enabled state; the role
-adds no scheduler or comparison control surface.
-
-A bounded `observe` wait ending does not end the Execution. Continue observing
-the same handle. After a known terminal outcome, `resume` may continue the same
-persisted Fx session as a new Execution and Assignment. Managed resumes require
-fresh routing evidence and acquire a fresh AgentUsage lease. Never resume an
-`outcome_unknown` Execution or replay its prompt; reconcile that uncertainty as
-its own result before making a new-session routing decision.
-
-See [manager AgentFX MCP decision](../docs/adr/0028-expose-agentfx-to-managers.md).
-See [comparison profile decision](../docs/adr/0030-select-stage-one-comparison-profile.md).
-See [worker MCP export decision](../docs/adr/0032-export-worker-mcp-role-to-agentfx.md).
+AgentStart no longer exposes or installs AgentFX, exports the worker roster to
+it, or distributes provider-specific execution, resume, broker, or comparison
+policy. Native delegation still follows the live collaboration tool catalog,
+parent-issued delegation envelopes, routing receipts, and manager review. See
+[the retirement decision](../docs/adr/0036-retire-agentfx-role-and-installer-integration.md).
 
 ## Upstream fork patch and contribution gate
 
@@ -246,8 +196,8 @@ it uses the minimum correctly sized worker set. At the root, that can use every
 available root-owned child slot for genuinely useful, independent, non-overlapping
 active Work while preserving integration and review capacity; no fixed two-worker
 or other arbitrary cap applies. The manager does not create agents merely to fill
-slots or split inseparable work. Provider, model and effort selection — including
-Grok and cheaper models when suitable — plus avoiding duplicate work control cost.
+slots or split inseparable work. Model and effort selection plus avoiding
+duplicate work control cost.
 Each root-level pick still needs the human's confirmation when the session has
 that pick-before-dispatch preference; it is not a permanent worker cap.
 

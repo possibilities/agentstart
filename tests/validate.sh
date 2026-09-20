@@ -188,14 +188,10 @@ for role in ["manager", "worker"]:
     }
     if role == "manager":
         assert role_servers["agenthud"] == servers["agenthud"]
-        assert role_servers["agentfx"] == {
-            "command":"${HOME}/.local/bin/agentfx",
-            "args":["mcp","--config","${HOME}/.config/agentfx/quota-routing.json"],
-        }
     else:
         assert "agenthud" not in role_servers
-        assert "agentfx" not in role_servers
         assert json.loads(Path("roles/worker/skills-exclude.json").read_text()) == ["hud"]
+    assert role_servers["agentgrok"] == servers["agentgrok"]
     assert "agentboard" not in role_servers
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())
 assert components["$schema"] == "https://ui.shadcn.com/schema.json"
@@ -1378,7 +1374,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # launcher shells prepare). AgentUsage owns all three account inventories.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentfx agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1387,7 +1383,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentfx agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentnotify; do
+    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentlab agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

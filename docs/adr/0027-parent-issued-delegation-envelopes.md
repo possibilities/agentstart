@@ -18,19 +18,23 @@ within its own inherited limits.
 
 This replaces the earlier role-level two-concurrent-worker default and its
 self-judged exceptions. The parent chooses the smallest correctly sized team
-case by case. Explicit grants can permit additional suitable Terra, Luna or
-Grok workers when independent work, total expected cost and review capacity
-justify them. No universal headcount limit or cross-provider price equivalence
-is introduced.
+case by case. Explicit grants can permit additional suitable Terra or Luna
+workers when independent work, total expected cost and review capacity justify
+them. No universal headcount limit or price equivalence is introduced.
 
 ## Limits and delivery
 
 These are behavioral instructions, not an authenticated admission ledger or
 native pre-spawn gate. Routing receipts record the grant and allocation evidence;
-they do not enforce it. The future AgentUsage/AgentFX orchestration budget must
-enforce reservations and reconcile uncertain execution separately.
+they do not enforce it. The native harness remains responsible for actual worker
+admission and execution state.
 
 Render through AgentStart and check/install the explicit Codex role plugins.
 Existing loaded runtimes retain their prompts until their supported authorized
 reload boundary; publishing this content does not restart AgentVoice or prove
 that existing descendants consumed it.
+
+Revised September 19, 2026 by
+[ADR 0036](0036-retire-agentfx-role-and-installer-integration.md) to remove the
+retired provider-specific worker and admission language while preserving the
+parent-issued envelope and native delegation rules.

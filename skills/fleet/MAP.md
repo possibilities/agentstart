@@ -45,8 +45,6 @@ flowchart LR
     source[agentsource]
     tend[agentguidance / tend skill]
     hud[agenthud]
-    fxController[agentfx]
-    workerRole[agentstart rendered worker role]
     wiki[agentwiki]
     chats[agentchats]
     herdr[herdr — the surface]
@@ -90,8 +88,6 @@ flowchart LR
     attention -.->|browser processor: agentbrowse/opentui live surface| browse
     jobsearch -->|bounded attention create| attention
     hud -.->|read-only native observation| voice
-    hud -->|bounded exact-ID execution snapshot| fxController
-    fxController -.->|ownership-attested MCP roster for code executions| workerRole
     chats -.->|indexes session stores| harnesses
     claude & codex & voice -->|individual stdio MCPs| contractServers[agentattention / agenthud / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentbrowse / agentgrok / agentsounds / agentchats / agentsurface]
     claude & codex & voice -->|explicit manager/worker roles: stable discover/call stdio MCP; live UDS per invocation| mux
@@ -235,7 +231,6 @@ sentence around the match, never from the name alone.
 | Direct MCP hosts | agentattention / agenthud / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentbrowse / agentgrok / agentsounds / agentchats / agentsurface | starts `<cli> mcp` over stdio and receives tools generated from that CLI's own agent contract. Each server dispatches through its command table in process; only `audience: agent` leaves are exposed. Managed manager workflows discover and call these tools directly; explicit worker roles omit AgentHUD and report to their parent manager. Existing JSON objects and domain-error envelopes are preserved as structured content and standalone JSON text, including structured error content; plain text and Markdown keep their original format. Transport shutdown closes the owned stdio server. AgentBoard is intentionally absent from this active inventory. | `agentstart/config/agent-contract/MCP.md`; `agentstart/config/resources/mcp-servers.json`; each repository's MCP modules and handshake tests (`src/` except AgentBrowse's `cli/`) |
 | Claude Code / Codex / AgentVoice explicit AgentStart roles | agentmux | Both manager and worker roles start `agentmux mcp --instance default` over stdio. Initialization and `tools/list` stay available without a running Instance and expose exactly stable `discover` and `call` tools. Each invocation opens a fresh connection to the selected Instance's private Unix socket, so later start or restart needs no MCP child or harness restart; the bridge never launches AgentMux or another app. This role-only edge is absent from the common MCP inventory and preserves the worker's AgentHUD exclusion. | `agentstart/roles/{manager,worker}/mcp.json`; `agentstart/scripts/render-roles`; `agentstart/tests/render-roles.py`; `agentmux/src/main.ts`; `agentmux/src/mcp-stdio.ts`; `agentmux/test/mcp-stdio.test.ts` |
 | agenthud | AgentVoice current session state | `snapshot --native`, the HUD API, and the read-only web projection invoke the installed `agentvoice threads --json` export through AgentHUD's bounded consumer-owned adapter to associate durable assignments with exact instance, generation, root, thread, and turn identities. The adapter accepts at most 1 MiB for 20 seconds, accepts contract versions 1–3 without importing AgentVoice internals, and validates version 3 canonical collaboration task identity while reporting legacy, missing, malformed, conflicting, stale, invalid, or incomplete observation without changing Work. | `agenthud/src/native-observer.ts`; `agenthud/src/projection.ts`; `agenthud/src/api.ts`; `agenthud/skills/hud/SKILL.md`; `agentvoice/src/threads/command.ts`; `agentvoice/src/threads/export.ts` |
-| agenthud | AgentFX | `snapshot --native` and the HUD API invoke installed `agentfx snapshot --config FILE --file REQUEST` only for exact execution IDs already present in durable `source:agentfx` Assignment bindings. AgentHUD bounds time/output, validates complete source/execution/attempt/slug/Work/Assignment/routing/invoker identity, and keeps recorded lifecycle separate from controller availability. It never enumerates the ledger, creates a Codex thread, controls an execution or changes Result/Work state. | `agenthud/src/{fx-observer,api,projection}.ts`; `agenthud/docs/adr/0020-project-exact-agentfx-executions.md`; `agentfx/src/{main,snapshot}.ts`; `agentfx/docs/adr/0004-publish-exact-execution-snapshots.md` |
 | Direct MCP hosts | agentsurface | serves agents, message, and guide through shared typed bus handlers. Each bus call supplies its actual socket and caller pane; optional expected session guards pane reuse. Fresh Herdr state determines workspace and sender names, so shared server defaults cannot attribute one caller as another. Cancellation stops retries and reaps Herdr children; interrupted prompt delivery must be reconciled before resending | `agentsurface/src/contract.ts`; `agentsurface/src/bus.ts`; `agentsurface/src/herdr.ts`; `agentsurface/src/mcp-tools.ts`; `agentsurface/src/mcp-server.ts`; `agentsurface/test/mcp.test.ts` |
 | Direct MCP hosts | agentsounds | serves `notify` and `guide` through the same typed handlers as the CLI. MCP preserves explicit flag presence, requires absolute recipe/export paths, and cancels and reaps active playback on cancellation or transport shutdown. The human audition TUI and operator hooks remain available | `agentsounds/src/commands.ts`; `agentsounds/src/mcp-tools.ts`; `agentsounds/src/mcp-server.ts`; `agentsounds/src/mcp.ts`; `agentsounds/test/mcp.test.ts` |
 | agentstart | agentsounds | invokes the checkout-owned installer for frozen dependencies, an editable command and a private deployed-SHA receipt. The installer preserves independent files, recipes, cached WAVs, and existing Bun links | `agentstart/scripts/install-agent-clis`; `agentsounds/scripts/install.sh`; `agentsounds/test/install.test.ts` |
@@ -391,6 +386,21 @@ does not re-suspect them:
   (`agentvoice/src/main.ts`, `agentvoice/src/core/config.ts`,
   `agentvoice/src/core/runtime.ts`, `agentvoice/tests/account-retirement.test.ts`;
   retired and checked 2026-09-04).
+- AgentStart roles / AgentVoice / AgentHUD → AgentFX: the active execution
+  controller, routing-context, exact-snapshot observation and rendered worker-roster
+  consumer edges are retired. AgentStart no longer installs or exposes AgentFX;
+  the coordinated AgentVoice and AgentHUD retirements preserve historical
+  transcripts, bindings and Results without creating new live executions
+  (`agentstart/docs/adr/0036-retire-agentfx-role-and-installer-integration.md`;
+  retired 2026-09-19).
+- AgentLab → Fx: no runtime edge exists yet. AgentLab main at
+  `de8a952ae7f8494956208d71c8d3ceedd137468d` implements the externally owned
+  Codex app-server adapter and explicitly leaves Fx unimplemented until an
+  externally owned reconnectable broker exists. AgentStart retains the exact Fx
+  Integration pin and fxnk installer for that planned harness target and other
+  independent consumers, but the map will not draw an AgentLab-to-Fx edge until
+  source implements the adapter (`agentlab/docs/decisions/0010-external-daemon-harness-foundation.md`;
+  checked 2026-09-19).
 - AgentVoice → phone/services: phone discovery/pairing, Tailscale/dns-sd lookup, Android packaging
   and the legacy resident/remote launchd jobs are retired from active AgentVoice source;
   previously installed services and private state are not removed by that cut.
@@ -794,21 +804,17 @@ controller MCP remain unchanged. Evidence: `roles/README.md`,
 `scripts/render-roles`, `config/agentvoice/server.json`, `tests/render-roles.py`.
 
 
-## Quota-aware managed delegation (2026-09-16)
+## Retired managed execution integration (2026-09-19)
 
-| Caller | Owner | Contract and boundary | Evidence |
-| --- | --- | --- | --- |
-| AgentFX | AgentUsage | Private `agentusage fx-bridge` child prepares one source-revision-fenced Codex/Grok account binding, activates it against the exact Fx build/process/session, forwards bounded Responses requests, and releases it. The explicit `agentfx reconcile` transaction reads AgentUsage's sanitized reviewed Grok catalog and atomically updates an exact private config pin; targets/start/replay never hot-select. Credentials and raw account identities remain in AgentUsage; ephemeral loopback capabilities stay in child memory, never manager receipts. | `agentfx/src/{usage-bridge,controller,reconcile}.ts`; `agentusage/src/{fx-broker,grok,routing-evidence}/`; `agentfx/docs/adr/0005-reconcile-reviewed-grok-pins.md` |
-| AgentFX | Fx | Installed fxnk-owned binary runs ACP initialize/session/new/session/load/set_config_option/prompt/cancel with host-managed loopback transport, isolated fresh-session state, persisted linear session continuations, native tools enabled and ACP-supplied MCP disabled. `code` receives the required worker roster through stock Fx configuration on the adjacent AgentStart edge; `read_only` receives none. Each continuation starts a fresh child; a parent-liveness watchdog reaps owned execution groups. This uses stock Fx APIs and adds no Fx patch, pin or upstream fork action. | `agentfx/src/{acp-client,controller}.ts`; `agentfx/docs/adr/{0003-reap-fx-through-parent-liveness-watchdog,0006-resume-persisted-fx-sessions}.md` |
-| AgentFX | AgentStart rendered worker role | For `code` only, reads the canonical private v4 ownership receipt and rendered worker `mcp.json`, verifies raw/framed hashes, schema and the AgentHUD/AgentFX exclusions, then mechanically derives one private required stock-Fx MCP config. `read_only` keeps no role MCP. AgentStart remains the sole roster author; AgentFX records bounded names/count/digests and supplies no new lease, messaging, provider or delegation authority. | `agentstart/roles/worker/mcp.json`; `agentstart/scripts/render-roles`; `agentstart/tests/render-roles.py`; `agentstart/docs/adr/0032-export-worker-mcp-role-to-agentfx.md`; `agentfx/src/worker-mcp.ts`; `agentfx/docs/adr/0010-consume-agentstart-worker-mcp-role.md` |
-| AgentStart | AgentFX | Calls the checkout-owned `scripts/install.sh --install` after AgentUsage. Installs the editable command and reconciles an existing standard private quota-routing Grok pin from fresh reviewed evidence, without a service or active-call restart. The manager role, and only that role, loads the five-tool MCP against that exact config; synchronous `run` and `resume` CLI paths share the same durable ledger and idempotency fence. Existing loaded managers retain their prior pin and inventory until a later normal role load. | `agentstart/scripts/install-agent-clis`; `agentstart/roles/{manager,worker}/mcp.json`; `agentstart/docs/adr/0028-expose-agentfx-to-managers.md`; `agentfx/scripts/install.sh`; `agentfx/src/{main,mcp,reconcile}.ts` |
-| AgentHUD | AgentUsage evidence/context contract | Persists sanitized routing evidence v1/v2 and native/Fx context with producer-generation/revision/digest CAS. Read-only `routing state` returns full snapshots after gaps/generation changes; consumer revisions require explicit, separate acknowledgment. No credential or account switching authority is inferred. | `agenthud/src/{routing-contract,routing-ledger}.ts`; `agentusage/docs/routing-evidence.md` |
+The former AgentFX/AgentUsage execution controller, AgentStart manager MCP and
+worker-roster export, AgentVoice routing-context producer, AgentHUD live
+AgentFX observer, and automatic comparison profile are no longer active fleet
+edges. Their accepted ADRs remain as history, and durable execution, routing,
+binding, transcript and Result records remain readable by their owning projects.
 
-| AgentVoice | AgentUsage | On exact native runtime startup, settings changes and a coalesced one-minute poll, reads `routing evidence --json`, exact-revision `routing grok-catalog --json`, and the pure `routing compose-native --file - --json` seam. An incomplete, stale, errored, credential-mismatched or nearly expired Grok projection first triggers the bounded credential-contained `refresh grok --json` contract, then both public projections are reread at one exact revision; failure preserves visible last-good drift. AgentVoice suppresses unchanged evidence before native work, requires a whole-percentage quota change plus five minutes from the accepted baseline, and lets decision-relevant model/catalog, eligibility, freshness, provider or account transitions deliver immediately. It never reads credentials or assumes native account correlation; cross-provider economics remain unavailable. | `agentvoice/src/core/{routing-orientation,routing-delivery}.ts`; `agentvoice/docs/adr/0093-throttle-routing-context-turns.md`; `agentusage/src/{grok/catalog,grok/observe,routing-evidence/grok-catalog,routing-context/native-manager}.ts`; `agentusage/src/cli.ts` |
-| AgentVoice | AgentHUD | `routing state/apply` stores generation/revision/digest-fenced context and reads full/delta delivery plans. One named `agentusage.routing_context` native output per delivered revision carries silent background facts; exact native acceptance persists AgentVoice's private cooldown baseline and records the matching durable consumer receipt. The controller's protocol-8 read-only API/MCP query returns only the accepted allowlisted projection with freshness, revision/digest and exact runtime fence; it performs no ledger mutation or provider refresh. | `agentvoice/src/core/{routing-orientation,routing-delivery}.ts`; `agentvoice/src/control/{contract,types}.ts`; `agentvoice/docs/adr/0093-throttle-routing-context-turns.md`; `agenthud/src/routing-cli.ts` |
-
-Updated 2026-09-18 for worker MCP parity: AgentFX now reads AgentStart's
-ownership-attested rendered worker roster for `code` executions and derives a
-private required stock-Fx configuration. AgentStart remains the only roster
-author; `read_only` remains empty, ACP MCP remains disabled, and the edge adds
-no resource, communication, provider, or delegation authority.
+AgentGrok and GrokBot remain active through the runtime, MCP, install and skill
+edges documented above. AgentStart also retains Grok Build and the exact
+fxnk-owned Fx Integration installation. AgentLab names Fx as a future daemon
+harness, but its current exact source implements only Codex and explicitly waits
+for an externally owned reconnectable Fx broker; therefore no active
+AgentLab-to-Fx edge is claimed here.

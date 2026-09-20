@@ -1,8 +1,14 @@
 # 0030: Select the Stage 1 AgentFX comparison profile
 
+Superseded September 19, 2026 by
+[ADR 0036](0036-retire-agentfx-role-and-installer-integration.md). The decision
+below is retained as history; the comparison profile is no longer active or
+distributed by AgentStart.
+
 Accepted September 18, 2026.
 
-Status: enabled by explicit human direction on September 18, 2026.
+Historical status: enabled by explicit human direction on September 18, 2026,
+then retired by ADR 0036 on September 19, 2026.
 
 ## Decision
 
@@ -30,16 +36,15 @@ This supersedes the initial profile identifier and run details in
 [ADR 0028](0028-expose-agentfx-to-managers.md), while preserving that decision's
 human-enabled automatic behavior.
 
-## Enabled-state source
+## Historical enabled-state source
 
-This accepted decision is AgentStart's durable source of truth for the enabled
-state, and the authored manager prompt is its distributed execution guidance.
-The profile remains enabled across assignments and newly loaded manager sessions
-until the human explicitly disables it or selects a replacement; that decision
-must update this record and the manager guidance together. Per-assignment consent,
-silence, a completed pair, a refused admission, or an unknown outcome does not
-change the enabled state. Persistence requires no scheduler or mutable runtime
-flag because role rendering already distributes the authored manager guidance.
+While active, this accepted decision was AgentStart's durable source of truth for
+the enabled state, and the authored manager prompt was its distributed execution
+guidance. The profile remained enabled across assignments and newly loaded
+manager sessions until ADR 0036 retired it. Per-assignment consent, silence, a
+completed pair, a refused admission, or an unknown outcome did not change that
+enabled state. Persistence required no scheduler or mutable runtime flag because
+role rendering distributed the authored manager guidance.
 
 ## Ownership
 

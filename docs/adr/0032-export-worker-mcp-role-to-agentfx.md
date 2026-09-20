@@ -1,5 +1,10 @@
 # 0032: Export the rendered worker MCP role to AgentFX
 
+Superseded September 19, 2026 by
+[ADR 0036](0036-retire-agentfx-role-and-installer-integration.md). The decision
+below is retained as history; AgentStart no longer exports its worker roster to
+AgentFX.
+
 Accepted September 18, 2026.
 
 ## Decision

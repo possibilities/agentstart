@@ -1,5 +1,10 @@
 # 0028: Expose AgentFX control to managers
 
+Superseded September 19, 2026 by
+[ADR 0036](0036-retire-agentfx-role-and-installer-integration.md). The decision
+below is retained as history; AgentStart no longer installs AgentFX or exposes
+its MCP and execution policy to manager roles.
+
 Accepted September 16, 2026 as the manager control-plane completion of the
 quota-aware routing loop.
 

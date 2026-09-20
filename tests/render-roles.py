@@ -185,7 +185,7 @@ class RoleRender(unittest.TestCase):
         self.render(1)
         self.assertFalse((self.resources / "roles/manager").exists())
 
-    def test_shipped_worker_mcp_is_one_attested_agentfx_roster(self):
+    def test_shipped_worker_mcp_is_attested_and_strict(self):
         self.render(sources=ROOT / "roles")
         source = json.loads((ROOT / "roles/worker/mcp.json").read_text())
         role = self.resources / "roles/worker"
@@ -196,7 +196,7 @@ class RoleRender(unittest.TestCase):
         servers = rendered["mcpServers"]
         self.assertEqual(set(servers), set(source["mcpServers"]))
         self.assertTrue(servers)
-        self.assertTrue({"agenthud", "agentfx"}.isdisjoint(
+        self.assertTrue({"agenthud"}.isdisjoint(
             name.lower() for name in servers))
         for server in servers.values():
             self.assertEqual(set(server), {"command", "args"})
@@ -230,12 +230,7 @@ class RoleRender(unittest.TestCase):
             inventory = json.loads((source / "mcp.json").read_text())["mcpServers"]
             self.assertTrue(inventory)
             self.assertEqual("agenthud" in inventory, name == "manager")
-            self.assertEqual("agentfx" in inventory, name == "manager")
-            if name == "manager":
-                self.assertEqual(inventory["agentfx"], {
-                    "command": "${HOME}/.local/bin/agentfx",
-                    "args": ["mcp", "--config", "${HOME}/.config/agentfx/quota-routing.json"],
-                })
+            self.assertIn("agentgrok", inventory)
             self.assertEqual(inventory["agentmux"], {
                 "command": "${HOME}/.local/bin/agentmux",
                 "args": ["mcp", "--instance", "default"],
@@ -247,11 +242,6 @@ class RoleRender(unittest.TestCase):
                 "command": str(Path.home() / ".local/bin/agentmux"),
                 "args": ["mcp", "--instance", "default"],
             })
-            if name == "manager":
-                self.assertEqual(rendered["agentfx"], {
-                    "command": str(Path.home() / ".local/bin/agentfx"),
-                    "args": ["mcp", "--config", str(Path.home() / ".config/agentfx/quota-routing.json")],
-                })
             for filename in ("APPEND_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
                              "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md"):
                 self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
@@ -292,34 +282,6 @@ class RoleRender(unittest.TestCase):
         self.assertIn("Keep driving actionable Work toward zero", manager_prompt)
         self.assertIn("Do not create agents merely to fill slots or split inseparable work", manager_prompt)
         self.assertIn("not a permanent root-worker cap", manager_prompt)
-        self.assertIn("including Grok and cheaper models when suitable", manager_prompt)
-        self.assertIn("actively compare the live native Codex option with AgentFX targets", manager_prompt)
-        self.assertIn("prefer that fresh AgentFX Grok target for routine, well-specified work", manager_prompt)
-        self.assertIn("put a concise task-specific rationale in the routing receipt", manager_prompt)
-        self.assertIn("one explicit `slug_like` Assignment `taskName` first", manager_prompt)
-        self.assertIn("pass that identical value as AgentFX `task_slug`", manager_prompt)
-        self.assertIn('set `routing_source_revision` to `"broker_prepare"`', manager_prompt)
-        self.assertIn("use an exact aggregate revision only when intentionally fencing admission", manager_prompt)
-        self.assertIn("Do not silently fall back after failed or unknown AgentFX admission", manager_prompt)
-        self.assertIn("human-enabled automatic AgentFX Comparison profile", manager_prompt)
-        self.assertIn("agentfx-stage-1-shadow` revision 1", manager_prompt)
-        self.assertIn("until the human explicitly disables or changes it", manager_prompt)
-        self.assertIn("every eligible repeatable root assignment that would use native Codex Sol, Terra or Luna", manager_prompt)
-        self.assertIn("same frozen packet", manager_prompt)
-        self.assertIn("starting repository commit/base state", manager_prompt)
-        self.assertIn("separate matched shadow Work and Assignment", manager_prompt)
-        self.assertIn("equivalent tool and authority bounds", manager_prompt)
-        self.assertIn("native lane as the delivery owner", manager_prompt)
-        self.assertIn("AgentFX/Grok 4.6 medium shadow", manager_prompt)
-        self.assertIn("never steer, resume, chain or retry it", manager_prompt)
-        self.assertIn("unknown acceptance or outcome", manager_prompt)
-        self.assertIn("never automatically integrate its artifact", manager_prompt)
-        self.assertIn("Astra work", manager_prompt)
-        self.assertIn("shared or headful resources", manager_prompt)
-        self.assertIn("incompatible targets", manager_prompt)
-        self.assertIn("cannot be safely replayed", manager_prompt)
-        self.assertIn("Stages 2 and 3 remain disabled", manager_prompt)
-        self.assertIn("automatic shadow does not change AgentUsage admission", manager_prompt)
         self.assertIn("correctly sized team may use every available root-owned child slot", manager_prompt)
         self.assertIn("Every substantive worker brief", manager_prompt)
         self.assertIn("Missing or ambiguous permission means zero child delegation", manager_prompt)
@@ -331,9 +293,6 @@ class RoleRender(unittest.TestCase):
         self.assertIn("Add material to a README only through explicit collaboration with the human", manager_prompt)
         self.assertNotIn("There is no universal acknowledgment gate", manager_prompt)
         self.assertNotIn("Default a repository README to a one-line elevator pitch", worker_prompt)
-        self.assertNotIn('routing_source_revision` to `"broker_prepare"', worker_prompt)
-        self.assertNotIn("automatic comparison profile", worker_prompt)
-        self.assertNotIn("agentfx-stage-1-shadow", worker_prompt)
         self.assertNotIn("When the human asks for a sketch",
                          (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text())
         self.assertIn("AgentHUD stores no resource/lease record",
