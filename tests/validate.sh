@@ -191,6 +191,7 @@ for role in ["manager", "worker"]:
     else:
         assert "agenthud" not in role_servers
         assert json.loads(Path("roles/worker/skills-exclude.json").read_text()) == ["hud"]
+    assert "agentfx" not in role_servers
     assert role_servers["agentgrok"] == servers["agentgrok"]
     assert "agentboard" not in role_servers
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())
@@ -303,6 +304,19 @@ grep -F '"chats"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
     || fail "the fleet resource catalog omits chats"
 jq -e '.skills[] | select(.id == "chats")' site/public/fleet-resources.json >/dev/null \
     || fail "the fleet resource snapshot omits chats"
+jq -e '.skills[] | select(.id == "hud") | .content
+    | contains("For AgentFX, prepare the Assignment") | not' \
+    site/public/fleet-resources.json >/dev/null \
+    || fail "the fleet resource snapshot still advertises AgentFX dispatch through HUD"
+jq -e '.skills[] | select(.id == "hud") | .content
+    | contains("separate native and exact-ID AgentFX observation") | not' \
+    site/public/fleet-resources.json >/dev/null \
+    || fail "the fleet resource snapshot still advertises live AgentFX observation"
+grep -F 'accepts contract versions 1–4' skills/fleet/MAP.md >/dev/null \
+    || fail "the fleet map does not carry AgentVoice thread export version 4"
+# shellcheck disable=SC2016 # Backticks are literal contract field names.
+grep -F 'optional native `startedAt` / `completedAt` turn timing' skills/fleet/MAP.md >/dev/null \
+    || fail "the fleet map does not document authoritative v4 turn timing"
 
 # Model invocability is one portable fact in SKILL.md. The common-pack render
 # derives Codex's inverse product field; source manifests must not become a

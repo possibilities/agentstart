@@ -196,7 +196,7 @@ class RoleRender(unittest.TestCase):
         servers = rendered["mcpServers"]
         self.assertEqual(set(servers), set(source["mcpServers"]))
         self.assertTrue(servers)
-        self.assertTrue({"agenthud"}.isdisjoint(
+        self.assertTrue({"agenthud", "agentfx"}.isdisjoint(
             name.lower() for name in servers))
         for server in servers.values():
             self.assertEqual(set(server), {"command", "args"})
@@ -230,6 +230,7 @@ class RoleRender(unittest.TestCase):
             inventory = json.loads((source / "mcp.json").read_text())["mcpServers"]
             self.assertTrue(inventory)
             self.assertEqual("agenthud" in inventory, name == "manager")
+            self.assertNotIn("agentfx", inventory)
             self.assertIn("agentgrok", inventory)
             self.assertEqual(inventory["agentmux"], {
                 "command": "${HOME}/.local/bin/agentmux",
@@ -255,6 +256,16 @@ class RoleRender(unittest.TestCase):
                       (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text())
         manager_prompt = (self.resources / "roles/manager/APPEND_SYSTEM_PROMPT.md").read_text()
         worker_prompt = (self.resources / "roles/worker/APPEND_SYSTEM_PROMPT.md").read_text()
+        retired_execution_terms = (
+            "actively compare the live native Codex option with AgentFX targets",
+            "prefer that fresh AgentFX Grok target",
+            "routing_source_revision",
+            "agentfx-stage-1-shadow",
+            "AgentFX/Grok 4.6 medium shadow",
+        )
+        for prompt in (manager_prompt, worker_prompt):
+            for retired in retired_execution_terms:
+                self.assertNotIn(retired, prompt)
         for prompt in (manager_prompt, worker_prompt):
             self.assertIn("Detect an external/upstream fork-patch decision before modifying the fork", prompt)
             self.assertIn("Do not create, maintain, rebase or apply a patch", prompt)
