@@ -87,11 +87,12 @@ _Avoid_: dormant service, compatibility route, redirected command, data
 migration.
 
 **AgentVoice transcript reader** — AgentVoice's foreground `agentvoice serve`
-command and editable transcript UI at `https://agentvoice.localhost`, supervised
-at login by AgentStart's `io.arthack.agentvoice.serve` LaunchAgent. It observes
-the separately owned AgentVoice waiting server but has no call, menu, client, or
-server lifecycle authority. _Avoid_: AgentVoice server service, reader-owned call,
-Native SDK shell service.
+command and transcript UI at `https://agentvoice.localhost`. Bare direct
+invocations stay editable for development; AgentStart's resident
+`io.arthack.agentvoice.serve` LaunchAgent uses the installer-prepared production
+build. The reader observes the separately owned AgentVoice waiting server but
+has no call, menu, client, or server lifecycle authority. _Avoid_: AgentVoice
+server service, reader-owned call, Native SDK shell service.
 
 **AgentVoice isolated test services** — The bounded interim pair supervised by
 AgentStart as `io.arthack.agentvoice-test.wait` and `.serve`. Both execute the

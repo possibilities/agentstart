@@ -140,7 +140,9 @@ python3 - <<'PYTHON'
 from pathlib import Path
 source = Path("scripts/install.sh").read_text()
 content = source.rindex("\nconverge_repo_content\n")
+agent_clis = source.index('"$script_dir/install-agent-clis"')
 services = source.index('"$script_dir/install-launchagents" --install')
+assert agent_clis < services
 assert content < services
 
 retired = [
@@ -867,7 +869,7 @@ grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
-    '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + native audio + waiting default LaunchAgent; no voice call' \
+    '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
     'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
@@ -1580,7 +1582,8 @@ assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"
 value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--tailscale"]
+assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--production", "--tailscale"]
+assert value["ProgramArguments"].count("--production") == 1
 assert value["EnvironmentVariables"] == {
     "HOME": "__HOME__",
     "PATH": "__PATH__",
@@ -1604,6 +1607,7 @@ assert value["ProgramArguments"] == [
     "--workspace",
     "__TEST_WORKSPACE__",
 ]
+assert "--production" not in value["ProgramArguments"]
 assert value["WorkingDirectory"] == "__TEST_CHECKOUT__"
 assert value["EnvironmentVariables"] == {
     "AGENTSTART_SOURCE_REVISION": "__TEST_SOURCE_REVISION__",
@@ -1632,6 +1636,7 @@ assert value["ProgramArguments"] == [
     "--name",
     "agentvoice-test",
 ]
+assert "--production" not in value["ProgramArguments"]
 assert value["WorkingDirectory"] == "__TEST_CHECKOUT__"
 assert value["EnvironmentVariables"] == {
     "AGENTSTART_SOURCE_REVISION": "__TEST_SOURCE_REVISION__",
@@ -1645,6 +1650,13 @@ assert value["ProcessType"] == "Standard"
 assert value["Umask"] == 63
 assert value["ThrottleInterval"] == 10
 assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
+
+agentvoice_production_templates = []
+for candidate in pathlib.Path("config/launchd").glob("io.arthack.agentvoice*.plist"):
+    candidate_value = plistlib.loads(candidate.read_bytes())
+    if "--production" in candidate_value["ProgramArguments"]:
+        agentvoice_production_templates.append(candidate.name)
+assert agentvoice_production_templates == ["io.arthack.agentvoice.serve.plist"]
 PYTHON
 if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/io.arthack.agentattention.serve.plist; then
     fail "Agentattention server rendered a credential-shaped environment variable"

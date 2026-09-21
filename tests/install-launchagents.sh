@@ -336,7 +336,8 @@ import plistlib
 import sys
 with open(sys.argv[1], "rb") as handle:
     value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve", "--tailscale"]
+assert value["ProgramArguments"] == [sys.argv[2], "serve", "--production", "--tailscale"]
+assert value["ProgramArguments"].count("--production") == 1
 assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
 assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
 assert value["EnvironmentVariables"]["XDG_STATE_HOME"] == sys.argv[4]
@@ -525,6 +526,8 @@ assert reader["ProgramArguments"] == [
     "--name",
     "agentvoice-test",
 ]
+assert "--production" not in server["ProgramArguments"]
+assert "--production" not in reader["ProgramArguments"]
 for value, log_name in ((server, "test-server.log"), (reader, "test-reader.log")):
     assert value["WorkingDirectory"] == checkout
     assert value["EnvironmentVariables"] == {

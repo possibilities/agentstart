@@ -277,7 +277,7 @@ Command-line tools:
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
-  ~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + native audio + waiting default LaunchAgent; no voice call
+  ~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call
   ~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release
   install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier
   bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
@@ -841,7 +841,8 @@ converge_repo_content
 "$script_dir/agentvoice-config" install
 
 # The fleet's long-running services. This runs after every CLI above, because
-# a service is only installed once the binary it supervises exists — a tool
+# a service is only installed once the binary and owner-prepared assets it
+# supervises exist — including AgentVoice's production reader build. A tool
 # that is absent is skipped, exactly like its checkout was. The fleet
 # checkouts ship the code; this repository decides when it runs. The machine
 # layer keeps its own services, which are the reverse-DNS labels.

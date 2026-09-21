@@ -37,8 +37,10 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   AgentVoice test checkout with one explicit isolated workspace and one named
   reader; they never claim the default endpoint. AgentStart also owns
   the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
-  through AgentVoice's installed `agentvoice serve` contract, and the separate
-  `io.arthack.agenthud.serve` web-view LaunchAgent through the independent
+  through AgentVoice's installed `agentvoice serve --production --tailscale`
+  contract. Bare direct `agentvoice serve` remains editable for development.
+  AgentStart also owns the separate `io.arthack.agenthud.serve` web-view
+  LaunchAgent through the independent
   AgentHUD checkout's installed `agenthud serve` contract.
   AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;

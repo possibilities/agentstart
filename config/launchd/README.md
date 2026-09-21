@@ -107,8 +107,10 @@ AgentStart alone owns the LaunchAgent lifecycle.
 
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public
-`agentvoice serve` command with AgentVoice's configured state root and does not
-operate AgentVoice's separately owned
+`agentvoice serve --production --tailscale` command against AgentVoice's
+installer-prepared web build and configured state root. Bare direct
+`agentvoice serve` remains the editable development surface. The resident job
+does not operate AgentVoice's separately owned
 `io.arthack.agentvoice.server`, menu app, clients, calls, or future Native SDK
 shell. Exact-label convergence can replace a temporary submitted reader job;
 later identical convergence leaves the canonical loaded reader running.

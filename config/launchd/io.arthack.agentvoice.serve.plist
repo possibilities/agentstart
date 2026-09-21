@@ -5,11 +5,12 @@
 <dict>
 	<key>Label</key>
 	<string>io.arthack.agentvoice.serve</string>
-	<!-- AgentVoice owns the editable transcript reader and its fixed portless name. -->
+	<!-- AgentVoice owns the transcript reader and its fixed portless name. The resident job uses prepared production assets. -->
 	<key>ProgramArguments</key>
 	<array>
 		<string>__PROGRAM__</string>
 		<string>serve</string>
+		<string>--production</string>
 		<string>--tailscale</string>
 	</array>
 	<key>EnvironmentVariables</key>

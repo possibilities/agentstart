@@ -55,8 +55,10 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # it reads the Grok Build CLI's login and shells out to `grok models` to renew
 # it; the `grok` cask is installed by scripts/install.sh, not by this loop.
 # AgentVoice needs stock Codex and a C compiler, provisioned by the outer
-# installer. Its installer owns the default waiting server. Default full
-# convergence opts into the owned menu app's graceful quit/update/reopen
+# installer. Its installer owns the default waiting server and prepares the
+# production web build consumed later by AgentStart's resident transcript
+# reader. Default full convergence opts into the owned menu app's graceful
+# quit/update/reopen
 # protocol so a normal running menu does not block the fleet. During a live-call
 # cutover, AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1 selects its supported
 # --command-only mode instead, so no menu, call, or service is restarted.
