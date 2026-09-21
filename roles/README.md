@@ -22,12 +22,15 @@ source MCP commands are templates.
 agentvoice server --role ~/.local/share/agentstart/resources/roles/manager
 agentvoice server --role ~/.local/share/agentstart/resources/roles/worker
 agentroles show ~/.local/share/agentstart/resources/roles/worker
+agentroles ~/.local/share/agentstart/resources/roles/manager -- fx
 ```
 
-AgentRoles can deliver these directories to Claude and Codex too. Codex CLI
-skills require its explicit `agentroles install <role-path>` workflow; this
-render does not register a global role name or automatically assign workers
-to native children. AgentVoice registers role skills on its owned child.
+AgentRoles can deliver these directories to Claude, Codex, AgentVoice and Fx.
+Codex CLI skills require its explicit `agentroles install <role-path>` workflow;
+this render does not register a global role name or automatically assign workers
+to native children. AgentVoice registers role skills on its owned child. Fx
+reads the role's prompt, `mcp.json`, and `skills/` through native flags and
+needs no install.
 `scripts/sync-skills --check` runs AgentRoles' read-only
 `install --check` comparison for both rendered roles when the resources and CLI
 are available. It fails on stale copies but never refreshes them; run the
