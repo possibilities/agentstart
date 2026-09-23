@@ -124,7 +124,12 @@ flags, and skip-versus-fail semantics are load-bearing:
   needs one authoritative surface; an MCP wrapper is not required when the
   harness or interactive tool already owns the contract.
 - `scripts/install-harness-shims` — permission-default shims for bare
-  `claude`/`codex`. The same entrypoint installs the `~/.local/bin/terminal-notifier`
+  `claude`/`codex` plus a pass-through `fx` shim. Codex and Fx bind their
+  workshop-owned fork binaries using `codexnk`/`fxnk`'s `--print-bin` contract;
+  they never fall back to another binary on PATH. Codex uses an exact stable
+  release tag and Integration SHA, while the vendor executable stays separate.
+  `AGENTSTART_SHIM_BYPASS=1` bypasses permission defaults, not the fork binding.
+  The same entrypoint installs the `~/.local/bin/terminal-notifier`
   router for AgentNotify only, refusing installation while Homebrew
   terminal-notifier remains linked. If AgentNotify is unavailable, the router
   fails without submitting elsewhere. The full installer also converges them.

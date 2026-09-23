@@ -176,9 +176,14 @@ class Invocation(unittest.TestCase):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         (bin_dir / "claude").symlink_to(self.native)
+        for owner in ("codexnk", "fxnk"):
+            fixture = self.root / "code" / owner / "scripts/install.sh"
+            fixture.parent.mkdir(parents=True)
+            fixture.write_text("#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n")
+            fixture.chmod(0o755)
         shim = self.root / ".local/share/agentstart/shims/claude"
         env = {**self.env, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
-               "AGENTSTART_SHIM_BYPASS": ""}
+               "AGENTSTART_SHIM_BYPASS": "", "AGENTSTART_CODE_ROOT": str(self.root / "code")}
         subprocess.run([str(HELPER.parent / "install-harness-shims")], env=env, check=True, capture_output=True)
         env["PATH"] = str(shim.parent) + os.pathsep + env["PATH"]
         result = subprocess.run([str(shim), "hello"], env=env, cwd=self.cwd, input="", capture_output=True, text=True, timeout=15)

@@ -419,7 +419,7 @@ shim_home="$skip_test_dir/shim-home"
 shim_bin="$skip_test_dir/shim-bin"
 shim_real_bin="$skip_test_dir/shim-real-bin"
 mkdir -p "$shim_home" "$shim_bin" "$shim_real_bin"
-for shim_harness in claude codex; do
+for shim_harness in claude codex fx; do
     cat >"$shim_real_bin/$shim_harness" <<'EOF'
 #!/bin/bash
 printf 'real %s' "$(basename "$0")"
@@ -428,7 +428,15 @@ printf '\n'
 EOF
     chmod +x "$shim_real_bin/$shim_harness"
 done
+for shim_owner in codexnk fxnk; do
+    shim_harness=${shim_owner%nk}
+    mkdir -p "$shim_home/code/$shim_owner/scripts"
+    printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$shim_real_bin/$shim_harness" \
+        >"$shim_home/code/$shim_owner/scripts/install.sh"
+    chmod +x "$shim_home/code/$shim_owner/scripts/install.sh"
+done
 HOME="$shim_home" \
+    AGENTSTART_CODE_ROOT="$shim_home/code" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$root/scripts/install-harness-shims" >/dev/null
 for shim_harness in claude codex; do
@@ -470,6 +478,13 @@ shim_override_output=$(
 )
 [ "$shim_override_output" = 'real codex <-c> <approval_policy=on-request> <exec> <hello>' ] \
     || fail "Codex shim overrode an explicit approval policy: $shim_override_output"
+shim_fork_output=$(PATH=/usr/bin:/bin "$shim_home/.local/share/agentstart/shims/codex" --version)
+[ "$shim_fork_output" = 'real codex <--version>' ] || fail "Codex fork binding depends on PATH"
+shim_fx_output=$(PATH=/usr/bin:/bin "$shim_home/.local/share/agentstart/shims/fx" 'two words')
+[ "$shim_fx_output" = 'real fx <two words>' ] || fail "Fx fork shim changed arguments or depends on PATH"
+# shellcheck disable=SC2016 # Match the exact installer contract.
+grep -F '"$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"' scripts/install.sh >/dev/null \
+    || fail "installer does not invoke codexnk's exact release contract"
 
 # Terminal Control's named-session daemon must leave the invoking harness's
 # process group, while every other command remains a direct pass-through. The

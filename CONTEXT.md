@@ -38,12 +38,13 @@ _Avoid_: latest Fx, Fx version, integration tip.
 
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi.
 Bare Claude Code and Codex use AgentStart's permission-only shims;
-Fx has its own workshop-owned installation, while Pi is installed as a bare
-CLI. Both are outside that launch path. _Avoid_: agent (ambiguous with the fleet apps), IDE.
+Codex and Fx shims bind the exact workshop-owned installations; Fx passes
+arguments unchanged. Pi is installed as a bare CLI outside that launch path.
+_Avoid_: agent (ambiguous with the fleet apps), IDE.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's
-shim adds trust for the effective cwd and project root, retains the existing
+optional `codex-invocation` helper adds trust for the effective cwd and project root, retains the existing
 Codex home, and removes the profile when the child exits.
 _Avoid_: temporary Codex home, config sync, trust database.
 
@@ -62,8 +63,8 @@ path).
 **Fleet resources** — the one fixed private set under
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,
 canonical guidance, the fleet-owned shadcn registry MCP, the session-only Claude
-plugin, and the globally installed but inert Codex skills-only plugin. Managed
-launches without an explicit role receive the manager-oriented inventory; the
+plugin, and the globally installed but inert Codex skills-only plugin. Bare
+shims supply no skills or MCP inventory; the
 explicit `default` role supplies its own MCP and skill layer. Its MCP roster
 omits Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface while retaining
 the HUD skill and CLI recording duty;

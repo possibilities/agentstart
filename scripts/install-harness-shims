@@ -19,6 +19,22 @@ operator_cli="$script_dir/agentstart"
 bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 cli="$bin_dir/agentstart"
 cli_marker='# agentstart-installer-owned: agentstart.cli.v1'
+code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+fork_binary() {
+    local owner="$1" harness="$2" installer target
+    installer="$code_root/$owner/scripts/install.sh"
+    [ -x "$installer" ] || die "missing $owner installer: $installer"
+    target=$("$installer" --print-bin) || die "$owner could not report its binary"
+    case "$target" in /*) ;; *) die "$owner returned a non-absolute binary path" ;; esac
+    [ -f "$target" ] && [ -x "$target" ] || die "$owner binary is not installed: $target"
+    if [ "$target" = "$shim_dir/$harness" ] ||
+        { [ -e "$shim_dir/$harness" ] && [ "$target" -ef "$shim_dir/$harness" ]; }; then
+        die "$owner returned the shim itself"
+    fi
+    printf '%s\n' "$target"
+}
+codex_binary=$(fork_binary codexnk codex)
+fx_binary=$(fork_binary fxnk fx)
 if [ -L "$cli" ] || { [ -e "$cli" ] && ! grep -Fxq "$cli_marker" "$cli"; }; then
     die "refusing to replace an independent agentstart command: $cli"
 fi
@@ -41,6 +57,16 @@ for harness in claude codex; do
     fi
 done
 
+# Preflight every destination before publishing any new shim.
+for harness in claude codex fx; do
+    shim="$shim_dir/$harness"
+    if [ -e "$shim" ] || [ -L "$shim" ]; then
+        if [ ! -f "$shim" ] || [ -L "$shim" ] ||
+            ! grep -Fq 'AgentStart-managed permission shim' "$shim"; then
+            die "refusing to replace a foreign shim: $shim"
+        fi
+    fi
+done
 mkdir -p "$shim_dir" "$bin_dir"
 cli_temp=$(mktemp "$bin_dir/.agentstart.XXXXXX")
 shim_temp=''
@@ -56,7 +82,7 @@ trap cleanup EXIT
 chmod 0755 "$cli_temp"
 mv -f -- "$cli_temp" "$cli"
 
-for harness in claude codex; do
+for harness in claude codex fx; do
     shim="$shim_dir/$harness"
     if [ -e "$shim" ] || [ -L "$shim" ]; then
         if [ ! -f "$shim" ] || [ -L "$shim" ] ||
@@ -65,6 +91,9 @@ for harness in claude codex; do
         fi
     fi
     shim_temp=$(mktemp "$shim_dir/.$harness.XXXXXX")
+    fixed_binary=''
+    case "$harness" in codex) fixed_binary="$codex_binary" ;; fx) fixed_binary="$fx_binary" ;; esac
+    printf -v quoted_binary '%q' "$fixed_binary"
     cat >"$shim_temp" <<EOF
 #!/usr/bin/env bash
 # AgentStart-managed permission shim for $harness. Regenerate with
@@ -84,7 +113,11 @@ find_real() {
     done
     return 1
 }
-real=\$(find_real) || { printf 'AgentStart shim: no real $harness on PATH\\n' >&2; exit 127; }
+real=$quoted_binary
+if [ -z "\$real" ]; then
+    real=\$(find_real) || { printf 'AgentStart shim: no real $harness on PATH\\n' >&2; exit 127; }
+fi
+[ "$harness" != fx ] || exec "\$real" "\$@"
 [ "\${AGENTSTART_SHIM_BYPASS:-0}" != 1 ] || exec "\$real" "\$@"
 case "$harness:\${1:-}" in
     claude:agents|claude:attach|claude:auth|claude:auto-mode|claude:doctor|claude:gateway|claude:help|claude:import|claude:install|claude:logs|claude:mcp|claude:plugin|claude:plugins|claude:project|claude:respawn|claude:rm|claude:setup-token|claude:stop|claude:kill|claude:ultrareview|claude:update|claude:upgrade|codex:agents|codex:login|codex:logout|codex:mcp|codex:plugin|codex:mcp-server|codex:app-server|codex:remote-control|codex:app|codex:completion|codex:update|codex:doctor|codex:sandbox|codex:debug|codex:apply|codex:queue|codex:archive|codex:delete|codex:migrate-rollouts|codex:unarchive|codex:cloud|codex:exec-server|codex:features|codex:help)

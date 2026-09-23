@@ -60,7 +60,12 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   `~/source/vercel-labs--fx`. fxnk installs
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
-  ours. The `fork-rebase-policy` wiki page is the contract.
+  ours. Codex's `codexnk` workshop owns a separate receipt-verified release
+  installer at `~/.local/libexec/codexnk/codex`; AgentStart supplies its exact
+  stable tag and Integration SHA. The Codex and Fx shims bind the absolute
+  paths their workshop installers report through `--print-bin`, never another
+  executable found later on PATH. Vendor Codex remains separately installed.
+  The `fork-rebase-policy` wiki page is the contract.
 - Herdr comes from the official stable Homebrew formula and must speak fleet
   protocol 20 or newer. `scripts/herdr-socket-state` checks every default and
   named server socket before Homebrew may change the installed client bytes.
@@ -108,8 +113,8 @@ Where things go:
   not add an MCP solely to make every skill name map to one.
 - Personal Codex preferences are the authored-source exception:
   `~/code/funk/config/harnesses/codex.toml`. AgentStart still owns installation
-  and the invocation profile (`scripts/codex-invocation`), invoked by its Codex
-  shim after account selection. Never link the live config to Funk or copy
+  and the optional invocation-profile helper (`scripts/codex-invocation`);
+  the bare shim does not invoke it. Never link the live config to Funk or copy
   trust/auth/plugin state into the authored file. `config/codex/README.md`
   defines precedence, cleanup, bypasses, and the native-profile contract.
 - Smolmux installation: invoke `~/code/smolmux/scripts/install.sh --install`.

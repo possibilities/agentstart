@@ -172,9 +172,14 @@ test("installed shim supplies only default permissions; explicit bypass stays na
   };
   for (const [name, body] of Object.entries(scripts)) writeFileSync(join(bin, name), body, { mode: 0o755 });
   symlinkSync(binary, join(bin, "codex"));
+  for (const owner of ["codexnk", "fxnk"]) {
+    const directory = join(root, "code", owner, "scripts");
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, "install.sh"), `#!/bin/sh\nprintf '%s\\n' '${binary.replaceAll("'", "'\\''")}'\n`, { mode: 0o755 });
+  }
   const shimDir = join(root, ".local/share/agentstart/shims");
   const env = { ...process.env, HOME: root, CODEX_HOME: codexHome,
-    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTSTART_SHIM_BYPASS: "",
+    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTSTART_SHIM_BYPASS: "", AGENTSTART_CODE_ROOT: join(root, "code"),
     PATH: `${shimDir}:${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
   };
   const installer = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });

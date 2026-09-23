@@ -18,6 +18,8 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=e639de6aded41ae168a8888b920ff71db41877d0
+codexnk_release_tag=codexnk-v0.1.1
+codexnk_integration_sha=2945e58e2fb751dcaa1957f594bbef50fbd78392
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -249,6 +251,7 @@ Homebrew casks:
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+  ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.1 --sha 2945e58e2fb751dcaa1957f594bbef50fbd78392  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-harness-shims  # default native unattended permission mode
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
@@ -385,6 +388,10 @@ XDG_CACHE_HOME="$HOME/Library/Caches" install_official "Claude Code" \
 printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
+
+codexnk_installer="$code_root/codexnk/scripts/install.sh"
+[ -x "$codexnk_installer" ] || die "codexnk installer is unavailable: $codexnk_installer"
+"$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"
 
 "$script_dir/install-pi" --install
 

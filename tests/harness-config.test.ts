@@ -237,8 +237,13 @@ test("CLI installation is rerunnable, embeds its checkout, and refuses independe
     const {chmodSync} = await import("node:fs"); chmodSync(join(bin,name),0o755);
   }
   const installer = resolve(import.meta.dir,"../scripts/install-harness-shims");
+  for (const owner of ["codexnk", "fxnk"]) {
+    const fixture = join(root,"code",owner,"scripts/install.sh");
+    put(fixture,"#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n");
+    const {chmodSync} = await import("node:fs"); chmodSync(fixture,0o755);
+  }
   const run = () => {
-    const child = Bun.spawn([installer],{env:{...environment(),PATH:bin+":"+process.env.PATH,AGENTSTART_INSTALL_BIN_DIR:join(root,"installed")},stdout:"pipe",stderr:"pipe"});
+    const child = Bun.spawn([installer],{env:{...environment(),AGENTSTART_CODE_ROOT:join(root,"code"),PATH:bin+":"+process.env.PATH,AGENTSTART_INSTALL_BIN_DIR:join(root,"installed")},stdout:"pipe",stderr:"pipe"});
     children.push(child); return child.exited;
   };
   expect(await run()).toBe(0); expect(await run()).toBe(0);
