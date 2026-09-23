@@ -171,7 +171,7 @@ test("installed shim supplies only default permissions; explicit bypass stays na
     id: "#!/bin/bash\nprintf '501\\n'\n",
   };
   for (const [name, body] of Object.entries(scripts)) writeFileSync(join(bin, name), body, { mode: 0o755 });
-  symlinkSync(binary, join(bin, "codex"));
+  writeFileSync(join(bin, "codex"), "#!/bin/sh\necho unexpected-PATH-fallback\nexit 42\n", { mode: 0o755 });
   for (const owner of ["codexnk", "fxnk"]) {
     const directory = join(root, "code", owner, "scripts");
     mkdirSync(directory, { recursive: true });
@@ -197,4 +197,12 @@ test("installed shim supplies only default permissions; explicit bypass stays na
   const native = await runShim("1"); expect(native.profile).toBeNull();
   expect(native.args).toEqual(["exec", "test prompt"]);
   expect(profiles()).toEqual([]);
+  const previousShim = readFileSync(join(shimDir, "codex"), "utf8");
+  rmSync(binary);
+  const missing = Bun.spawn([join(shimDir, "codex"), "--version"], { env, stdout: "pipe", stderr: "pipe" });
+  expect(await missing.exited).not.toBe(0);
+  expect(await new Response(missing.stdout).text()).not.toContain("unexpected-PATH-fallback");
+  const reinstall = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });
+  expect(await reinstall.exited).toBe(1);
+  expect(readFileSync(join(shimDir, "codex"), "utf8")).toBe(previousShim);
 });
