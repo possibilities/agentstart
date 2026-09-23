@@ -65,6 +65,11 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   stable tag and Integration SHA. The Codex and Fx shims bind the absolute
   paths their workshop installers report through `--print-bin`, never another
   executable found later on PATH. Vendor Codex remains separately installed.
+  AgentStack's checkout-owned setup also consumes that verified release
+  installer as its required runtime dependency; keep its exact tag/SHA pin
+  aligned with this repository. AgentStack launches the fixed home-relative
+  codexnk path, never PATH or a request-selected executable, and its installer
+  does not start or restart servers.
   The `fork-rebase-policy` wiki page is the contract.
 - Herdr comes from the official stable Homebrew formula and must speak fleet
   protocol 20 or newer. `scripts/herdr-socket-state` checks every default and

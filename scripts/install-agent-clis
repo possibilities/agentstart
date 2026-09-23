@@ -66,11 +66,14 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
+# AgentStack setup consumes codexnk's verified GitHub release installer, builds
+# its packages/UI and links its command, without starting or restarting servers.
+# Its shared runtime pin must match the outer installer's Codex consumer pin.
 # AgentNotify installs the native app and CLI without launching or restarting it.
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentroles agentmux agentnotify agentwork; do
+    agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentroles agentstack agentmux agentnotify agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"
