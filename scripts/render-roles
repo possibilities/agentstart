@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble AgentStart's authored roles with their own MCP inventories."""
+"""Assemble AgentStart's authored default role and retire owned old roles."""
 
 import hashlib
 import json
@@ -18,6 +18,8 @@ CONTENT_OWNER = "agentstart-role-v4"
 CONTENT_FORMAT = "agentvoice-role-content-v1"
 SKILL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 MARKER = ".agentstart-role.json"
+ROLE = "default"
+RETIRED_ROLES = ("manager", "worker")
 PROMPTS = (
     "SYSTEM_PROMPT.md", "APPEND_SYSTEM_PROMPT.md",
     "VOICE_AGENT_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
@@ -216,17 +218,28 @@ def render(resources, sources):
     parent = resources / "roles"
     if parent.is_symlink():
         raise ValueError(f"refusing redirected role parent: {parent}")
-    # Validate both sources and destinations before publishing either role.
-    prepared = [(name, prepare(sources / name, resources), inspect_owned(parent / name))
-                for name in ("manager", "worker")]
+    # Validate the source and every destination before publishing or retiring
+    # anything. Old generated roles are removable only while their receipts and
+    # content still prove AgentStart ownership.
+    prepared = prepare(sources / ROLE, resources)
+    before = {name: inspect_owned(parent / name)
+              for name in (ROLE, *RETIRED_ROLES)}
     parent.mkdir(exist_ok=True, mode=0o700)
-    for name, (links, skills, mcp, receipt), before in prepared:
-        role = parent / name
-        if before is not None and before[1] == receipt:
-            continue
-        stage = Path(tempfile.mkdtemp(prefix=f".{name}.", dir=parent))
-        backup = stage.with_name(stage.name + ".previous")
-        try:
+    links, skills, mcp, receipt = prepared
+    role = parent / ROLE
+    publish = before[ROLE] is None or before[ROLE][1] != receipt
+    retire = [name for name in RETIRED_ROLES if before[name] is not None]
+    if not publish and not retire:
+        return
+
+    transaction = Path(tempfile.mkdtemp(prefix=".roles.", dir=parent))
+    stage = transaction / f"{ROLE}.next"
+    moved = []
+    installed = False
+    committed = False
+    try:
+        if publish:
+            stage.mkdir(mode=0o700)
             for filename, target in links.items():
                 (stage / filename).symlink_to(target)
             if skills is not None:
@@ -237,22 +250,38 @@ def render(resources, sources):
             (stage / "mcp.json").chmod(0o600)
             (stage / MARKER).write_bytes(receipt)
             (stage / MARKER).chmod(0o600)
-            if inspect_owned(role) != before:
-                raise ValueError(f"role changed during rendering: {role}")
-            if before is not None:
-                role.rename(backup)
-            try:
-                stage.rename(role)
-            except OSError:
+
+        for name, observation in before.items():
+            if inspect_owned(parent / name) != observation:
+                raise ValueError(f"role changed during rendering: {parent / name}")
+
+        for name in ((ROLE,) if publish else ()) + tuple(retire):
+            source = parent / name
+            if before[name] is not None:
+                backup = transaction / f"{name}.previous"
+                source.rename(backup)
+                moved.append((source, backup))
+        if publish:
+            stage.rename(role)
+            installed = True
+        committed = True
+        shutil.rmtree(transaction)
+    except BaseException:
+        if not committed:
+            if installed and role.exists():
+                shutil.rmtree(role)
+            for destination, backup in reversed(moved):
                 if backup.exists():
-                    backup.rename(role)
-                raise
-            if backup.exists():
-                shutil.rmtree(backup)
-        finally:
-            if stage.exists():
-                shutil.rmtree(stage)
-        print(f"Rendered {name} role at {role}")
+                    backup.rename(destination)
+        raise
+    finally:
+        if transaction.exists():
+            shutil.rmtree(transaction)
+
+    if publish:
+        print(f"Rendered {ROLE} role at {role}")
+    for name in retire:
+        print(f"Removed retired {name} role at {parent / name}")
 
 
 if __name__ == "__main__":

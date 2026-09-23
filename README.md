@@ -118,7 +118,7 @@ flags, and skip-versus-fail semantics are load-bearing:
   removes the retired Board and Groom copies only from its owned private
   resources and never restarts services.
   `--check` prints the plan and, when rendered roles and AgentRoles are present,
-  audits the installed Codex manager and worker skill copies without changing them.
+  audits the installed Codex default-role skill copy without changing it.
 - [`docs/agent-interfaces.md`](docs/agent-interfaces.md) — the policy and
   support matrix for MCP, native harness, and CLI/TUI workflows. A workflow
   needs one authoritative surface; an MCP wrapper is not required when the
@@ -274,18 +274,18 @@ installed by this integration.
 `$XDG_CONFIG_HOME/agentvoice/server.json` (default `~/.config/agentvoice/server.json`).
 Full installation runs it after role resource publication. The tracked settings
 request full access, disable debug logs, select gpt-5.6-sol at high effort with
-the advertised 872,000-token maximum context window, and load the manager role.
+the advertised 872,000-token maximum context window, and load the default role.
 Missing or empty local placeholders can be linked; nonempty independent
 configuration and unrelated links are preserved with an error. AgentVoice loads
 settings once per runtime generation. Installation does not restart an active
 call or service; new settings apply when AgentVoice next loads its runtime.
 
-AgentStart owns [manager and worker roles](roles/README.md). Each contains
-prompt Markdown and an independent MCP inventory. Capability sync renders them
-at `~/.local/share/agentstart/resources/roles/{manager,worker}`, expands account
-paths, and links shared skills with the worker HUD exclusion. Managers own HUD
-recording; workers return evidence to their parent. The AgentVoice configuration selects manager.
-Publish the role resources before switching the configured path. Existing
+AgentStart owns one [default role](roles/README.md) containing prompt Markdown
+and a complete MCP inventory. Capability sync renders it at
+`~/.local/share/agentstart/resources/roles/default`, expands account paths, and
+links shared skills. Its manager owns HUD recording; native workers return
+evidence to their parent without another role. The AgentVoice configuration
+selects default. Publish the role resource before switching the configured path. Existing
 workspace snapshots and active calls retain their loaded contents.
 
 ### Account integration credits

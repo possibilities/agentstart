@@ -32,7 +32,7 @@ python3 - "$root/config/agentvoice/server.json" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1])) == {
     'allow-full-access': True, 'debug': False,
-    'role': '~/.local/share/agentstart/resources/roles/manager',
+    'role': '~/.local/share/agentstart/resources/roles/default',
     'orchestrator': {
         'model': 'gpt-5.6-sol',
         'effort': 'high',

@@ -8,12 +8,6 @@
         "all"
       ]
     },
-    "agentattention": {
-      "command": "${HOME}/.local/bin/agentattention",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentbrain": {
       "command": "${HOME}/.local/bin/agentbrain",
       "args": [
@@ -26,36 +20,10 @@
         "mcp"
       ]
     },
-    "agentchats": {
-      "command": "${HOME}/.local/bin/agentchats",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentdesk": {
       "command": "${HOME}/.local/bin/agentdesk",
       "args": [
         "mcp"
-      ]
-    },
-    "agentgrok": {
-      "command": "${HOME}/.local/bin/agentgrok",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentkeys": {
-      "command": "${HOME}/.local/bin/agentkeys",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentmux": {
-      "command": "${HOME}/.local/bin/agentmux",
-      "args": [
-        "mcp",
-        "--instance",
-        "default"
       ]
     },
     "agentnotify": {
@@ -72,18 +40,6 @@
     },
     "agentsearch": {
       "command": "${HOME}/.local/bin/agentsearch",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentsounds": {
-      "command": "${HOME}/.local/bin/agentsounds",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentsurface": {
-      "command": "${HOME}/.local/bin/agentsurface",
       "args": [
         "mcp"
       ]

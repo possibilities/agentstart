@@ -1,7 +1,7 @@
 # Manager model-routing sources and limits
 
 Verified September 19, 2026. This is the evidence behind the concise guide in
-[the manager APPEND](../roles/manager/APPEND_SYSTEM_PROMPT.md), not another
+[the default-role APPEND](../roles/default/APPEND_SYSTEM_PROMPT.md), not another
 runtime configuration or model catalog. [ADR 0016](adr/0016-manager-model-selection-guide.md)
 records the operator's native model-selection decision.
 

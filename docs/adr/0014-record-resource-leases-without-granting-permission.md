@@ -27,6 +27,6 @@ permission requirement for emulator or VM creation/start. This decision grants
 no resource access, changes no live holder or service, and does not make native
 session disappearance evidence of physical release.
 
-Evidence: `roles/manager/APPEND_SYSTEM_PROMPT.md`,
-`roles/worker/APPEND_SYSTEM_PROMPT.md`, `prompts/agentguidance/GUIDELINES.md`,
+Evidence: `roles/default/APPEND_SYSTEM_PROMPT.md`,
+`prompts/agentguidance/GUIDELINES.md`,
 `roles/README.md`, and `skills/fleet/MAP.md`.

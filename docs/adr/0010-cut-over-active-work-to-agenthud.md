@@ -5,6 +5,9 @@ Service-lifecycle portion superseded September 14, 2026 by
 preservation decisions remain current. The original both-role exposure is
 superseded by [ADR 0013](0013-managers-own-hud-recording.md): managers retain HUD
 and workers report to them without direct HUD recording.
+Explicit-role AgentHUD MCP exposure is further superseded by
+[ADR 0040](0040-collapse-explicit-roles-to-default.md); the common managed
+inventory still exposes AgentHUD.
 
 Accepted September 13, 2026. The human chose AgentHUD as the single active
 durable Work owner for managed sessions and explicitly rejected a Board

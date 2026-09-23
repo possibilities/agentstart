@@ -62,9 +62,11 @@ path).
 **Fleet resources** — the one fixed private set under
 `~/.local/share/agentstart/resources`: every fleet and external managed skill,
 canonical guidance, the fleet-owned shadcn registry MCP, the session-only Claude
-plugin, and the globally installed but inert Codex skills-only plugin. Default
-managed launches receive the manager-oriented inventory; explicit roles supply
-their own MCP and skill layer, with HUD excluded from the worker role;
+plugin, and the globally installed but inert Codex skills-only plugin. Managed
+launches without an explicit role receive the manager-oriented inventory; the
+explicit `default` role supplies its own MCP and skill layer. Its MCP roster
+omits Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface while retaining
+the HUD skill and CLI recording duty;
 the inventory has no AgentStart-owned HTTP projection. There are no selectable
 packs. _Avoid_: capability pack, common pack, projection.
 
@@ -141,9 +143,11 @@ means model-invocable. The fixed-resource render derives Codex's inverse
 `allow_implicit_invocation` field from it, while Claude consumes the fact
 directly. _Avoid_: OpenAI policy (that is one rendered representation).
 
-**Working role** — An AgentStart-owned directory of prompt Markdown and its own
-MCP inventory: `manager` owns human dialogue and overall delivery; `worker`
-owns an assignment and reports to its parent. Resource sync renders the manager
-with HUD and the worker with its MCP and skill excluded for explicit harness
-selection. Managers record worker reports using their own actor and preserve
-worker attribution; role exposure does not authenticate or revoke native tools. _Avoid_: default role, AgentVoice-owned prompt.
+**Working role** — The AgentStart-owned `default` directory of prompt Markdown
+and its complete MCP inventory. Its manager owns human dialogue and overall
+delivery; native workers own assignments and report to their parent without a
+separate role directory. The inventory omits Attention, Chats, Grok, HUD, Keys,
+Mux, Sounds, and Surface MCPs while retaining the HUD skill for CLI-backed
+recording. Managers preserve worker attribution under their own actor; role
+exposure does not authenticate or revoke native tools. _Avoid_: manager role,
+worker role, AgentVoice-owned prompt.

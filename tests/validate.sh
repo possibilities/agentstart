@@ -182,20 +182,14 @@ assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser"
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
-for role in ["manager", "worker"]:
-    role_servers=json.loads(Path(f"roles/{role}/mcp.json").read_text())["mcpServers"]
-    assert role_servers["agentmux"] == {
-        "command":"${HOME}/.local/bin/agentmux",
-        "args":["mcp","--instance","default"],
-    }
-    if role == "manager":
-        assert role_servers["agenthud"] == servers["agenthud"]
-    else:
-        assert "agenthud" not in role_servers
-        assert json.loads(Path("roles/worker/skills-exclude.json").read_text()) == ["hud"]
-    assert "agentfx" not in role_servers
-    assert role_servers["agentgrok"] == servers["agentgrok"]
-    assert "agentboard" not in role_servers
+role_omissions={"agentattention","agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds","agentsurface"}
+role_servers=json.loads(Path("roles/default/mcp.json").read_text())["mcpServers"]
+assert set(role_servers) == set(servers) - role_omissions
+assert role_omissions.isdisjoint(role_servers)
+assert "agentfx" not in role_servers
+assert "agentboard" not in role_servers
+assert not Path("roles/manager").exists()
+assert not Path("roles/worker").exists()
 components=json.loads(Path("config/resources/shadcn/components.json").read_text())
 assert components["$schema"] == "https://ui.shadcn.com/schema.json"
 assert components["registries"] == {}

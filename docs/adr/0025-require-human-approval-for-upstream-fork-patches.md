@@ -27,5 +27,5 @@ repository continues under the task and repository instructions without this
 additional gate. Role rendering and installation prepare future launches; they
 do not alter loaded snapshots or restart AgentVoice.
 
-Evidence: manager and worker APPEND prompts, shared GUIDELINES, roles README,
+Evidence: default-role APPEND prompt, shared GUIDELINES, roles README,
 render contract tests and installed-role freshness checks.

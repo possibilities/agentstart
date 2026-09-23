@@ -1,5 +1,9 @@
 # 0017: Attest role content and audit Codex copies
 
+The two-copy role surface is superseded September 23, 2026 by
+[ADR 0040](0040-collapse-explicit-roles-to-default.md). Content attestation and
+read-only Codex freshness checks remain current for the single `default` role.
+
 Date: 2026-09-14
 
 ## Status

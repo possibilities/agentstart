@@ -15,8 +15,9 @@ case "$1" in
   derive and audit Codex invocation policy from portable skill frontmatter
   render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory
   render and refresh the skills-only Codex plugin agent@agentstart-managed
-  render manager and worker roles from AgentStart prompts and their own MCP inventories
-  audit installed Codex manager and worker skill copies without refreshing them
+  render the default role from AgentStart prompts and its own MCP inventory
+  retire intact AgentStart-owned manager and worker role outputs
+  audit the installed Codex default-role skill copy without refreshing it
   persistently disable every agent:<skill> outside managed Codex sessions
   leave binary installation and service restarts to the explicit full installer
 EOF
@@ -46,9 +47,7 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # Resolve the MCP package outside a project so npm never validates project
 # dependency overrides. The fleet command gives shadcn a fixed registry config.
 "$script_dir/render-mcp-resources" --check "$template_root/mcp-servers.json"
-for role in manager worker; do
-    "$script_dir/render-mcp-resources" --check "$repo_root/roles/$role/mcp.json"
-done
+"$script_dir/render-mcp-resources" --check "$repo_root/roles/default/mcp.json"
 
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"

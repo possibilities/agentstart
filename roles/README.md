@@ -1,65 +1,66 @@
-# Manager and worker roles
+# Default role
 
-AgentStart owns the human-facing `manager` role (formerly AgentVoice's
-`default`) and assignment-focused `worker`. Each source directory contains
-its prompt Markdown and its own `mcp.json`. The manager exposes AgentHUD; the
-worker omits its MCP and excludes the `hud` skill through `skills-exclude.json`.
-Changing the general fleet inventory does not silently change either MCP roster.
+AgentStart owns one explicit working role, `default`. Its source directory
+contains the human-facing manager prompt Markdown and its own `mcp.json`. The
+role inventory omits AgentAttention, AgentChats, AgentGrok, AgentHUD, AgentKeys,
+AgentMux, AgentSounds, and AgentSurface MCPs. The role retains the shared `hud`
+skill and uses the installed command for durable recording. Changing the general
+fleet inventory does not silently change its MCP roster.
 
 The normal `scripts/sync-skills` path renders launchable directories at
-`~/.local/share/agentstart/resources/roles/manager` and `worker`. The renderer
+`~/.local/share/agentstart/resources/roles/default`. The renderer
 expands `${HOME}` in MCP commands and links prompts to their authored files.
-The manager links shared skills; the worker gets a checked, filtered directory
-of per-skill links. Sync converges added or removed shared skills while keeping
-HUD excluded. Each ownership receipt records content-only hashes using the same
+The role links shared skills. Each ownership receipt records content-only hashes using the same
 `agentvoice-role-content-v1` framing that AgentVoice reports for directory roles;
 it covers resolved prompt, rendered MCP, and resolved skill bytes without storing
 their bodies. Independently changed role contents are refused, not overwritten.
+Convergence removes the retired `manager` and `worker` rendered directories only
+when their intact receipts still prove AgentStart ownership; independently changed
+directories are preserved and stop the cutover.
 Use the rendered role for launches:
 source MCP commands are templates.
 
 ```sh
-agentvoice server --role ~/.local/share/agentstart/resources/roles/manager
-agentvoice server --role ~/.local/share/agentstart/resources/roles/worker
-agentroles show ~/.local/share/agentstart/resources/roles/worker
-agentroles ~/.local/share/agentstart/resources/roles/manager -- fx
+agentvoice server --role ~/.local/share/agentstart/resources/roles/default
+agentroles show ~/.local/share/agentstart/resources/roles/default
+agentroles ~/.local/share/agentstart/resources/roles/default -- fx
 ```
 
-AgentRoles can deliver these directories to Claude, Codex, AgentVoice, Fx and
+AgentRoles can deliver this directory to Claude, Codex, AgentVoice, Fx and
 OpenCode. Codex CLI skills require its explicit `agentroles install <role-path>`
 workflow; this render does not register a global role name or automatically
 assign workers to native children. AgentVoice registers role skills on its owned
 child. Fx and OpenCode need no install. Devin CLI has no per-invocation role
 delivery; `agentroles install --devin <rendered-role>` installs a sticky
-user-level plugin for every Devin session on this machine. Use the manager
-role for that unless a worker plugin is wanted.
+user-level plugin for every Devin session on this machine. Use `default` for
+that sticky installation.
 `scripts/sync-skills --check` runs AgentRoles' read-only
-`install --check` comparison for both rendered roles when the resources and CLI
-are available. It fails on stale copies but never refreshes them; run the
-explicit install command for each role to accept and publish a change.
+`install --check` comparison for the rendered role when the resources and CLI
+are available. It fails on a stale copy but never refreshes it; run the
+explicit install command to accept and publish a change.
 
-Keep the two responsibility variants' shared working standards aligned.
-Each has its own speech suffix, so either source directory can be moved
-without a sibling prompt dependency. Keep native mode text within 1,600
-UTF-8 bytes. AgentVoice alone consumes the `VOICE_*` files; other harnesses
+Keep native mode text within 1,600 UTF-8 bytes. AgentVoice alone consumes the
+`VOICE_*` files; other harnesses
 retain their own native delegation restrictions. Only the actual AgentVoice
 call root receives `agentvoice.subagent_completion` payloads for its direct
 native children; nested children continue returning to their immediate parent.
 
 Existing workspace role snapshots and running calls retain their contents.
-The old `resources/agentvoice/default` role is retired and no longer selected
-or rendered. Its previous installed files are left untouched; this render does
-not delete independently used roles or restart sessions.
+The retired `manager` and `worker` source names are not aliases, and convergence
+does not restart sessions or mutate independently owned role directories.
 
-See [role ownership decision](../docs/adr/0006-own-manager-worker-roles.md).
+See [default-role cutover](../docs/adr/0040-collapse-explicit-roles-to-default.md).
 See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
 ## Role MCP boundary
 
-The manager keeps AgentHUD for durable Work, Assignment, Result, acceptance and
-presentation recording. The worker omits AgentHUD and reports to its parent.
-Both roles keep the AgentGrok MCP and the shared GrokBot skill so persistent bot
-collaboration remains available independently of execution-provider routing.
+The default role does not start the AgentAttention, AgentChats, AgentGrok, AgentHUD,
+AgentKeys, AgentMux, AgentSounds, or AgentSurface MCP. This is an explicit-role
+startup boundary, not a retirement of those tools, their skills, the common
+managed inventory, or their independent services. The role's manager keeps the HUD
+skill and records Work, Assignment, Result, acceptance and presentation through
+the installed AgentHUD command. The role retains the shared GrokBot skill, so persistent bot
+collaboration remains available through its owning command.
 Rendering a role change does not reload an active AgentVoice generation; it
 becomes available at a later normal role load.
 
@@ -71,7 +72,7 @@ parent-issued delegation envelopes, routing receipts, and manager review. See
 
 ## Upstream fork patch and contribution gate
 
-Both roles detect an external/upstream fork-patch decision before changing the
+The default role detects an external/upstream fork-patch decision before changing the
 fork. Creating, maintaining, rebasing or applying a carried patch requires the
 human's explicit approval after the agent presents the need, alternatives,
 maintenance burden and a recommended non-patch route when available. Existing
@@ -90,13 +91,13 @@ See [upstream fork patch decision](../docs/adr/0025-require-human-approval-for-u
 
 ## Conversational front and selective managers
 
-The manager role keeps intent, authority, short status, steering and checked
+The default role's manager keeps intent, authority, short status, steering and checked
 delivery with the conversational lead. Brief coupled work stays direct;
 substantial interacting judgments can go to a capable manager with bounded
 outcome ownership. The lead checks decisive evidence rather than treating a
 strong model's completion as approval or repeating its whole audit. This is
 an existing-role responsibility pattern, not a new router role or mandatory
-delegation layer. Worker responsibilities and inventories remain independent.
+delegation layer. Native workers remain bounded assignments, not another role.
 
 The manager's deployment guide treats **Sol/medium as a strong starting point
 and midpoint, not a fixed default**. Actively choose smaller available models
@@ -111,8 +112,7 @@ AgentVoice root as Astra/low without asserting that every manager or native
 child has those settings. Explicit human choices and actual native capabilities
 win. The previously provisional Sol/low front was not activated by this change.
 
-The concise catalog and briefing advice are in the manager APPEND only; the
-worker prompt, inventories, native modes and runtime configuration are unchanged.
+The concise catalog and briefing advice are in the default APPEND.
 [Model-routing sources and limits](../docs/manager-model-routing.md) distinguish
 the native model/effort catalog, AgentUsage's subscription observations and
 public model/prompting guidance. Spark's separate finite quota is documented;
@@ -126,9 +126,11 @@ The operator-specific selection policy is recorded in
 
 ## Routing evidence
 
-Both working roles use AgentChats `routing-receipt` when available to retain
+The default working role uses the installed AgentChats command's `routing-receipt` when
+available to retain
 short decision and acceptance records through existing native tool results.
-AgentChats validates the schema but stores no new log. Its `routing` command
+The role inventory does not start an AgentChats MCP. AgentChats validates the
+schema but stores no new log. Its `routing` command
 joins those receipts with exact Codex rollout calls, ancestry and native turn
 configuration; missing receipts, native settings and acceptance remain unknown.
 The tool's guide owns its detailed schema. Direct work, fresh delegation,
@@ -160,7 +162,8 @@ See [direct completion decision](../docs/adr/0024-deliver-agentvoice-child-compl
 
 ## Manager-owned HUD records
 
-Managers use HUD for substantive objectives, authority, assignments, dependencies,
+Managers use the retained HUD skill and installed AgentHUD command for substantive
+objectives, authority, assignments, dependencies,
 reported results, acceptance, presentation and next decisions. Reconcile at start
 or resume and meaningful work boundaries. Workers report to their parent through
 the native harness; the manager records that report using its own actor and exact
@@ -207,16 +210,17 @@ Each root-level pick still needs the human's confirmation when the session has
 that pick-before-dispatch preference; it is not a permanent worker cap.
 
 AgentRoles supplies an explicit role resource layer to its native harness invocation.
-The bare permission shim adds no fleet overlay. A role's own MCP and skill
-paths remain the source for an explicit role launch.
+The bare permission shim adds no fleet overlay. The default role's own MCP and
+skill paths remain the source for an explicit role launch.
 
 This configures explicit role exposure, not native-child authorization. Native
-children may inherit a manager's tools and prompts instead of loading the worker
-role. Existing sessions and workspace snapshots keep their loaded resources;
+children may inherit the manager's tools and prompts; there is no separate worker
+role to select. Existing sessions and workspace snapshots keep their loaded resources;
 source sync neither revokes inherited tools nor reloads a live generation. Workers
 with older or inherited HUD tools must still return reports to their manager.
 
 See [manager HUD ownership](../docs/adr/0013-managers-own-hud-recording.md).
+See [default-role cutover](../docs/adr/0040-collapse-explicit-roles-to-default.md).
 
 ## Human-controlled resources
 

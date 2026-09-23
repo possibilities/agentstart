@@ -24,10 +24,9 @@ for a grandchild.
 
 AgentStart owns the role prompts and rendered role publication. Its role-render
 test rejects the retired mailbox identifiers and checks the direct-completion and
-immediate-parent contract in both shipped roles. Resource convergence updates
+immediate-parent contract in the shipped default role. Resource convergence updates
 future role loads; it does not restart AgentVoice or reload an active call.
 
-Evidence: [manager prompt](../../roles/manager/APPEND_SYSTEM_PROMPT.md),
-[manager native mode](../../roles/manager/VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md),
-[worker native mode](../../roles/worker/VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md),
+Evidence: [default prompt](../../roles/default/APPEND_SYSTEM_PROMPT.md),
+[default native mode](../../roles/default/VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md),
 and [role render test](../../tests/render-roles.py).

@@ -1,5 +1,9 @@
 # 0006: Own manager and worker roles in AgentStart
 
+Superseded September 23, 2026 by
+[ADR 0040](0040-collapse-explicit-roles-to-default.md), which restores one
+AgentStart-owned role named `default` and retires the separate worker role.
+
 Accepted September 12, 2026. AgentStart takes ownership of AgentVoice's authored
 default and worker prompts, renaming default to manager. A role must carry both
 its working instructions and MCP roster, and the two rosters may diverge.

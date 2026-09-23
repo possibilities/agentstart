@@ -1,7 +1,7 @@
 {
   "allow-full-access": true,
   "debug": false,
-  "role": "~/.local/share/agentstart/resources/roles/manager",
+  "role": "~/.local/share/agentstart/resources/roles/default",
   "orchestrator": {
     "model": "gpt-5.6-sol",
     "effort": "high",

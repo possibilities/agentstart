@@ -10,13 +10,11 @@ resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resou
 
 # A fresh machine reaches the installation plan before AgentStart has rendered
 # role resources or installed the fleet CLIs. Keep that bootstrap plan usable;
-# once both inputs exist, stale installed copies are a real failed check.
-for role in manager worker; do
-    if [ ! -d "$resources_root/roles/$role" ]; then
-        printf 'AgentStart role plugin check: unavailable until manager and worker roles are rendered.\n' >&2
-        exit 0
-    fi
-done
+# once both inputs exist, a stale installed copy is a real failed check.
+if [ ! -d "$resources_root/roles/default" ]; then
+    printf 'AgentStart role plugin check: unavailable until the default role is rendered.\n' >&2
+    exit 0
+fi
 
 if [ -n "${AGENTSTART_AGENTROLES_BIN:-}" ]; then
     [ -x "$AGENTSTART_AGENTROLES_BIN" ] || {
@@ -38,16 +36,4 @@ if ! agentroles_help=$("$agentroles_bin" --help 2>/dev/null) \
     exit 0
 fi
 
-status=0
-for role in manager worker; do
-    if "$agentroles_bin" install --check "$resources_root/roles/$role"; then
-        continue
-    else
-        result=$?
-    fi
-    case "$result" in
-        1) status=1 ;;
-        *) exit "$result" ;;
-    esac
-done
-exit "$status"
+"$agentroles_bin" install --check "$resources_root/roles/default"

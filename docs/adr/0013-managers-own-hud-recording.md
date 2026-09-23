@@ -1,5 +1,11 @@
 # 0013: Managers own HUD recording
 
+Explicit-role AgentHUD MCP exposure is superseded September 23, 2026 by
+[ADR 0040](0040-collapse-explicit-roles-to-default.md). Manager ownership of
+durable HUD recording and the worker reporting boundary remain current; managers
+use the default role's retained HUD skill and installed command rather than a
+role-provided MCP. There is no separate worker role.
+
 Accepted September 14, 2026. Extends [role ownership](0006-own-manager-worker-roles.md)
 and supersedes both-role HUD exposure in [0010](0010-cut-over-active-work-to-agenthud.md).
 

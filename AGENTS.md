@@ -196,13 +196,15 @@ Where things go:
 
 ## Skills
 
-AgentStart owns `roles/manager` and `roles/worker`: prompt Markdown and separate
-MCP inventories. `scripts/render-roles` assembles them through the normal resource
-sync. Keep shared doctrine aligned and preserve each role's responsibility;
-changing the common inventory does not automatically change role rosters. The
-worker omits HUD MCP and filters its skill; managers record worker reports under
-their own actor. Preserve this boundary through explicit-role launch rendering.
-See [role ownership](docs/adr/0006-own-manager-worker-roles.md).
+AgentStart owns `roles/default`: prompt Markdown and its complete MCP inventory.
+`scripts/render-roles` assembles it through the normal resource sync and safely
+retires intact AgentStart-owned `manager` and `worker` outputs. Changing the
+common inventory does not automatically change the role roster. The default role
+omits the Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface MCPs while
+keeping the HUD skill and CLI-backed recording responsibility. Managers record
+native worker reports under their own actor; there is no separate worker role.
+Preserve this boundary through explicit-role launch rendering. See
+[the default-role cutover](docs/adr/0040-collapse-explicit-roles-to-default.md).
 
 This checkout participates in the same convention it administers: active skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
