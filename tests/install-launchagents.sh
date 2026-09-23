@@ -591,6 +591,17 @@ printf '%s\n' "$bun_loss_status" | grep -F "$test_server_label" | grep -F 'insta
 
 cp "$test_server_plist" "$test_root/test-server-before-repeat.plist"
 export AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION=2222222222222222222222222222222222222222
+preserved_bootouts=$(grep -c '^bootout ' "$target_launchctl_log" || true)
+AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1 \
+    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
+    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
+    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
+    AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
+    run_installer --install --service "$test_server_label" >/dev/null
+cmp -s "$test_server_plist" "$test_root/test-server-before-repeat.plist" \
+    || fail "live-call preservation rewrote the test server plist"
+[ "$(grep -c '^bootout ' "$target_launchctl_log" || true)" = "$preserved_bootouts" ] \
+    || fail "live-call preservation reloaded the test server"
 if drift_status=$(
     AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
         AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \

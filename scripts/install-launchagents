@@ -480,6 +480,17 @@ install_service() {
         return 0
     fi
 
+    # A live-call cutover rebuilds outputs without replacing retained runtimes.
+    # The default server is protected in install-agent-clis; protect this
+    # separately owned reader and isolated test pair here as well.
+    case "$label" in
+        io.arthack.agentvoice.serve | io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
+            if [ "${AGENTSTART_PRESERVE_AGENTVOICE_SERVICE:-0}" = 1 ] && service_loaded "$label"; then
+                note "preserving loaded $label; convergence deferred until maintenance"
+                return 0
+            fi
+            ;;
+    esac
     prepare_service "$label"
     mkdir -p "$(dirname -- "$log")"
     [ -e "$log" ] || : >"$log"

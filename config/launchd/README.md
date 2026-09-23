@@ -133,6 +133,12 @@ convergence if its checkout or dependencies disappear.
 Uncommitted edits remain development state and do not themselves trigger a
 service reload.
 
+During an active-call rebuild, `AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1`
+preserves loaded test-pair and transcript-reader jobs without rewriting their
+plists. The same option selects the default server's command-only installer.
+Status continues reporting deferred source-revision drift; a later authorized
+maintenance convergence without the option applies it.
+
 Before first convergence, stop any foreground processes using the same test
 workspace or Portless name. Then install and inspect only these labels:
 
