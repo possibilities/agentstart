@@ -27,6 +27,7 @@ flowchart LR
         codex[Codex CLI]
         fx[Fx]
         opencode[OpenCode]
+        devin[Devin CLI]
     end
 
     subgraph balancing [Launch balancing]
@@ -70,6 +71,7 @@ flowchart LR
     roles -->|--role <dir>| voice
     roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --skills-dir plus --no-default-skills| fx
     roles -->|OPENCODE_CONFIG pointing at a cache-rendered opencode.json: agent.build.prompt, instructions, skills.paths, translated mcp| opencode
+    roles -->|install --devin: cache-rendered plugin via devin plugins install --local; sticky for every session| devin
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -205,6 +207,7 @@ sentence around the match, never from the name alone.
 | agentroles | agentvoice | passes `--role <dir>` and nothing else; AgentVoice reads the directory itself because only its process can register skill roots on the child it owns | `agentroles/src/deliver/agentvoice.ts`; `agentvoice/src/core/role.ts` |
 | agentroles | Fx | delivers a role directory to one `fx` invocation through PATH: `--system-prompt-file` or `--append-system-prompt-file`, `--mcp-config <role>/mcp.json` (replaces `~/.fx/mcp.json` for that process; `mcpServers` is accepted as a profile alias), and when the role has `skills/`, `--skills-dir <role>/skills` plus `--no-default-skills`. Flags go before the user's tokens, like Claude. The child receives `AGENTROLES_ROLE`/`AGENTROLES_NAME` and no AgentLaunch resource marker. Workspace `.mcp.json` can still add extra servers after trust. No install; skills are read in place. The harness exit code is returned unchanged | `agentroles/src/deliver/fx.ts`; `agentroles/src/main.ts` (`deliver`); `agentroles/README.md` |
 | agentroles | OpenCode | delivers a role directory to one `opencode` invocation through PATH by setting `OPENCODE_CONFIG` to a JSON file rendered under `~/.cache/agentroles/opencode/<role>/opencode.json` on every launch. `SYSTEM_PROMPT.md` becomes `agent.build.prompt`, `APPEND_SYSTEM_PROMPT.md` an `instructions` path, `skills/` a `skills.paths` root left in place, and `mcp.json` a translated `mcp` object (`command` → local argv, `url`/`sse` → remote). User tokens are unchanged. The child receives `AGENTROLES_ROLE`/`AGENTROLES_NAME` and no AgentLaunch resource marker. OpenCode still merges global and project config and still loads global/project/external skills. No install. The harness exit code is returned unchanged | `agentroles/src/deliver/opencode.ts`; `agentroles/src/mcp.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md` |
+| agentroles | Devin CLI | no per-invocation delivery. `agentroles install --devin <role>` renders `~/.cache/agentroles/devin/<role>/` (`.devin-plugin/plugin.json`, `AGENTS.md` from the role prompt, copied `skills/`, `mcp.json` as `.mcp.json`) and runs `devin plugins remove --local` then `devin plugins install --local --yes`. The plugin is sticky for every Devin session on the machine until `devin plugins remove`. Requires `devin auth login`. Not a launch harness | `agentroles/src/devin-plugin.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0005-devin-plugins-are-sticky-user-installs.md` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action. AgentStart's read-only `sync-skills --check` path invokes `agentroles install --check` for each already-rendered canonical role and propagates stale state without refreshing either plugin | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/sync-skills`; `agentstart/scripts/check-role-plugins`; `agentroles/scripts/install.sh`; `agentroles/src/main.ts` |
 | agentstart | Gog | installs Gog through Homebrew and binds the two declared mailboxes in the fixed direct MCP inventory. Google OAuth and credential storage stay in Gog | `agentstart/scripts/install-gog`; `agentstart/config/resources/mcp-servers.json`; `agentstart/tests/gog-install.py` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and AgentUsage owns Grok billing and account selection without activating harness credentials | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
@@ -818,6 +821,11 @@ Updated 2026-09-23 for AgentRoles OpenCode delivery: `agentroles <role> -- openc
 sets `OPENCODE_CONFIG` to a cache-rendered `opencode.json`. No AgentLaunch marker;
 no install. Skills stay in the role directory. Evidence:
 `agentroles/src/deliver/opencode.ts`, `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md`.
+
+Updated 2026-09-23 for AgentRoles Devin plugins: `agentroles install --devin <role>`
+renders a Devin plugin and installs it with `devin plugins install --local`. Sticky
+for every session; no `agentroles <role> -- devin`. Evidence:
+`agentroles/src/devin-plugin.ts`, `agentroles/docs/adr/0005-devin-plugins-are-sticky-user-installs.md`.
 
 
 ## Retired managed execution integration (2026-09-19)

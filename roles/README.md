@@ -25,12 +25,14 @@ agentroles show ~/.local/share/agentstart/resources/roles/worker
 agentroles ~/.local/share/agentstart/resources/roles/manager -- fx
 ```
 
-AgentRoles can deliver these directories to Claude, Codex, AgentVoice and Fx.
-Codex CLI skills require its explicit `agentroles install <role-path>` workflow;
-this render does not register a global role name or automatically assign workers
-to native children. AgentVoice registers role skills on its owned child. Fx
-reads the role's prompt, `mcp.json`, and `skills/` through native flags and
-needs no install.
+AgentRoles can deliver these directories to Claude, Codex, AgentVoice, Fx and
+OpenCode. Codex CLI skills require its explicit `agentroles install <role-path>`
+workflow; this render does not register a global role name or automatically
+assign workers to native children. AgentVoice registers role skills on its owned
+child. Fx and OpenCode need no install. Devin CLI has no per-invocation role
+delivery; `agentroles install --devin <rendered-role>` installs a sticky
+user-level plugin for every Devin session on this machine. Use the manager
+role for that unless a worker plugin is wanted.
 `scripts/sync-skills --check` runs AgentRoles' read-only
 `install --check` comparison for both rendered roles when the resources and CLI
 are available. It fails on stale copies but never refreshes them; run the
