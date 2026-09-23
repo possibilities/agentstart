@@ -26,6 +26,7 @@ flowchart LR
         claude[Claude Code]
         codex[Codex CLI]
         fx[Fx]
+        opencode[OpenCode]
     end
 
     subgraph balancing [Launch balancing]
@@ -68,6 +69,7 @@ flowchart LR
     roles -->|-c model_instructions_file / developer_instructions / mcp_servers.* and plugins.<role>@agentroles.enabled on an inert installed plugin| codex
     roles -->|--role <dir>| voice
     roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --skills-dir plus --no-default-skills| fx
+    roles -->|OPENCODE_CONFIG pointing at a cache-rendered opencode.json: agent.build.prompt, instructions, skills.paths, translated mcp| opencode
 
     surface -->|host popup: agentlaunch --x-surface, directives back over stdout| launch
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
@@ -202,6 +204,7 @@ sentence around the match, never from the name alone.
 | agentroles | Codex | delivers a role to one `codex` invocation as `-c` overrides with TOML values: `model_instructions_file` or `developer_instructions`, one `mcp_servers.<name>` per translated `mcp.json` server, and `plugins.<role>@agentroles.enabled=true`. Overrides follow `exec`/`review` or `resume <id>`, mirroring AgentLaunch. The same one-shot role marker suppresses the global fleet overlay, preserving worker MCP/skill omissions; role launch enables only its selected installed plugin. `agentroles install <role>` is the one Codex-state write: it renders the role as a skills-only plugin in the local `agentroles` marketplace, runs `codex plugin marketplace add` once and `codex plugin remove`/`add`, then persists the plugin disabled through `config/value/write` on a `codex app-server` child. `agentroles install --check <role>` only compares the role's current skill tree with that installed copy and emits sorted missing, extra, and changed paths | `agentroles/src/deliver/codex.ts`; `agentroles/src/codex-plugin.ts`; `agentroles/src/app-server.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0001-roles-are-directories-delivered-by-argv.md` |
 | agentroles | agentvoice | passes `--role <dir>` and nothing else; AgentVoice reads the directory itself because only its process can register skill roots on the child it owns | `agentroles/src/deliver/agentvoice.ts`; `agentvoice/src/core/role.ts` |
 | agentroles | Fx | delivers a role directory to one `fx` invocation through PATH: `--system-prompt-file` or `--append-system-prompt-file`, `--mcp-config <role>/mcp.json` (replaces `~/.fx/mcp.json` for that process; `mcpServers` is accepted as a profile alias), and when the role has `skills/`, `--skills-dir <role>/skills` plus `--no-default-skills`. Flags go before the user's tokens, like Claude. The child receives `AGENTROLES_ROLE`/`AGENTROLES_NAME` and no AgentLaunch resource marker. Workspace `.mcp.json` can still add extra servers after trust. No install; skills are read in place. The harness exit code is returned unchanged | `agentroles/src/deliver/fx.ts`; `agentroles/src/main.ts` (`deliver`); `agentroles/README.md` |
+| agentroles | OpenCode | delivers a role directory to one `opencode` invocation through PATH by setting `OPENCODE_CONFIG` to a JSON file rendered under `~/.cache/agentroles/opencode/<role>/opencode.json` on every launch. `SYSTEM_PROMPT.md` becomes `agent.build.prompt`, `APPEND_SYSTEM_PROMPT.md` an `instructions` path, `skills/` a `skills.paths` root left in place, and `mcp.json` a translated `mcp` object (`command` → local argv, `url`/`sse` → remote). User tokens are unchanged. The child receives `AGENTROLES_ROLE`/`AGENTROLES_NAME` and no AgentLaunch resource marker. OpenCode still merges global and project config and still loads global/project/external skills. No install. The harness exit code is returned unchanged | `agentroles/src/deliver/opencode.ts`; `agentroles/src/mcp.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action. AgentStart's read-only `sync-skills --check` path invokes `agentroles install --check` for each already-rendered canonical role and propagates stale state without refreshing either plugin | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/sync-skills`; `agentstart/scripts/check-role-plugins`; `agentroles/scripts/install.sh`; `agentroles/src/main.ts` |
 | agentstart | Gog | installs Gog through Homebrew and binds the two declared mailboxes in the fixed direct MCP inventory. Google OAuth and credential storage stay in Gog | `agentstart/scripts/install-gog`; `agentstart/config/resources/mcp-servers.json`; `agentstart/tests/gog-install.py` |
 | agentstart | Grok Build | installs or upgrades the official stable Homebrew cask, exposing the vendor's `grok` command and `agent` alias. This installs only the native CLI/TUI: AgentStart does not add Grok to AgentLaunch or Herdr, and AgentUsage owns Grok billing and account selection without activating harness credentials | `agentstart/scripts/install.sh`; asserted by `agentstart/tests/validate.sh`; Homebrew cask `grok-build` |
@@ -810,6 +813,11 @@ Updated 2026-09-21 for AgentRoles Fx delivery: `agentroles <role> -- fx` maps th
 role directory onto Fx's native prompt, MCP, and skill-root flags. No AgentLaunch
 marker; no Codex-style install. Use the rendered role; source `mcp.json` commands
 are templates. Evidence: `agentroles/src/deliver/fx.ts`, `roles/README.md`.
+
+Updated 2026-09-23 for AgentRoles OpenCode delivery: `agentroles <role> -- opencode`
+sets `OPENCODE_CONFIG` to a cache-rendered `opencode.json`. No AgentLaunch marker;
+no install. Skills stay in the role directory. Evidence:
+`agentroles/src/deliver/opencode.ts`, `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md`.
 
 
 ## Retired managed execution integration (2026-09-19)
