@@ -164,32 +164,31 @@ test("native exit status and spawn failures clean up; stdin remains native input
   expect(await child.exited).toBe(0); expect(profiles()).toEqual([]);
 });
 
-test("installed shim balances once, then applies the profile; explicit bypass remains native", async () => {
+test("installed shim supplies only default permissions; explicit bypass stays native", async () => {
   const bin = join(root, "bin"); mkdirSync(bin);
   const scripts = {
     uname: "#!/bin/bash\nprintf 'Darwin\\n'\n",
     id: "#!/bin/bash\nprintf '501\\n'\n",
-    agentlaunch: '#!/bin/bash\n[ "$1" = --x-harness ] && [ "$2" = codex ] || exit 91\nshift 2\nexport AGENTLAUNCH_LAUNCH=1\nexec codex "$@"\n',
   };
   for (const [name, body] of Object.entries(scripts)) writeFileSync(join(bin, name), body, { mode: 0o755 });
   symlinkSync(binary, join(bin, "codex"));
-  const shimDir = join(root, ".local/share/agentlaunch/shims");
+  const shimDir = join(root, ".local/share/agentstart/shims");
   const env = { ...process.env, HOME: root, CODEX_HOME: codexHome,
-    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTLAUNCH_LAUNCH: "", AGENTLAUNCH_SHIM_BYPASS: "",
+    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTSTART_SHIM_BYPASS: "",
     PATH: `${shimDir}:${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
   };
-  const installer = Bun.spawn([resolve(import.meta.dir, "../scripts/install-agentlaunch-shims")], { env, stdout: "pipe", stderr: "pipe" });
+  const installer = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });
   expect(await installer.exited).toBe(0);
   const runShim = async (bypass: string) => {
     const child = Bun.spawn([join(shimDir, "codex"), "exec", "test prompt"], {
-      cwd, env: { ...env, AGENTLAUNCH_SHIM_BYPASS: bypass }, stdout: "pipe", stderr: "pipe",
+      cwd, env: { ...env, AGENTSTART_SHIM_BYPASS: bypass }, stdout: "pipe", stderr: "pipe",
     });
     children.push(child);
     const text = await new Response(child.stdout).text();
     expect(await child.exited).toBe(0); return JSON.parse(text);
   };
-  const managed = await runShim(""); expect(Bun.TOML.parse(managed.profile).model).toBe("personal");
-  expect(managed.args.slice(2)).toEqual(["exec", "test prompt"]);
+  const managed = await runShim(""); expect(managed.profile).toBeNull();
+  expect(managed.args).toEqual(["--dangerously-bypass-approvals-and-sandbox", "exec", "test prompt"]);
   const native = await runShim("1"); expect(native.profile).toBeNull();
   expect(native.args).toEqual(["exec", "test prompt"]);
   expect(profiles()).toEqual([]);

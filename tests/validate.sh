@@ -20,7 +20,7 @@ scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentvoice-android
 scripts/install-pi
-scripts/install-agentlaunch-shims
+scripts/install-harness-shims
 scripts/install-herdr-codex-session-fallback
 scripts/install-notification-shim
 scripts/install-launchagents
@@ -58,7 +58,7 @@ fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi \
     scripts/run-skills-cli \
-    scripts/install-agentlaunch-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
+    scripts/install-harness-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
@@ -412,27 +412,19 @@ grep -F 'post-sync hook failed' scripts/sync-skills >/dev/null \
 skip_test_dir=$(mktemp -d "${TMPDIR:-/tmp}/agentstart-validate.XXXXXX")
 trap 'rm -rf "$skip_test_dir"' EXIT
 
-# Bare harness shims route through AgentLaunch, and the recursion sentinel
-# keeps AgentLaunch-managed child processes from entering the shim again.
+# Bare harness shims set unattended permission defaults on session commands.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
 bun test "$root/tests/codex-invocation.test.ts" "$root/tests/harness-config.test.ts"
 "$root/scripts/validate-agent-contract.ts" "$root/scripts/agentstart"
 [ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
 # shellcheck disable=SC2016 # Match the installer source, not this environment.
-grep -F '"$script_dir/install-agentlaunch-shims"' scripts/install.sh >/dev/null \
-    || fail "full installer does not converge invocation-aware harness shims"
+grep -F '"$script_dir/install-harness-shims"' scripts/install.sh >/dev/null \
+    || fail "full installer does not converge harness shims"
 shim_home="$skip_test_dir/shim-home"
 shim_bin="$skip_test_dir/shim-bin"
 shim_real_bin="$skip_test_dir/shim-real-bin"
 mkdir -p "$shim_home" "$shim_bin" "$shim_real_bin"
-cat >"$shim_bin/agentlaunch" <<'EOF'
-#!/bin/bash
-printf 'agentlaunch'
-printf ' <%s>' "$@"
-printf '\n'
-EOF
-chmod +x "$shim_bin/agentlaunch"
 for shim_harness in claude codex; do
     cat >"$shim_real_bin/$shim_harness" <<'EOF'
 #!/bin/bash
@@ -444,29 +436,46 @@ EOF
 done
 HOME="$shim_home" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-    "$root/scripts/install-agentlaunch-shims" >/dev/null
+    "$root/scripts/install-harness-shims" >/dev/null
 for shim_harness in claude codex; do
-    shim="$shim_home/.local/share/agentlaunch/shims/$shim_harness"
-    [ -x "$shim" ] || fail "AgentLaunch shim is missing or not executable: $shim"
-    grep -F "AgentStart-managed AgentLaunch shim" "$shim" >/dev/null \
-        || fail "AgentLaunch shim is missing its ownership marker: $shim"
-    grep -F "exec agentlaunch --x-harness $shim_harness" "$shim" >/dev/null \
-        || fail "AgentLaunch shim does not route $shim_harness through agentlaunch"
+    shim="$shim_home/.local/share/agentstart/shims/$shim_harness"
+    [ -x "$shim" ] || fail "harness shim is missing or not executable: $shim"
+    grep -F "AgentStart-managed permission shim for $shim_harness" "$shim" >/dev/null \
+        || fail "harness shim is missing its ownership marker: $shim"
+    [ ! -e "$shim_home/.local/share/agentstart/shims/$shim_harness-native" ] \
+        || fail "retired native variant was installed: $shim_harness-native"
 done
 shim_output=$(
-    AGENTLAUNCH_LAUNCH='' AGENTLAUNCH_SHIM_BYPASS='' \
-        PATH="$shim_home/.local/share/agentlaunch/shims:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-        "$shim_home/.local/share/agentlaunch/shims/claude" --version
+    PATH="$shim_home/.local/share/agentstart/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+        "$shim_home/.local/share/agentstart/shims/claude" hello
 )
-[ "$shim_output" = 'agentlaunch <--x-harness> <claude> <--version>' ] \
-    || fail "AgentLaunch shim did not route a bare harness launch: $shim_output"
+[ "$shim_output" = 'real claude <--dangerously-skip-permissions> <--allow-dangerously-skip-permissions> <hello>' ] \
+    || fail "Claude shim did not set its default permission mode: $shim_output"
 shim_bypass_output=$(
-    AGENTLAUNCH_LAUNCH=1 \
-        PATH="$shim_home/.local/share/agentlaunch/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
-        "$shim_home/.local/share/agentlaunch/shims/claude" --version
+    AGENTSTART_SHIM_BYPASS=1 \
+        PATH="$shim_home/.local/share/agentstart/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+        "$shim_home/.local/share/agentstart/shims/claude" hello
 )
-[ "$shim_bypass_output" = 'real claude <--version>' ] \
-    || fail "AgentLaunch shim did not bypass itself under the recursion sentinel: $shim_bypass_output"
+[ "$shim_bypass_output" = 'real claude <hello>' ] \
+    || fail "harness shim did not honor the native bypass: $shim_bypass_output"
+shim_codex_output=$(
+    PATH="$shim_home/.local/share/agentstart/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+        "$shim_home/.local/share/agentstart/shims/codex" exec hello
+)
+[ "$shim_codex_output" = 'real codex <--dangerously-bypass-approvals-and-sandbox> <exec> <hello>' ] \
+    || fail "Codex shim did not set its default permission mode: $shim_codex_output"
+shim_utility_output=$(
+    PATH="$shim_home/.local/share/agentstart/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+        "$shim_home/.local/share/agentstart/shims/codex" login
+)
+[ "$shim_utility_output" = 'real codex <login>' ] \
+    || fail "Codex shim modified a utility invocation: $shim_utility_output"
+shim_override_output=$(
+    PATH="$shim_home/.local/share/agentstart/shims:$shim_real_bin:$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+        "$shim_home/.local/share/agentstart/shims/codex" -c approval_policy=on-request exec hello
+)
+[ "$shim_override_output" = 'real codex <-c> <approval_policy=on-request> <exec> <hello>' ] \
+    || fail "Codex shim overrode an explicit approval policy: $shim_override_output"
 
 # Terminal Control's named-session daemon must leave the invoking harness's
 # process group, while every other command remains a direct pass-through. The
@@ -872,7 +881,7 @@ for required_install in \
     '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
     'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
-    'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
+    'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
@@ -889,7 +898,7 @@ for required_install in \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
     'brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate' \
     'herdr integration install claude and codex into their canonical homes' \
-    'scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside AgentLaunch+Herdr and self-disables after the integration advances' \
+    'scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside Herdr and self-disables after the integration advances' \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
     'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
@@ -1042,7 +1051,7 @@ fi
 # belong to the machine layer. Grok Build is the sole CLI-only cask exception.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
     | grep -Fv \
-        -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration' \
+        -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration' \
     >/dev/null; then
     fail "installation plan contains an unowned Homebrew cask"
 fi
@@ -1176,8 +1185,8 @@ grep -F '"$script_dir/install-herdr-codex-session-fallback" --install' scripts/i
     || fail "installer does not converge the temporary Herdr Codex session fallback"
 [ -s config/herdr/codex-session-fallback.sh ] \
     || fail "tracked Herdr Codex session fallback is missing"
-grep -F 'AGENTLAUNCH_LAUNCH' config/herdr/codex-session-fallback.sh >/dev/null \
-    || fail "Herdr Codex session fallback is not isolated to managed launches"
+grep -F 'HERDR_ENV' config/herdr/codex-session-fallback.sh >/dev/null \
+    || fail "Herdr Codex session fallback is not isolated to Herdr launches"
 grep -F 'HERDR_INTEGRATION_VERSION' config/herdr/codex-session-fallback.sh >/dev/null \
     || fail "Herdr Codex session fallback does not retire itself after the v8 integration"
 
@@ -1186,9 +1195,9 @@ grep -F 'HERDR_INTEGRATION_VERSION' config/herdr/codex-session-fallback.sh >/dev
 # `terminal` theme follows the terminal, which runs its own default colors.
 [ -s config/herdr/config.toml ] \
     || fail "AgentStart's Herdr base config is missing"
-grep -F 'plugin pane open --plugin agentsurface --entrypoint launch' \
-    config/herdr/config.toml >/dev/null \
-    || fail "AgentSurface binding does not open its plugin launch pane"
+if grep -F 'plugin pane open --plugin agentsurface --entrypoint launch' config/herdr/config.toml >/dev/null; then
+    fail "retired AgentLaunch form binding remains"
+fi
 grep -F 'plugin pane open --plugin agentsurface --entrypoint usage' \
     config/herdr/config.toml >/dev/null \
     || fail "agentusage binding does not open its AgentSurface plugin pane"
@@ -1386,11 +1395,11 @@ fi
 grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/dev/null \
     || fail "render-capabilities may prompt before replacing an immutable generated manifest"
 # The list spans two lines, so the order is checked on the joined text rather
-# than by matching one literal line. agentusage must precede agentlaunch (the
-# launcher shells prepare). AgentUsage owns all three account inventories.
+# than by matching one literal line. AgentUsage still owns its account
+# inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1399,7 +1408,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentlaunch agentsurface agentsounds agentgrok agentvoice agenthud agentnotify; do
+    agentscrape agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentnotify; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

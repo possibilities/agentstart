@@ -28,7 +28,7 @@ source_dir="$repo_root/config/statusline"
 # documented list, and an unrecognized id is dropped silently.
 #
 # `permissions` has no counterpart in the other two renderers and is kept
-# anyway: yolo is on by default for launches through AgentLaunch, so the
+# anyway: the bare Claude shim requests yolo by default, so the
 # sandbox summary is the one place the bar says the gates are down.
 #
 # Native limit items depend on provider response metadata. AgentUsage forwards

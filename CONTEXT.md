@@ -17,7 +17,7 @@ the rule).
 **The toolchain** — everything `scripts/install.sh --install` converges:
 harness CLIs, pinned npm globals, MCP registration, guidance links,
 extension prompts, and every fixed private fleet resource. Individual stdio
-MCPs share one installed inventory across AgentLaunch and AgentVoice. AgentStart
+MCPs share one installed inventory for explicit roles and AgentVoice. AgentStart
 does not translate that inventory into an HTTP gateway or publish it through
 Tailscale. General-purpose AI desktop clients belong to the machine layer. Gog
 owns its Google credential store.
@@ -37,7 +37,7 @@ as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi.
-AgentLaunch balances Claude Code and Codex and loads their fleet resources;
+Bare Claude Code and Codex use AgentStart's permission-only shims;
 Fx has its own workshop-owned installation, while Pi is installed as a bare
 CLI. Both are outside that launch path. _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
@@ -104,9 +104,8 @@ default endpoint, permanent multi-session service.
 
 **Codex fleet plugin** — the globally installed, strictly skills-only plugin
 `agent@agentstart-managed`. AgentStart persistently name-disables every
-`agent:<skill>`; AgentLaunch name-enables the fixed set in its session layer,
-exposing `$agent:<name>` without leaking fleet skills into
-unmanaged Codex or Fx-visible roots. _Avoid_: compatibility projection, extra
+`agent:<skill>` by default; explicit roles may enable their own resources.
+The bare shim does not enable fleet skills or MCPs. _Avoid_: compatibility projection, extra
 root.
 
 **The Herdr config render** — the live `~/.config/herdr/config.toml` rendered
@@ -119,7 +118,7 @@ _Avoid_: dotfile, theme config (the render sets no colors at all).
 **The Herdr Codex session fallback** — a temporary AgentStart-owned
 `SessionStart` hook installed at Herdr integration v8's existing trusted
 command path. It reports a new Codex thread through Herdr's public CLI only
-when both `AGENTLAUNCH_LAUNCH=1` and `HERDR_ENV=1`, and becomes a no-op when
+when `HERDR_ENV=1`, and becomes a no-op when
 the installed Herdr integration version advances past 8. Its dedicated source,
 installer, and test are one deletion unit for Herdr retirement.
 _Avoid_: Herdr patch, plugin hook (neither is used).

@@ -6,9 +6,7 @@
 set -eu
 
 # The hook is registered in the normal Codex home so it can retain Codex's
-# native hook trust. Its behavior is narrower: only a Codex process launched
-# through AgentLaunch inside Herdr may report identity.
-[ "${AGENTLAUNCH_LAUNCH:-}" = "1" ] || exit 0
+# native hook trust. Only a Codex process inside Herdr may report identity.
 [ "${HERDR_ENV:-}" = "1" ] || exit 0
 [ -n "${HERDR_SOCKET_PATH:-}" ] || exit 0
 [ -n "${HERDR_PANE_ID:-}" ] || exit 0

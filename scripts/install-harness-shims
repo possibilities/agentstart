@@ -1,0 +1,135 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'AgentStart harness shims installer: %s\n' "$*" >&2
+    exit 1
+}
+
+[ "$#" -eq 0 ] || { printf 'Usage: install-harness-shims\n' >&2; exit 64; }
+[ "$(uname -s)" = Darwin ] || die "macOS is required"
+[ "$(id -u)" -ne 0 ] || die "run as the target user, not root"
+
+shim_dir="$HOME/.local/share/agentstart/shims"
+old_dir="$HOME/.local/share/agentlaunch/shims"
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+operator_cli="$script_dir/agentstart"
+[ -x "$operator_cli" ] || die "AgentStart config CLI is missing: $operator_cli"
+bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+cli="$bin_dir/agentstart"
+cli_marker='# agentstart-installer-owned: agentstart.cli.v1'
+if [ -L "$cli" ] || { [ -e "$cli" ] && ! grep -Fxq "$cli_marker" "$cli"; }; then
+    die "refusing to replace an independent agentstart command: $cli"
+fi
+
+# Replace only the two shims whose old template proves AgentStart ownership.
+for harness in claude codex; do
+    old="$old_dir/$harness"
+    if [ -e "$old" ] || [ -L "$old" ]; then
+        if [ ! -f "$old" ] || [ -L "$old" ] ||
+            ! grep -Fq 'AgentStart-managed AgentLaunch shim' "$old"; then
+            die "refusing to replace a foreign legacy shim: $old"
+        fi
+    fi
+    native="$old_dir/$harness-native"
+    if [ -e "$native" ] || [ -L "$native" ]; then
+        if [ ! -f "$native" ] || [ -L "$native" ] ||
+            ! grep -Fq "AgentStart-managed AgentLaunch native shim: $harness-native" "$native"; then
+            die "refusing to remove a foreign native shim: $native"
+        fi
+    fi
+done
+
+mkdir -p "$shim_dir" "$bin_dir"
+cli_temp=$(mktemp "$bin_dir/.agentstart.XXXXXX")
+shim_temp=''
+cleanup() {
+    rm -f -- "$cli_temp"
+    [ -z "$shim_temp" ] || rm -f -- "$shim_temp"
+}
+trap cleanup EXIT
+{
+    printf '#!/bin/bash\n%s\n' "$cli_marker"
+    printf 'exec %q "$@"\n' "$operator_cli"
+} >"$cli_temp"
+chmod 0755 "$cli_temp"
+mv -f -- "$cli_temp" "$cli"
+
+for harness in claude codex; do
+    shim="$shim_dir/$harness"
+    if [ -e "$shim" ] || [ -L "$shim" ]; then
+        if [ ! -f "$shim" ] || [ -L "$shim" ] ||
+            ! grep -Fq 'AgentStart-managed permission shim' "$shim"; then
+            die "refusing to replace a foreign shim: $shim"
+        fi
+    fi
+    shim_temp=$(mktemp "$shim_dir/.$harness.XXXXXX")
+    cat >"$shim_temp" <<EOF
+#!/usr/bin/env bash
+# AgentStart-managed permission shim for $harness. Regenerate with
+# agentstart/scripts/install-harness-shims; do not edit in place.
+set -euo pipefail
+shim_dir=\$(cd -- "\$(dirname -- "\${BASH_SOURCE[0]}")" && pwd -P)
+find_real() {
+    local IFS=':' dir
+    for dir in \$PATH; do
+        [ -n "\$dir" ] || continue
+        [ -e "\$dir" ] && [ "\$dir" -ef "\$shim_dir" ] && continue
+        if [ -f "\$dir/$harness" ] && [ -x "\$dir/$harness" ] &&
+            [ ! "\$dir/$harness" -ef "\$shim_dir/$harness" ]; then
+            printf '%s/$harness\\n' "\$dir"
+            return 0
+        fi
+    done
+    return 1
+}
+real=\$(find_real) || { printf 'AgentStart shim: no real $harness on PATH\\n' >&2; exit 127; }
+[ "\${AGENTSTART_SHIM_BYPASS:-0}" != 1 ] || exec "\$real" "\$@"
+case "$harness:\${1:-}" in
+    claude:agents|claude:attach|claude:auth|claude:auto-mode|claude:doctor|claude:gateway|claude:help|claude:import|claude:install|claude:logs|claude:mcp|claude:plugin|claude:plugins|claude:project|claude:respawn|claude:rm|claude:setup-token|claude:stop|claude:kill|claude:ultrareview|claude:update|claude:upgrade|codex:agents|codex:login|codex:logout|codex:mcp|codex:plugin|codex:mcp-server|codex:app-server|codex:remote-control|codex:app|codex:completion|codex:update|codex:doctor|codex:sandbox|codex:debug|codex:apply|codex:queue|codex:archive|codex:delete|codex:migrate-rollouts|codex:unarchive|codex:cloud|codex:exec-server|codex:features|codex:help)
+        exec "\$real" "\$@" ;;
+esac
+case "\${1:-}" in -h|--help|-v|-V|--version) exec "\$real" "\$@" ;; esac
+previous=''
+for token in "\$@"; do
+    case "\$token" in
+        --) break ;;
+        --help|-h|--version|-V) exec "\$real" "\$@" ;;
+        --permission-mode|--permission-mode=*|--dangerously-skip-permissions|--allow-dangerously-skip-permissions|--ask-for-approval|--ask-for-approval=*|-a|--sandbox|--sandbox=*|-s|--full-auto|--dangerously-bypass-approvals-and-sandbox)
+            exec "\$real" "\$@" ;;
+    esac
+    if [ "$harness" = codex ]; then
+        case "\$previous:\$token" in
+            -c:*approval_policy*|-c:*sandbox_mode*|-c:*ask_for_approval*|*:-c*approval_policy*|*:-c*sandbox_mode*|*:-c*ask_for_approval*)
+                exec "\$real" "\$@" ;;
+        esac
+    fi
+    previous="\$token"
+done
+if [ "$harness" = claude ]; then
+    exec "\$real" --dangerously-skip-permissions --allow-dangerously-skip-permissions "\$@"
+fi
+exec "\$real" --dangerously-bypass-approvals-and-sandbox "\$@"
+EOF
+    chmod 0755 "$shim_temp"
+    mv -f -- "$shim_temp" "$shim"
+    shim_temp=''
+    printf 'Installed shim: %s\n' "$shim"
+done
+
+for harness in claude codex; do
+    old="$old_dir/$harness"
+    if [ -f "$old" ] && [ ! -L "$old" ]; then
+        rm -- "$old"
+        printf 'Removed legacy shim: %s\n' "$old"
+    fi
+    native="$old_dir/$harness-native"
+    if [ -f "$native" ] && [ ! -L "$native" ]; then
+        rm -- "$native"
+        printf 'Removed legacy native shim: %s\n' "$native"
+    fi
+done
+
+"$script_dir/install-notification-shim"
+printf 'Shims ready. New shells pick them up through the fleet PATH; current shells need exec zsh.\n'

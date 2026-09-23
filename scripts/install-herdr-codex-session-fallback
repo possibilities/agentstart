@@ -28,7 +28,7 @@ esac
 hook_command="bash '$target_script'"
 
 if [ "$mode" = --check ]; then
-    printf '  install the temporary AgentLaunch+Herdr Codex SessionStart fallback at %s and preserve its exact trusted hook command\n' "$target_script"
+    printf '  install the temporary Herdr Codex SessionStart fallback at %s and preserve its exact trusted hook command\n' "$target_script"
     exit 0
 fi
 

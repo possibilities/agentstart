@@ -51,8 +51,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   Managed fork dependencies bind their `integration` branch — every patch
   carried, merged, and the only ref an installer builds.
   A patch offered upstream lives on its own branch beside it. Claude/Codex
-  swap tools are no longer fleet installer dependencies. AgentUsage precedes
-  AgentLaunch, which consumes its prepare contract; the observer/proxy service
+  swap tools are no longer fleet installer dependencies. AgentUsage's observer/proxy service
   converges last. Old checkouts, credentials and backups are preserved.
   Fx's fork lifecycle and integration installer are owned by
   `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
@@ -85,7 +84,7 @@ in `~/code/agentguidance`.
 
 The default convergence interface is exactly `scripts/install.sh` (`--install`,
 `--check`), `scripts/sync-skills` (`--check`), and
-`scripts/install-agentlaunch-shims`. The explicit operator-run
+`scripts/install-harness-shims`. The explicit operator-run
 `scripts/install-agentvoice-android --install` is separate: it delegates a
 phone proof deployment to AgentVoice's checkout-owned installer and must never
 be called by those default install or synchronization paths. The machine's
@@ -207,8 +206,8 @@ See [role ownership](docs/adr/0006-own-manager-worker-roles.md).
 
 This checkout participates in the same convention it administers: active skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
-`scripts/sync-skills`. AgentLaunch loads them into each managed session:
-Claude Code exposes `/agent:<name>` and Codex uses `$agent:<name>`. The
+`scripts/sync-skills`. Bare permission shims do not load them; explicit
+roles can expose `/agent:<name>` in Claude Code and `$agent:<name>` in Codex. The
 `fleet` skill is the dependency map of the ecosystem;
 its `MAP.md` claims to be current, so a stale edge there is a bug, not a doc
 nit. The explicit Board cutover exception prunes only `board` and `groom` from

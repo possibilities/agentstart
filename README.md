@@ -61,7 +61,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     the explicit npm action published by its upstream installer, without that
     installer's choice menu, fleet resources, or integration; plus the
     official Homebrew cask for the standalone Grok Build CLI/TUI (without
-    AgentLaunch or Herdr integration yet);
+    Herdr integration yet);
   - Gog through its Homebrew formula, with separate MCP registrations for the
     two declared Gmail accounts and Google-owned sign-in;
   - Zig (an intentional duplicate of the machine's Brewfile), `llm`, the
@@ -79,11 +79,11 @@ flags, and skip-versus-fail semantics are load-bearing:
     the extension prompt links;
   - the external skills and fixed private fleet resources;
   - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,
-    agentattention, agentsearch, agentkeys, agentusage, agentlaunch, and
+    agentattention, agentsearch, agentkeys, agentusage, and
     agentgrok, and independent agenthud CLIs;
   - AgentUsage’s owned Claude/Codex accounts and single proxy through its
     existing observer daemon; enroll/import accounts before switching balanced
-    consumers, then converge the service after AgentUsage and AgentLaunch.
+    consumers, then converge the service after AgentUsage.
     No Claude/Codex swap checkout or command is an installation prerequisite;
     existing checkouts, backups and credentials are preserved;
   - agentchats' CLI, index, OpenTUI picker, and MCP; the fleet launch agents;
@@ -123,14 +123,12 @@ flags, and skip-versus-fail semantics are load-bearing:
   support matrix for MCP, native harness, and CLI/TUI workflows. A workflow
   needs one authoritative surface; an MCP wrapper is not required when the
   harness or interactive tool already owns the contract.
-- `scripts/install-agentlaunch-shims` — the balanced-launch shims for bare
-  `claude`/`codex`; the machine's wrapper of the same name delegates
-  here. The same entrypoint installs the `~/.local/bin/terminal-notifier`
+- `scripts/install-harness-shims` — permission-default shims for bare
+  `claude`/`codex`. The same entrypoint installs the `~/.local/bin/terminal-notifier`
   router for AgentNotify only, refusing installation while Homebrew
   terminal-notifier remains linked. If AgentNotify is unavailable, the router
-  fails without submitting elsewhere. The full installer also converges them. Codex runtime calls receive
-  [invocation profiles](config/codex/README.md) copied from Funk's personal
-  defaults, with temporary cwd/project trust and the normal Codex home intact.
+  fails without submitting elsewhere. The full installer also converges them.
+  The shims do not select accounts, profiles, models, skills, or MCPs.
 - `scripts/install-agentvoice-android --install` — an explicit phone proof
   deployment, intentionally outside every default convergence path. It
   delegates to the sibling AgentVoice checkout's `scripts/install-android`
@@ -143,11 +141,11 @@ ChatGPT casks belong to the machine layer, as does the `gh` credential
 migration. Grok Build is its CLI-only cask exception.
 
 AgentStart renders [one MCP inventory](config/resources/mcp-servers.json) into
-the private shared resources. AgentLaunch loads it for Claude and Codex;
+the private shared resources. Explicit roles and AgentVoice can load it;
 AgentVoice's prepared default role links the same file. Discovery happens in
 the MCP host, without a repository scan at launch. AgentStart exposes no HTTP
 projection of this inventory. Shadcn retains project cwd. Grok Build remains
-outside AgentLaunch and Herdr.
+outside the permission shims and Herdr.
 
 For a full install while a voice call is active, set
 AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1. This uses AgentVoice's supported
@@ -185,7 +183,7 @@ file, and neither checkout may become program-written state.
 Until Herdr's Codex integration advances past v8,
 `scripts/install-herdr-codex-session-fallback --install` also converges a
 temporary `SessionStart` identity bridge at its existing trusted hook path.
-It runs only for AgentLaunch descendants inside Herdr, uses Herdr's public
+It runs only inside Herdr, uses Herdr's public
 `pane report-agent-session` command, and self-disables for newer integration
 versions. The dedicated installer has an explicit `--uninstall` retirement
 path; no Herdr source patch is installed.
@@ -250,11 +248,10 @@ tests/validate.sh
 
 A new fleet tool usually needs almost no edit here. Name the checkout
 `agent*` and export `skills/<name>/SKILL.md`, and the scan ships it into the
-fixed private resources. AgentLaunch loads those resources into every managed
-session: Claude Code exposes `/agent:<name>` and Codex `$agent:<name>`. The
-globally installed Codex plugin is skills-only and every name is
-persistently disabled until AgentLaunch enables it in a session;
-Codex Desktop and deliberate real-binary bypasses therefore receive no fleet
+fixed private resources. Bare Claude Code and Codex shims do not load them.
+The globally installed Codex plugin is skills-only and every name is
+persistently disabled until an explicit role enables it;
+Codex Desktop and bare invocations therefore receive no fleet
 skills unless another explicitly selected role supplies them. AgentVoice can
 load the same fixed resource set through a standard role on its own Codex child.
 Participant source manifests remain portable and bare; only the Codex

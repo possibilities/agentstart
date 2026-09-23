@@ -1,16 +1,15 @@
 # Codex invocation profiles
 
-Edit personal preferences in `~/code/funk/config/harnesses/codex.toml`. The next
-normal `codex` launch reads the current valid source or its generated snapshot.
+Edit personal preferences in `~/code/funk/config/harnesses/codex.toml` for
+explicit use with `scripts/codex-invocation`. A bare `codex` launch does not
+load this source through AgentStart's shim.
 The [preference watcher](../harness-preferences.md) retains a last-good copy
-when an edit is invalid and reports native drift; no manual apply step is needed. AgentStart installs the wrapper through `scripts/install.sh --install`
-and the existing `scripts/install-agentlaunch-shims` contract. Bun is required,
+when an edit is invalid and reports native drift. AgentStart installs the
+permission-only shim through `scripts/install-harness-shims`. Bun is required,
 as it is for the fleet CLIs. Codex must support native profile files (0.134.0+;
 runtime proof performed on 0.153.4).
 
-The Codex shim first routes through AgentLaunch's normal account selection.
-When the selected account's child reaches the shim with
-`AGENTLAUNCH_LAUNCH=1`, `scripts/codex-invocation <native-codex> ...` launches
+The optional `scripts/codex-invocation <native-codex> ...` helper launches
 the native CLI with a unique `--profile agentstart-invocation-<uuid>`.
 The profile lives directly under the existing `CODEX_HOME` (default `~/.codex`)
 with mode 0600. The native binary, credentials, history, and account pin are
@@ -42,8 +41,8 @@ stay in their existing homes. Claude, Pi, and Fx are outside this wrapper.
 Interactive runs, `exec`/`e`, `review`, `resume`, and `fork` receive profiles.
 Utility commands (including `app-server`, `mcp`, login, and plugin management),
 help/version, remote-server connections, and explicit `--ignore-user-config`
-pass through unchanged. `AGENTLAUNCH_SHIM_BYPASS=1` bypasses both balancing and
-invocation profiles. An absent default authored file is optional and passes
+pass through unchanged. `AGENTSTART_SHIM_BYPASS=1` bypasses the bare permission
+shim; the optional helper is invoked separately. An absent default authored file is optional and passes
 through until first configured; an invalid default source uses its last-good
 snapshot when available, otherwise launch fails.
 `AGENTSTART_CODEX_CONFIG_SOURCE` selects an alternative source and makes its
@@ -59,7 +58,7 @@ profile cleanup, never written back to Funk. Capture failures retain the profile
 and report its path. Edit Funk deliberately to make a preference durable.
 
 For resume/fork, the wrapper uses the new invocation's cwd, or its explicit
-`--cd`. AgentLaunch's `x-resume` already recovers the saved session's cwd. A
+`--cd`. Native resume uses its own cwd behavior. A
 native picker that selects a different directory remains subject to Codex's
 own directory selection/trust behavior; the wrapper doesn't read or rewrite
 session databases.

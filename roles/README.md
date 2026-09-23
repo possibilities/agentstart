@@ -206,10 +206,9 @@ duplicate work control cost.
 Each root-level pick still needs the human's confirmation when the session has
 that pick-before-dispatch preference; it is not a permanent worker cap.
 
-AgentRoles marks its immediate AgentLaunch invocation as an explicit role resource
-layer; AgentLaunch consumes that marker and does not add the global fleet overlay.
-Default managed launches retain the global manager-oriented inventory. A role's
-own MCP and skill paths remain the source for an explicit role launch.
+AgentRoles supplies an explicit role resource layer to its native harness invocation.
+The bare permission shim adds no fleet overlay. A role's own MCP and skill
+paths remain the source for an explicit role launch.
 
 This configures explicit role exposure, not native-child authorization. Native
 children may inherit a manager's tools and prompts instead of loading the worker

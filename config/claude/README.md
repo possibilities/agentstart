@@ -1,8 +1,9 @@
 # Claude preferences and workspace trust
 
 Funk's `claude` Stow package links its authored preferences to
-`~/.claude/preferences.json`. AgentStart's managed Claude shim invokes
-`scripts/claude-invocation <native-claude> ...`, which loads that file with
+`~/.claude/preferences.json`. The bare AgentStart shim adds only default
+unattended permissions. The optional
+`scripts/claude-invocation <native-claude> ...` helper loads that file with
 native `--settings` and records workspace trust before replacing itself with
 the stock Claude binary. No Claude patch or alternate config home is needed.
 
@@ -30,7 +31,7 @@ An explicitly selected missing file fails. The source can be overridden with
 `AGENTSTART_CLAUDE_CONFIG_SOURCE`. Preferences never contain trust records.
 
 Set `AGENTSTART_CLAUDE_TRUST=0` to keep normal trust behavior while loading the
-preferences. `AGENTLAUNCH_SHIM_BYPASS=1` skips the whole managed launch path.
+preferences. `AGENTSTART_SHIM_BYPASS=1` skips the permission shim.
 Help/version, administrative commands, remote/cloud calls, safe/bare/restricted
 modes, explicit `--setting-sources`, and unknown CLI options pass through
 unchanged. Keep the argument classifier current when adding native options.

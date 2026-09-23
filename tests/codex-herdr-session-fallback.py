@@ -22,7 +22,6 @@ def run_hook(codex_home: Path, fake_herdr: Path, payload: dict, **overrides: str
     env = {
         **inherited_env,
         "CODEX_HOME": str(codex_home),
-        "AGENTLAUNCH_LAUNCH": "1",
         "HERDR_ENV": "1",
         "HERDR_SOCKET_PATH": str(codex_home / "herdr.sock"),
         "HERDR_PANE_ID": "wTEST:p1",
@@ -95,7 +94,6 @@ with tempfile.TemporaryDirectory(prefix="agentstart-herdr-codex-test.") as direc
     assert argv[-4:] == ["--agent-session-id", "thread-test", "--session-start-source", "startup"]
 
     for environment, changed_payload in [
-        ({"AGENTLAUNCH_LAUNCH": ""}, payload),
         ({"HERDR_ENV": ""}, payload),
         ({"CODEX_THREAD_ID": "another-thread"}, payload),
         ({}, {**payload, "session_id": None}),

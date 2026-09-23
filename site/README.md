@@ -1,7 +1,7 @@
 # Fleet Resources Advice Field Guide
 
-An interactive guide to the advice AgentStart makes available in every managed
-session. It organizes the fixed private fleet resources by intent, introduces useful
+An interactive guide to AgentStart's fixed private fleet resources. Bare
+permission shims do not load them; explicit roles can. It organizes the resources by intent, introduces useful
 starting points, and makes each skill's playbook, supporting field notes, and
 harness invocation easy to browse.
 

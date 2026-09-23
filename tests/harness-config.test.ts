@@ -232,11 +232,11 @@ test("periodic reconciliation catches a missed event and replacement of the sour
 
 test("CLI installation is rerunnable, embeds its checkout, and refuses independent commands", async () => {
   const bin = join(root,"bin"); mkdirSync(bin);
-  for (const [name, body] of Object.entries({uname:"printf Darwin",id:"printf 501",agentlaunch:"exit 0"})) {
+  for (const [name, body] of Object.entries({uname:"printf Darwin",id:"printf 501"})) {
     put(join(bin,name),"#!/bin/sh\n"+body+"\n");
     const {chmodSync} = await import("node:fs"); chmodSync(join(bin,name),0o755);
   }
-  const installer = resolve(import.meta.dir,"../scripts/install-agentlaunch-shims");
+  const installer = resolve(import.meta.dir,"../scripts/install-harness-shims");
   const run = () => {
     const child = Bun.spawn([installer],{env:{...environment(),PATH:bin+":"+process.env.PATH,AGENTSTART_INSTALL_BIN_DIR:join(root,"installed")},stdout:"pipe",stderr:"pipe"});
     children.push(child); return child.exited;

@@ -244,13 +244,13 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Homebrew casks:
-  brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no AgentLaunch or Herdr integration
+  brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration
 
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
-  scripts/install-agentlaunch-shims  # Codex native profiles and Stowed Claude preferences with cwd/worktree trust
+  scripts/install-harness-shims  # default native unattended permission mode
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
@@ -265,7 +265,7 @@ Command-line tools:
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
   brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate
   herdr integration install claude and codex into their canonical homes
-  scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside AgentLaunch+Herdr and self-disables after the integration advances
+  scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside Herdr and self-disables after the integration advances
   herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
@@ -371,7 +371,7 @@ export HOMEBREW_NO_ASK=1
 # Grok Build's official Homebrew cask installs its signed release binary as
 # both `grok` and the vendor's `agent` alias. Keep this phase to the native
 # CLI/TUI itself: AgentUsage's Grok inventory does not activate harness credentials,
-# and AgentLaunch and Herdr do not support Grok sessions yet.
+# and Herdr does not support Grok sessions yet.
 printf 'Installing or upgrading the Grok Build CLI/TUI (standalone; no fleet launch integration).\n'
 install_or_upgrade_cask grok-build
 
@@ -568,7 +568,7 @@ install_herdr_integrations
 # Herdr's v8 Codex hook can miss the first SessionStart identity report. Keep
 # the known-working fallback in AgentStart source control and reinstall it
 # after Herdr has converged its own hook. The fallback retains the already-
-# trusted command path, acts only for AgentLaunch descendants inside Herdr,
+# trusted command path, acts only inside Herdr,
 # and self-disables as soon as the managed integration version exceeds 8.
 "$script_dir/install-herdr-codex-session-fallback" --install
 
@@ -779,7 +779,7 @@ if [ "$agent_clis_status" -ne 0 ]; then
     exit "$agent_clis_status"
 fi
 
-"$script_dir/install-agentlaunch-shims"
+"$script_dir/install-harness-shims"
 "$script_dir/agentstart" config apply --notify
 
 # Agentbrowse and agent-browser do not write these configs during normal

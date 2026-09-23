@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // AgentStart's operator configuration surface. Install through the existing
-// install-agentlaunch-shims/full-installer contract, never as another installer.
+// install-harness-shims/full-installer contract, never as another installer.
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { apply, layout, notify, registerNativeHome, resolvePreferences, status, watchConfigs } from "./harness-config.ts";

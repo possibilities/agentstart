@@ -172,23 +172,20 @@ class Invocation(unittest.TestCase):
         self.assertEqual(target.read_bytes(), before)
 
     @unittest.skipUnless(sys.platform == "darwin", "shim installer is macOS-only")
-    def test_installed_shim_applies_preferences_and_explicit_bypass(self):
+    def test_installed_shim_supplies_only_default_permissions(self):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         (bin_dir / "claude").symlink_to(self.native)
-        launcher = bin_dir / "agentlaunch"
-        launcher.write_text(f"#!{sys.executable}\nimport os,sys\nassert sys.argv[1:3]==['--x-harness','claude']\nos.environ['AGENTLAUNCH_LAUNCH']='1'\nos.execvp('claude',sys.argv[2:])\n")
-        launcher.chmod(0o755)
-        shim = self.root / ".local/share/agentlaunch/shims/claude"
+        shim = self.root / ".local/share/agentstart/shims/claude"
         env = {**self.env, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
-               "AGENTLAUNCH_LAUNCH": "", "AGENTLAUNCH_SHIM_BYPASS": ""}
-        subprocess.run([str(HELPER.parent / "install-agentlaunch-shims")], env=env, check=True, capture_output=True)
+               "AGENTSTART_SHIM_BYPASS": ""}
+        subprocess.run([str(HELPER.parent / "install-harness-shims")], env=env, check=True, capture_output=True)
         env["PATH"] = str(shim.parent) + os.pathsep + env["PATH"]
         result = subprocess.run([str(shim), "hello"], env=env, cwd=self.cwd, input="", capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["args"], ["--settings", str(self.source), "hello"])
+        self.assertEqual(json.loads(result.stdout)["args"], ["--dangerously-skip-permissions", "--allow-dangerously-skip-permissions", "hello"])
         before = self.config.read_bytes()
-        result = subprocess.run([str(shim), "hello"], env={**env, "AGENTLAUNCH_SHIM_BYPASS": "1"}, cwd=self.cwd, input="", capture_output=True, text=True, timeout=15)
+        result = subprocess.run([str(shim), "hello"], env={**env, "AGENTSTART_SHIM_BYPASS": "1"}, cwd=self.cwd, input="", capture_output=True, text=True, timeout=15)
         self.assertEqual(json.loads(result.stdout)["args"], ["hello"])
         self.assertEqual(self.config.read_bytes(), before)
 
