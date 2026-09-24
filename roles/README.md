@@ -3,14 +3,18 @@
 AgentStart owns one explicit working role, `default`. Its source directory
 contains the human-facing manager prompt Markdown and its own `mcp.json`. The
 role inventory omits AgentAttention, AgentChats, AgentGrok, AgentHUD, AgentKeys,
-AgentMux, AgentSounds, and AgentSurface MCPs. The role retains the shared `hud`
-skill and uses the installed command for durable recording. Changing the general
+AgentMux, AgentSounds, and AgentSurface MCPs. `skills-exclude.json` removes the
+omitted owners' dedicated skills (`attention`, `bus`, `chats`, `grokbot`, `hud`,
+`keys`, `sounds`; AgentMux has no standalone skill) from the role's share of the
+common skill set, and the prompt drops their owners' workflows rather than
+prescribing a replacement system. Changing the general
 fleet inventory does not silently change its MCP roster.
 
 The normal `scripts/sync-skills` path renders launchable directories at
 `~/.local/share/agentstart/resources/roles/default`. The renderer
 expands `${HOME}` in MCP commands and links prompts to their authored files.
-The role links shared skills. Each ownership receipt records content-only hashes using the same
+The role links each retained shared skill individually. Each ownership
+receipt records content-only hashes using the same
 `agentvoice-role-content-v1` framing that AgentVoice reports for directory roles;
 it covers resolved prompt, rendered MCP, and resolved skill bytes without storing
 their bodies. Independently changed role contents are refused, not overwritten.
@@ -55,19 +59,20 @@ See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-cod
 ## Role MCP boundary
 
 The default role does not start the AgentAttention, AgentChats, AgentGrok, AgentHUD,
-AgentKeys, AgentMux, AgentSounds, or AgentSurface MCP. This is an explicit-role
-startup boundary, not a retirement of those tools, their skills, the common
-managed inventory, or their independent services. The role's manager keeps the HUD
-skill and records Work, Assignment, Result, acceptance and presentation through
-the installed AgentHUD command. The role retains the shared GrokBot skill, so persistent bot
-collaboration remains available through its owning command.
+AgentKeys, AgentMux, AgentSounds, or AgentSurface MCP, and it does not ship those
+owners' dedicated skills (`attention`, `bus`, `chats`, `grokbot`, `hud`, `keys`,
+`sounds`; AgentMux has no standalone skill). This is an explicit-role
+startup and skill boundary, not a retirement of those tools, their skills in the
+common fleet set, the common managed inventory, or their independent services.
+The role's prompt keeps generic worker report-and-review and notification
+responsibilities without prescribing the omitted owners' commands.
 Rendering a role change does not reload an active AgentVoice generation; it
 becomes available at a later normal role load.
 
 AgentStart no longer exposes or installs AgentFX, exports the worker roster to
 it, or distributes provider-specific execution, resume, broker, or comparison
 policy. Native delegation still follows the live collaboration tool catalog,
-parent-issued delegation envelopes, routing receipts, and manager review. See
+parent-issued delegation envelopes, and manager review. See
 [the retirement decision](../docs/adr/0036-retire-agentfx-role-and-installer-integration.md).
 
 ## Upstream fork patch and contribution gate
@@ -126,24 +131,17 @@ The operator-specific selection policy is recorded in
 
 ## Routing evidence
 
-The default working role uses the installed AgentChats command's `routing-receipt` when
-available to retain
-short decision and acceptance records through existing native tool results.
-The role inventory does not start an AgentChats MCP. AgentChats validates the
-schema but stores no new log. Its `routing` command
-joins those receipts with exact Codex rollout calls, ancestry and native turn
-configuration; missing receipts, native settings and acceptance remain unknown.
-The tool's guide owns its detailed schema. Direct work, fresh delegation,
-follow-up assignments and escalation all qualify when substantive; small
-conversational exchanges do not need another tool call.
+The default working role chooses model, effort and context deliberately for each
+substantive direct-work or delegation decision and explains routing to the human
+only when it matters. It prescribes no synthetic receipt or second ledger: the
+role neither starts an AgentChats MCP nor calls its `routing-receipt` command,
+and native transcript retention remains the only automatic retention path.
 
-Land the AgentChats commands before publishing this guidance. Use the existing
-resource sync for future role loads; do not restart calls or migrate snapshots.
-This records concise reasons, not hidden reasoning, raw source bodies or a
-training archive. The parent owns acceptance of a delegated result. Native
-transcript retention remains the only automatic retention path.
+Use the existing resource sync for future role loads; do not restart calls or
+migrate snapshots.
 
-See [routing receipt decision](../docs/adr/0008-native-history-routing-receipts.md).
+See [routing receipt decision](../docs/adr/0008-native-history-routing-receipts.md)
+and [the default-role skill prune](../docs/adr/0042-prune-removed-mcp-skills-from-default-role.md).
 
 ## Conversation hold and spoken acknowledgments
 
@@ -160,80 +158,58 @@ behavior.
 See [hold guidance decision](../docs/adr/0012-conversation-hold-guidance.md).
 See [direct completion decision](../docs/adr/0024-deliver-agentvoice-child-completions-directly.md).
 
-## Manager-owned HUD records
+## Worker reports and review
 
-Managers use the retained HUD skill and installed AgentHUD command for substantive
-objectives, authority, assignments, dependencies,
-reported results, acceptance, presentation and next decisions. Reconcile at start
-or resume and meaningful work boundaries. Workers report to their parent through
-the native harness; the manager records that report using its own actor and exact
-worker/native/evidence attribution. Tiny replies need no record. Missing HUD
-access leaves an explicit recovery note and pending reconciliation.
+Workers report to their parent through the native harness; the manager reviews
+each returned report against its evidence before accepting, integrating or
+requesting changes, and presents accepted results at the right conversational
+boundary. Returned work must not accumulate unreconciled. Every worker dispatch
+has a bounded assignment and a return path to its parent; when dispatch
+acceptance is uncertain — a failure, a race, or a lost response — the manager
+checks exact native state before retrying rather than leaving an untracked
+worker or duplicating the dispatch. An outcome still needing the human's
+approval, validation or decision stays pending with that response named;
+silence is not a response.
 
-Managers default toward speculative durable tracking when voice intent plausibly
-represents substantive work. Temporary over-tracking is preferable to invisible
-lost work: an uncertain item can later be merged, cancelled or closed as intent
-becomes clear. Managers keep scope, disposition and `nextAction` current, record
-and review a Result before treating the outcome as complete, and keep the Work
-actionable until the human acknowledges that substantive Result or supplies its
-required approval, validation or decision. Routing receipts, native dispatch and
-chat promises remain evidence; they never replace Work or Result.
+The conversational manager retains intent, questions, dispatch, review,
+integration, acceptance, presentation and delivery. It delegates substantive
+code implementation through bounded assignments while handling tiny answers,
+bounded inspection and genuinely cheaper urgent corrections directly. It uses
+the minimum correctly sized worker set; at the root, that can use every
+available root-owned child slot for genuinely useful, independent,
+non-overlapping work while preserving integration and review capacity, with no
+fixed two-worker or other arbitrary cap. Each root-level pick still needs the
+human's confirmation when the session has a pick-before-dispatch preference; it
+is not a permanent worker cap.
 
-New and current Work is `active` by default. Active and open Work is eligible to
-advance, but does not select itself for dispatch. Only an explicit human request
-moves it to `waiting` or `paused`; dependencies, sequencing, external blockers,
-validation and needed human responses stay active with a truthful `nextAction`
-and, when supported, a Needs you entry. When the session establishes a
-pick-before-dispatch preference, the manager obtains confirmation of the specific
-eligible Work before preparing or dispatching its worker.
-
-Every worker dispatch has corresponding durable Work. The manager creates or
-updates Work, prepares its Assignment, dispatches the native worker, then binds
-the observed turn. A dispatch-first failure or race is reconciled immediately as
-an exception from exact native evidence rather than left untracked.
-
-The conversational manager retains intent, questions, HUD tracking, dispatch,
-review, integration, acceptance, presentation and delivery. It delegates
-substantive code implementation through the tracked Work and Assignment while
-handling tiny answers, bounded inspection, HUD bookkeeping and genuinely cheaper
-urgent corrections directly. At each useful execution boundary it alternates
-advancing the next actionable active Work with inspecting every running and
-returned Assignment. It records, reviews and lands a returned result before the
-next substantive build dispatch, so completions do not accumulate unreconciled;
-it uses the minimum correctly sized worker set. At the root, that can use every
-available root-owned child slot for genuinely useful, independent, non-overlapping
-active Work while preserving integration and review capacity; no fixed two-worker
-or other arbitrary cap applies. The manager does not create agents merely to fill
-slots or split inseparable work. Model and effort selection plus avoiding
-duplicate work control cost.
-Each root-level pick still needs the human's confirmation when the session has
-that pick-before-dispatch preference; it is not a permanent worker cap.
-
-AgentRoles supplies an explicit role resource layer to its native harness invocation.
-The bare permission shim adds no fleet overlay. The default role's own MCP and
-skill paths remain the source for an explicit role launch.
+AgentRoles supplies an explicit role resource layer to its native harness
+invocation. The bare permission shim adds no fleet overlay. The default role's
+own MCP and skill paths remain the source for an explicit role launch.
 
 This configures explicit role exposure, not native-child authorization. Native
-children may inherit the manager's tools and prompts; there is no separate worker
-role to select. Existing sessions and workspace snapshots keep their loaded resources;
-source sync neither revokes inherited tools nor reloads a live generation. Workers
-with older or inherited HUD tools must still return reports to their manager.
+children may inherit the manager's tools and prompts; there is no separate
+worker role to select. Existing sessions and workspace snapshots keep their
+loaded resources; source sync neither revokes inherited tools nor reloads a live
+generation.
 
-See [manager HUD ownership](../docs/adr/0013-managers-own-hud-recording.md).
-See [default-role cutover](../docs/adr/0040-collapse-explicit-roles-to-default.md).
+See [manager HUD ownership](../docs/adr/0013-managers-own-hud-recording.md),
+[default-role cutover](../docs/adr/0040-collapse-explicit-roles-to-default.md),
+and [default-role skill
+prune](../docs/adr/0042-prune-removed-mcp-skills-from-default-role.md) — the
+durable recording mandate those earlier decisions attached to this role is
+removed; generic native report-and-review accountability remains.
 
 ## Human-controlled resources
 
 Managers verify direct authority and physical state before using or handing off a
 limited resource. A direct user instruction or an explicitly affirmative resolved
-Attention or AgentNotify response can supply the exact grant; delivery, read state,
+AgentNotify response can supply the exact grant; delivery, read state,
 silence and timeout cannot. Workers return material holder, scope, grant, state and
 release facts to their parent for direct coordination. Missing agents, elapsed
 expiry and revocation do not prove physical release.
 
-AgentHUD stores no Resource or Lease records, and managers do not create proxy Work
-to reproduce that inventory. The existing human-granted lease rules for a real
-phone, desktop and headful browser remain authoritative, as does explicit
+The existing human-granted lease rules for a real phone, desktop and
+headful browser remain authoritative, as does explicit
 permission for emulator/VM creation or start. Role rendering neither creates a
 grant nor changes live resources.
 
@@ -241,26 +217,24 @@ See [the retirement decision](../docs/adr/0029-retire-agenthud-resource-lease-re
 
 ## Scoped closure and human dependencies
 
-After technical acceptance and delivery, the manager keeps the related Work active
-and actionable until the human acknowledges the substantive Result. When the scope
-requires approval, validation or a decision, the Work stays active with that exact
-response in `nextAction` and, when supported, a Needs you entry. A clear natural
-response is sufficient evidence;
-presentation and silence are not. The manager then closes Work whose scoped goal
-and human-response obligation are met and tells the human it is closing.
+After technical acceptance and delivery, an outcome that still needs the human's
+approval, validation or decision stays open with that exact response named as
+the next step. A clear natural response is sufficient evidence; presentation and
+silence are not. The manager tells the human when work whose scoped goal and
+human-response obligation are met is closing.
 
 An investigation normally serves the human's underlying practical objective.
 The manager preserves its diagnosis as evidence and, when remediation becomes
-known, revises or reopens Work so the remaining delivery, validation or human
-decision stays visible. Information-only requests, a human decision that no action
-is warranted, and evidence that no change is needed can end as information; no
-rule assumes remediation must be code.
+known, keeps the remaining delivery, validation or human decision visible.
+Information-only requests, a human decision that no action is warranted, and
+evidence that no change is needed can end as information; no rule assumes
+remediation must be code.
 
-Unacknowledged substantive Results and required approval, validation or decision
-responses stay visible with a specific next human action. The manager follows up
-at a useful conversational boundary, respecting hold and
-unrelated topics, with no invented timed reminders. Deferred delivery remains
-pending presentation rather than disappearing. Workers continue returning evidence
-to the manager and do not take over human closure or HUD writes.
+Unacknowledged substantive outcomes and required approval, validation or
+decision responses stay visible with a specific next human action. The manager
+follows up at a useful conversational boundary, respecting hold and unrelated
+topics, with no invented timed reminders. Deferred delivery remains pending
+presentation rather than disappearing. Workers continue returning evidence to
+the manager and do not take over human closure.
 
 See [scoped closure decision](../docs/adr/0015-close-scoped-work-with-explicit-delivery.md).

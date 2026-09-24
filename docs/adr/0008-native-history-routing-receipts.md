@@ -3,6 +3,11 @@
 Accepted for implementation September 13, 2026. The human requested model,
 effort and task choices with decision context and outcome evidence for later
 routing evaluation. Extends [0006](0006-own-manager-worker-roles.md).
+The default role's use of the AgentChats `routing-receipt` formatter is
+superseded September 23, 2026 by
+[ADR 0042](0042-prune-removed-mcp-skills-from-default-role.md); that role
+prescribes no replacement receipt, and native transcript retention remains its
+only automatic retention path.
 
 Manager and worker roles replace an unobservable internal choice with a concise
 structured receipt at substantive direct/delegation/reuse/escalation decisions.

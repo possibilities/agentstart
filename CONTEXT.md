@@ -66,8 +66,8 @@ canonical guidance, the fleet-owned shadcn registry MCP, the session-only Claude
 plugin, and the globally installed but inert Codex skills-only plugin. Bare
 shims supply no skills or MCP inventory; the
 explicit `default` role supplies its own MCP and skill layer. Its MCP roster
-omits Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface while retaining
-the HUD skill and CLI recording duty;
+omits Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface, and its skill
+set excludes those owners' dedicated skills and their workflows;
 the inventory has no AgentStart-owned HTTP projection. There are no selectable
 packs. _Avoid_: capability pack, common pack, projection.
 
@@ -148,7 +148,8 @@ directly. _Avoid_: OpenAI policy (that is one rendered representation).
 and its complete MCP inventory. Its manager owns human dialogue and overall
 delivery; native workers own assignments and report to their parent without a
 separate role directory. The inventory omits Attention, Chats, Grok, HUD, Keys,
-Mux, Sounds, and Surface MCPs while retaining the HUD skill for CLI-backed
-recording. Managers preserve worker attribution under their own actor; role
-exposure does not authenticate or revoke native tools. _Avoid_: manager role,
+Mux, Sounds, and Surface MCPs and excludes their dedicated skills (`attention`,
+`bus`, `chats`, `grokbot`, `hud`, `keys`, `sounds`) and their workflows; generic
+native worker report-and-review accountability remains. Role exposure does not
+authenticate or revoke native tools. _Avoid_: manager role,
 worker role, AgentVoice-owned prompt.

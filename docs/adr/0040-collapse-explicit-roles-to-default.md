@@ -6,6 +6,11 @@ of [the AgentHUD cutover](0010-cut-over-active-work-to-agenthud.md) and
 [manager-owned HUD recording](0013-managers-own-hud-recording.md), and the
 two-copy freshness surface in
 [ADR 0017](0017-attest-role-content-and-audit-codex-copies.md).
+The retained HUD skill, CLI recording duty, and AgentChats `routing-receipt`
+use described below are superseded September 23, 2026 by
+[ADR 0042](0042-prune-removed-mcp-skills-from-default-role.md), which removes
+rather than replaces those workflows; the single-role ownership and MCP
+omissions remain current.
 
 AgentStart owns one explicit working role named `default`. It carries the former
 manager prompts and shared skills. The separate `worker` role is removed; native

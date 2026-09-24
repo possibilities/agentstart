@@ -191,8 +191,8 @@ class RoleRender(unittest.TestCase):
         self.assertEqual((role / ".agentstart-role.json").stat().st_mode & 0o777, 0o600)
 
     def test_shipped_default_is_complete_and_mode_fits_native_limit(self):
-        (self.resources / "skills/hud").mkdir()
-        (self.resources / "skills/hud/SKILL.md").write_text("default role")
+        (self.resources / "skills/notifications").mkdir()
+        (self.resources / "skills/notifications/SKILL.md").write_text("default role")
         self.render(sources=ROOT / "roles")
         source = ROOT / "roles/default"
         role = self.resources / "roles/default"
@@ -203,14 +203,13 @@ class RoleRender(unittest.TestCase):
             self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
         self.assertLessEqual(len((role / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md").read_bytes()),
                              1600)
-        self.assertTrue((role / "skills/hud/SKILL.md").is_file())
+        self.assertTrue((role / "skills/notifications/SKILL.md").is_file())
 
         prompt = (role / "APPEND_SYSTEM_PROMPT.md").read_text()
         for expected in (
-            "AgentHUD stores no Resource or Lease records",
             "When the human asks for a sketch",
-            "Default toward speculative durable tracking",
             "Never create or dispatch a worker",
+            "return its result, evidence, assumptions, and remaining issues to the parent",
             "Every substantive worker brief",
             "Detect an external/upstream fork-patch decision before modifying the fork",
         ):
@@ -231,6 +230,99 @@ class RoleRender(unittest.TestCase):
             "remainingCompleted", "expectedInstanceId",
         ):
             self.assertNotIn(retired, guidance)
+
+    def test_shipped_default_skill_filter_excludes_removed_mcp_skills(self):
+        excluded = ["attention", "bus", "chats", "grokbot", "hud", "keys", "sounds"]
+        retained = ["browser", "build", "collab", "maintain", "notifications",
+                    "notify", "wiki"]
+        for name in excluded + retained:
+            skill = self.resources / "skills" / name
+            skill.mkdir()
+            (skill / "SKILL.md").write_text(name)
+        self.render(sources=ROOT / "roles")
+        role = self.resources / "roles/default"
+
+        source_excluded = json.loads(
+            (ROOT / "roles/default/skills-exclude.json").read_text())
+        self.assertEqual(sorted(source_excluded), sorted(excluded))
+        self.assertEqual(len(set(source_excluded)), len(source_excluded))
+
+        directory = role / "skills"
+        self.assertTrue(directory.is_dir())
+        self.assertFalse(directory.is_symlink())
+        self.assertEqual({path.name for path in directory.iterdir()},
+                         {"example", *retained})
+        for name in excluded:
+            self.assertFalse((directory / name).exists())
+        for name in retained:
+            path = directory / name
+            self.assertTrue(path.is_symlink())
+            self.assertEqual(path.readlink().as_posix(), f"../../../skills/{name}")
+            self.assertTrue((path / "SKILL.md").is_file())
+
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+        self.assertNotIn("skills", receipt["links"])
+        self.assertEqual(receipt["skills"], {
+            name: f"../../../skills/{name}" for name in ("example", *retained)})
+
+    def test_shipped_default_prompt_prescribes_no_removed_mcp_owner(self):
+        self.render(sources=ROOT / "roles")
+        role = self.resources / "roles/default"
+        prompt = (role / "APPEND_SYSTEM_PROMPT.md").read_text()
+        for owner in (
+            "AgentHUD", "agenthud", "AgentChats", "agentchats",
+            "AgentAttention", "agentattention", "AgentGrok", "agentgrok",
+            "AgentKeys", "agentkeys", "AgentMux", "agentmux",
+            "AgentSounds", "agentsounds", "AgentSurface", "agentsurface",
+            "routing-receipt", "nextAction", "Needs you",
+        ):
+            self.assertNotIn(owner, prompt)
+        for invented in (
+            "durable working record", "durable work record",
+            "decision ID", "record schema",
+        ):
+            self.assertNotIn(invented, prompt)
+        for retained in (
+            "resolved AgentNotify response",
+            "notification owner",
+            "reviews and accepts or rejects the assignment",
+            "Do not let a delegated outcome go unreviewed",
+        ):
+            self.assertIn(retained, prompt)
+
+    def test_filtered_receipt_and_skill_links_stay_attested(self):
+        excluded = ["dropped"]
+        for name in ("dropped", "kept"):
+            skill = self.resources / "skills" / name
+            skill.mkdir()
+            (skill / "SKILL.md").write_text(name)
+        (self.sources / "default/skills-exclude.json").write_text(
+            json.dumps(excluded))
+        self.render()
+        role = self.resources / "roles/default"
+        directory = role / "skills"
+        self.assertTrue(directory.is_dir())
+        self.assertFalse(directory.is_symlink())
+        self.assertEqual({path.name for path in directory.iterdir()},
+                         {"example", "kept"})
+
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+        self.assertNotIn("skills", receipt["links"])
+        self.assertEqual(receipt["skills"], {
+            "example": "../../../skills/example",
+            "kept": "../../../skills/kept"})
+
+        old_skills_digest = receipt["content"]["skills"]
+        (self.resources / "skills/kept/SKILL.md").write_text("kept changed")
+        self.render()
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+        self.assertNotEqual(receipt["content"]["skills"], old_skills_digest)
+        (self.sources / "default/skills-exclude.json").write_text(
+            json.dumps(["dropped", "kept"]))
+        self.render()
+        role = self.resources / "roles/default"
+        self.assertEqual({path.name for path in (role / "skills").iterdir()},
+                         {"example"})
 
 
 if __name__ == "__main__":

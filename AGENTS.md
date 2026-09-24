@@ -212,11 +212,15 @@ AgentStart owns `roles/default`: prompt Markdown and its complete MCP inventory.
 `scripts/render-roles` assembles it through the normal resource sync and safely
 retires intact AgentStart-owned `manager` and `worker` outputs. Changing the
 common inventory does not automatically change the role roster. The default role
-omits the Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface MCPs while
-keeping the HUD skill and CLI-backed recording responsibility. Managers record
-native worker reports under their own actor; there is no separate worker role.
-Preserve this boundary through explicit-role launch rendering. See
-[the default-role cutover](docs/adr/0040-collapse-explicit-roles-to-default.md).
+omits the Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface MCPs and,
+through `roles/default/skills-exclude.json`, their dedicated skills (`attention`,
+`bus`, `chats`, `grokbot`, `hud`, `keys`, `sounds`; AgentMux has no standalone
+skill). The prompt drops those owners' workflows rather than prescribing a
+replacement; generic native worker report-and-review accountability remains,
+and there is no separate worker role. Preserve this boundary through
+explicit-role launch rendering. See
+[the default-role cutover](docs/adr/0040-collapse-explicit-roles-to-default.md)
+and [the skill prune](docs/adr/0042-prune-removed-mcp-skills-from-default-role.md).
 
 This checkout participates in the same convention it administers: active skills
 under `skills/<name>/SKILL.md` ship into the fixed private fleet resources via
