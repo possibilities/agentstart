@@ -220,11 +220,10 @@ grep -F 'https://vercel.com/design.md' prompts/agentguidance/GUIDELINES.md >/dev
     || fail "GUIDELINES.md does not require Vercel design guidance as the design baseline"
 grep -F 'documentation and guidelines in the wiki' prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md does not route design work through the wiki"
-grep -F "Managers keep substantive work visible with \`hud\`" \
-    prompts/agentguidance/GUIDELINES.md >/dev/null \
-    || fail "GUIDELINES.md does not route durable work through HUD"
-grep -F 'AgentHUD stores no Resource or Lease record' prompts/agentguidance/GUIDELINES.md >/dev/null \
-    || fail "GUIDELINES.md retains AgentHUD resource recording"
+if grep -Eq "\`(chats|hud)\`|AgentHUD|AgentAttention" \
+    prompts/agentguidance/GUIDELINES.md >/dev/null; then
+    fail "GUIDELINES.md routes the default role to an excluded tool"
+fi
 grep -F 'AgentNotify response can supply the exact grant' \
     prompts/agentguidance/GUIDELINES.md >/dev/null \
     || fail "GUIDELINES.md loses direct human and notification authority evidence"

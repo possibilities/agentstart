@@ -32,14 +32,17 @@ effort, and context are still chosen deliberately for each delegation.
 
 This is a default-role boundary only. The common managed MCP inventory, the
 shared skill set, each tool's installer, services, and other consumers are
-unchanged. A known user-facing caveat: the operator extension and retained
-shared skills (the GUIDELINES splice inside `build`/`collab`/`maintain`, plus
-routing references in `wiki`, `brain`, `search`, `browser`, `desktop`, `tend`,
-and `notifications`) may still mention the omitted owners indirectly; those are
-shared-source texts, not a role contract, and were deliberately left unmodified.
-Existing loaded sessions and workspace snapshots keep earlier bytes until a
-normal activation boundary.
+unchanged. On September 23, 2026, the human also requested removal of indirect
+routes to excluded skills from retained default-role guidance. The AgentStart
+operator extension and the owning Brain, Browser, Desktop, Search, Wiki, and
+Tend skills no longer prescribe those routes. Browser human handoff uses
+AgentBrowse's supported `view` and an explicit human outcome instead of the
+removed skill. The common inventory and independent tool workflows remain
+available; this does not revoke tools already loaded by a session. Existing
+loaded sessions and workspace snapshots keep earlier bytes until a normal
+activation boundary.
 
 Evidence: `roles/default/skills-exclude.json`,
 `roles/default/APPEND_SYSTEM_PROMPT.md`, `roles/README.md`,
-`scripts/render-roles`, `tests/render-roles.py`, and `skills/fleet/MAP.md`.
+`scripts/render-roles`, `tests/render-roles.py`, `skills/fleet/MAP.md`,
+`prompts/agentguidance/GUIDELINES.md`, and the owning skill templates.

@@ -1,35 +1,16 @@
 ## Guidelines
 
-- Reuse collected research with `brain` when prior reading is relevant, and
-  consult `chats` when prior sessions may contain relevant work. Do not add an
-  unrelated lookup to a task that already has the necessary evidence.
-- Managers keep substantive work visible with `hud`: default toward speculative
-  durable Work when voice intent plausibly represents a substantive question,
-  request or follow-up. Temporary over-tracking that can later be merged, cancelled
-  or closed is preferable to invisible lost work. Keep scope, disposition and next
-  action current, reconciling at start/resume and meaningful boundaries. New and
-  current Work stays active unless the human explicitly
-  requests waiting or paused; dependencies, blockers, validation and needed human
-  responses instead get a truthful next action and, when supported, Needs you entry.
-  Never dispatch a worker without corresponding Work: create/update
-  Work, prepare its Assignment, dispatch, then bind the native turn; immediately
-  reconcile any dispatch-first failure or race. Routing receipts and native dispatch
-  never replace Work or Result. Workers report to their parent; managers record and
-  review those reports under their own actor with worker attribution. Keep related
-  Work active and actionable until the human acknowledges a substantive Result or provides its
-  required approval, validation or decision; presentation and silence are not that
-  response. Follow up contextually, respecting hold and unrelated conversation;
-  do not invent timed reminders. For limited or human-controlled resources,
-  verify current authority and physical state before use or onward handoff. A
-  direct user instruction or an explicitly affirmative resolved Attention or
-  AgentNotify response can supply the exact grant; generic instructions, stale
-  grant text, delivery/read state, silence and timeout cannot. Coordinate the
-  actual holder, scope and team coverage directly, and announce release through
-  the notification owner. Missing agents, expiry and revocation do not prove
-  physical release. AgentHUD stores no Resource or Lease record; do not create
-  proxy Work solely to reproduce that inventory. Tiny replies need no record.
-  Legacy Board history stays read-only; do not dual-write or redirect new work
-  into it.
+- Reuse collected research with `brain` when prior reading is relevant. Do not
+  add an unrelated lookup to a task that already has the necessary evidence.
+- For limited or human-controlled resources, verify current authority and
+  physical state before use or onward handoff. A direct user instruction or an
+  explicitly affirmative resolved
+  AgentNotify response can supply the exact grant; generic instructions,
+  stale grant text, delivery/read state, silence
+  and timeout cannot. Coordinate the actual holder, scope and team coverage
+  directly, and announce release through the notification owner. Missing
+  agents, expiry and revocation do not prove physical release. Legacy Board
+  history stays read-only; do not dual-write or redirect new work into it.
 - Use AgentNotify through the `notifications` skill when work the human is
   waiting for finishes or stalls while they are away. It owns the durable
   notification inbox and terminal-notifier-compatible CLI; prefer its MCP for
