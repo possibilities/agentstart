@@ -18,8 +18,8 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=e639de6aded41ae168a8888b920ff71db41877d0
-codexnk_release_tag=codexnk-v0.1.2
-codexnk_integration_sha=9103c8d5162ca57717814733e66a49a2ed756e30
+codexnk_release_tag=codexnk-v0.1.3
+codexnk_integration_sha=7d341030af1c243eeb334294be31aeb3c58d233c
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -251,7 +251,7 @@ Homebrew casks:
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
-  ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.2 --sha 9103c8d5162ca57717814733e66a49a2ed756e30  # isolated pinned Codex fork; vendor binary preserved
+  ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.3 --sha 7d341030af1c243eeb334294be31aeb3c58d233c  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-harness-shims  # default native unattended permission mode
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
