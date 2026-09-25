@@ -1,0 +1,91 @@
+#!/bin/bash
+
+set -euo pipefail
+
+version=2.0.16
+package="@opencode/cli@$version"
+prefix="${AGENTSTART_OPENCODE2_PREFIX:-$HOME/.local/libexec/agentstart/opencode2}"
+bin_dir="${AGENTSTART_OPENCODE2_BIN_DIR:-$HOME/.local/bin}"
+target="$bin_dir/opencode2"
+owner_marker="$prefix/.agentstart-opencode2-owner"
+owner='agentstart.opencode2.v1'
+
+die() {
+    printf 'AgentStart OpenCode 2 installer: %s\n' "$*" >&2
+    exit 1
+}
+
+case "${1:-}" in
+    --check)
+        printf '  npm install --global --prefix ~/.local/libexec/agentstart/opencode2 %s  # private V2 package; publish only ~/.local/bin/opencode2, preserve opencode\n' "$package"
+        exit 0
+        ;;
+    --install) ;;
+    *) printf 'Usage: install-opencode2 [--install|--check]\n' >&2; exit 64 ;;
+esac
+[ "$#" -eq 1 ] || { printf 'Usage: install-opencode2 [--install|--check]\n' >&2; exit 64; }
+
+case "$prefix:$bin_dir" in
+    /*:/*) ;;
+    *) die 'prefix and bin directory must be absolute paths' ;;
+esac
+command -v npm >/dev/null 2>&1 || die 'npm is required'
+
+# The private npm prefix belongs to this helper alone. An interrupted install
+# leaves the marker so rerunning can finish, but a foreign directory is never
+# adopted just because it happens to contain an npm package.
+if [ -e "$prefix" ] || [ -L "$prefix" ]; then
+    [ -d "$prefix" ] && [ ! -L "$prefix" ] || die "not an owned directory: $prefix"
+    [ -f "$owner_marker" ] && [ ! -L "$owner_marker" ] &&
+        [ "$(<"$owner_marker")" = "$owner" ] \
+        || die "refusing to replace an independent prefix: $prefix"
+fi
+if [ -e "$target" ] || [ -L "$target" ]; then
+    [ -L "$target" ] && [ "$(readlink "$target")" = "$prefix/bin/opencode2" ] \
+        || die "refusing to replace an independent command: $target"
+fi
+active=$(command -v opencode2 2>/dev/null || true)
+if [ -n "$active" ] && [ "$active" != "$target" ]; then
+    die "PATH already resolves opencode2 to another command: $active"
+fi
+
+old_opencode=$(command -v opencode 2>/dev/null || true)
+old_version=''
+if [ -n "$old_opencode" ]; then
+    old_version=$("$old_opencode" --version) || die "cannot verify existing opencode: $old_opencode"
+fi
+
+mkdir -p "$prefix"
+if [ ! -f "$owner_marker" ]; then
+    printf '%s\n' "$owner" >"$owner_marker"
+fi
+printf 'Installing %s into the private OpenCode 2 prefix.\n' "$package"
+npm install --global --prefix "$prefix" --no-fund --no-audit --loglevel=error --progress=false "$package"
+npm list --global --prefix "$prefix" --depth=0 @opencode/cli >/dev/null \
+    || die "npm cannot verify $package under $prefix"
+
+private_bin="$prefix/bin/opencode2"
+[ -x "$private_bin" ] || die "npm did not install an executable: $private_bin"
+private_version=$("$private_bin" --version) || die "OpenCode 2 failed its version check"
+[ "$private_version" = "opencode v$version" ] \
+    || die "expected OpenCode $version, got $private_version"
+
+mkdir -p "$bin_dir"
+if [ ! -L "$target" ]; then
+    ln -s "$private_bin" "$target"
+fi
+[ -x "$target" ] && [ "$(readlink "$target")" = "$private_bin" ] \
+    || die "the public opencode2 command does not reach $private_bin"
+hash -r
+[ "$(command -v opencode2 2>/dev/null || true)" = "$target" ] \
+    || die "opencode2 is installed at $target but PATH does not select it"
+[ "$("$target" --version)" = "$private_version" ] \
+    || die "the public opencode2 command does not run the verified build"
+
+if [ -n "$old_opencode" ]; then
+    [ "$(command -v opencode 2>/dev/null || true)" = "$old_opencode" ] &&
+        [ "$("$old_opencode" --version)" = "$old_version" ] \
+        || die 'opencode changed while installing opencode2'
+fi
+printf 'OpenCode %s is available as %s; opencode remains %s.\n' \
+    "$version" "$target" "${old_opencode:-uninstalled}"

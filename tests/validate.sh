@@ -20,6 +20,7 @@ scripts/sync-codex-skill-policy
 scripts/install-agent-clis
 scripts/install-agentvoice-android
 scripts/install-pi
+scripts/install-opencode2
 scripts/install-harness-shims
 scripts/install-herdr-codex-session-fallback
 scripts/install-notification-shim
@@ -56,7 +57,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     shellcheck --shell=bash $shell_files
 fi
 
-for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi \
+for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi scripts/install-opencode2 \
     scripts/run-skills-cli \
     scripts/install-harness-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
@@ -352,6 +353,7 @@ bun test tests/install-agent-clis.test.ts
 PYTHONDONTWRITEBYTECODE=1 python3 tests/notification-shim.py
 bun test tests/install-agentvoice-android.test.ts
 bun test tests/install-pi.test.ts
+bun test tests/install-opencode2.test.ts
 bun test tests/agentvoice-network.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
@@ -896,6 +898,7 @@ for required_install in \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
+    'scripts/install-opencode2 --install  # @opencode/cli@2.0.16 in a private prefix; publish only ~/.local/bin/opencode2 and preserve opencode' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
@@ -995,6 +998,15 @@ if grep -ER '/[.]pi|install-pi-subagents|integration install.*pi|for harness in.
     scripts config >/dev/null; then
     fail "Pi's retired fleet integration or resources returned beside the bare CLI install"
 fi
+
+# shellcheck disable=SC2016 # Match the literal installer variable.
+grep -F '"$script_dir/install-opencode2" --install' scripts/install.sh >/dev/null \
+    || fail "the full installer does not converge the side-by-side OpenCode 2 command"
+grep -F 'version=2.0.16' scripts/install-opencode2 >/dev/null \
+    || fail "the OpenCode 2 installer lost its empirically verified release pin"
+# shellcheck disable=SC2016 # Match the literal helper variable.
+grep -F 'target="$bin_dir/opencode2"' scripts/install-opencode2 >/dev/null \
+    || fail "the OpenCode 2 installer does not publish the separate command"
 
 # Plannotator is one versioned unit: the official installer contributes only
 # the binary, that binary installs its managed agent-terminal runtime, and the

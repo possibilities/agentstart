@@ -69,8 +69,8 @@ flowchart LR
     roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --plugin-dir on a cache-rendered plugin| claude
     roles -->|-c model_instructions_file / developer_instructions / mcp_servers.* and plugins.<role>@agentroles.enabled on an inert installed plugin| codex
     roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --skills-dir when present, --no-default-skills for nonempty roles| fx
-    roles -->|OPENCODE_CONFIG pointing at a cache-rendered opencode.json: agent.build.prompt, instructions, skills.paths, command.<skill>, translated mcp| opencode
-    roles -->|install --devin: cache-rendered plugin via devin plugins install --local; sticky for every session| devin
+    roles -->|opencode or opencode2: probe selected binary; V1 legacy config, V2 private server and append plugin| opencode
+    roles -->|explicit install --devin only: sticky plugin, not AgentStart's default launch path| devin
 
     surface -->|host popup: agentchats search, resume directives back over stdout| chats
     chats -->|conversation describe: stored slug + first-prompt excerpt per row| surface
@@ -113,6 +113,7 @@ flowchart LR
     start ==>|official installers| harnesses[Claude Code / Codex]
     start ==>|official native binary when absent; worktree/Role wrapper for new terminal sessions| devin[Devin CLI]
     start ==>|explicit npm global bare CLI; no menu or fleet integration| pi[Pi]
+    start ==>|private pinned npm prefix; only opencode2 on PATH| opencode2[OpenCode 2]
     start ==>|official Homebrew cask; standalone CLI/TUI, no launch integration| grok[Grok Build]
     start ==>|pinned minimal binary + managed agent-terminal runtime + version-matched skills| plannotator[Plannotator]
     start ==>|exact ship-gate-approved Integration pin + ReleaseSafe source build| fx[Fx]
@@ -203,7 +204,8 @@ sentence around the match, never from the name alone.
 | agentroles | Claude Code | delivers a role directory through native Claude arguments and PATH; AgentStart's shim adds only a default permission mode, while the role owns its MCP and skill resources | `agentroles/src/deliver/claude.ts`; `agentroles/src/exec.ts`; `agentstart/scripts/install-harness-shims` |
 | agentroles | Codex | delivers one explicit role through native CLI `-c` model-instruction and MCP overrides and an installed role plugin; these overrides select embedded TUI mode rather than a shared daemon. codexnk's invocation axes and input middleware belong to app-server launches, not this CLI role delivery; the bare shim adds only the default permission mode | `agentroles/src/deliver/codex.ts`; `agentroles/src/codex-plugin.ts`; `codexnk/MAINTAIN.md`; `codex-rs/tui/src/daemon_startup.rs` |
 | agentroles | Fx | delivers prompt, MCP and skill paths for one invocation through native Fx flags; nonempty roles also suppress ambient skills. fxnk's shape, identity and history axes remain caller controls; no global fleet overlay is applied | `agentroles/src/deliver/fx.ts`; `agentroles/src/main.ts`; `fxnk/MAINTAIN.md` |
-| agentroles | OpenCode | renders a one-invocation `OPENCODE_CONFIG` with prompt, skills and MCPs; no global fleet overlay is applied | `agentroles/src/deliver/opencode.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md` |
+| agentroles | OpenCode | Accepts `opencode` and `opencode2` and probes the selected executable's major version. V1 retains its existing `OPENCODE_CONFIG` fields. V2 translates to native config, appends through a per-launch plugin hook, and runs a private `--standalone` server so the role does not reach a shared server or another invocation. Remote-server and utility launches with a nonempty V2 role are refused. No global fleet overlay is applied. | `agentroles/src/main.ts`; `agentroles/src/deliver/opencode.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0007-deliver-roles-to-both-opencode-majors.md` |
+| agentstart | OpenCode 2 | Converges `@opencode/cli@2.0.16` in a marked private npm prefix, links only `opencode2` into `~/.local/bin`, and verifies the existing `opencode` path and version did not change. No V1 cutover or service restart. | `agentstart/scripts/install-opencode2`; `agentstart/scripts/install.sh`; `agentstart/docs/adr/0043-install-opencode-2-beside-1.md` |
 | agentroles | Devin CLI | An explicit `agentroles install --devin <role>` can still create a sticky user plugin, but AgentStart's ordinary default Role no longer depends on it. That legacy local `default` plugin is removed only after the per-worktree wrapper proves its MCPs, skills and manual `/prime` without plugin state. AgentRoles is not Devin's launch harness | `agentroles/src/devin-plugin.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0005-devin-plugins-are-sticky-user-installs.md`; `agentstart/scripts/devin-worktree.ts` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action. AgentStart's read-only `sync-skills --check` path invokes `agentroles install --check` for each already-rendered canonical role and propagates stale state without refreshing either plugin | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/sync-skills`; `agentstart/scripts/check-role-plugins`; `agentroles/scripts/install.sh`; `agentroles/src/main.ts` |
 | agentstart | Gog | installs Gog through Homebrew and binds the two declared mailboxes in the fixed direct MCP inventory. Google OAuth and credential storage stay in Gog | `agentstart/scripts/install-gog`; `agentstart/config/resources/mcp-servers.json`; `agentstart/tests/gog-install.py` |
@@ -291,6 +293,7 @@ sentence around the match, never from the name alone.
 | Grok Build | official stable Homebrew cask | installs only the standalone native CLI/TUI; no Herdr integration | `agentstart/scripts/install.sh`; `agentstart/tests/validate.sh` |
 | Plannotator | 0.27.9 | the CLI, its `install-runtime agent-terminal` contract, and its core skills move as one pinned release. AgentStart deliberately uses the minimal vendor install to avoid ambient harness integrations, then restores the separately managed runtime through the verified binary | `agentstart/scripts/install.sh` (`plannotator_version` and runtime invocation); `agentstart/tests/validate.sh` |
 | agent-browser | 0.33.2 | one pin, two contracts: Agentbrowse implements its provider protocol and its `browser` skill defers command syntax to this build's version-matched guide; Agentscrape resolves the `~/.local/bin/agent-browser` link before PATH and passes stable session names through that provider. An upgrade verifies both consumers | `agentstart/scripts/install.sh` (`agent_browser_version`); `agentbrowse/cli/provider.ts`; `agentbrowse/skills/browser/SKILL.md`; `agentscrape/src/browser.ts` (`resolveBrowser`, `runAgentBrowser`) |
+| OpenCode 2 | 2.0.16 | side-by-side executable `opencode2` is pinned to the build empirically checked with AgentRoles' V2 role delivery; its private prefix never supplies `opencode` on PATH | `agentstart/scripts/install-opencode2`; `agentstart/docs/adr/0043-install-opencode-2-beside-1.md` |
 | @native-sdk/cli | current npm release | AgentStart installs npm's unqualified package so the CLI follows the current published release; the Native SDK discovery skill is installed separately from its upstream repository and the installer verifies `native skills list` plus `native skills get core` | `agentstart/scripts/install.sh`; `agentstart/tests/validate.sh`; `https://github.com/vercel-labs/native` |
 | zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
@@ -823,6 +826,12 @@ Updated 2026-09-23 for AgentRoles OpenCode delivery: `agentroles <role> -- openc
 sets `OPENCODE_CONFIG` to a cache-rendered `opencode.json`. No AgentLaunch marker;
 no install. Skills stay in the role directory. Evidence:
 `agentroles/src/deliver/opencode.ts`, `agentroles/docs/adr/0004-opencode-is-delivered-through-opencode-config.md`.
+
+Updated 2026-09-24 for dual-major OpenCode delivery: AgentRoles probes the
+resolved binary. V1 keeps its existing mapping; V2 receives native fields and
+a per-launch append plugin under a private `--standalone` server. Empirical
+isolated-home runs on 1.18.32 and 2.0.16 verified prompt, skill and MCP
+delivery. Evidence: `agentroles/docs/adr/0007-deliver-roles-to-both-opencode-majors.md`.
 
 Updated 2026-09-23 for AgentRoles Devin plugins: `agentroles install --devin <role>`
 renders a Devin plugin and installs it with `devin plugins install --local`. Sticky
