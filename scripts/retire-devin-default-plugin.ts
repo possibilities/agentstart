@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-/** Exact, conditional cutover from AgentRoles' sticky default plugin. Called by install-harness-shims only. */
+/** Explicit one-time cutover from AgentRoles' sticky default plugin after the wrapper is verified. */
 import { execFile } from "node:child_process";
 import { basename, join } from "node:path";
 import { realpathSync } from "node:fs";
