@@ -1,0 +1,6 @@
+{
+  "keybinds": {
+    "session.tab.next": "alt+2",
+    "session.tab.previous": "alt+1"
+  }
+}

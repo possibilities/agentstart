@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Merge AgentStart's OpenCode tab bindings without owning the whole CLI file."""
+
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+import tempfile
+
+
+def main() -> None:
+    if len(sys.argv) != 2 or sys.argv[1] not in ("--check", "--install"):
+        sys.exit("Usage: opencode-config [--check|--install]")
+    if sys.argv[1] == "--check":
+        print("  scripts/opencode-config --install  # merge Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings")
+        return
+
+    source = Path(__file__).resolve().parent.parent / "config/opencode/cli.json"
+    bindings = json.loads(source.read_text())["keybinds"]
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    if not config_home.is_absolute():
+        raise ValueError("XDG_CONFIG_HOME must be absolute")
+    target = config_home / "opencode/cli.json"
+
+    # OpenCode may write this file itself. Never link it into the checkout or
+    # replace a redirected, foreign-owned, or malformed native settings file.
+    for parent in reversed(target.parents):
+        if parent.is_symlink():
+            raise ValueError(f"refusing redirected configuration directory: {parent}")
+    existing = None
+    if target.exists() or target.is_symlink():
+        existing = target.lstat()
+        if not stat.S_ISREG(existing.st_mode) or existing.st_uid != os.getuid() or existing.st_nlink != 1:
+            raise ValueError(f"refusing independent configuration path: {target}")
+        settings = json.loads(target.read_text())
+        if not isinstance(settings, dict) or not isinstance(settings.get("keybinds", {}), dict):
+            raise ValueError(f"invalid OpenCode CLI settings: {target}")
+    else:
+        settings = {"$schema": "https://opencode.ai/v2/cli.json"}
+
+    updated = dict(settings)
+    updated["keybinds"] = {**settings.get("keybinds", {}), **bindings}
+    if updated == settings:
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".cli-", suffix=".json", dir=target.parent)
+    try:
+        with os.fdopen(fd, "w") as output:
+            json.dump(updated, output, indent=2, ensure_ascii=False)
+            output.write("\n")
+        os.chmod(name, stat.S_IMODE(existing.st_mode) if existing else 0o600)
+        current = target.lstat() if target.exists() or target.is_symlink() else None
+        if current != existing:
+            raise ValueError(f"OpenCode CLI settings changed during installation: {target}")
+        os.replace(name, target)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+    print(f"Merged OpenCode tab bindings into {target}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+        sys.exit(f"opencode-config: {error}")

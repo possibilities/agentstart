@@ -57,7 +57,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     shellcheck --shell=bash $shell_files
 fi
 
-for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi scripts/install-opencode \
+for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi scripts/install-opencode scripts/opencode-config \
     scripts/run-skills-cli \
     scripts/install-harness-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
@@ -354,6 +354,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 tests/notification-shim.py
 bun test tests/install-agentvoice-android.test.ts
 bun test tests/install-pi.test.ts
 bun test tests/install-opencode.test.ts
+bun test tests/opencode-config.test.ts
 bun test tests/agentvoice-network.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that
@@ -899,6 +900,7 @@ for required_install in \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
     'scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link' \
+    'scripts/opencode-config --install  # merge Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \

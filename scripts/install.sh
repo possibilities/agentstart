@@ -187,6 +187,7 @@ converge_repo_content() {
     # installers create, which is why content convergence assumes a machine a
     # full install has already been through.
     "$script_dir/install-statusline" --install
+    "$script_dir/opencode-config" --install
 
     # Every agent tool publishes its skills by convention — skills/<name>/
     # inside a checkout named agent* — so they are discovered rather than
@@ -317,6 +318,7 @@ Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):
 EOF
     "$script_dir/install-statusline" --check
+    "$script_dir/opencode-config" --check
     "$script_dir/install-launchagents" --check
     printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
