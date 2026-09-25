@@ -113,6 +113,11 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
+- OpenCode 2 is the side-by-side harness exception: `scripts/install-opencode2`
+  installs the verified `@opencode/cli` release into an AgentStart-owned private
+  npm prefix and publishes only `~/.local/bin/opencode2`. Preserve the existing
+  `opencode` executable until a separate cutover. AgentRoles accepts either
+  command name and probes that exact binary before rendering its role.
 - An agent-facing workflow: classify its authoritative surface using
   `docs/agent-interfaces.md`. Prefer an existing typed MCP for structured
   remote actions, the harness's native mechanism for orchestration and

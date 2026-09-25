@@ -36,10 +36,13 @@ Fx maintenance cycle advances it, so a moving remote branch is never treated
 as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
-**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi.
+**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi,
+OpenCode 1 (`opencode`), or the separate OpenCode 2 (`opencode2`).
 Bare Claude Code and Codex use AgentStart's permission-only shims;
 Codex and Fx shims bind the exact workshop-owned installations; Fx passes
 arguments unchanged. Pi is installed as a bare CLI outside that launch path.
+OpenCode 2 is installed in a private prefix and exposed only through its
+versioned command while OpenCode 1 remains on PATH.
 _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
