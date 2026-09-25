@@ -250,10 +250,11 @@ Homebrew casks:
 
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
-  curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
+   install the official Devin CLI only when its native versioned binary is absent; retain native updates independently
   ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.3 --sha 7d341030af1c243eeb334294be31aeb3c58d233c  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
-  scripts/install-harness-shims  # default native unattended permission mode
+  scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
@@ -787,6 +788,14 @@ if [ "$agent_clis_status" -ne 0 ]; then
     exit "$agent_clis_status"
 fi
 
+devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
+if [ ! -x "$devin_native" ]; then
+    if [ -e "$HOME/.local/bin/devin" ] || [ -L "$HOME/.local/bin/devin" ]; then
+        die "native Devin binary is unavailable while its public command exists; inspect before reinstalling"
+    fi
+    install_official "Devin CLI" https://cli.devin.ai/install.sh /bin/bash
+fi
+[ -x "$devin_native" ] || die "official Devin installer did not prepare $devin_native"
 "$script_dir/install-harness-shims"
 "$script_dir/agentstart" config apply --notify
 

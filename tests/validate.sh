@@ -408,6 +408,7 @@ trap 'rm -rf "$skip_test_dir"' EXIT
 # Bare harness shims set unattended permission defaults on session commands.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
 bun test "$root/tests/codex-invocation.test.ts" "$root/tests/harness-config.test.ts"
+bun test "$root/tests/devin-worktree.test.ts" "$root/tests/retire-devin-default-plugin.test.ts"
 "$root/scripts/validate-agent-contract.ts" "$root/scripts/agentstart"
 [ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
@@ -892,6 +893,8 @@ for required_install in \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
+    'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
+    'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \

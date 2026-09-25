@@ -17,8 +17,8 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   without exception — including `~/code/agentguidance`, the general guidance
   skills and their renderer. AgentUsage owns general Claude/Codex/Grok account
   storage and observation, plus Claude/Codex preparation and the shared proxy.
-  AgentStack separately owns Codex sign-ins for the Servers it creates through
-  its package UI; those credentials do not select AgentUsage accounts. Each
+  AgentStack separately owns Codex sign-ins for its Bots and isolated Grok/Devin
+  ACP Worker accounts; those credentials do not select AgentUsage accounts. Each
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides that every
   one of them is installed. `install-agent-clis` runs each checkout's own
@@ -73,6 +73,15 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   codexnk path, never PATH or a request-selected executable, and its installer
   does not start or restart servers.
   The `fork-rebase-policy` wiki page is the contract.
+- AgentStart owns the terminal Devin wrapper at `~/.local/bin/devin`, while the
+  official CLI keeps its own versioned binary, login and session storage. New
+  terminal sessions get an AgentStart-owned Git worktree and a private `.devin`
+  snapshot of the default Role's skills/MCPs. `devin acp`, native utilities,
+  and AgentStack's per-account ACP processes bypass this wrapper's worktree
+  creation; `/prime` is a manually invoked skill. Do not reinstall or remove the
+  sticky user-level `default` Devin plugin during fleet convergence. Retire that
+  exact plugin through the bounded helper only after the installed wrapper's
+  no-plugin skill/MCP path is verified and no live Devin session depends on it.
 - Herdr comes from the official stable Homebrew formula and must speak fleet
   protocol 20 or newer. `scripts/herdr-socket-state` checks every default and
   named server socket before Homebrew may change the installed client bytes.
@@ -113,6 +122,11 @@ Where things go:
 - A new AI tool, harness configuration, npm global, or external skill pack:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
+- The Devin terminal launch path: `scripts/install-harness-shims` publishes the
+  ownership-checked public wrapper and `scripts/devin-worktree.ts` prepares the
+  project worktree. Keep ACP/utility pass-through and the vendor binary separate;
+  changing this path requires a disposable-profile native proof before retiring
+  the old plugin.
 - An agent-facing workflow: classify its authoritative surface using
   `docs/agent-interfaces.md`. Prefer an existing typed MCP for structured
   remote actions, the harness's native mechanism for orchestration and

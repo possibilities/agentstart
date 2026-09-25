@@ -36,11 +36,13 @@ Fx maintenance cycle advances it, so a moving remote branch is never treated
 as approval.
 _Avoid_: latest Fx, Fx version, integration tip.
 
-**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi.
+**Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi, OpenCode, Devin CLI.
 Bare Claude Code and Codex use AgentStart's permission-only shims;
 Codex and Fx shims bind the exact workshop-owned installations; Fx passes
 arguments unchanged. Pi is installed as a bare CLI outside that launch path.
 _Avoid_: agent (ambiguous with the fleet apps), IDE.
+
+**Devin worktree invocation** — AgentStart's owned `~/.local/bin/devin` wrapper around the official versioned binary. Terminal sessions start in a new Git worktree with a private `.devin` copy of the current default Role's skills and MCPs; `/prime` loads its append prompt only when manually called. Utility and ACP commands pass directly to the native CLI, and resume requires an existing AgentStart-owned worktree. The native login and session database remain Devin-owned. _Avoid_: global Devin plugin, in-place project setup, second credential store.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's

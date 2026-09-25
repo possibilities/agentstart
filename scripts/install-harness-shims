@@ -67,6 +67,28 @@ for harness in claude codex fx; do
         fi
     fi
 done
+
+# Devin's vendor launcher is a symlink to its separately installed versioned
+# binary. Replace only that exact link or our own prior wrapper. ACP and utility
+# subcommands pass through to the native binary; terminal sessions get a Role
+# snapshot in a fresh Git worktree.
+devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
+devin_public="$bin_dir/devin"
+devin_marker='# AgentStart-managed Devin worktree shim v1'
+devin_available=0
+if [ -x "$devin_native" ]; then
+    devin_available=1
+    if [ -L "$devin_public" ]; then
+        [ "$(realpath "$devin_public")" = "$(realpath "$devin_native")" ] \
+            || die "refusing to replace a foreign Devin launcher: $devin_public"
+    elif [ -e "$devin_public" ]; then
+        if [ ! -f "$devin_public" ] || ! grep -Fxq "$devin_marker" "$devin_public"; then
+            die "refusing to replace a foreign Devin command: $devin_public"
+        fi
+    fi
+elif [ -e "$devin_public" ] || [ -L "$devin_public" ]; then
+    die "Devin's native binary is unavailable; refusing to change its public command"
+fi
 mkdir -p "$shim_dir" "$bin_dir"
 cli_temp=$(mktemp "$bin_dir/.agentstart.XXXXXX")
 shim_temp=''
@@ -140,6 +162,7 @@ for token in "\$@"; do
     fi
     previous="\$token"
 done
+
 if [ "$harness" = claude ]; then
     exec "\$real" --dangerously-skip-permissions --allow-dangerously-skip-permissions "\$@"
 fi
@@ -150,6 +173,25 @@ EOF
     shim_temp=''
     printf 'Installed shim: %s\n' "$shim"
 done
+
+if [ "$devin_available" -eq 1 ]; then
+    devin_temp=$(mktemp "$bin_dir/.devin.XXXXXX")
+    shim_temp="$devin_temp"
+    printf -v quoted_devin '%q' "$devin_native"
+    printf -v quoted_runner '%q' "$script_dir/devin-worktree.ts"
+    cat >"$devin_temp" <<EOF
+#!/usr/bin/env bash
+$devin_marker
+set -euo pipefail
+native=$quoted_devin
+[ "\${AGENTSTART_SHIM_BYPASS:-0}" != 1 ] || exec "\$native" "\$@"
+exec bun $quoted_runner --native "\$native" -- "\$@"
+EOF
+    chmod 0755 "$devin_temp"
+    mv -f -- "$devin_temp" "$devin_public"
+    shim_temp=''
+    printf 'Installed Devin worktree shim: %s\n' "$devin_public"
+fi
 
 for harness in claude codex; do
     old="$old_dir/$harness"
