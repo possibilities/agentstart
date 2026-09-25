@@ -64,7 +64,7 @@ skills_state_root="$resources_root/skills-state"
 # Board remains installed for archival reads, but its planning entrypoints are
 # retired from managed sessions. Keep this list narrow: it controls both source
 # discovery and exact-name pruning from AgentStart's owned resource tree.
-retired_fleet_skills=(board groom)
+retired_fleet_skills=(board groom bus herdr)
 
 is_retired_fleet_skill() {
     local candidate="$1"

@@ -3,8 +3,8 @@
 AgentStart owns one explicit working role, `default`. Its source directory
 contains the human-facing manager prompt Markdown and its own `mcp.json`. The
 role inventory omits AgentAttention, AgentChats, AgentGrok, AgentHUD, AgentKeys,
-AgentMux, AgentSounds, and AgentSurface MCPs. `skills-exclude.json` removes the
-omitted owners' dedicated skills (`attention`, `bus`, `chats`, `grokbot`, `hud`,
+AgentMux, and AgentSounds MCPs. `skills-exclude.json` removes the
+omitted owners' dedicated skills (`attention`, `chats`, `grokbot`, `hud`,
 `keys`, `sounds`; AgentMux has no standalone skill) from the role's share of the
 common skill set, and the prompt drops their owners' workflows rather than
 prescribing a replacement system. Changing the general

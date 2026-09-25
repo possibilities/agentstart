@@ -247,7 +247,7 @@ fi
 if [ "$check_only" -eq 1 ]; then
     cat <<'EOF'
 Homebrew casks:
-  brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration
+  brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no terminal integration
 
 Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
@@ -269,15 +269,10 @@ Command-line tools:
   "$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal
   PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control
   install AgentStart's detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control
-  brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate
-  herdr integration install claude and codex into their canonical homes
-  scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside Herdr and self-disables after the integration advances
-  herdr plugin link ~/code/agentsurface/plugin  # the fleet popup panes + tab-naming plugin; a link registers the checkout path, so relinking is a safe converge
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
-  scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator's Ctrl-Space prefix
+  scripts/smolmux-config install  # link the operator's Ctrl-Space smolmux key configuration
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
-  scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it
   npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
   npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
@@ -311,8 +306,6 @@ Fixed private fleet resources:
   anomalyco/terminal-control@v<installed termctrl version>: terminal-control
   hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it
   install hunk-review with --copy into the fixed resources
-  herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy
-  install herdr with --copy into the fixed resources
 
 Content convergence (everything below is also scripts/install.sh --content,
 which runs it alone and installs nothing):
@@ -378,8 +371,7 @@ export HOMEBREW_NO_ASK=1
 
 # Grok Build's official Homebrew cask installs its signed release binary as
 # both `grok` and the vendor's `agent` alias. Keep this phase to the native
-# CLI/TUI itself: AgentUsage's Grok inventory does not activate harness credentials,
-# and Herdr does not support Grok sessions yet.
+# CLI/TUI itself: AgentUsage's Grok inventory does not activate harness credentials.
 printf 'Installing or upgrading the Grok Build CLI/TUI (standalone; no fleet launch integration).\n'
 install_or_upgrade_cask grok-build
 
@@ -501,128 +493,6 @@ install -m 0755 "$termctrl_shim" "$termctrl_bin"
 [ "$("$termctrl_bin" --version)" = "$terminal_control_version_output" ] \
     || die "Terminal Control shim does not reach the installed upstream release"
 
-# Herdr is the terminal multiplexer agent sessions run inside — an AI tool by
-# the boundary rubric, so AgentStart's, not the machine's. Homebrew's stable
-# formula owns its binary and normal update path; AgentStart still converges
-# the fleet integrations, plugin, behavior config, and bundled skill below.
-# Package-manager replacement cannot use Herdr's live handoff. Inspect every
-# default/named socket before Homebrew can change the installed client bytes.
-herdr_socket_state=$("$script_dir/herdr-socket-state") \
-    || die "inspecting Herdr server sockets before Homebrew convergence failed"
-herdr_upgrade_allowed="${AGENTSTART_HERDR_ALLOW_UPGRADE:-0}"
-case "$herdr_upgrade_allowed" in
-    0|1) ;;
-    *) die "AGENTSTART_HERDR_ALLOW_UPGRADE must be 0 or 1" ;;
-esac
-herdr_formula_installed=0
-if "$brew_bin" list --formula --versions herdr >/dev/null 2>&1; then
-    herdr_formula_installed=1
-fi
-case "$herdr_socket_state" in
-    inactive)
-        if [ "$herdr_formula_installed" -eq 0 ]; then
-            printf 'Installing Herdr from the official stable formula.\n'
-            install_or_upgrade_formula herdr
-        elif [ "$herdr_upgrade_allowed" -eq 1 ]; then
-            printf 'Installing or upgrading Herdr from the official stable formula.\n'
-            install_or_upgrade_formula herdr
-        else
-            printf 'Preserving the installed Homebrew Herdr version; set AGENTSTART_HERDR_ALLOW_UPGRADE=1 for an inactive maintenance run.\n'
-        fi
-        ;;
-    present)
-        printf 'Deferring Homebrew Herdr installation or upgrade while a server socket is present.\n'
-        ;;
-    uncertain)
-        printf 'Deferring Homebrew Herdr installation or upgrade because server socket state is uncertain.\n'
-        ;;
-    *) die "unexpected Herdr socket state: $herdr_socket_state" ;;
-esac
-
-herdr_bin="$brew_prefix/bin/herdr"
-[ -x "$herdr_bin" ] \
-    || die "Homebrew Herdr is unavailable; stop any remaining server and rerun the installer"
-herdr_protocol=$("$herdr_bin" status client 2>/dev/null \
-    | awk '$1 == "protocol:" { print $2; exit }')
-case "$herdr_protocol" in
-    ''|*[!0-9]*) die "could not read the Homebrew Herdr client protocol" ;;
-esac
-[ "$herdr_protocol" -ge 20 ] \
-    || die "Homebrew Herdr protocol $herdr_protocol is below the fleet minimum 20"
-
-# The harness integrations wire each agent into Herdr. Claude's and Codex's
-# report session identity (for native restore) and deliberately leave lifecycle
-# to Herdr's screen detection. They install after both harness CLIs above, because each one
-# writes inside a harness's own configuration directory that those installers
-# create. Reinstalled unconditionally on every run: a herdr upgrade can leave
-# an integration stale — the reason `herdr integration status --outdated-only`
-# exists — and reinstalling is how it converges. Unlike the harness
-# configuration this installer writes itself, these files belong to Herdr, so
-# ownership and conflict rules are its installer's to enforce, exactly as they
-# are for a fleet checkout's own installer. Herdr supports more harnesses, and
-# adding one here is a deliberate edit.
-install_herdr_integrations() {
-    local harness
-
-    for harness in claude codex; do
-        printf 'Installing the herdr %s integration.\n' "$harness"
-        if [ "$harness" = claude ]; then
-            CLAUDE_CONFIG_DIR="$HOME/.claude" "$herdr_bin" integration install "$harness" \
-                || die "herdr integration install failed: $harness"
-        elif [ "$harness" = codex ]; then
-            CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness" \
-                || die "herdr integration install failed: $harness"
-        fi
-    done
-}
-
-install_herdr_integrations
-
-# Herdr's v8 Codex hook can miss the first SessionStart identity report. Keep
-# the known-working fallback in AgentStart source control and reinstall it
-# after Herdr has converged its own hook. The fallback retains the already-
-# trusted command path, acts only inside Herdr,
-# and self-disables as soon as the managed integration version exceeds 8.
-"$script_dir/install-herdr-codex-session-fallback" --install
-
-# AgentSurface's herdr plugin (the titled fleet TUI popups plus tab naming from
-# a conversation's first prompt) registers by link, not copy: herdr records the
-# checkout path, so a changed checkout needs no relink and relinking the same
-# path is a safe converge. A resident server may temporarily speak a newer
-# protocol than the installed client after an upgrade. Preserve its existing
-# link and defer the idempotent relink until the operator's natural server
-# restart rather than stopping panes to force it.
-# The registered plugin belongs to herdr; the plugin directory belongs to the
-# agentsurface checkout, whose absence is a skip exactly as in
-# install-agent-clis.
-install_herdr_plugins() {
-    local plugin_root="$code_root/agentsurface/plugin"
-    local link_output=''
-
-    if [ ! -f "$plugin_root/herdr-plugin.toml" ]; then
-        printf 'AgentStart installer: no agentsurface plugin at %s; skipping.\n' "$plugin_root"
-        return 0
-    fi
-    printf 'Linking the agentsurface herdr plugin.\n'
-    if ! link_output=$("$herdr_bin" plugin link "$plugin_root" 2>&1); then
-        case "$link_output" in
-            *'"code":"protocol_mismatch"'*)
-                printf 'AgentStart installer: preserving the existing agentsurface plugin link; relink deferred until the natural Herdr server restart: %s\n' \
-                    "$link_output" >&2
-                return 0
-                ;;
-        esac
-        printf '%s\n' "$link_output" >&2
-        die "herdr plugin link failed: $plugin_root"
-    fi
-
-    # A successful link returns the entire plugin record as JSON. The status
-    # line above is sufficient for convergence; replaying that payload can
-    # fail with EAGAIN when an unattended caller has a nonblocking stdout.
-}
-
-install_herdr_plugins
-
 # smolmux owns its consumer and operator source installation. AgentStart
 # delegates the editable command, exact Companion pin, and doctor verification
 # to that entrypoint. Smolmux sessions run arbitrary commands and own no Fx pin.
@@ -641,18 +511,10 @@ else
         "$smolmux_root"
 fi
 
-# smolmux never writes its configuration, so its Herdr-compatible key subset can
+# smolmux never writes its configuration, so its operator key subset can
 # stay linked directly to AgentStart's tracked operator configuration.
 printf "Linking AgentStart's smolmux configuration.\n"
 "$script_dir/smolmux-config" install
-
-# Herdr's live configuration is rendered rather than linked, because Herdr
-# writes its own keys into it and neither checkout may become program-written
-# state. The helper validates the candidate before an atomic replacement and
-# reloads a running server. It carries no palette: Herdr's `terminal` theme
-# follows the terminal, which runs its own default colors.
-printf "Rendering AgentStart's Herdr configuration.\n"
-AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install
 
 command -v npm >/dev/null 2>&1 || die "npm is required to install the Native SDK CLI"
 
@@ -748,29 +610,6 @@ install_hunk_skill() {
 
 printf 'Installing the Hunk review skill from the installed binary.\n'
 install_hunk_skill
-
-# The surface skill — herdr is the fleet's shared launch surface — ships
-# inside the herdr binary (`herdr --skill`), so the installed
-# skill converges with the installed build on every run, exactly like the
-# harness integrations above, and never tracks a different release than the
-# stable formula. The rendered pack lives
-# in a managed state root shaped like a checkout (skills/herdr/) so the same
-# `skills add` mechanism ships it into the fixed private resources. Its
-# description covers explicit Herdr work.
-install_herdr_skill() {
-    local pack_root="$HOME/.local/share/agentstart/herdr-skill"
-    local skill_dir="$pack_root/skills/herdr"
-
-    mkdir -p "$skill_dir"
-    "$herdr_bin" --skill >"$skill_dir/SKILL.md" \
-        || die "rendering the herdr skill from the installed binary failed"
-    [ -s "$skill_dir/SKILL.md" ] \
-        || die "the installed herdr rendered an empty skill"
-    install_private_skill_pack "$pack_root" herdr
-}
-
-printf 'Installing the herdr surface skill from the installed binary.\n'
-install_herdr_skill
 
 printf 'Verifying the installed Native SDK agent documentation helpers.\n'
 native skills list >/dev/null

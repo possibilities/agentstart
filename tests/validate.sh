@@ -22,7 +22,6 @@ scripts/install-agentvoice-android
 scripts/install-pi
 scripts/install-opencode
 scripts/install-harness-shims
-scripts/install-herdr-codex-session-fallback
 scripts/install-notification-shim
 scripts/install-launchagents
 scripts/configure-agentsource-webhooks
@@ -32,8 +31,6 @@ scripts/agent-browser-link.sh
 scripts/smolmux-config
 scripts/agentmux-config
 scripts/agentvoice-config
-scripts/herdr-config
-scripts/herdr-socket-state
 tests/validate.sh
 tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
@@ -41,8 +38,6 @@ tests/agent-browser-link.sh
 tests/smolmux-config.sh
 tests/agentmux-config.sh
 tests/agentvoice-config.sh
-tests/herdr-config.sh
-tests/herdr-socket-state.sh
 tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
 tests/fixtures/npx
@@ -59,12 +54,11 @@ fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi scripts/install-opencode scripts/opencode-config \
     scripts/run-skills-cli \
-    scripts/install-harness-shims scripts/install-herdr-codex-session-fallback scripts/render-capabilities scripts/install-launchagents \
+    scripts/install-harness-shims scripts/render-capabilities scripts/install-launchagents \
     scripts/configure-agentsource-webhooks \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config scripts/herdr-config \
-    scripts/herdr-socket-state; do
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agentbrowse-config.sh ] \
@@ -77,10 +71,6 @@ done
     || fail "smolmux config test is not executable: tests/smolmux-config.sh"
 [ -x tests/agentmux-config.sh ] \
     || fail "agentmux instance config test is not executable: tests/agentmux-config.sh"
-[ -x tests/herdr-config.sh ] \
-    || fail "Herdr config test is not executable: tests/herdr-config.sh"
-[ -x tests/herdr-socket-state.sh ] \
-    || fail "Herdr socket-state test is not executable: tests/herdr-socket-state.sh"
 [ -x tests/agentsource-webhooks.sh ] \
     || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
 [ -x tests/install-launchagents.sh ] \
@@ -92,7 +82,6 @@ done
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-roles.py
 tests/check-role-plugins.sh
-PYTHONDONTWRITEBYTECODE=1 python3 tests/codex-herdr-session-fallback.py
 PYTHONDONTWRITEBYTECODE=1 python3 tests/project-docs.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
 
@@ -175,7 +164,7 @@ import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
 fleet=["agentattention","agentbrain","agentbrowse","agentchats",
-       "agentdesk","agentgrok","agenthud","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentsurface","agentwiki","termctrl"]
+       "agentdesk","agentgrok","agenthud","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
     assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
@@ -183,7 +172,7 @@ assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser"
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
-role_omissions={"agentattention","agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds","agentsurface"}
+role_omissions={"agentattention","agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds"}
 role_servers=json.loads(Path("roles/default/mcp.json").read_text())["mcpServers"]
 assert set(role_servers) == set(servers) - role_omissions
 assert role_omissions.isdisjoint(role_servers)
@@ -292,10 +281,10 @@ grep -q '```mermaid' skills/fleet/MAP.md \
 if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
-grep -F '"tend"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
-    || fail "the fleet resource catalog omits tend"
-jq -e '.skills[] | select(.id == "tend")' site/public/fleet-resources.json >/dev/null \
-    || fail "the fleet resource snapshot omits tend"
+if jq -e '.skills[] | select(.id == "tend" or .id == "bus" or .id == "herdr")' \
+    site/public/fleet-resources.json >/dev/null; then
+    fail "the fleet resource snapshot still advertises a retired Herdr skill"
+fi
 grep -F '"chats"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
     || fail "the fleet resource catalog omits chats"
 jq -e '.skills[] | select(.id == "chats")' site/public/fleet-resources.json >/dev/null \
@@ -633,15 +622,14 @@ fi
 if printf '%s\n' "$sync_plan" | grep -F 'skills add' | grep -F 'agentboard' >/dev/null; then
     fail "skill sync plan still installs retired Board guidance"
 fi
-for retired_skill in board groom; do
+for retired_skill in board groom bus herdr; do
     printf '%s\n' "$sync_plan" \
         | grep -F "retire the $retired_skill skill from the fixed private fleet resources" >/dev/null \
         || fail "skill sync plan omits retired $retired_skill guidance"
 done
-printf '%s\n' "$sync_plan" \
-    | grep -F "npx --yes skills add \"$code_skills_root/agentbus\" --agent claude-code --skill bus --global --copy --yes" \
-        >/dev/null \
-    || fail "skill sync plan skips the bus skill, back in service since 2026-08-17"
+if printf '%s\n' "$sync_plan" | grep -F 'skills add' | grep -F 'agentbus' >/dev/null; then
+    fail "skill sync plan includes retired Herdr bus guidance"
+fi
 printf '%s\n' "$sync_plan" \
     | grep -F "\"$code_skills_root/agentdemo/scripts/post-sync\"" >/dev/null \
     || fail "skill sync plan omits a participant's post-sync hook"
@@ -689,11 +677,11 @@ fi
 if grep -F 'agentboard' "$code_skills_log" >/dev/null; then
     fail "skill sync synchronized retired Board guidance"
 fi
-grep -F "npx-stub <--yes> <skills> <add> <$code_skills_root/agentbus> <--agent> <claude-code> <--skill> <bus> <--global> <--copy> <--yes>" \
-    "$code_skills_log" >/dev/null \
-    || fail "skill sync skipped the bus skill, back in service since 2026-08-17"
-# One invocation each for agentbus, agentdemo, and agentexample.
-[ "$(grep -c 'skills> <add>' "$code_skills_log")" -eq 3 ] \
+if grep -F 'agentbus' "$code_skills_log" >/dev/null; then
+    fail "skill sync installed retired Herdr bus guidance"
+fi
+# One invocation each for agentdemo and agentexample.
+[ "$(grep -c 'skills> <add>' "$code_skills_log")" -eq 2 ] \
     || fail "skill sync did not invoke the skills tool exactly once per source"
 [ -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync did not run a participant's post-sync hook after its skills landed"
@@ -780,11 +768,11 @@ grep -F 'model = "fixture-model"' "$fixture_codex_config" >/dev/null \
     || fail "Codex skill policy replaced unrelated configuration"
 grep -F 'name = "unrelated"' "$fixture_codex_config" >/dev/null \
     || fail "Codex skill policy replaced an unrelated skill entry"
-for fixture_skill in bus demo second example; do
+for fixture_skill in demo second example; do
     grep -F "name = \"agent:$fixture_skill\"" "$fixture_codex_config" >/dev/null \
         || fail "Codex skill policy omitted the managed $fixture_skill skill"
 done
-[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 4 ] \
+[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 3 ] \
     || fail "Codex skill policy did not disable exactly the managed fixture skills"
 
 # A plugin refresh can fail after persistent policy is written. Keep a stale
@@ -816,7 +804,7 @@ HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
 if grep -F 'name = "agent:stale"' "$fixture_codex_config" >/dev/null; then
     fail "successful Codex plugin refresh did not prune a stale skill disable"
 fi
-[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 4 ] \
+[ "$(grep -c '^enabled = false$' "$fixture_codex_config")" -eq 3 ] \
     || fail "successful Codex plugin refresh changed the managed disable set"
 
 fixture_policy_before=$(/usr/bin/shasum -a 256 "$fixture_codex_config" | awk '{print $1}')
@@ -868,8 +856,8 @@ scan_failure_status=$?
 set -e
 [ "$scan_failure_status" -ne 0 ] \
     || fail "skill sync ignored a failing skills tool"
-# The scan walks the root in order, so agentbus is the participant that fails.
-printf '%s\n' "$scan_failure" | grep -F 'agentbus' >/dev/null \
+# The retired bus is skipped, so agentdemo is the first participant that fails.
+printf '%s\n' "$scan_failure" | grep -F 'agentdemo' >/dev/null \
     || fail "skill sync failure does not name the project to fix"
 printf '%s\n' "$scan_failure" | grep -F 'skills-cli-failure-detail' >/dev/null \
     || fail "skill sync hid the skills CLI's captured failure output"
@@ -893,7 +881,7 @@ for required_install in \
     '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
     'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
-    'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration' \
+    'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no terminal integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
@@ -912,12 +900,8 @@ for required_install in \
     '"$(brew --prefix rustup)/bin/rustup" toolchain install stable --profile minimal' \
     'PATH="$(brew --prefix)/opt/zig@0.15/bin:$PATH" "$(brew --prefix rustup)/bin/rustup" run stable cargo install --locked --root "$HOME/.local" terminal-control' \
     'install AgentStart'"'"'s detached-start shim at ~/.local/bin/termctrl while retaining the upstream executable under ~/.local/libexec/agentstart/terminal-control' \
-    'brew install herdr when absent and every default/named server socket is proved inactive; upgrade only with AGENTSTART_HERDR_ALLOW_UPGRADE=1 and the same socket gate' \
-    'herdr integration install claude and codex into their canonical homes' \
-    'scripts/install-herdr-codex-session-fallback --install  # temporary v8 bridge; active only inside Herdr and self-disables after the integration advances' \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
-    'scripts/smolmux-config install  # link the Herdr-compatible smolmux key subset with the operator'"'"'s Ctrl-Space prefix' \
-    'scripts/herdr-config install  # render, validate, and activate the generated Herdr config, then reload it' \
+    'scripts/smolmux-config install  # link the operator'"'"'s Ctrl-Space smolmux key configuration' \
     'npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below' \
     'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
     'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
@@ -941,8 +925,6 @@ for required_install in \
     'anomalyco/terminal-control@v<installed termctrl version>: terminal-control' \
     'hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it' \
     'install hunk-review with --copy into the fixed resources' \
-    'herdr --skill, rendered to ~/.local/share/agentstart/herdr-skill/skills/herdr/SKILL.md  # the surface skill ships inside the binary, so it converges with the installed build, never a stale copy' \
-    'install herdr with --copy into the fixed resources' \
     'narrow vendor provider-origin guidance to retained Claude/Codex values' \
     'render one session-only Claude plugin named agent (/agent:<skill>) with the fleet MCP inventory' \
     'render and refresh the skills-only Codex plugin agent@agentstart-managed' \
@@ -953,6 +935,17 @@ for required_install in \
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
         || fail "installation plan is missing: $required_install"
 done
+
+# Retired Herdr integrations must not come back through either the full
+# installer or its dry-run plan. The skill-sync retirement list is separate.
+if grep -iE 'herdr|agentsurface' scripts/install.sh scripts/install-agent-clis \
+    config/resources/mcp-servers.json >/dev/null; then
+    fail "active fleet installation still references Herdr or AgentSurface"
+fi
+if printf '%s\n' "$install_plan" | grep -iE \
+    'brew install herdr|herdr integration install|herdr plugin link|scripts/herdr-config|skills add .*agentsurface' >/dev/null; then
+    fail "installation plan still includes a retired Herdr action"
+fi
 
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
@@ -1047,14 +1040,6 @@ fi
 if grep -F 'upgrade --channel dev' scripts/install.sh >/dev/null; then
     fail "installer retains the Fx dev channel beside the integration build"
 fi
-# shellcheck disable=SC2016 # Assert the literal environment pin in the installer.
-grep -F 'CODEX_HOME="$HOME/.codex" "$herdr_bin" integration install "$harness"' \
-    scripts/install.sh >/dev/null \
-    || fail "Herdr's Codex integration can inherit a disposable multi-auth CODEX_HOME"
-# shellcheck disable=SC2016 # Assert the literal environment pin in the installer.
-grep -F 'CLAUDE_CONFIG_DIR="$HOME/.claude" "$herdr_bin" integration install "$harness"' \
-    scripts/install.sh >/dev/null \
-    || fail "Herdr's Claude integration can inherit a claude-swap session CLAUDE_CONFIG_DIR"
 # A second neutral participant proves the plan is convention-driven rather
 # than fitted to the first fixture.
 printf '%s\n' "$install_plan" \
@@ -1076,7 +1061,7 @@ fi
 # belong to the machine layer. Grok Build is the sole CLI-only cask exception.
 if printf '%s\n' "$install_plan" | grep -F -- '--cask' \
     | grep -Fv \
-        -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no Herdr integration' \
+        -e 'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no terminal integration' \
     >/dev/null; then
     fail "installation plan contains an unowned Homebrew cask"
 fi
@@ -1176,126 +1161,11 @@ grep -F '"anomalyco/terminal-control@v$terminal_control_version" terminal-contro
     scripts/install.sh >/dev/null \
     || fail "installer does not bind the Terminal Control skill to the installed CLI release"
 
-# Herdr uses the official stable formula. A fresh install and every upgrade
-# must prove all default/named sockets inactive; upgrades also require an
-# explicit maintenance flag. The selected client must meet protocol 20.
-grep -F 'install_or_upgrade_formula zig@0.15' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the Zig 0.15 line Terminal Control builds against"
-grep -F 'install_or_upgrade_formula herdr' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the official stable Herdr formula"
-# shellcheck disable=SC2016
-grep -F 'herdr_socket_state=$("$script_dir/herdr-socket-state")' scripts/install.sh >/dev/null \
-    || fail "installer does not inspect Herdr sockets before Homebrew convergence"
-grep -F 'AGENTSTART_HERDR_ALLOW_UPGRADE must be 0 or 1' scripts/install.sh >/dev/null \
-    || fail "Herdr upgrades do not require explicit maintenance authorization"
-grep -F 'Deferring Homebrew Herdr installation or upgrade while a server socket is present.' scripts/install.sh >/dev/null \
-    || fail "installer does not preserve installed Herdr bytes around a live server"
-# shellcheck disable=SC2016 # Match the literal protocol variable.
-grep -F '[ "$herdr_protocol" -ge 20 ]' scripts/install.sh >/dev/null \
-    || fail "installer does not enforce the fleet Herdr protocol floor"
-# shellcheck disable=SC2016 # Match the literal config-root variable.
-grep -F '[ ! -L "$root" ]' scripts/herdr-socket-state >/dev/null \
-    || fail "Herdr socket inspection follows an uncertain config-root symlink"
-[ ! -e scripts/update-herdr ] \
-    || fail "a second Herdr update path returned"
-if grep -F 'herdr.dev/install.sh' scripts/install.sh >/dev/null; then
-    fail "installer uses Herdr's direct installer instead of Homebrew"
-fi
-grep -F 'install_herdr_integrations' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the herdr harness integrations"
-grep -F 'for harness in claude codex' scripts/install.sh >/dev/null \
-    || fail "herdr integrations do not cover both harnesses the fleet runs"
-# shellcheck disable=SC2016 # Match the literal installer variable.
-grep -F '"$script_dir/install-herdr-codex-session-fallback" --install' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the temporary Herdr Codex session fallback"
-[ -s config/herdr/codex-session-fallback.sh ] \
-    || fail "tracked Herdr Codex session fallback is missing"
-grep -F 'HERDR_ENV' config/herdr/codex-session-fallback.sh >/dev/null \
-    || fail "Herdr Codex session fallback is not isolated to Herdr launches"
-grep -F 'HERDR_INTEGRATION_VERSION' config/herdr/codex-session-fallback.sh >/dev/null \
-    || fail "Herdr Codex session fallback does not retire itself after the v8 integration"
-
-# AgentStart owns Herdr's behavior config and renders it into the live file,
-# because Herdr writes its own keys there. It carries no palette: Herdr's
-# `terminal` theme follows the terminal, which runs its own default colors.
-[ -s config/herdr/config.toml ] \
-    || fail "AgentStart's Herdr base config is missing"
-if grep -F 'plugin pane open --plugin agentsurface --entrypoint launch' config/herdr/config.toml >/dev/null; then
-    fail "retired AgentLaunch form binding remains"
-fi
-grep -F 'plugin pane open --plugin agentsurface --entrypoint usage' \
-    config/herdr/config.toml >/dev/null \
-    || fail "agentusage binding does not open its AgentSurface plugin pane"
-grep -F 'plugin pane open --plugin agentsurface --entrypoint chats' \
-    config/herdr/config.toml >/dev/null \
-    || fail "the session history picker binding does not open its AgentSurface plugin pane"
-grep -F 'HERDR_ACTIVE_PANE_CWD' config/herdr/config.toml >/dev/null \
-    || fail "AgentSurface plugin popup does not preserve the active pane cwd"
-for action in pane tab workspace; do
-    grep -Fqx "close_${action} = \"\"" config/herdr/config.toml \
-        || fail "Herdr's immediate close_${action} action is still enabled"
-done
-for target in pane tab workspace; do
-    grep -F "plugin pane open --plugin agentsurface --entrypoint confirm-close-${target}" \
-        config/herdr/config.toml >/dev/null \
-        || fail "Herdr ${target} close does not open its AgentSurface confirmation pane"
-done
-if grep -E 'confirm-close-(pane|tab|workspace).*--target-pane' \
-    config/herdr/config.toml >/dev/null; then
-    fail "Herdr popup close confirmations pass unsupported layout targets"
-fi
-grep -F 'command = "agentsurface launch"' config/herdr/config.toml >/dev/null \
-    && fail "AgentSurface binding still opens an untitled generic popup"
-grep -F 'command = "escape-to-quit agentusage"' config/herdr/config.toml >/dev/null \
-    && fail "agentusage binding still opens an untitled generic popup"
-if grep -E 'key = "prefix\+[\[\]]"' config/herdr/config.toml >/dev/null; then
-    fail "Herdr config still contains theme-cycling bindings"
-fi
-sidebar_settings=$(grep -E '^sidebar_[[:alnum:]_]* = ' config/herdr/config.toml || true)
-[ "$sidebar_settings" = 'sidebar_max_width = 106
-sidebar_collapsed_mode = "hidden"' ] \
-    || fail "Herdr sidebar does not keep its 50%-of-screen width allowance and hidden collapsed mode"
-if grep -E '^status_indicators = ' config/herdr/config.toml >/dev/null; then
-    fail "Herdr config still customizes the left sidebar beyond its width, sort, and agent rows"
-fi
-# Herdr overwrites the runtime agent sort from config on every reload, so an
-# absent key does not mean "leave it alone" — it means the in-app toggle
-# reverts to grouped whenever this file changes.
-grep -F 'agent_panel_sort = "priority"' config/herdr/config.toml >/dev/null \
-    || fail "Herdr agent panel does not hold the priority sort across config reloads"
-# The Agents panel must name the project (root repository plus worktree branch)
-# and the conversation slug AgentSurface publishes. Herdr's defaults draw the
-# workspace label and the harness kind instead, which identify neither, and
-# this has regressed twice — pin the rows, not just the section.
-grep -F '[ui.sidebar.agents]' config/herdr/config.toml >/dev/null \
-    || fail "Herdr agent sidebar rows are missing"
-grep -F "[\"state_icon\", { token = \"\$project\", bold = true, dim = false }]," \
-    config/herdr/config.toml >/dev/null \
-    || fail "Herdr agent sidebar does not lead with AgentSurface's \$project token"
-grep -F "[\"\$conversation\"]," config/herdr/config.toml >/dev/null \
-    || fail "Herdr agent sidebar does not show AgentSurface's \$conversation slug"
-grep -F 'delivery = "off"' config/herdr/config.toml >/dev/null \
-    || fail "Herdr native notifications are not disabled"
-grep -Fqx 'version_check = true' config/herdr/config.toml \
-    || fail "Herdr stable version checking is not enabled"
-for sound in "done" request; do
-    [ -s "assets/herdr-sounds/${sound}.mp3" ] \
-        || fail "Herdr ${sound} sound is missing from AgentStart"
-    grep -Fqx "${sound}_path = \"../../code/agentstart/assets/herdr-sounds/${sound}.mp3\"" \
-        config/herdr/config.toml \
-        || fail "Herdr ${sound} sound does not resolve to AgentStart's owned asset"
-done
-if grep -F 'code/funk/assets/herdr-sounds' config/herdr/config.toml >/dev/null; then
-    fail "Herdr sound config still crosses into Funk"
-fi
-grep -Fqx 'name = "terminal"' config/herdr/config.toml \
-    || fail "Herdr does not follow the terminal's own palette"
-if grep -Eq '^\[theme\.custom\]' config/herdr/config.toml; then
-    fail "Herdr config carries a custom palette instead of following the terminal"
-fi
 # Smolmux owns its editable command, exact Companion pin, and doctor verification
 # in its canonical source installer. AgentStart supplies the shared binary
 # destination.
+grep -F 'install_or_upgrade_formula zig@0.15' scripts/install.sh >/dev/null \
+    || fail "installer does not converge the Zig 0.15 line Terminal Control builds against"
 # shellcheck disable=SC2016 # Match the literal installer variable.
 grep -F 'SMOLMUX_INSTALL_BIN_DIR="$HOME/.local/bin"' scripts/install.sh >/dev/null \
     || fail "installer does not give Smolmux the shared binary destination"
@@ -1306,7 +1176,7 @@ if grep -F 'Dcompanion' scripts/install.sh >/dev/null; then
     fail "installer builds the Companion by hand instead of through smolmux's script"
 fi
 # smolmux's config is linked because smolmux does not mutate it; both the tracked source
-# and the installer stay pinned to the same Ctrl-Space prefix used by Herdr.
+# and the installer stay pinned to the operator's Ctrl-Space prefix.
 grep -Fqx 'prefix = "ctrl+space"' config/smolmux/config.toml \
     || fail "smolmux config does not use the operator's Ctrl-Space prefix"
 # shellcheck disable=SC2016 # Match the literal installer variable.
@@ -1319,39 +1189,6 @@ tests/agentvoice-config.sh
 grep -F '"$script_dir/agentvoice-config" install' scripts/install.sh >/dev/null \
     || fail "AgentVoice configuration is not wired into installation"
 
-# shellcheck disable=SC2016 # Match the literal installer variables.
-grep -F 'AGENTSTART_HERDR_BIN="$herdr_bin" "$script_dir/herdr-config" install' scripts/install.sh >/dev/null \
-    || fail "installer does not render the Herdr config"
-tests/herdr-config.sh
-tests/herdr-socket-state.sh
-
-# The AgentSurface popup-pane and tab-naming plugin registers by checkout path;
-# linking every run is the converge, and a missing agentsurface checkout is a
-# skip, not a failure.
-grep -F 'install_herdr_plugins' scripts/install.sh >/dev/null \
-    || fail "installer does not link the agentsurface herdr plugin"
-# shellcheck disable=SC2016 # Match the literal link invocation, $-sign and all.
-grep -F '"$herdr_bin" plugin link "$plugin_root"' scripts/install.sh >/dev/null \
-    || fail "the agentsurface plugin is not registered by checkout path"
-# shellcheck disable=SC2016 # Match the literal captured-output variable.
-if grep -F 'printf '\''%s\\n'\'' "$link_output"' scripts/install.sh >/dev/null; then
-    fail "plugin convergence replays Herdr's successful JSON payload"
-fi
-grep -F 'protocol_mismatch' scripts/install.sh >/dev/null \
-    || fail "plugin convergence cannot preserve a newer resident server"
-grep -F 'relink deferred until the natural Herdr server restart' scripts/install.sh >/dev/null \
-    || fail "deferred plugin convergence does not report the client/server skew"
-# The surface skill ships inside the binary (`herdr --skill`) and converges
-# with the installed build; a GitHub-sourced copy would track a different
-# head than the installed herdr and grow a second update path.
-grep -F 'install_herdr_skill' scripts/install.sh >/dev/null \
-    || fail "installer does not converge the herdr surface skill"
-# shellcheck disable=SC2016 # Match the literal selected runtime variable.
-grep -F '"$herdr_bin" --skill' scripts/install.sh >/dev/null \
-    || fail "the herdr skill is not rendered from the installed binary"
-if grep -E 'skills add https://github.com/[^ ]*herdr' scripts/install.sh >/dev/null; then
-    fail "the herdr skill tracks the GitHub head instead of the installed binary"
-fi
 # Hunk's bundled skill is generated from the same command surface as the
 # installed binary. A GitHub-sourced copy could move ahead of Homebrew and
 # teach agents flags their local Hunk does not accept.
@@ -1424,7 +1261,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1433,7 +1270,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentnotify agentstack; do
+    agentscrape agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentnotify agentstack; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

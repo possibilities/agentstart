@@ -27,7 +27,7 @@ const categoryCatalog = [
   {
     id: "operate",
     label: "Operate tools and interfaces",
-    description: "Work through browsers, native apps, terminals, messages, and the live agent surface.",
+    description: "Work through browsers, native apps, terminals, and messages.",
     skills: [
       "browser",
       "desktop",
@@ -35,8 +35,6 @@ const categoryCatalog = [
       "email",
       "notify",
       "keys",
-      "herdr",
-      "bus",
       "hunk-review",
     ],
   },
@@ -67,7 +65,6 @@ const displayNames = {
   brain: "Brain",
   browser: "Browser",
   build: "Build",
-  bus: "Agent Bus",
   chats: "Past Chats",
   collab: "Collaborate",
   desktop: "Desktop",
@@ -75,7 +72,6 @@ const displayNames = {
   "find-skills": "Find Skills",
   fleet: "Fleet Map",
   hud: "Durable Work HUD",
-  herdr: "Herdr",
   "hunk-review": "Hunk Review",
   keys: "Keyboard Shortcuts",
   maintain: "Maintain a Fork",

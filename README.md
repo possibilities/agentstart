@@ -172,26 +172,11 @@ Set `AGENTSTART_AGENTVOICE_ANDROID_HOST` to select a host other than
 `install-agent-clis`, and `sync-skills`; phone deployment is never an
 unattended convergence side effect.
 
-## Herdr and Ghostty color
+## Terminal color and smolmux
 
-There is no theme manager. Ghostty runs its built-in default colors, Herdr's
-`terminal` theme follows whatever the terminal shows, and tmux styles its
-chrome with ANSI indices that resolve the same way. No layer names a color of
-its own, so the terminal is the only place a palette could ever be set.
-
-`scripts/herdr-config install` renders AgentStart's tracked behavior config
-into `~/.config/herdr/config.toml`, checks the candidate with `herdr config
-check`, atomically replaces the live file, and asks a running server to reload.
-It is rendered rather than linked because Herdr writes its own keys into that
-file, and neither checkout may become program-written state.
-
-Until Herdr's Codex integration advances past v8,
-`scripts/install-herdr-codex-session-fallback --install` also converges a
-temporary `SessionStart` identity bridge at its existing trusted hook path.
-It runs only inside Herdr, uses Herdr's public
-`pane report-agent-session` command, and self-disables for newer integration
-versions. The dedicated installer has an explicit `--uninstall` retirement
-path; no Herdr source patch is installed.
+There is no theme manager. Ghostty runs its built-in default colors, and tmux
+styles its chrome with ANSI indices that resolve the same way. No layer names
+a color of its own, so the terminal is the only place a palette could be set.
 
 Smolmux installs through `~/code/smolmux/scripts/install.sh`, its canonical
 consumer path. Smolmux owns the editable `smolmux` command, pinned Companion,
@@ -201,8 +186,7 @@ checkout skips it.
 
 `scripts/smolmux-config install` links `config/smolmux/config.toml` into
 `~/.config/smolmux/config.toml`. smolmux does not write that file, and its `[keys]`
-schema is a strict subset of Herdr's; both operator configs use `ctrl+space` as
-their prefix.
+schema carries the operator's `ctrl+space` prefix.
 
 `scripts/agentmux-config install` links `config/agentmux/instances/default.yaml`
 into `~/.config/agentmux/instances/default.yaml`: the default agentmux instance's

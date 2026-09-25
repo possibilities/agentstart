@@ -73,7 +73,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain agentusage agentsurface agentsounds agentgrok agentvoice agenthud agentroles agentstack agentmux agentnotify agentwork; do
+    agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles agentstack agentmux agentnotify agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

@@ -170,7 +170,7 @@ class RoleRender(unittest.TestCase):
         self.assertTrue(servers)
         self.assertTrue({
             "agentattention", "agentchats", "agentfx", "agentgrok",
-            "agenthud", "agentkeys", "agentmux", "agentsounds", "agentsurface",
+            "agenthud", "agentkeys", "agentmux", "agentsounds",
         }.isdisjoint(name.lower() for name in servers))
         for server in servers.values():
             self.assertEqual(set(server), {"command", "args"})
@@ -232,7 +232,7 @@ class RoleRender(unittest.TestCase):
             self.assertNotIn(retired, guidance)
 
     def test_shipped_default_skill_filter_excludes_removed_mcp_skills(self):
-        excluded = ["attention", "bus", "chats", "grokbot", "hud", "keys", "sounds"]
+        excluded = ["attention", "chats", "grokbot", "hud", "keys", "sounds"]
         retained = ["browser", "build", "collab", "maintain", "notifications",
                     "notify", "wiki"]
         for name in excluded + retained:
@@ -273,7 +273,7 @@ class RoleRender(unittest.TestCase):
             "AgentHUD", "agenthud", "AgentChats", "agentchats",
             "AgentAttention", "agentattention", "AgentGrok", "agentgrok",
             "AgentKeys", "agentkeys", "AgentMux", "agentmux",
-            "AgentSounds", "agentsounds", "AgentSurface", "agentsurface",
+            "AgentSounds", "agentsounds",
             "routing-receipt", "nextAction", "Needs you",
         ):
             self.assertNotIn(owner, prompt)

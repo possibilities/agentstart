@@ -80,12 +80,6 @@
         "mcp"
       ]
     },
-    "agentsurface": {
-      "command": "${HOME}/.local/bin/agentsurface",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentwiki": {
       "command": "${HOME}/.local/bin/agentwiki",
       "args": [

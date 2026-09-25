@@ -82,14 +82,6 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   sticky user-level `default` Devin plugin during fleet convergence. Retire that
   exact plugin through the bounded helper only after the installed wrapper's
   no-plugin skill/MCP path is verified and no live Devin session depends on it.
-- Herdr comes from the official stable Homebrew formula and must speak fleet
-  protocol 20 or newer. `scripts/herdr-socket-state` checks every default and
-  named server socket before Homebrew may change the installed client bytes.
-  A missing formula installs once the sockets are proved inactive. An existing
-  formula upgrades only during an explicitly authorized inactive maintenance
-  run with `AGENTSTART_HERDR_ALLOW_UPGRADE=1`. A present socket or uncertain
-  state defers either operation. Package-manager updates cannot use Herdr's
-  live handoff, so never weaken that gate around resident agents.
 - Fleet repository guidance identifies the shared owners that apply there:
   the skill scan and its cadence, this repository's fleet map, and
   AgentGuidance's general doctrine. When a shared convention changes, update
@@ -199,10 +191,6 @@ Where things go:
   The replaceable AgentVoice test pair is the one source-checkout exception to
   the installed-public-command rule; ADR 0023 keeps its fixed checkout,
   workspace, origin, two labels, and eventual deletion as one boundary.
-- A fleet TUI bound to a Herdr popup: always add a pane entrypoint to the
-  `agentsurface` plugin, then bind the key to `herdr plugin pane open`. The
-  tool continues to own its TUI; the shared plugin owns the popup title and
-  geometry so the dialog is also exposed through Herdr's plugin surface.
 - A statusline change: `config/statusline/`, converged by
   `scripts/install-statusline`. One bar in two harness idioms, because that is
   all the harnesses offer — Claude runs a render command per frame, while
@@ -232,9 +220,9 @@ AgentStart owns `roles/default`: prompt Markdown and its complete MCP inventory.
 `scripts/render-roles` assembles it through the normal resource sync and safely
 retires intact AgentStart-owned `manager` and `worker` outputs. Changing the
 common inventory does not automatically change the role roster. The default role
-omits the Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface MCPs and,
+omits the Attention, Chats, Grok, HUD, Keys, Mux, and Sounds MCPs and,
 through `roles/default/skills-exclude.json`, their dedicated skills (`attention`,
-`bus`, `chats`, `grokbot`, `hud`, `keys`, `sounds`; AgentMux has no standalone
+`chats`, `grokbot`, `hud`, `keys`, `sounds`; AgentMux has no standalone
 skill). The prompt drops those owners' workflows rather than prescribing a
 replacement; generic native worker report-and-review accountability remains,
 and there is no separate worker role. Preserve this boundary through
