@@ -1,4 +1,4 @@
-# 0044: Deliver Devin's default Role in a per-session worktree
+# 0045: Deliver Devin's default Role in a per-session worktree
 
 Accepted September 24, 2026. Extends [ADR 0040](0040-collapse-explicit-roles-to-default.md)'s one Role and [ADR 0041](0041-bind-harness-shims-to-owned-forks.md)'s separation of vendor commands from AgentStart wrappers. Replaces the machine's previously installed sticky `default` Devin plugin for ordinary AgentStart terminal launches; AgentRoles retains its explicit plugin-install feature for other users.
 

@@ -1,0 +1,108 @@
+#!/bin/bash
+
+set -euo pipefail
+
+version=2.0.16
+package="@opencode/cli@$version"
+prefix="${AGENTSTART_OPENCODE2_PREFIX:-$HOME/.local/libexec/agentstart/opencode2}"
+bin_dir="${AGENTSTART_OPENCODE_BIN_DIR:-$HOME/.local/bin}"
+target="$bin_dir/opencode"
+retired_link="$bin_dir/opencode2"
+legacy_bin="$HOME/.opencode/bin/opencode"
+owner_marker="$prefix/.agentstart-opencode2-owner"
+owner='agentstart.opencode2.v1'
+
+die() {
+    printf 'AgentStart OpenCode installer: %s\n' "$*" >&2
+    exit 1
+}
+
+case "${1:-}" in
+    --check)
+        printf '  scripts/install-opencode --install  # %s in a private prefix; publish ~/.local/bin/opencode, retire the verified V1 executable and owned opencode2 link\n' "$package"
+        exit 0
+        ;;
+    --install) ;;
+    *) printf 'Usage: install-opencode [--install|--check]\n' >&2; exit 64 ;;
+esac
+[ "$#" -eq 1 ] || { printf 'Usage: install-opencode [--install|--check]\n' >&2; exit 64; }
+
+case "$prefix:$bin_dir" in
+    /*:/*) ;;
+    *) die 'prefix and bin directory must be absolute paths' ;;
+esac
+command -v npm >/dev/null 2>&1 || die 'npm is required'
+
+# The private npm prefix belongs to this helper alone. An interrupted install
+# leaves the marker so rerunning can finish, but a foreign directory is never
+# adopted just because it happens to contain an npm package.
+if [ -e "$prefix" ] || [ -L "$prefix" ]; then
+    [ -d "$prefix" ] && [ ! -L "$prefix" ] || die "not an owned directory: $prefix"
+    [ -f "$owner_marker" ] && [ ! -L "$owner_marker" ] &&
+        [ "$(<"$owner_marker")" = "$owner" ] \
+        || die "refusing to replace an independent prefix: $prefix"
+fi
+if [ -e "$target" ] || [ -L "$target" ]; then
+    [ -L "$target" ] && [ "$(readlink "$target")" = "$prefix/bin/opencode" ] \
+        || die "refusing to replace an independent command: $target"
+fi
+if [ -e "$retired_link" ] || [ -L "$retired_link" ]; then
+    [ -L "$retired_link" ] && [ "$(readlink "$retired_link")" = "$prefix/bin/opencode2" ] \
+        || die "refusing to retire an independent command: $retired_link"
+fi
+if [ -e "$legacy_bin" ] || [ -L "$legacy_bin" ]; then
+    [ -f "$legacy_bin" ] && [ ! -L "$legacy_bin" ] && [ -x "$legacy_bin" ] &&
+        [ "$(stat -f %u "$legacy_bin")" = "$(id -u)" ] \
+        || die "refusing to retire an independent or unreadable executable: $legacy_bin"
+    legacy_version=$("$legacy_bin" --version) || die "cannot verify legacy opencode: $legacy_bin"
+    [[ "$legacy_version" =~ ^(opencode[[:space:]]+)?v?1\. ]] \
+        || die "refusing to retire an unexpected opencode version: $legacy_version"
+fi
+active=$(command -v opencode 2>/dev/null || true)
+if [ -n "$active" ] && [ "$active" != "$target" ]; then
+    [ "$active" = "$HOME/.opencode/bin/opencode" ] \
+        || die "PATH already resolves opencode to another command: $active"
+    old_version=$("$active" --version) || die "cannot verify existing opencode: $active"
+    [[ "$old_version" =~ ^(opencode[[:space:]]+)?v?1\. ]] \
+        || die "refusing to shadow an unexpected opencode version: $old_version"
+fi
+
+mkdir -p "$prefix"
+if [ ! -f "$owner_marker" ]; then
+    printf '%s\n' "$owner" >"$owner_marker"
+fi
+private_bin="$prefix/bin/opencode"
+if [ ! -x "$private_bin" ] || [ "$("$private_bin" --version)" != "opencode v$version" ] || \
+    ! npm list --global --prefix "$prefix" --depth=0 @opencode/cli >/dev/null 2>&1; then
+    printf 'Installing %s into the private OpenCode prefix.\n' "$package"
+    npm install --global --prefix "$prefix" --no-fund --no-audit --loglevel=error --progress=false "$package"
+fi
+npm list --global --prefix "$prefix" --depth=0 @opencode/cli >/dev/null \
+    || die "npm cannot verify $package under $prefix"
+
+[ -x "$private_bin" ] || die "npm did not install an executable: $private_bin"
+private_version=$("$private_bin" --version) || die "OpenCode 2 failed its version check"
+[ "$private_version" = "opencode v$version" ] \
+    || die "expected OpenCode $version, got $private_version"
+
+mkdir -p "$bin_dir"
+if [ ! -L "$target" ]; then
+    ln -s "$private_bin" "$target"
+fi
+[ -x "$target" ] && [ "$(readlink "$target")" = "$private_bin" ] \
+    || die "the public opencode command does not reach $private_bin"
+[ "$("$target" --version)" = "$private_version" ] \
+    || die "the public opencode command does not run the verified build"
+
+if [ -L "$retired_link" ]; then
+    rm "$retired_link"
+fi
+if [ -f "$legacy_bin" ]; then
+    rm "$legacy_bin"
+fi
+[ ! -e "$legacy_bin" ] && [ ! -L "$legacy_bin" ] || die "legacy opencode executable remains: $legacy_bin"
+hash -r
+[ "$(command -v opencode 2>/dev/null || true)" = "$target" ] \
+    || die "opencode is installed at $target but PATH does not select it"
+printf 'OpenCode %s is available as %s; the V1 executable was retired without touching user data or live processes.\n' \
+    "$version" "$target"

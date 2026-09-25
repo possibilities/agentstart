@@ -127,11 +127,12 @@ Where things go:
   project worktree. Keep ACP/utility pass-through and the vendor binary separate;
   changing this path requires a disposable-profile native proof before retiring
   the old plugin.
-- OpenCode 2 is the side-by-side harness exception: `scripts/install-opencode2`
-  installs the verified `@opencode/cli` release into an AgentStart-owned private
-  npm prefix and publishes only `~/.local/bin/opencode2`. Preserve the existing
-  `opencode` executable until a separate cutover. AgentRoles accepts either
-  command name and probes that exact binary before rendering its role.
+- OpenCode 2 is the default harness: `scripts/install-opencode` installs the
+  verified `@opencode/cli` release into an AgentStart-owned private npm prefix
+  and publishes `~/.local/bin/opencode`. After verifying V2, it retires the
+  exact legacy V1 executable and the owned `opencode2` link without touching
+  user data or already running processes. AgentRoles requires V2 under the
+  `opencode` name before rendering its role.
 - An agent-facing workflow: classify its authoritative surface using
   `docs/agent-interfaces.md`. Prefer an existing typed MCP for structured
   remote actions, the harness's native mechanism for orchestration and

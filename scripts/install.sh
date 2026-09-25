@@ -254,7 +254,7 @@ Command-line tools:
    install the official Devin CLI only when its native versioned binary is absent; retain native updates independently
   ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.3 --sha 7d341030af1c243eeb334294be31aeb3c58d233c  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
-  scripts/install-opencode2 --install  # @opencode/cli@2.0.16 in a private prefix; publish only ~/.local/bin/opencode2 and preserve opencode
+  scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
@@ -397,7 +397,7 @@ codexnk_installer="$code_root/codexnk/scripts/install.sh"
 "$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"
 
 "$script_dir/install-pi" --install
-"$script_dir/install-opencode2" --install
+"$script_dir/install-opencode" --install
 
 # Keep Plannotator's harness-facing resources inside AgentStart's fixed set.
 # --minimal asks the upstream installer for only its checksummed release binary:

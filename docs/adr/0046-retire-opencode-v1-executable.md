@@ -1,0 +1,5 @@
+# 0046: Retire the OpenCode V1 executable after V2 verification
+
+Accepted September 24, 2026. Extends [ADR 0044](0044-cut-over-opencode-command-to-v2.md) and supersedes its temporary V1-executable retention. AgentStack's Worker ACP runtime moves to OpenCode V2 in its separately isolated account profiles.
+
+AgentStart's `scripts/install-opencode --install` verifies the pinned V2 package and public `~/.local/bin/opencode` command, then removes the exact `~/.opencode/bin/opencode` file only when it is a user-owned, regular, executable OpenCode V1 binary. A symlink, an unexpected version or a foreign command fails preflight without changing that path. The owned `opencode2` link is also retired. Already running V1 processes are not stopped or restarted; removing their launch file does not delete their active process image. The surrounding `~/.opencode` directory, credentials and session history remain untouched. New invocations select V2; an older shell with a hashed command location may need a new shell or `rehash`.
