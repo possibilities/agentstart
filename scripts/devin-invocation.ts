@@ -69,6 +69,12 @@ function snapshotFiles(target: string): Record<string, string> {
   return files;
 }
 
+function renderGitignore(target: string): string {
+  const entries = readdirSync(target, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+  const lines = entries.map((entry) => `/${entry.name}${entry.isDirectory() ? "/" : ""}`);
+  return `# AgentStart Devin invocation snapshot.\n/.gitignore\n${lines.join("\n")}\n`;
+}
+
 function renderRole(repo: string, role: string, home: string, id: string): Record<string, string> {
   const target = join(repo, ".devin");
   if (existsSync(target) || lstatExists(target)) throw new Error("project already contains .devin; refusing to overwrite it");
@@ -90,6 +96,7 @@ function renderRole(repo: string, role: string, home: string, id: string): Recor
   mkdirSync(prime, { mode: 0o700 });
   const instructions = readFileSync(join(role, "APPEND_SYSTEM_PROMPT.md"), "utf8");
   writeFileSync(join(prime, "SKILL.md"), `---\nname: prime\ndescription: Load AgentStart's working instructions when explicitly invoked\ntriggers: [user]\n---\n\n${instructions}\n`, { mode: 0o600 });
+  writeFileSync(join(target, ".gitignore"), renderGitignore(target), { mode: 0o600 });
   return snapshotFiles(target);
 }
 

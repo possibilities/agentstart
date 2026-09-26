@@ -38,6 +38,15 @@ test("prepares Role snapshot in the original repo and retains its edits", () => 
   expect(readFileSync(join(repo, ".devin/skills/review/SKILL.md"), "utf8")).toContain("Review changes.");
   expect(JSON.parse(readFileSync(join(repo, ".devin/mcp_config.local.json"), "utf8")).mcpServers.example.command).toBe(join(home, "bin/tool"));
   expect(statSync(join(repo, ".devin/mcp_config.local.json")).mode & 0o777).toBe(0o600);
+  expect(readFileSync(join(repo, ".devin/.gitignore"), "utf8")).toBe(
+    "# AgentStart Devin invocation snapshot.\n/.gitignore\n/agentstart-owner.json\n/config.json\n/mcp_config.local.json\n/skills/\n");
+  expect(git(repo, ["status", "--porcelain", "--untracked-files=all"])).toBe("?? not-committed.txt");
+  expect(git(repo, ["check-ignore", ".devin/.gitignore", ".devin/agentstart-owner.json",
+    ".devin/mcp_config.local.json", ".devin/skills/prime/SKILL.md"]).split("\n")).toHaveLength(4);
+  expect(Bun.spawnSync(["git", "-C", repo, "check-ignore", "-q", ".devin/local.md"]).exitCode).toBe(1);
+  git(repo, ["add", "-A"]);
+  expect(git(repo, ["diff", "--cached", "--name-only"])).toBe("not-committed.txt");
+  git(repo, ["reset", "-q"]);
   expect(git(repo, ["worktree", "list", "--porcelain"]).split("\n").filter(line => line.startsWith("worktree "))).toHaveLength(1);
   expect(git(repo, ["rev-parse", "HEAD"])).toBe(head);
   expect(readFileSync(join(repo, "not-committed.txt"), "utf8")).toContain("visible");
@@ -109,6 +118,7 @@ test("preserves foreign and changed project content", () => {
   expect(cleanupDevinInvocations(state, () => null)).toBe(1);
   expect(readFileSync(join(repo, ".devin/skills/review/SKILL.md"), "utf8")).toContain("Human changed");
   expect(readFileSync(join(repo, ".devin/notes.txt"), "utf8")).toContain("Human note");
+  expect(git(repo, ["status", "--porcelain"])).toBe("?? .devin/");
 });
 
 test("cleanup refuses a replaced ownership marker and does not follow a substituted skill directory", () => {
