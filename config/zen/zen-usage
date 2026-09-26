@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# AgentStart-managed zen-usage shim v1
+# Reset Zen to the usage dashboards: quit the app, discard the saved session
+# so nothing reopens, relaunch, and open the declared container/URL set
+# through zen-open. Regenerate with agentstart/scripts/install-zen-open; do
+# not edit in place.
+set -euo pipefail
+
+die() {
+    printf 'zen-usage: %s\n' "$*" >&2
+    exit 1
+}
+
+zen_root="${ZEN_ROOT:-$HOME/Library/Application Support/zen}"
+zen_app="${ZEN_APP:-/Applications/Zen.app}"
+zen_open_bin="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/zen-open"
+[ -x "$zen_open_bin" ] || zen_open_bin=zen-open
+
+# Declared set: <container>|<url>, opened in listed order. Containers run
+# highest-numbered first within each URL.
+open_set=(
+    "account-2|https://chatgpt.com/codex/cloud/settings/analytics#usage"
+    "account-1|https://chatgpt.com/codex/cloud/settings/analytics#usage"
+    "account-1|https://claude.ai/code#settings/usage"
+    "account-2|https://app.devin.ai/settings/usage"
+    "account-1|https://app.devin.ai/settings/usage"
+)
+
+usage() {
+    cat <<'EOF'
+Usage: zen-usage
+
+Reset Zen to the usage dashboards: quits the app, discards the saved session
+so nothing reopens, relaunches, and opens the declared container/URL set.
+EOF
+}
+
+profile_dir() {
+    /usr/bin/python3 - "$zen_root" <<'PY'
+import configparser
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+installs = root / "installs.ini"
+if installs.is_file():
+    cfg = configparser.ConfigParser()
+    cfg.read(installs)
+    for section in cfg.sections():
+        rel = cfg[section].get("Default")
+        if rel and (root / rel / "containers.json").is_file():
+            print(root / rel)
+            sys.exit(0)
+candidates = sorted(
+    root.glob("Profiles/*/containers.json"),
+    key=lambda p: p.stat().st_mtime,
+    reverse=True,
+)
+if candidates:
+    print(candidates[0].parent)
+    sys.exit(0)
+sys.exit(3)
+PY
+}
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+esac
+[ "$#" -eq 0 ] || { usage >&2; exit 64; }
+[ -d "$zen_app" ] || die "Zen is not installed at $zen_app"
+profile=$(profile_dir) \
+    || die "no Zen profile with containers.json under $zen_root"
+
+if pgrep -x zen >/dev/null 2>&1; then
+    osascript -e 'tell application id "app.zen-browser.zen" to quit' >/dev/null \
+        || die "could not ask Zen to quit"
+    for _ in $(seq 1 30); do
+        pgrep -x zen >/dev/null 2>&1 || break
+        sleep 0.5
+    done
+    pgrep -x zen >/dev/null 2>&1 \
+        && die "Zen is still running after the quit request"
+fi
+
+rm -f "$profile/sessionstore.jsonlz4" \
+    "$profile/sessionstore-backups/recovery.jsonlz4" \
+    "$profile/sessionstore-backups/recovery.baklz4" \
+    "$profile/sessionstore-backups/previous.jsonlz4"
+
+open -a "$zen_app"
+for _ in $(seq 1 40); do
+    pgrep -x zen >/dev/null 2>&1 && break
+    sleep 0.5
+done
+# Let the browser and the ext+container handler extension finish starting
+# before the external opens arrive; cold-started opens can be dropped.
+sleep 4
+
+for entry in "${open_set[@]}"; do
+    "$zen_open_bin" "${entry%%|*}" "${entry#*|}"
+done
+printf 'zen-usage: opened %s dashboard tabs\n' "${#open_set[@]}"

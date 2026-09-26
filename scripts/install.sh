@@ -257,6 +257,7 @@ Command-line tools:
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
+  scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
@@ -640,6 +641,15 @@ if [ ! -x "$devin_native" ]; then
 fi
 [ -x "$devin_native" ] || die "official Devin installer did not prepare $devin_native"
 "$script_dir/install-harness-shims"
+
+# Zen itself is the machine layer's Brewfile cask. What AgentStart owns is the
+# agent-facing container capability: a managed policies.json inside the app
+# bundle force-installing the ext+container handler extension and
+# pre-authorizing the scheme, plus the zen-open helper that speaks it and the
+# zen-usage reset. A machine without the app skips inside the script; Zen's
+# self-updater removes the bundle file, so ordinary convergence re-asserts it.
+"$script_dir/install-zen-open" --install
+
 "$script_dir/agentstart" config apply --notify
 
 # Agentbrowse and agent-browser do not write these configs during normal

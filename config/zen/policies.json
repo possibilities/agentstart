@@ -1,0 +1,17 @@
+{
+  "policies": {
+    "ExtensionSettings": {
+      "{f069aec0-43c5-4bbf-b6b4-df95c4326b98}": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/file/3566167/open_url_in_container-1.0.3.xpi",
+        "override_update_url": true
+      }
+    },
+    "Preferences": {
+      "network.protocol-handler.external.ext+container": {
+        "Value": true,
+        "Status": "default"
+      }
+    }
+  }
+}

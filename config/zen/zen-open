@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# AgentStart-managed zen-open shim v1
+# Open a URL in a named Zen container through the ext+container: protocol
+# handler. The managed policy this repo installs (config/zen/policies.json)
+# force-installs the handler extension; regenerate this file with
+# agentstart/scripts/install-zen-open, do not edit in place.
+set -euo pipefail
+
+zen_root="${ZEN_ROOT:-$HOME/Library/Application Support/zen}"
+zen_app="${ZEN_APP:-/Applications/Zen.app}"
+extension_id='{f069aec0-43c5-4bbf-b6b4-df95c4326b98}'
+
+die() {
+    printf 'zen-open: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: zen-open [--list] <container> <url>
+
+Open URL in the named Zen container through the managed ext+container:
+handler. <container> matches a container name exactly, then
+case-insensitively, then as a substring. --list prints the containers in the
+default profile.
+EOF
+}
+
+profile_dir() {
+    /usr/bin/python3 - "$zen_root" <<'PY'
+import configparser
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+installs = root / "installs.ini"
+if installs.is_file():
+    cfg = configparser.ConfigParser()
+    cfg.read(installs)
+    for section in cfg.sections():
+        rel = cfg[section].get("Default")
+        if rel and (root / rel / "containers.json").is_file():
+            print(root / rel)
+            sys.exit(0)
+candidates = sorted(
+    root.glob("Profiles/*/containers.json"),
+    key=lambda p: p.stat().st_mtime,
+    reverse=True,
+)
+if candidates:
+    print(candidates[0].parent)
+    sys.exit(0)
+sys.exit(3)
+PY
+}
+
+list_containers() {
+    /usr/bin/python3 - "$1" <<'PY'
+import json
+import pathlib
+import sys
+
+profile = pathlib.Path(sys.argv[1])
+data = json.loads((profile / "containers.json").read_text())
+for ident in data.get("identities", []):
+    if ident.get("public") and ident.get("name"):
+        print(ident["name"])
+PY
+}
+
+resolve_url() {
+    /usr/bin/python3 - "$1" "$2" "$3" <<'PY'
+import json
+import pathlib
+import sys
+import urllib.parse
+
+profile = pathlib.Path(sys.argv[1])
+query, url = sys.argv[2], sys.argv[3]
+data = json.loads((profile / "containers.json").read_text())
+names = [i["name"] for i in data.get("identities", [])
+         if i.get("public") and i.get("name")]
+
+match = [n for n in names if n == query]
+if not match:
+    match = [n for n in names if n.lower() == query.lower()]
+if not match:
+    match = [n for n in names if query.lower() in n.lower()]
+if len(match) != 1:
+    available = ", ".join(names) or "none"
+    print(f"zen-open: no unique container match for {query!r}; "
+          f"containers: {available}", file=sys.stderr)
+    sys.exit(2)
+name = match[0]
+q = urllib.parse.quote
+print(f"ext+container:name={q(name, safe='')}&url={q(url, safe='')}")
+PY
+}
+
+case "${1:-}" in
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    --list)
+        [ "$#" -eq 1 ] || { usage >&2; exit 64; }
+        profile=$(profile_dir) \
+            || die "no Zen profile with containers.json under $zen_root"
+        list_containers "$profile"
+        exit 0
+        ;;
+esac
+
+[ "$#" -eq 2 ] || { usage >&2; exit 64; }
+[ -d "$zen_app" ] || die "Zen is not installed at $zen_app"
+
+profile=$(profile_dir) \
+    || die "no Zen profile with containers.json under $zen_root"
+target=$(resolve_url "$profile" "$1" "$2") || exit 2
+
+if [ ! -f "$profile/extensions/$extension_id.xpi" ]; then
+    printf 'zen-open: warning: the ext+container handler extension is not in this profile yet; restart Zen once after installation\n' >&2
+fi
+
+open -a "$zen_app" "$target"

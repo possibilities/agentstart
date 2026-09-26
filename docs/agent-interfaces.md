@@ -24,6 +24,7 @@ second prompt catalog.
 | Delegation, model choice, questions, approvals, and task lifecycle | Native Claude Code or Codex mechanisms selected by the active role | The harness already owns execution state and permission semantics. |
 | Herdr sessions, Hunk review, Plannotator review, AgentRoles launches, and operator notification | Owning CLI or TUI, guided by its skill | These workflows are interactive, terminal-bound, or intentionally process-local. |
 | Fork maintenance and inactive-worktree tending | Skill-local scripts plus native Git and Herdr commands | The scripts are deterministic implementation contracts within the workflow, not general remote services. |
+| Open a URL in a named Zen container | `zen-open` CLI | One-shot local launch through the browser's managed `ext+container:` handler; no cross-process contract needed. |
 
 When a surface changes, update this file and any affected edge in
 `skills/fleet/MAP.md` in the same commit. Add a new MCP only when a workflow

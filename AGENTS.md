@@ -133,6 +133,17 @@ Where things go:
   remote actions, the harness's native mechanism for orchestration and
   approvals, and the owning CLI/TUI for interactive or local workflows. Do
   not add an MCP solely to make every skill name map to one.
+- Zen container browsing: the browser itself is the machine layer's Brewfile
+  cask, not an AgentStart `--cask`. AgentStart owns only the agent-facing
+  container-open capability — `config/zen/policies.json`, which converges into
+  the app bundle's managed policies to force-install the ext+container handler
+  extension and pre-authorize the scheme, and the `config/zen/` helpers
+  `zen-open` (open a URL in a named container) and `zen-usage` (quit, discard
+  the saved session so nothing reopens, relaunch, open the declared usage
+  dashboard set), published under `~/.local/bin`. `scripts/install-zen-open`
+  converges all three and skips when the app is absent; Zen's self-updater
+  removes the bundle policy, so ordinary convergence re-asserts it rather
+  than pinning the app.
 - Personal Codex preferences are the authored-source exception:
   `~/code/funk/config/harnesses/codex.toml`. AgentStart still owns installation
   and the optional invocation-profile helper (`scripts/codex-invocation`);

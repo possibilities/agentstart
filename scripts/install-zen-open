@@ -1,0 +1,139 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+    printf 'install-zen-open: %s\n' "$*" >&2
+    exit 1
+}
+
+script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
+repo_root=$(cd -P -- "$script_dir/.." && pwd)
+
+zen_app="${ZEN_APP:-/Applications/Zen.app}"
+zen_root="${ZEN_ROOT:-$HOME/Library/Application Support/zen}"
+policies_source="$repo_root/config/zen/policies.json"
+policies_target="$zen_app/Contents/Resources/distribution/policies.json"
+bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
+shim_names="zen-open zen-usage"
+extension_id='{f069aec0-43c5-4bbf-b6b4-df95c4326b98}'
+
+usage() {
+    cat <<'EOF'
+Usage: install-zen-open [--install|--check]
+
+Install AgentStart's agent-facing Zen container capability: the managed
+policies.json inside the app bundle that force-installs the ext+container:
+handler extension and pre-authorizes the scheme, plus the zen-open and
+zen-usage commands at ~/.local/bin. The Zen application itself is the
+machine layer's Brewfile cask; a machine without the app skips.
+EOF
+}
+
+check_policies_source() {
+    [ -f "$policies_source" ] || die "policies source is missing: $policies_source"
+    /usr/bin/python3 -c 'import json,sys; json.load(open(sys.argv[1]))' \
+        "$policies_source" \
+        || die "policies source is not valid JSON: $policies_source"
+    local name source marker
+    for name in $shim_names; do
+        source="$repo_root/config/zen/$name"
+        marker="# AgentStart-managed $name shim v1"
+        [ -f "$source" ] || die "$name source is missing: $source"
+        grep -Fxq "$marker" "$source" \
+            || die "$name source lost its ownership marker: $source"
+    done
+}
+
+report_state() {
+    if [ ! -d "$zen_app" ]; then
+        printf '  skip: Zen is not installed at %s (the machine layer owns the cask)\n' \
+            "$zen_app"
+        return
+    fi
+    if [ -f "$policies_target" ]; then
+        if cmp -s "$policies_source" "$policies_target"; then
+            printf '  policy: converged at %s\n' "$policies_target"
+        else
+            printf '  policy: DRIFTED at %s (refuses to overwrite)\n' "$policies_target"
+        fi
+    else
+        printf '  policy: absent at %s (Zen self-updates remove it; --install re-asserts)\n' \
+            "$policies_target"
+    fi
+    local name
+    for name in $shim_names; do
+        if [ -f "$bin_dir/$name" ]; then
+            printf '  shim: present at %s\n' "$bin_dir/$name"
+        else
+            printf '  shim: absent at %s\n' "$bin_dir/$name"
+        fi
+    done
+    local ext_xpi
+    ext_xpi=$(find "$zen_root/Profiles" -name "$extension_id.xpi" \
+        -path '*/extensions/*' 2>/dev/null | head -1)
+    if [ -n "$ext_xpi" ]; then
+        printf '  extension: installed at %s\n' "$ext_xpi"
+    else
+        printf '  extension: pending (force-installed at the next Zen start after the policy lands)\n'
+    fi
+}
+
+install_all() {
+    check_policies_source
+    if [ ! -d "$zen_app" ]; then
+        printf 'install-zen-open: Zen is not installed at %s; skipping (the machine layer owns the cask).\n' \
+            "$zen_app"
+        return
+    fi
+
+    # A policies.json with foreign content belongs to whoever wrote it; the
+    # managed file is byte-identical to this repository's source, so any other
+    # content is a refusal rather than an overwrite.
+    if [ -e "$policies_target" ] && ! cmp -s "$policies_source" "$policies_target"; then
+        die "refusing to replace an existing Zen policies.json: $policies_target"
+    fi
+    mkdir -p -- "$(dirname -- "$policies_target")"
+    install -m 0644 "$policies_source" "$policies_target"
+    cmp -s "$policies_source" "$policies_target" \
+        || die "installed Zen policy does not match $policies_source"
+    printf 'Installed Zen managed policy: %s\n' "$policies_target"
+
+    local name source target marker temp
+    mkdir -p -- "$bin_dir"
+    for name in $shim_names; do
+        source="$repo_root/config/zen/$name"
+        target="$bin_dir/$name"
+        marker="# AgentStart-managed $name shim v1"
+        if [ -e "$target" ] && ! grep -Fxq "$marker" "$target" 2>/dev/null; then
+            die "refusing to replace a foreign $name command: $target"
+        fi
+        temp=$(mktemp "$bin_dir/.$name.XXXXXX")
+        install -m 0755 "$source" "$temp"
+        mv -f -- "$temp" "$target"
+        grep -Fxq "$marker" "$target" \
+            || die "installed $name lost its ownership marker: $target"
+        printf 'Installed %s command: %s\n' "$name" "$target"
+    done
+
+    report_state
+}
+
+case "${1:-}" in
+    --install)
+        [ "$#" -eq 1 ] || die "--install takes no arguments"
+        install_all
+        ;;
+    --check)
+        [ "$#" -eq 1 ] || die "--check takes no arguments"
+        printf '  scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent\n'
+        report_state
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac

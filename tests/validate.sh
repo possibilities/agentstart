@@ -31,6 +31,9 @@ scripts/agent-browser-link.sh
 scripts/smolmux-config
 scripts/agentmux-config
 scripts/agentvoice-config
+scripts/install-zen-open
+config/zen/zen-open
+config/zen/zen-usage
 tests/validate.sh
 tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
@@ -58,7 +61,8 @@ for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins 
     scripts/configure-agentsource-webhooks \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config; do
+    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config \
+    scripts/install-zen-open; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
 [ -x tests/agentbrowse-config.sh ] \
@@ -77,6 +81,10 @@ done
     || fail "launch agent installer test is not executable: tests/install-launchagents.sh"
 [ -x config/terminal-control/termctrl ] \
     || fail "Terminal Control shim is missing or not executable"
+[ -x config/zen/zen-open ] \
+    || fail "zen-open helper is missing or not executable"
+[ -x config/zen/zen-usage ] \
+    || fail "zen-usage helper is missing or not executable"
 /usr/bin/python3 -c \
     'import pathlib; compile(pathlib.Path("config/terminal-control/termctrl").read_text(), "config/terminal-control/termctrl", "exec")'
 PYTHONDONTWRITEBYTECODE=1 python3 tests/render-terminal-control-skill.py
@@ -886,6 +894,7 @@ for required_install in \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin' \
+    'scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
     'scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link' \
     'scripts/opencode-config --install  # merge Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings' \
@@ -946,6 +955,27 @@ if printf '%s\n' "$install_plan" | grep -iE \
     'brew install herdr|herdr integration install|herdr plugin link|scripts/herdr-config|skills add .*agentsurface' >/dev/null; then
     fail "installation plan still includes a retired Herdr action"
 fi
+
+# Zen's managed policy is the whole container-open capability: it
+# force-installs the ext+container handler extension from its pinned,
+# versioned AMO build, holds it there against the browser's own update
+# channel, and pre-authorizes the external scheme so helper invocations do
+# not stop on a confirmation dialog.
+/usr/bin/python3 - config/zen/policies.json <<'PY' \
+    || fail "config/zen/policies.json lost a required managed policy"
+import json
+import sys
+
+policies = json.load(open(sys.argv[1]))["policies"]
+ext = policies["ExtensionSettings"]["{f069aec0-43c5-4bbf-b6b4-df95c4326b98}"]
+assert ext["installation_mode"] == "force_installed"
+assert ext["install_url"].endswith("/open_url_in_container-1.0.3.xpi")
+assert ext["override_update_url"] is True
+pref = policies["Preferences"]["network.protocol-handler.external.ext+container"]
+assert pref["Value"] is True and pref["Status"] == "default"
+PY
+grep -F 'install-zen-open' scripts/install.sh >/dev/null \
+    || fail "installer does not converge the Zen container-open capability"
 
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
