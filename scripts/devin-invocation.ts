@@ -2,7 +2,7 @@
 /** Terminal Devin sessions run in place with a disposable, Role-equipped .devin. */
 import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { cpSync, existsSync, lstatSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, renameSync } from "node:fs";
+import { lstatSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync, renameSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { processIdentity, type ProcessIdentity } from "./devin-process.ts";
@@ -11,17 +11,39 @@ const utilities = new Set(["acp", "auth", "mcp", "models", "skills", "rules", "p
 const resumeFlags = new Set(["-c", "--continue", "-r", "--resume"]);
 const skillName = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const mcpName = /^[a-z][a-z0-9_-]*$/;
+const uuidShape = /^[0-9a-f-]{36}$/;
+const markerRel = "agentstart-owner.json";
 export const owner = "agentstart-devin-invocation-v1";
 
-export type Invocation = { owner: typeof owner; id: string; cwd: string; wrapper: ProcessIdentity; child?: ProcessIdentity; files?: Record<string, string> };
+export type Invocation = {
+  owner: typeof owner;
+  id: string;
+  snapshot: string;
+  created: boolean;
+  cwd: string;
+  wrapper: ProcessIdentity;
+  child?: ProcessIdentity;
+  files?: Record<string, string>;
+};
 export function invocationDir(env: NodeJS.ProcessEnv = process.env): string {
   const home = env.HOME ?? homedir();
   // A fixed home-relative path lets the LaunchAgent see every terminal invocation,
   // even when a caller overrides XDG_STATE_HOME for an unrelated tool.
   return join(home, ".local", "state", "agentstart", "devin-invocations");
 }
-export function invocationPath(dir: string, cwd: string): string {
-  return join(dir, createHash("sha256").update(cwd).digest("hex") + ".json");
+export function invocationPath(dir: string, cwd: string, id: string): string {
+  return join(dir, `${createHash("sha256").update(cwd).digest("hex")}-${id}.json`);
+}
+export function invocationRecords(dir: string, cwd: string): string[] {
+  const prefix = createHash("sha256").update(cwd).digest("hex");
+  try {
+    return readdirSync(dir)
+      .filter(name => name === `${prefix}.json` || (name.startsWith(`${prefix}-`) && name.endsWith(".json")))
+      .map(name => join(dir, name));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
 }
 
 function safeRole(root: string): string {
@@ -54,75 +76,193 @@ function renderMcp(role: string, home: string): string {
   return JSON.stringify({ mcpServers: servers }, null, 2) + "\n";
 }
 
-function snapshotFiles(target: string): Record<string, string> {
-  const files: Record<string, string> = {};
+/** Every file the snapshot renders inside .devin, except the marker and .gitignore. */
+function expectedEntries(role: string, home: string): Map<string, Buffer> {
+  const entries = new Map<string, Buffer>();
+  entries.set("config.json", Buffer.from(JSON.stringify({ read_config_from: {
+    agents_standard: true, cursor: false, windsurf: false, claude: false, copilot: false, opencode: false, zed: false,
+  } }, null, 2) + "\n"));
+  entries.set("mcp_config.local.json", Buffer.from(renderMcp(role, home)));
+  const sourceSkills = join(role, "skills");
   const visit = (dir: string, prefix: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       const path = join(dir, entry.name);
       if (entry.isDirectory()) visit(path, relative);
-      else if (entry.isFile()) files[relative] = createHash("sha256").update(readFileSync(path)).digest("hex");
-      else throw new Error(`unsupported Role file: ${relative}`);
+      else entries.set(relative, readFileSync(path));
     }
   };
-  visit(target, "");
-  return files;
-}
-
-function renderGitignore(target: string): string {
-  const entries = readdirSync(target, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
-  const lines = entries.map((entry) => `/${entry.name}${entry.isDirectory() ? "/" : ""}`);
-  return `# AgentStart Devin invocation snapshot.\n/.gitignore\n${lines.join("\n")}\n`;
-}
-
-function renderRole(repo: string, role: string, home: string, id: string): Record<string, string> {
-  const target = join(repo, ".devin");
-  if (existsSync(target) || lstatExists(target)) throw new Error("project already contains .devin; refusing to overwrite it");
-  mkdirSync(target, { mode: 0o700 });
-  writeFileSync(join(target, "agentstart-owner.json"), JSON.stringify({ owner, id }), { mode: 0o600 });
-  mkdirSync(join(target, "skills"), { mode: 0o700 });
-  writeFileSync(join(target, "config.json"), JSON.stringify({ read_config_from: {
-    agents_standard: true, cursor: false, windsurf: false, claude: false, copilot: false, opencode: false, zed: false,
-  } }, null, 2) + "\n", { mode: 0o600 });
-  writeFileSync(join(target, "mcp_config.local.json"), renderMcp(role, home), { mode: 0o600 });
-  const sourceSkills = join(role, "skills");
   for (const name of readdirSync(sourceSkills)) {
     if (!skillName.test(name) || name === "prime") throw new Error(`unsupported or reserved Role skill name: ${name}`);
     const source = join(sourceSkills, name);
     if (!statSync(source).isDirectory() || !statSync(join(source, "SKILL.md")).isFile()) throw new Error(`invalid Role skill: ${name}`);
-    cpSync(source, join(target, "skills", name), { recursive: true, dereference: true });
+    visit(source, `skills/${name}`);
   }
-  const prime = join(target, "skills", "prime");
-  mkdirSync(prime, { mode: 0o700 });
   const instructions = readFileSync(join(role, "APPEND_SYSTEM_PROMPT.md"), "utf8");
-  writeFileSync(join(prime, "SKILL.md"), `---\nname: prime\ndescription: Load AgentStart's working instructions when explicitly invoked\ntriggers: [user]\n---\n\n${instructions}\n`, { mode: 0o600 });
-  writeFileSync(join(target, ".gitignore"), renderGitignore(target), { mode: 0o600 });
-  return snapshotFiles(target);
+  entries.set("skills/prime/SKILL.md", Buffer.from(`---\nname: prime\ndescription: Load AgentStart's working instructions when explicitly invoked\ntriggers: [user]\n---\n\n${instructions}\n`));
+  return entries;
 }
 
-function lstatExists(path: string): boolean { try { lstatSync(path); return true; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; } }
+/** Creates missing directories below target; foreign symlinks and files refuse. */
+function ensureDirectory(target: string, relative: string, ownedDirs: Set<string>): boolean {
+  let directory = target;
+  for (const part of relative.split("/")) {
+    directory = join(directory, part);
+    const prefix = directory.slice(target.length + 1);
+    try {
+      const stat = lstatSync(directory);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) return false;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      mkdirSync(directory, { mode: 0o700 });
+      ownedDirs.add(prefix);
+    }
+  }
+  return true;
+}
 
-export function prepareDevinInvocation(cwd: string, home: string, resourcesRoot: string, stateDir: string): { repo: string; record: string; invocation: Invocation } {
+function hashOf(content: Buffer | string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+type Claim = "claimed" | "missing" | "conflict";
+/** Claims an existing identical file, or writes it when allowed. Never overwrites. */
+function claimFile(target: string, relative: string, content: Buffer, write: boolean, ownedDirs: Set<string>): Claim {
+  const path = join(target, relative);
+  const expected = hashOf(content);
+  try {
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) return "conflict";
+    return hashOf(readFileSync(path)) === expected ? "claimed" : "conflict";
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (!write) return "missing";
+  const parent = relative.includes("/") ? relative.slice(0, relative.lastIndexOf("/")) : "";
+  if (parent && !ensureDirectory(target, parent, ownedDirs)) return "conflict";
+  try {
+    writeFileSync(path, content, { mode: 0o600, flag: "wx" });
+    return "claimed";
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    // A concurrent invocation wrote the same path; adopt it if identical.
+    try {
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink()) return "conflict";
+      return hashOf(readFileSync(path)) === expected ? "claimed" : "conflict";
+    } catch (inner) {
+      if ((inner as NodeJS.ErrnoException).code === "ENOENT") return "conflict";
+      throw inner;
+    }
+  }
+}
+
+function canonicalMarker(id: string): string { return JSON.stringify({ owner, id }); }
+
+/** Returns the snapshot id a present marker adopts, or throws for foreign markers. */
+function adoptMarker(target: string): { id: string; text: string } | null {
+  const marker = join(target, markerRel);
+  let stat;
+  try { stat = lstatSync(marker); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("project .devin ownership marker is not a regular file");
+  const text = readFileSync(marker, "utf8");
+  let claim: { owner?: string; id?: string };
+  try { claim = JSON.parse(text); } catch { throw new Error("project .devin ownership marker is unreadable"); }
+  if (claim.owner !== owner || typeof claim.id !== "string" || !uuidShape.test(claim.id) || text !== canonicalMarker(claim.id)) {
+    throw new Error("project .devin carries a foreign ownership marker; refusing to claim it");
+  }
+  return { id: claim.id, text };
+}
+
+function renderGitignore(claimed: Iterable<string>, ownedDirs: Set<string>): string {
+  const lines = new Set<string>();
+  for (const relative of claimed) {
+    const parts = relative.split("/");
+    if (parts.length === 1) { lines.add(`/${relative}`); continue; }
+    let prefix = "", entry = `/${relative}`;
+    for (let i = 0; i < parts.length - 1; i++) {
+      prefix = prefix ? `${prefix}/${parts[i]}` : parts[i];
+      if (ownedDirs.has(prefix)) { entry = `/${prefix}/`; break; }
+    }
+    lines.add(entry);
+  }
+  return `# AgentStart Devin invocation snapshot.\n/.gitignore\n${[...lines].sort().join("\n")}\n`;
+}
+
+export function prepareDevinInvocation(cwd: string, home: string, resourcesRoot: string, stateDir: string): { repo: string; record: string; invocation: Invocation; conflicts: string[] } {
   const repo = realpathSync(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim());
   const role = safeRole(resourcesRoot);
-  if (lstatExists(join(repo, ".devin"))) throw new Error("project already contains .devin; refusing to overwrite it");
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   if (lstatSync(stateDir).isSymbolicLink()) throw new Error("Devin state directory is a symlink");
-  const record = invocationPath(stateDir, repo);
   const wrapper = processIdentity(process.pid);
   if (!wrapper) throw new Error("could not identify the Devin wrapper process");
-  const invocation: Invocation = { owner, id: randomUUID(), cwd: repo, wrapper };
+  const invocation: Invocation = { owner, id: randomUUID(), snapshot: "", created: false, cwd: repo, wrapper };
+
+  const target = join(repo, ".devin");
+  try {
+    mkdirSync(target, { mode: 0o700 });
+    invocation.created = true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    const stat = lstatSync(target);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("project .devin exists and is not a directory");
+  }
+
+  // The marker decides whether this session creates the snapshot or joins one a
+  // concurrent invocation already owns. Exclusive writes resolve the race. The
+  // created flag follows the mkdir: a directory this invocation made is wholly
+  // AgentStart's even when it adopts a marker another merger won.
+  const marker = join(target, markerRel);
+  const adopted = adoptMarker(target);
+  let joined = adopted !== null;
+  if (adopted) {
+    invocation.snapshot = adopted.id;
+  } else {
+    invocation.snapshot = invocation.id;
+    try {
+      writeFileSync(marker, canonicalMarker(invocation.snapshot), { mode: 0o600, flag: "wx" });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const raced = adoptMarker(target);
+      if (!raced) throw new Error("project .devin ownership marker changed underneath the invocation");
+      invocation.snapshot = raced.id;
+      joined = true;
+    }
+  }
+
+  // Register before writing files so a killed wrapper still leaves a record the
+  // periodic cleanup can reconcile.
+  const record = invocationPath(stateDir, repo, invocation.id);
   let fd: number;
   try { fd = openSync(record, "wx", 0o600); }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`Devin invocation already recorded for ${repo}; wait for cleanup or inspect ${record}`);
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`Devin invocation already recorded: ${record}`);
     throw error;
   }
   try { writeFileSync(fd, JSON.stringify(invocation)); }
   finally { closeSync(fd); }
-  invocation.files = renderRole(repo, role, home, invocation.id);
+
+  // Joined sessions only claim matching content; creating and merging sessions
+  // also write the files they are missing. Foreign content is never overwritten.
+  const ownedDirs = new Set<string>();
+  const claimed: Record<string, string> = { [markerRel]: hashOf(readFileSync(marker)) };
+  const conflicts: string[] = [];
+  for (const [relative, content] of expectedEntries(role, home)) {
+    const result = claimFile(target, relative, content, !joined, ownedDirs);
+    if (result === "claimed") claimed[relative] = hashOf(content);
+    else if (result === "conflict" && !joined) conflicts.push(relative);
+  }
+  const gitignore = Buffer.from(renderGitignore(Object.keys(claimed), ownedDirs));
+  const gi = claimFile(target, ".gitignore", gitignore, !joined, ownedDirs);
+  if (gi === "claimed") claimed[".gitignore"] = hashOf(gitignore);
+  else if (gi === "conflict" && !joined) conflicts.push(".gitignore");
+  invocation.files = claimed;
   saveInvocation(record, invocation);
-  return { repo, record, invocation };
+  return { repo, record, invocation, conflicts };
 }
 
 export function saveInvocation(record: string, invocation: Invocation): void {
@@ -158,6 +298,8 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
     const resources = env.AGENTSTART_RESOURCES_ROOT ?? join(home, ".local", "share", "agentstart", "resources");
     const claim = prepareDevinInvocation(process.cwd(), home, resources, invocationDir(env));
     console.error(`Devin session in ${process.cwd()}. Use /prime manually to load AgentStart guidance.`);
+    for (const relative of claim.conflicts.slice(0, 5)) console.error(`Kept existing .devin/${relative}; it is not part of the snapshot.`);
+    if (claim.conflicts.length > 5) console.error(`Kept ${claim.conflicts.length - 5} more existing .devin entries.`);
     child = Bun.spawn([native, ...args], { cwd: process.cwd(), env: env as Record<string, string>, stdin: "inherit", stdout: "inherit", stderr: "inherit" });
     try {
       const identity = processIdentity(child.pid);

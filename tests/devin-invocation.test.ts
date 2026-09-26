@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { invocationPath, prepareDevinInvocation, type Invocation } from "../scripts/devin-invocation.ts";
+import { invocationRecords, prepareDevinInvocation, type Invocation } from "../scripts/devin-invocation.ts";
 import { cleanupDevinInvocations } from "../scripts/devin-cleanup.ts";
 import { processIdentity } from "../scripts/devin-process.ts";
 
@@ -66,8 +66,8 @@ test("wrapper passes utilities through and runs sessions and resumes from origin
   expect(readFileSync(record, "utf8").trim()).toBe(realpathSync(subdir));
   expect(readFileSync(args, "utf8")).toBe("-p\ntest task\n");
   expect(existsSync(join(repo, ".devin/skills/prime/SKILL.md"))).toBe(true);
-  expect(run(["-c"], repo).exitCode).toBe(1); // claim still pending
-  expect(cleanupDevinInvocations(state)).toBe(1);
+  expect(run(["-c"], repo).exitCode).toBe(0); // joins the recorded snapshot
+  expect(cleanupDevinInvocations(state)).toBe(2);
   expect(existsSync(join(repo, ".devin"))).toBe(false);
   expect(run(["-c"], repo).exitCode).toBe(0);
   expect(cleanupDevinInvocations(state)).toBe(1);
@@ -84,7 +84,7 @@ test("existing marked worktrees can still resume without creating a new snapshot
     const result = Bun.spawnSync([process.execPath, entry, "--native", native, "--", "-c"], { cwd: legacy, env, stdout: "pipe", stderr: "pipe" });
     expect(result.exitCode).toBe(0);
     expect(readFileSync(env.FAKE_DEVIN_CWD, "utf8").trim()).toBe(realpathSync(legacy));
-    expect(existsSync(invocationPath(state, realpathSync(legacy)))).toBe(false);
+    expect(invocationRecords(state, realpathSync(legacy))).toHaveLength(0);
     expect(readFileSync(join(legacy, ".devin/agentstart-owner.json"), "utf8")).toContain("worktree-v1");
   } finally { git(repo, ["worktree", "remove", "--force", legacy]); }
 });
@@ -93,11 +93,11 @@ test("live child protects the snapshot; PID reuse does not", async () => {
   const env = { ...process.env, HOME: home, AGENTSTART_RESOURCES_ROOT: resources, FAKE_DEVIN_CWD: join(root, "record"), FAKE_DEVIN_ARGS: join(root, "args"), FAKE_SLEEP: "1" };
   const child = Bun.spawn([process.execPath, entry, "--native", native, "--", "-p", "task"], { cwd: repo, env, stdout: "pipe", stderr: "pipe" });
   try {
-    for (let i = 0; i < 100 && !existsSync(invocationPath(state, realpathSync(repo))); i++) await Bun.sleep(10);
+    for (let i = 0; i < 100 && !invocationRecords(state, realpathSync(repo)).length; i++) await Bun.sleep(10);
     expect(existsSync(join(repo, ".devin"))).toBe(true);
     expect(cleanupDevinInvocations(state)).toBe(0);
     expect(await child.exited).toBe(0);
-    const record = invocationPath(state, realpathSync(repo));
+    const record = invocationRecords(state, realpathSync(repo))[0];
     const invocation = JSON.parse(readFileSync(record, "utf8")) as Invocation;
     expect(invocation.child?.pid).toBeGreaterThan(0);
     expect(invocation.child?.started).toMatch(/^\d+\.\d{6}$/);
@@ -109,9 +109,6 @@ test("live child protects the snapshot; PID reuse does not", async () => {
 });
 
 test("preserves foreign and changed project content", () => {
-  write(join(repo, ".devin/config.json"), "{}");
-  expect(() => prepareDevinInvocation(repo, home, resources, state)).toThrow("already contains .devin");
-  rmSync(join(repo, ".devin"), { recursive: true });
   prepareDevinInvocation(repo, home, resources, state);
   write(join(repo, ".devin/skills/review/SKILL.md"), "Human changed this.\n");
   write(join(repo, ".devin/notes.txt"), "Human note.\n");
@@ -119,6 +116,53 @@ test("preserves foreign and changed project content", () => {
   expect(readFileSync(join(repo, ".devin/skills/review/SKILL.md"), "utf8")).toContain("Human changed");
   expect(readFileSync(join(repo, ".devin/notes.txt"), "utf8")).toContain("Human note");
   expect(git(repo, ["status", "--porcelain"])).toBe("?? .devin/");
+});
+
+test("concurrent invocations share one snapshot and clean up together", () => {
+  const first = prepareDevinInvocation(repo, home, resources, state);
+  write(join(repo, ".devin/skills/review/SKILL.md"), "Edited during the first session.\n");
+  const second = prepareDevinInvocation(repo, home, resources, state);
+  expect(first.invocation.snapshot).toBe(first.invocation.id);
+  expect(second.invocation.snapshot).toBe(first.invocation.snapshot);
+  expect(second.invocation.created).toBe(false);
+  expect(second.invocation.files!["skills/review/SKILL.md"]).toBeUndefined();
+  expect(invocationRecords(state, realpathSync(repo))).toHaveLength(2);
+  expect(cleanupDevinInvocations(state)).toBe(0); // both wrappers are this live test
+  expect(cleanupDevinInvocations(state, () => null)).toBe(2);
+  expect(existsSync(join(repo, ".devin/agentstart-owner.json"))).toBe(false);
+  expect(readFileSync(join(repo, ".devin/skills/review/SKILL.md"), "utf8")).toContain("Edited during");
+});
+
+test("merges into a foreign .devin without claiming project files", () => {
+  write(join(repo, ".devin/config.json"), "{ \"custom\": true }\n");
+  write(join(repo, ".devin/skills/mine/SKILL.md"), "project skill\n");
+  const { invocation, conflicts } = prepareDevinInvocation(repo, home, resources, state);
+  expect(conflicts).toContain("config.json");
+  expect(invocation.snapshot).toBe(invocation.id);
+  expect(invocation.created).toBe(false);
+  expect(JSON.parse(readFileSync(join(repo, ".devin/agentstart-owner.json"), "utf8")).id).toBe(invocation.id);
+  expect(readFileSync(join(repo, ".devin/config.json"), "utf8")).toContain("custom");
+  expect(existsSync(join(repo, ".devin/mcp_config.local.json"))).toBe(true);
+  expect(existsSync(join(repo, ".devin/skills/prime/SKILL.md"))).toBe(true);
+  const gitignore = readFileSync(join(repo, ".devin/.gitignore"), "utf8");
+  expect(gitignore).not.toContain("/config.json");
+  expect(gitignore).not.toContain("mine");
+  expect(gitignore).toContain("/skills/review/");
+  expect(gitignore).toContain("/skills/prime/");
+  expect(cleanupDevinInvocations(state, () => null)).toBe(1);
+  expect(existsSync(join(repo, ".devin/agentstart-owner.json"))).toBe(false);
+  expect(existsSync(join(repo, ".devin/mcp_config.local.json"))).toBe(false);
+  expect(existsSync(join(repo, ".devin/skills/review"))).toBe(false);
+  expect(readFileSync(join(repo, ".devin/config.json"), "utf8")).toContain("custom");
+  expect(readFileSync(join(repo, ".devin/skills/mine/SKILL.md"), "utf8")).toContain("project skill");
+});
+
+test("a non-directory .devin and a foreign marker still refuse", () => {
+  write(join(repo, ".devin"), "a file, not a directory\n");
+  expect(() => prepareDevinInvocation(repo, home, resources, state)).toThrow("not a directory");
+  rmSync(join(repo, ".devin"));
+  write(join(repo, ".devin/agentstart-owner.json"), JSON.stringify({ owner: "foreign", id: "abc" }));
+  expect(() => prepareDevinInvocation(repo, home, resources, state)).toThrow("foreign ownership marker");
 });
 
 test("cleanup refuses a replaced ownership marker and does not follow a substituted skill directory", () => {

@@ -76,7 +76,9 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
 - AgentStart owns the terminal Devin wrapper at `~/.local/bin/devin`, while the
   official CLI keeps its own versioned binary, login and session storage. New
   terminal sessions run in place with a temporary `.devin` snapshot of the
-  default Role's skills/MCPs, removed after exit by an AgentStart-owned periodic
+  default Role's skills/MCPs — shared by concurrent sessions in the same
+  project, merged alongside an existing `.devin` without overwriting it, and
+  removed after the last session exits by an AgentStart-owned periodic
   cleanup service. `devin acp`, native utilities, and AgentStack's per-account
   ACP processes bypass this wrapper's snapshot; `/prime` is a manually invoked
   skill. Do not reinstall or remove the sticky user-level `default` Devin plugin
