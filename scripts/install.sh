@@ -256,7 +256,7 @@ Command-line tools:
   ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.4 --sha f2905ff011ff8fda607e91dfdd8f13b6083b1642  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
-  scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin
+  scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer

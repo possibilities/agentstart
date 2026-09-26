@@ -59,8 +59,8 @@ comment beside the key:
   is looking at.
 - **Lifecycle** — the manifest names each service as `resident`, `periodic`, or
   `queue-triggered`; templates express that through `KeepAlive`,
-  `StartInterval`, and `QueueDirectories`. `io.arthack.agentbrain.doctor` is
-  the only periodic member and `io.arthack.agentscrape.process-queue` the only
+  `StartInterval`, and `QueueDirectories`. `io.arthack.agentbrain.doctor` and
+  `io.arthack.agentstart.clean-devin` are periodic; `io.arthack.agentscrape.process-queue` is the only
   queue-triggered member.
 - **Arguments and extra environment**, including values that must be
   discovered from another service at install time.
@@ -163,3 +163,8 @@ than growing a registry or session selector in AgentStart.
 invokes `agentstart config watch --notify`, reconciles filesystem events and
 a 30-second fallback, and uses Funk notifications. Its [one-way preference
 contract](../harness-preferences.md) forbids writing authored preferences.
+
+`io.arthack.agentstart.clean-devin` is a periodic cleanup job for terminal
+Devin Role snapshots; it invokes `agentstart devin cleanup` at login and every
+30 seconds. See [Devin terminal invocations](../devin-invocation.md) for the
+PID/start-time guard and exact-marker cleanup boundary.

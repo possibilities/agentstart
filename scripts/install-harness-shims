@@ -70,11 +70,12 @@ done
 
 # Devin's vendor launcher is a symlink to its separately installed versioned
 # binary. Replace only that exact link or our own prior wrapper. ACP and utility
-# subcommands pass through to the native binary; terminal sessions get a Role
-# snapshot in a fresh Git worktree.
+# subcommands pass through to the native binary; terminal sessions get a
+# disposable Role snapshot in their original checkout.
 devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
 devin_public="$bin_dir/devin"
-devin_marker='# AgentStart-managed Devin worktree shim v1'
+devin_marker='# AgentStart-managed Devin invocation shim v1'
+devin_old_marker='# AgentStart-managed Devin worktree shim v1'
 devin_available=0
 if [ -x "$devin_native" ]; then
     devin_available=1
@@ -82,7 +83,9 @@ if [ -x "$devin_native" ]; then
         [ "$(realpath "$devin_public")" = "$(realpath "$devin_native")" ] \
             || die "refusing to replace a foreign Devin launcher: $devin_public"
     elif [ -e "$devin_public" ]; then
-        if [ ! -f "$devin_public" ] || ! grep -Fxq "$devin_marker" "$devin_public"; then
+        if [ ! -f "$devin_public" ] ||
+            { ! grep -Fxq "$devin_marker" "$devin_public" &&
+                ! grep -Fxq "$devin_old_marker" "$devin_public"; }; then
             die "refusing to replace a foreign Devin command: $devin_public"
         fi
     fi
@@ -178,7 +181,7 @@ if [ "$devin_available" -eq 1 ]; then
     devin_temp=$(mktemp "$bin_dir/.devin.XXXXXX")
     shim_temp="$devin_temp"
     printf -v quoted_devin '%q' "$devin_native"
-    printf -v quoted_runner '%q' "$script_dir/devin-worktree.ts"
+    printf -v quoted_runner '%q' "$script_dir/devin-invocation.ts"
     cat >"$devin_temp" <<EOF
 #!/usr/bin/env bash
 $devin_marker
@@ -190,7 +193,7 @@ EOF
     chmod 0755 "$devin_temp"
     mv -f -- "$devin_temp" "$devin_public"
     shim_temp=''
-    printf 'Installed Devin worktree shim: %s\n' "$devin_public"
+    printf 'Installed Devin invocation shim: %s\n' "$devin_public"
 fi
 
 for harness in claude codex; do

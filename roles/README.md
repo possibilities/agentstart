@@ -36,8 +36,8 @@ workflow; this render does not register a global role name or automatically
 assign workers to native children. AgentVoice registers role skills on its owned
 child. Fx and OpenCode need no install. Devin CLI has no per-invocation role
 delivery; `agentroles install --devin <rendered-role>` installs a sticky
-user-level plugin for every Devin session on this machine. Use `default` for
-that sticky installation.
+user-level plugin for every Devin session on this machine. Ordinary terminal
+sessions instead use AgentStart's [temporary in-place snapshot](../docs/devin-invocation.md).
 `scripts/sync-skills --check` runs AgentRoles' read-only
 `install --check` comparison for the rendered role when the resources and CLI
 are available. It fails on a stale copy but never refreshes it; run the

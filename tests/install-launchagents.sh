@@ -732,6 +732,17 @@ assert_brain_session ''
 printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentstart"
 chmod +x "$bin_dir/agentstart"
 install_brain_session >/dev/null
+cleanup_label=io.arthack.agentstart.clean-devin
+cleanup_plist="$launch_agents/$cleanup_label.plist"
+/usr/bin/python3 - "$cleanup_plist" "$bin_dir" "$state_dir" <<'PYTHON'
+import plistlib, sys
+with open(sys.argv[1], "rb") as handle:
+    value = plistlib.load(handle)
+assert value["ProgramArguments"] == [sys.argv[2] + "/agentstart", "devin", "cleanup"]
+assert "XDG_STATE_HOME" not in value["EnvironmentVariables"]
+assert value["StartInterval"] == 30 and value["RunAtLoad"]
+assert value["Umask"] == 63 and value["ProcessType"] == "Background"
+PYTHON
 watcher_plist="$launch_agents/io.arthack.agentstart.watch-config.plist"
 /usr/bin/python3 - "$watcher_plist" "$bin_dir" "$state_dir" <<'PYTHON'
 import os, plistlib, sys

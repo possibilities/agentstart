@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- agentstart-installer-owned: io.arthack.agentstart.clean-devin.v1 -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.arthack.agentstart.clean-devin</string>
+    <!-- Each run reconciles one small directory of invocation records. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PROGRAM__</string>
+        <string>devin</string>
+        <string>cleanup</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key><string>__HOME__</string>
+        <key>PATH</key><string>__PATH__</string>
+    </dict>
+    <key>RunAtLoad</key><true/>
+    <key>StartInterval</key><integer>30</integer>
+    <key>ProcessType</key><string>Background</string>
+    <key>LowPriorityIO</key><true/>
+    <key>Umask</key><integer>63</integer>
+    <key>StandardOutPath</key><string>__LOG__</string>
+    <key>StandardErrorPath</key><string>__LOG__</string>
+</dict>
+</plist>

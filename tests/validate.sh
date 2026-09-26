@@ -400,7 +400,7 @@ trap 'rm -rf "$skip_test_dir"' EXIT
 # Bare harness shims set unattended permission defaults on session commands.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
 bun test "$root/tests/codex-invocation.test.ts" "$root/tests/harness-config.test.ts"
-bun test "$root/tests/devin-worktree.test.ts" "$root/tests/retire-devin-default-plugin.test.ts"
+bun test "$root/tests/devin-invocation.test.ts" "$root/tests/retire-devin-default-plugin.test.ts"
 "$root/scripts/validate-agent-contract.ts" "$root/scripts/agentstart"
 [ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
@@ -885,7 +885,7 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
-    'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin worktree/Role wrapper at ~/.local/bin/devin' \
+    'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
     'scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link' \
     'scripts/opencode-config --install  # merge Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings' \
@@ -1348,6 +1348,7 @@ grep -F '"$script_dir/install-launchagents" --check' scripts/install.sh >/dev/nu
 grep -F '"$script_dir/configure-agentsource-webhooks" --check || true' scripts/install.sh >/dev/null \
     || fail "ordinary install does not emit agent guidance for incomplete webhook wiring"
 expected_services='io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident
+io.arthack.agentstart.clean-devin|agentstart|devin-cleanup.log|periodic
 io.arthack.agentbrain.work|agentbrain|worker.log|resident
 io.arthack.agentbrain.share|agentbrain|share.log|resident
 io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
@@ -1361,6 +1362,8 @@ io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-trigg
 io.arthack.agentsource.receive|agentsource|receiver.log|resident
 io.arthack.agentsource.notify|agentsource|notifier.log|resident
 io.arthack.agentwiki.serve|agentwiki|server.log|resident'
+grep -Fq '<string>cleanup</string>' config/launchd/io.arthack.agentstart.clean-devin.plist \
+    || fail "Devin cleanup service does not invoke agentstart devin cleanup"
 for entry in $expected_services; do
     grep -Fq "\"$entry\"" scripts/install-launchagents \
         || fail "launch agent manifest omits canonical entry: $entry"

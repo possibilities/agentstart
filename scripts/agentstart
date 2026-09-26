@@ -4,6 +4,7 @@
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { apply, layout, notify, registerNativeHome, resolvePreferences, status, watchConfigs } from "./harness-config.ts";
+import { cleanupDevinInvocations } from "./devin-cleanup.ts";
 
 const jsonFlag = { name: "--json", type: "boolean", description: "Emit a structured result." };
 const notifyFlag = { name: "--notify", type: "boolean", description: "Notify on meaningful changes, drift, failures, and recovery." };
@@ -23,6 +24,9 @@ const contract = {
     ] },
     { name: "mcp", summary: "Run fleet-owned MCP services", audience: "operator", subcommands: [
       { name: "shadcn", summary: "Run the fleet shadcn registry MCP server", audience: "internal", mutates: false, blocking: true, arguments: [] },
+    ] },
+    { name: "devin", summary: "Maintain terminal Devin invocations", audience: "operator", subcommands: [
+      { name: "cleanup", summary: "Remove ended Devin invocation snapshots", audience: "internal", mutates: true, arguments: [] },
     ] },
   ],
 };
@@ -67,7 +71,10 @@ try {
   else if (args[0] === "guide" && args.every(arg => ["guide", "--json"].includes(arg))) console.log(JSON.stringify(envelope(contract)));
   else {
     const [group, command, ...options] = args;
-    if (group === "mcp") {
+    if (group === "devin") {
+      if (command !== "cleanup" || options.length) throw new Error("expected devin cleanup");
+      console.log(`Cleaned ${cleanupDevinInvocations()} ended Devin invocation(s).`);
+    } else if (group === "mcp") {
       if (command !== "shadcn" || options.length) throw new Error("expected mcp shadcn");
       const resources = process.env.AGENTSTART_RESOURCES_ROOT || join(homedir(), ".local/share/agentstart/resources");
       const registry = join(resources, "shadcn");

@@ -42,6 +42,7 @@ render_temp=""
 # subcommand; the fleet does not grow parallel *d executables.
 SERVICES=(
     "io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident"
+    "io.arthack.agentstart.clean-devin|agentstart|devin-cleanup.log|periodic"
     "io.arthack.agentbrain.work|agentbrain|worker.log|resident"
     "io.arthack.agentbrain.share|agentbrain|share.log|resident"
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"

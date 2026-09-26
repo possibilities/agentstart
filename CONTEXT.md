@@ -46,7 +46,7 @@ The former V1 executable is retired after V2 verification; already running
 V1 sessions are not terminated.
 _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
-**Devin worktree invocation** — AgentStart's owned `~/.local/bin/devin` wrapper around the official versioned binary. Terminal sessions start in a new Git worktree with a private `.devin` copy of the current default Role's skills and MCPs; `/prime` loads its append prompt only when manually called. Utility and ACP commands pass directly to the native CLI, and resume requires an existing AgentStart-owned worktree. The native login and session database remain Devin-owned. _Avoid_: global Devin plugin, in-place project setup, second credential store.
+**Devin terminal invocation** — AgentStart's owned `~/.local/bin/devin` wrapper around the official versioned binary. Terminal sessions run in the original checkout with a temporary `.devin` snapshot of the current default Role's skills and MCPs; `/prime` loads its append prompt only when manually called. A periodic AgentStart cleanup service removes the marked snapshot when the wrapper and native child process identities have ended. Utility and ACP commands pass directly to the native CLI. The native login and session database remain Devin-owned. _Avoid_: global Devin plugin, per-session worktree, second credential store.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's

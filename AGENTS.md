@@ -75,11 +75,12 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   The `fork-rebase-policy` wiki page is the contract.
 - AgentStart owns the terminal Devin wrapper at `~/.local/bin/devin`, while the
   official CLI keeps its own versioned binary, login and session storage. New
-  terminal sessions get an AgentStart-owned Git worktree and a private `.devin`
-  snapshot of the default Role's skills/MCPs. `devin acp`, native utilities,
-  and AgentStack's per-account ACP processes bypass this wrapper's worktree
-  creation; `/prime` is a manually invoked skill. Do not reinstall or remove the
-  sticky user-level `default` Devin plugin during fleet convergence. Retire that
+  terminal sessions run in place with a temporary `.devin` snapshot of the
+  default Role's skills/MCPs, removed after exit by an AgentStart-owned periodic
+  cleanup service. `devin acp`, native utilities, and AgentStack's per-account
+  ACP processes bypass this wrapper's snapshot; `/prime` is a manually invoked
+  skill. Do not reinstall or remove the sticky user-level `default` Devin plugin
+  during fleet convergence. Retire that
   exact plugin through the bounded helper only after the installed wrapper's
   no-plugin skill/MCP path is verified and no live Devin session depends on it.
 - Fleet repository guidance identifies the shared owners that apply there:
@@ -115,10 +116,10 @@ Where things go:
   `scripts/install.sh`, with its plan line in the `--check` output and
   assertions in `tests/validate.sh`.
 - The Devin terminal launch path: `scripts/install-harness-shims` publishes the
-  ownership-checked public wrapper and `scripts/devin-worktree.ts` prepares the
-  project worktree. Keep ACP/utility pass-through and the vendor binary separate;
-  changing this path requires a disposable-profile native proof before retiring
-  the old plugin.
+  ownership-checked public wrapper and `scripts/devin-invocation.ts` prepares the
+  temporary in-place Role snapshot. Keep ACP/utility pass-through and the vendor
+  binary separate; changing this path requires a disposable-profile native proof
+  before retiring the old plugin.
 - OpenCode 2 is the default harness: `scripts/install-opencode` installs the
   verified `@opencode/cli` release into an AgentStart-owned private npm prefix
   and publishes `~/.local/bin/opencode`. After verifying V2, it retires the
