@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # AgentStart-managed zen-usage shim v1
-# Reset Zen to the usage dashboards: quit the app, discard the saved session
-# so nothing reopens, relaunch, and open the declared container/URL set
-# through zen-open. Regenerate with agentstart/scripts/install-zen-open; do
-# not edit in place.
+# Reset Zen to the usage dashboards: quit the app, write a replacement
+# session file whose tabs carry fixed labels, containers, and order, then
+# relaunch so session restore materializes the whole set in one pass.
+# Regenerate with agentstart/scripts/install-zen-open; do not edit in place.
 set -euo pipefail
 
 die() {
@@ -13,25 +13,45 @@ die() {
 
 zen_root="${ZEN_ROOT:-$HOME/Library/Application Support/zen}"
 zen_app="${ZEN_APP:-/Applications/Zen.app}"
-zen_open_bin="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/zen-open"
-[ -x "$zen_open_bin" ] || zen_open_bin=zen-open
 
-# Declared set: <container>|<url>, opened in listed order. Containers run
-# highest-numbered first within each URL.
-open_set=(
-    "account-2|https://chatgpt.com/codex/cloud/settings/analytics#usage"
-    "account-1|https://chatgpt.com/codex/cloud/settings/analytics#usage"
-    "account-1|https://claude.ai/code#settings/usage"
-    "account-2|https://app.devin.ai/settings/usage"
-    "account-1|https://app.devin.ai/settings/usage"
+# ==== Editable configuration ==============================================
+# tab_set is the whole behavior of this command: the tabs Zen restores, in
+# final sidebar order, top to bottom. One entry per line:
+#
+#   "<label>|<container>|<url>"
+#
+#   <label>     the tab's fixed name (Zen's tab-rename feature)
+#   <container> the Zen container name; resolves exact, then
+#               case-insensitive, then substring (same rules as zen-open)
+#   <url>       the page to load; empty restores a plain about:blank tab
+#               in that container (an openable blank page, not Zen's
+#               urlbar-overlay "empty tab", which never navigates)
+#
+# Note: Zen always keeps its own empty new-tab slot at the top of the
+# sidebar, so the restored window shows one extra unlabeled blank tab
+# above this set regardless of order here.
+#
+# To change the set, edit this array in agentstart's config/zen/zen-usage
+# and republish with scripts/install-zen-open --install.
+tab_set=(
+    "devin-1|account-1|https://app.devin.ai/settings/usage"
+    "devin-2|account-2|https://app.devin.ai/settings/usage"
+    "claude-1|account-1|https://claude.ai/code#settings/usage"
+    "codex-1|account-1|https://chatgpt.com/codex/cloud/settings/analytics#usage"
+    "codex-2|account-2|https://chatgpt.com/codex/cloud/settings/analytics#usage"
+    "account-1|account-1|"
+    "account-2|account-2|"
+    "account-3|account-3|"
 )
+# ==== End of editable configuration =======================================
 
 usage() {
     cat <<'EOF'
 Usage: zen-usage
 
-Reset Zen to the usage dashboards: quits the app, discards the saved session
-so nothing reopens, relaunches, and opens the declared container/URL set.
+Reset Zen to the usage dashboards: quits the app, writes a replacement
+session file containing the declared named/containered tabs, and relaunches
+so session restore materializes the set. No previous tab survives.
 EOF
 }
 
@@ -63,6 +83,257 @@ sys.exit(3)
 PY
 }
 
+# Write the replacement session. The window-level boilerplate (spaces,
+# workspace GUIDs, sidebar state, geometry) is copied from the session file
+# Zen just wrote on quit; the tab array is replaced outright.
+write_session() {
+    /usr/bin/python3 - "$profile" "$1" "${tab_set[@]}" <<'PY'
+import collections
+import json
+import pathlib
+import struct
+import sys
+import time
+import uuid
+
+profile = pathlib.Path(sys.argv[1])
+template_path = pathlib.Path(sys.argv[2]) if sys.argv[2] != "-" else None
+specs = [s.split("|", 2) for s in sys.argv[3:]]
+
+def lz4_decode(buf):
+    out = bytearray()
+    i, n = 0, len(buf)
+    while i < n:
+        token = buf[i]; i += 1
+        length = token >> 4
+        if length == 15:
+            while True:
+                extra = buf[i]; i += 1; length += extra
+                if extra != 255:
+                    break
+        out += buf[i:i + length]; i += length
+        if i >= n:
+            break
+        offset = buf[i] | (buf[i + 1] << 8); i += 2
+        match = token & 15
+        if match == 15:
+            while True:
+                extra = buf[i]; i += 1; match += extra
+                if extra != 255:
+                    break
+        match += 4
+        start = len(out) - offset
+        for j in range(match):
+            out.append(out[start + j])
+    return bytes(out)
+
+def lz4_encode(buf):
+    # One literals-only tail sequence is a valid LZ4 block; ratio aside,
+    # SessionStore's decoder accepts it like any other.
+    n = len(buf)
+    out = bytearray()
+    if n < 15:
+        out.append(n << 4)
+    else:
+        out.append(0xF0)
+        rem = n - 15
+        while rem >= 255:
+            out.append(255); rem -= 255
+        out.append(rem)
+    out += buf
+    return bytes(out)
+
+def read_mozlz4(path):
+    raw = path.read_bytes()
+    if raw[:8] != b"mozLz40\x00":
+        return None
+    try:
+        return json.loads(lz4_decode(raw[12:]))
+    except Exception:
+        return None
+
+def write_mozlz4(path, obj):
+    payload = json.dumps(obj, separators=(",", ":")).encode()
+    path.write_bytes(
+        b"mozLz40\x00" + struct.pack("<I", len(payload)) + lz4_encode(payload)
+    )
+
+containers = json.loads((profile / "containers.json").read_text())
+identities = [
+    (i.get("name", ""), i.get("userContextId"))
+    for i in containers.get("identities", [])
+]
+
+def resolve_container(name):
+    for cand, ucid in identities:
+        if cand == name:
+            return ucid
+    lower = name.lower()
+    ci = [u for c, u in identities if c.lower() == lower]
+    if len(ci) == 1:
+        return ci[0]
+    sub = [(c, u) for c, u in identities if lower in c.lower()]
+    if len(sub) == 1:
+        return sub[0][1]
+    if sub:
+        print(
+            "zen-usage: ambiguous container %r: %s"
+            % (name, ", ".join(c for c, _ in sub)),
+            file=sys.stderr,
+        )
+    else:
+        print("zen-usage: no container named %r" % name, file=sys.stderr)
+    sys.exit(3)
+
+data = read_mozlz4(template_path) if template_path else None
+window = None
+if data and data.get("windows"):
+    window = data["windows"][0]
+    guids = [
+        t.get("zenWorkspace")
+        for t in window.get("tabs", [])
+        if t.get("zenWorkspace")
+    ]
+    workspace = (
+        collections.Counter(guids).most_common(1)[0][0] if guids
+        else window.get("workspaceID") or window.get("activeZenSpace")
+    )
+else:
+    data = {
+        "version": ["sessionrestore", 1],
+        "windows": [],
+        "selectedWindow": 1,
+        "_closedWindows": [],
+        "session": {},
+        "global": {},
+    }
+    window = {
+        "tabs": [],
+        "selected": 1,
+        "_closedTabs": [],
+        "busy": False,
+        "width": 1280,
+        "height": 800,
+        "screenX": 0,
+        "screenY": 0,
+        "sizemode": "normal",
+    }
+    data["windows"].append(window)
+    workspace = None
+
+now = int(time.time() * 1000)
+tabs = []
+for pos, (label, container, url) in enumerate(specs):
+    entry = {
+        "url": url or "about:blank",
+        "title": label,
+        "cacheKey": 0,
+        "ID": pos + 1,
+        "docshellUUID": "{%s}" % uuid.uuid4(),
+        "resultPrincipalURI": None,
+        "hasUserInteraction": False,
+        "docIdentifier": pos + 1,
+        "transient": True,
+        "navigationKey": "{%s}" % uuid.uuid4(),
+        "navigationId": "{%s}" % uuid.uuid4(),
+    }
+    if not url:
+        entry["triggeringPrincipal_base64"] = '{"3":{}}'
+    tab = {
+        "entries": [entry],
+        "lastAccessed": now + pos,
+        "hidden": False,
+        "zenSyncId": "%d-%s" % (now, uuid.uuid4()),
+        "zenEssential": False,
+        "pinned": False,
+        "zenDefaultUserContextId": None,
+        "zenPinnedIcon": None,
+        "zenIsEmpty": False,
+        "zenHasStaticIcon": False,
+        "zenGlanceId": None,
+        "zenIsGlance": False,
+        "zenLiveFolderItemId": None,
+        "searchMode": None,
+        "userContextId": resolve_container(container),
+        "zenStaticLabel": label,
+        "attributes": {},
+        "index": 1,
+        "requestedIndex": 0,
+        "image": None,
+    }
+    if workspace:
+        tab["zenWorkspace"] = workspace
+    tabs.append(tab)
+
+window["tabs"] = tabs
+window["selected"] = 1
+window["_closedTabs"] = []
+for stale in (
+    "groups", "closedGroups", "folders", "splitViews", "splitViewData",
+    "lastClosedTabGroupId", "_lastClosedTabGroupCount",
+):
+    window.pop(stale, None)
+data["_closedWindows"] = []
+data.pop("maxSplitViewId", None)
+session = data.setdefault("session", {})
+session["lastUpdate"] = now
+session.setdefault("startTime", now)
+session["recentCrashes"] = 0
+
+backups = profile / "sessionstore-backups"
+backups.mkdir(exist_ok=True)
+for target in (
+    profile / "sessionstore.jsonlz4",
+    backups / "recovery.jsonlz4",
+    backups / "previous.jsonlz4",
+):
+    write_mozlz4(target, data)
+for stale in (
+    profile / "sessionstore.json",
+    profile / "sessionstore.js",
+    profile / "sessionstore.bak",
+    backups / "recovery.baklz4",
+):
+    stale.unlink(missing_ok=True)
+
+# Zen keeps its own session store in zen-sessions.jsonlz4, and on startup
+# ZenSessionManager replaces window.tabs with its sidebar tabs wholesale —
+# this file is the authoritative restored tab list, so it must carry the
+# same tab objects. spaces must be non-empty or the file is skipped.
+existing = read_mozlz4(profile / "zen-sessions.jsonlz4") or {}
+spaces = existing.get("spaces") or window.get("spaces") or []
+if not spaces and workspace:
+    spaces = [{
+        "uuid": workspace,
+        "name": "Space",
+        "theme": {
+            "type": "gradient",
+            "gradientColors": [],
+            "opacity": 0.5,
+            "texture": 0,
+        },
+        "containerTabId": 0,
+        "hasCollapsedPinnedTabs": False,
+    }]
+zen_session = {
+    "lastCollected": now,
+    "tabs": tabs,
+    "folders": [],
+    "splitViewData": [],
+    "groups": [],
+    "spaces": spaces,
+}
+zen_backups = profile / "zen-sessions-backup"
+zen_backups.mkdir(exist_ok=True)
+for target in (
+    profile / "zen-sessions.jsonlz4",
+    zen_backups / "clean.jsonlz4",
+    zen_backups / "recovery.baklz4",
+):
+    write_mozlz4(target, zen_session)
+PY
+}
+
 case "${1:-}" in
     -h|--help)
         usage
@@ -85,21 +356,17 @@ if pgrep -x zen >/dev/null 2>&1; then
         && die "Zen is still running after the quit request"
 fi
 
-rm -f "$profile/sessionstore.jsonlz4" \
+template=""
+for cand in "$profile/sessionstore.jsonlz4" \
     "$profile/sessionstore-backups/recovery.jsonlz4" \
-    "$profile/sessionstore-backups/recovery.baklz4" \
-    "$profile/sessionstore-backups/previous.jsonlz4"
+    "$profile/sessionstore-backups/previous.jsonlz4"; do
+    if [ -f "$cand" ]; then
+        template="$cand"
+        break
+    fi
+done
+write_session "${template:--}" || die "could not write the replacement session"
 
 open -a "$zen_app"
-for _ in $(seq 1 40); do
-    pgrep -x zen >/dev/null 2>&1 && break
-    sleep 0.5
-done
-# Let the browser and the ext+container handler extension finish starting
-# before the external opens arrive; cold-started opens can be dropped.
-sleep 4
-
-for entry in "${open_set[@]}"; do
-    "$zen_open_bin" "${entry%%|*}" "${entry#*|}"
-done
-printf 'zen-usage: opened %s dashboard tabs\n' "${#open_set[@]}"
+printf 'zen-usage: session reset with %s named tabs; Zen launched\n' \
+    "${#tab_set[@]}"

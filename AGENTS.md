@@ -138,9 +138,12 @@ Where things go:
   container-open capability — `config/zen/policies.json`, which converges into
   the app bundle's managed policies to force-install the ext+container handler
   extension and pre-authorize the scheme, and the `config/zen/` helpers
-  `zen-open` (open a URL in a named container) and `zen-usage` (quit, discard
-  the saved session so nothing reopens, relaunch, open the declared usage
-  dashboard set), published under `~/.local/bin`. `scripts/install-zen-open`
+  `zen-open` (open a URL in a named container) and `zen-usage` (quit, write a
+  replacement `sessionstore.jsonlz4`/`zen-sessions.jsonlz4` pair whose tabs
+  carry fixed `zenStaticLabel` names, containers, and order — Zen's sidebar
+  store is the authoritative restored tab list — then relaunch so session
+  restore materializes the usage dashboard set), published under
+  `~/.local/bin`. `scripts/install-zen-open`
   converges all three and skips when the app is absent; Zen's self-updater
   removes the bundle policy, so ordinary convergence re-asserts it rather
   than pinning the app.

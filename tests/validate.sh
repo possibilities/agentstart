@@ -977,6 +977,31 @@ PY
 grep -F 'install-zen-open' scripts/install.sh >/dev/null \
     || fail "installer does not converge the Zen container-open capability"
 
+# zen-usage owns the usage-dashboard reset by writing a replacement session
+# file: each declared tab carries a fixed zenStaticLabel, its container's
+# userContextId, and its place in the sidebar order, and the browser's own
+# session restore materializes the set on relaunch.
+for declared_tab in \
+    '"devin-1|account-1|https://app.devin.ai/settings/usage"' \
+    '"devin-2|account-2|https://app.devin.ai/settings/usage"' \
+    '"claude-1|account-1|https://claude.ai/code#settings/usage"' \
+    '"codex-1|account-1|https://chatgpt.com/codex/cloud/settings/analytics#usage"' \
+    '"codex-2|account-2|https://chatgpt.com/codex/cloud/settings/analytics#usage"' \
+    '"account-1|account-1|"' \
+    '"account-2|account-2|"' \
+    '"account-3|account-3|"'; do
+    grep -Fq "$declared_tab" config/zen/zen-usage \
+        || fail "zen-usage tab set lost $declared_tab"
+done
+grep -Fq '"zenStaticLabel": label' config/zen/zen-usage \
+    || fail "zen-usage no longer writes zenStaticLabel tab names"
+grep -Fq 'userContextId' config/zen/zen-usage \
+    || fail "zen-usage no longer assigns container userContextIds"
+grep -Fq 'mozLz40' config/zen/zen-usage \
+    || fail "zen-usage no longer writes the mozLz40 session format"
+grep -Fq 'zen-sessions.jsonlz4' config/zen/zen-usage \
+    || fail "zen-usage no longer writes Zen's own sidebar session store"
+
 # shellcheck disable=SC2016 # Match the literal installer variables.
 grep -F '"$smolmux_root/scripts/install.sh" --install' scripts/install.sh >/dev/null \
     || fail "the full installer does not delegate to Smolmux's source installer"

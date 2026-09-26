@@ -19,9 +19,11 @@ dialog.
 - The extension is force-installed at Zen startup. If `zen-open` warns that
   the handler is not in the profile yet, the browser needs one restart after
   the policy first landed.
-- `zen-usage` (no arguments) is the destructive reset: it quits Zen, discards
-  the saved session so no tabs reopen, relaunches, and opens the declared
-  usage-dashboard set in its containers. Run it only when wiping every open
-  tab is intended.
+- `zen-usage` (no arguments) is the destructive reset: it quits Zen, writes a
+  replacement session file whose tabs carry fixed labels (`zenStaticLabel`)
+  and container assignments, and relaunches so session restore materializes
+  the declared usage-dashboard set — five named dashboard tabs plus three
+  named about:blank container tabs, below Zen's own top new-tab slot. Run it
+  only when wiping every open tab is intended.
 - Zen (the application) is the machine layer's Brewfile cask; only the
   container-open capability is AgentStart's.
