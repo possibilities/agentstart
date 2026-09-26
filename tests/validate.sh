@@ -912,7 +912,7 @@ for required_install in \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the operator'"'"'s Ctrl-Space smolmux key configuration' \
     'npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below' \
-    'npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build' \
+    'npm install --global agent-browser@0.38.1  # reviewed current release; Agentbrowse provider + Agentscrape share this build' \
     'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
     'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
     'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
@@ -1259,8 +1259,11 @@ grep -F 'install_private_skill_pack "$pack_root" hunk-review' scripts/install.sh
 if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.sh >/dev/null; then
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi
-grep -F 'agent_browser_version=0.33.2' scripts/install.sh >/dev/null \
+grep -F 'agent_browser_version=0.38.1' scripts/install.sh >/dev/null \
     || fail "installer does not pin the Agentbrowse- and Agentscrape-bound agent-browser build"
+# shellcheck disable=SC2016 # Match the literal post-install executable check.
+grep -F '"$("$HOME/.local/bin/agent-browser" --version)" = "agent-browser $agent_browser_version"' scripts/install.sh >/dev/null \
+    || fail "installer does not verify the installed agent-browser release"
 grep -F 'refusing to replace independent file' scripts/agent-browser-link.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
 # shellcheck disable=SC2016 # Match the literal command substitution in the installer.

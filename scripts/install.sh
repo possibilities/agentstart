@@ -275,7 +275,7 @@ Command-line tools:
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
-  npm install --global agent-browser@0.33.2  # Agentbrowse provider + Agentscrape stable-session driver share this exact build
+  npm install --global agent-browser@0.38.1  # reviewed current release; Agentbrowse provider + Agentscrape share this build
   ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
   scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
   scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
@@ -526,10 +526,11 @@ printf 'Installing or upgrading the Native SDK CLI to the current released packa
 npm install --global @native-sdk/cli
 
 # agent-browser is the driver shared by Agentbrowse and Agentscrape. It is
-# pinned rather than tracked: Agentbrowse implements this release's provider
-# protocol, and Agentscrape resolves the stable candidate below before PATH.
-# Raising this version means verifying both consumers against the new build.
-agent_browser_version=0.33.2
+# pinned at a reviewed current release rather than blindly tracking npm latest:
+# Agentbrowse implements this release's provider protocol, and Agentscrape
+# resolves the stable candidate below before PATH. Raising this version means
+# verifying both consumers against the new build.
+agent_browser_version=0.38.1
 printf 'Installing agent-browser %s for Agentbrowse and Agentscrape.\n' \
     "$agent_browser_version"
 npm install --global "agent-browser@$agent_browser_version"
@@ -544,6 +545,8 @@ printf 'Linking the stable agent-browser candidate into ~/.local/bin.\n'
 agent_browser_npm_prefix=$(npm prefix --global) \
     || die "could not resolve npm's global prefix after installing agent-browser"
 link_agent_browser "$agent_browser_npm_prefix"
+[ "$("$HOME/.local/bin/agent-browser" --version)" = "agent-browser $agent_browser_version" ] \
+    || die "installed agent-browser does not match the reviewed release $agent_browser_version"
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
