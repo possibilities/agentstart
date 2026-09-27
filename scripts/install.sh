@@ -26,6 +26,10 @@ codexnk_integration_sha=f2905ff011ff8fda607e91dfdd8f13b6083b1642
 # skill delivery through the fixed private resources instead of allowing the
 # vendor installer to populate ambient harness roots.
 plannotator_version=0.27.9
+# twitter-cli's GitHub source is ahead of PyPI. Keep full convergence on the
+# reviewed revision instead of following a moving branch or the older wheel.
+twitter_cli_revision=7c634e0d396b1e7af9f63315b414925fe4f29ae7
+twitter_cli_version=0.8.6
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 resources_skills_state_root="$resources_root/skills-state"
 
@@ -266,6 +270,8 @@ Command-line tools:
   brew install or upgrade zig  # Native SDK packaging requires it
   ~/workshops/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
+  brew install or upgrade uv  # isolated twitter-cli install; also needed when the machine layer did not provide uv
+  uv tool install "git+https://github.com/public-clis/twitter-cli.git@7c634e0d396b1e7af9f63315b414925fe4f29ae7"  # twitter-cli 0.8.6; browser login is per machine and never part of installation
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
   brew install or upgrade zig@0.15  # Terminal Control's libghostty-vt build requires the keg-only 0.15 line
@@ -428,6 +434,32 @@ printf 'Installing Fx through the fxnk integration contract.\n'
 # machine's Brewfile rather than duplicated from it.
 printf 'Installing or upgrading the llm CLI.\n'
 install_or_upgrade_formula llm
+
+# twitter-cli uses the local browser's X cookies at invocation time. Install
+# only the executable here; never read, copy, or verify account credentials as
+# part of machine convergence. Use fixed uv paths so another tool named twitter
+# cannot be silently replaced or mistaken for this one.
+printf 'Installing or upgrading uv for the isolated twitter-cli installation.\n'
+install_or_upgrade_formula uv
+uv_bin="$brew_prefix/bin/uv"
+[ -x "$uv_bin" ] || die "Homebrew uv executable is missing: $uv_bin"
+twitter_tool_dir="$HOME/.local/share/uv/tools"
+twitter_bin="$HOME/.local/bin/twitter"
+twitter_target="$twitter_tool_dir/twitter-cli/bin/twitter"
+if [ -e "$twitter_bin" ] || [ -L "$twitter_bin" ]; then
+    [ -L "$twitter_bin" ] && [ "$(readlink "$twitter_bin")" = "$twitter_target" ] \
+        || die "refusing to replace an independently installed twitter command: $twitter_bin"
+fi
+printf 'Installing pinned twitter-cli without accessing an X account.\n'
+UV_TOOL_DIR="$twitter_tool_dir" UV_TOOL_BIN_DIR="$HOME/.local/bin" \
+    "$uv_bin" tool install "git+https://github.com/public-clis/twitter-cli.git@$twitter_cli_revision"
+[ -L "$twitter_bin" ] && [ "$(readlink "$twitter_bin")" = "$twitter_target" ] \
+    && [ -x "$twitter_bin" ] \
+    || die "twitter-cli did not publish its executable at $twitter_bin"
+[ "$("$twitter_bin" --version)" = "twitter, version $twitter_cli_version" ] \
+    || die "twitter-cli installed a version other than $twitter_cli_version"
+grep -F "rev=$twitter_cli_revision" "$twitter_tool_dir/twitter-cli/uv-receipt.toml" >/dev/null \
+    || die "twitter-cli uv receipt does not bind the pinned source revision"
 
 # Hunk is a review-first diff TUI for agent-authored changesets. Homebrew owns
 # its binary and update path; the version-matched hunk-review skill is copied

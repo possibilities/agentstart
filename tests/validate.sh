@@ -840,6 +840,20 @@ install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root"
 # The full installer owns the current CLI-only cask.
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
+# A fresh machine receives the reviewed twitter-cli source through uv, not
+# copied cookies or a moving GitHub branch. The full installer verifies the
+# executable and uv receipt without accessing the X account.
+grep -F 'install_or_upgrade_formula uv' scripts/install.sh >/dev/null \
+    || fail "the full installer does not supply uv for twitter-cli"
+# shellcheck disable=SC2016 # Match literal installer variable references.
+grep -F '"$uv_bin" tool install "git+https://github.com/public-clis/twitter-cli.git@$twitter_cli_revision"' scripts/install.sh >/dev/null \
+    || fail "the full installer does not install the pinned twitter-cli source"
+# shellcheck disable=SC2016 # Match the literal revision verification.
+grep -F 'rev=$twitter_cli_revision' scripts/install.sh >/dev/null \
+    || fail "the full installer does not verify twitter-cli's source revision"
+# shellcheck disable=SC2016 # Match the literal executable version verification.
+grep -F '"$twitter_bin" --version' scripts/install.sh >/dev/null \
+    || fail "the full installer does not verify twitter-cli's executable"
 # shellcheck disable=SC2016 # Match literal shell variable references in the installer.
 grep -F 'codexnk_installer="$workshops_root/codexnk/scripts/install.sh"' scripts/install.sh >/dev/null \
     || fail "installer does not resolve codexnk from the workshop root"
@@ -866,6 +880,8 @@ for required_install in \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
     '~/workshops/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
+    'brew install or upgrade uv  # isolated twitter-cli install; also needed when the machine layer did not provide uv' \
+    'uv tool install "git+https://github.com/public-clis/twitter-cli.git@7c634e0d396b1e7af9f63315b414925fe4f29ae7"  # twitter-cli 0.8.6; browser login is per machine and never part of installation' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
     'brew install or upgrade zig@0.15  # Terminal Control'"'"'s libghostty-vt build requires the keg-only 0.15 line' \
