@@ -62,7 +62,6 @@ flowchart LR
     usage -->|explicit version-matched catalog collection: owned stdio app-server, initialize and paginated model/list only| codex
     brain -->|extraction and discovery| scrape
     stack -->|Brain Package API: extraction and source discovery| scrape
-    stack -->|explicit Brain doctor notification, best effort| notifier[terminal-notifier → AgentNotify]
     scrape -->|stable session; drives| browser
      browser -->|local provider: launch + close over stdio| stack
      stack -->|disposable targets and private toolchain| hypeman[local Hypeman / Kernel]
@@ -211,7 +210,6 @@ installed edges. Do not silently claim a replacement or re-enable a checkout.
 | agentstart | Claude / Funk preferences | the optional `claude-invocation` helper applies Funk preferences and trust; the bare shim does not | `agentstart/scripts/claude-invocation`; `agentstart/scripts/install-harness-shims`; `agentstart/config/claude/README.md` |
 | agentbrain | agentscrape | evidence pipeline in four argv shapes — `fetch-markdown --markdown`, `fetch-markdown --envelope --allow-private-network --max-content-bytes`, `discover-feed`, `fetch-links --preset x-timeline --limit --max-scrolls` — plus a doctor check; a flag change breaks each shape separately | `agentbrain/src/agentscrape.ts:642,1298-1306,2038,2121-2129`, `src/jobs.ts:736` |
 | agentstack Brain | agentscrape | The owner-managed Brain Package API retains the extraction and source-discovery subprocess contract for URL jobs, feeds and account timelines. Brain owns durable admission, the ingestion ledger and indexed results in fresh AgentStack state; Agentscrape owns URL fetching, browser/session policy and provider extraction. This does not redirect the independent research CLI or import its data. | `agentstack/packages/brain/src/agentscrape.ts`; `agentstack/packages/brain/src/jobs.ts`; `agentstack/packages/brain/api.ts`; `agentstack/docs/adr/0059-isolated-brain-and-platform-clients.md` |
-| agentstack Brain | terminal-notifier / AgentNotify | Explicit `doctor` with `notify: true` posts a best-effort, count-only stranded-ingestion notice through the installed `terminal-notifier` interface. AgentStart's router delivers through AgentNotify; a missing notifier leaves ingestion unaffected. AgentStack owns the deduplication state below its Brain directory and installs no recurring notification service. Changing notifier flags or routing affects these operator notices. | `agentstack/packages/brain/src/notify.ts`; `agentstack/packages/brain/src/dispatch.ts`; `agentstart/config/notifications/terminal-notifier` |
 | agentscrape | agent-browser → agentstack Browser | resolves `~/.local/bin/agent-browser` first, then PATH. Ordinary requests use a unique task session and close it in cleanup; the local provider holds the disposable profile reservation until exact close or reconciliation. Explicit `--session` or pinned sessions remain caller-owned. The old AgentBrowse saved-profile path is not available through this provider | `agentscrape/src/browser.ts` (`freshSession`, `withBrowserSession`, `runAgentBrowser`); `agentstack/packages/browser/src/backend.ts`; `agentstart/config/agent-browser/config.json` |
 | Legacy AgentBoard CLI | agentwiki | `agentwiki publish <file> --name agentboard --kind render --json` remains implemented for archival use. Managed sessions no longer receive the Board skill or MCP and new work is never redirected here. | `agentboard/src/cli.ts:834-843`; `agentstart/scripts/sync-skills`; `agentstart/config/resources/mcp-servers.json` |
 
@@ -281,6 +279,14 @@ remains intact, with no Responses provider injection into its Realtime path.
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
 
 ## Checked and absent
+
+- AgentStack Brain → AgentNotify / `terminal-notifier`: explicit `doctor --notify`
+  now sends count-only records through AgentStack's own `notify` Package API
+  socket. It keeps the previous count baseline and does not call AgentNotify's
+  router, show an arrival, or attach an action. Without the local Package API,
+  notification persistence is unavailable but ingestion is unaffected
+  (`agentstack/packages/brain/src/notify.ts`, `agentstack/packages/brain/src/dispatch.ts`;
+  retired 2026-09-27).
 
 AgentVoice frontend API v2 moves native audio/WebRTC into `agentvoice client`;
 the browser uses the same server signaling contract. `--device` and
