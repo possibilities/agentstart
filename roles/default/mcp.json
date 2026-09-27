@@ -14,12 +14,6 @@
         "mcp"
       ]
     },
-    "agentbrowse": {
-      "command": "${HOME}/.local/bin/agentbrowse",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentdesk": {
       "command": "${HOME}/.local/bin/agentdesk",
       "args": [

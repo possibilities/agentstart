@@ -117,15 +117,15 @@ tests/agentbrowse-config.sh
 [ -s config/agent-browser/config.json ] \
     || fail "default agent-browser config is missing or empty"
 /usr/bin/jq -e '
-    .provider == "agentbrowse" and
+    .provider == "agentstack" and
     (.plugins == [{
-        "name": "agentbrowse",
+        "name": "agentstack",
         "command": "/bin/sh",
-        "args": ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"],
+        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browser/dist/src/provider.js\""],
         "capabilities": ["browser.provider"]
     }])
 ' config/agent-browser/config.json >/dev/null \
-    || fail "default agent-browser config does not select the agentbrowse provider"
+    || fail "default agent-browser config does not select AgentStack's local provider"
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/agentsource-webhooks.sh
@@ -171,7 +171,7 @@ python3 - <<'PYTHON'
 import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
-fleet=["agentattention","agentbrain","agentbrowse","agentchats",
+fleet=["agentbrain","agentchats",
        "agentdesk","agentgrok","agenthud","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
@@ -180,7 +180,7 @@ assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser"
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
-role_omissions={"agentattention","agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds"}
+role_omissions={"agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds"}
 role_servers=json.loads(Path("roles/default/mcp.json").read_text())["mcpServers"]
 assert set(role_servers) == set(servers) - role_omissions
 assert role_omissions.isdisjoint(role_servers)
@@ -912,10 +912,8 @@ for required_install in \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the operator'"'"'s Ctrl-Space smolmux key configuration' \
     'npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below' \
-    'npm install --global agent-browser@0.38.1  # reviewed current release; Agentbrowse provider + Agentscrape share this build' \
-    'ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH' \
-    'scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration' \
-    'scripts/agent-browser-config install  # select agentbrowse'"'"'s short-lived ordered provider; no provider server or static URL' \
+    'link AgentStack'"'"'s explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade' \
+    'scripts/agent-browser-config install  # select AgentStack'"'"'s local-only provider; no Artbird fallback' \
     'native skills list' \
     'native skills get core' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/AGENTS.md' \
@@ -1259,19 +1257,13 @@ grep -F 'install_private_skill_pack "$pack_root" hunk-review' scripts/install.sh
 if grep -E 'skills add https://github.com/[^ ]*modem-dev/hunk' scripts/install.sh >/dev/null; then
     fail "the Hunk review skill tracks GitHub head instead of the installed binary"
 fi
-grep -F 'agent_browser_version=0.38.1' scripts/install.sh >/dev/null \
-    || fail "installer does not pin the Agentbrowse- and Agentscrape-bound agent-browser build"
-# shellcheck disable=SC2016 # Match the literal post-install executable check.
-grep -F '"$("$HOME/.local/bin/agent-browser" --version)" = "agent-browser $agent_browser_version"' scripts/install.sh >/dev/null \
-    || fail "installer does not verify the installed agent-browser release"
+if grep -F 'npm install --global "agent-browser@' scripts/install.sh >/dev/null; then
+    fail "installer would overwrite an API-managed agent-browser release"
+fi
 grep -F 'refusing to replace independent file' scripts/agent-browser-link.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
-# shellcheck disable=SC2016 # Match the literal command substitution in the installer.
-grep -F 'agent_browser_npm_prefix=$(npm prefix --global)' scripts/install.sh >/dev/null \
-    || fail "installer does not resolve agent-browser from npm's global prefix"
-# shellcheck disable=SC2016 # Match the literal variable reference in the installer.
-grep -F 'link_agent_browser "$agent_browser_npm_prefix"' scripts/install.sh >/dev/null \
-    || fail "installer does not publish npm's physical agent-browser entrypoint"
+grep -Fx 'link_agent_browser' scripts/install.sh >/dev/null \
+    || fail "installer does not publish AgentStack's managed browser release"
 
 # The fleet statusline is one bar in two harness idioms: a render command for
 # Claude and an ordered pick from Codex's fixed item set. Codex has no custom
@@ -1300,13 +1292,13 @@ grep -F 'exit "$agent_clis_status"' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
 agent_clis_line=$(grep -n '^"$script_dir/install-agent-clis"' scripts/install.sh | cut -d: -f1)
 # shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
-agentbrowse_config_line=$(grep -n '^"$script_dir/agentbrowse-config" install$' scripts/install.sh | cut -d: -f1)
+browser_link_line=$(grep -n '^link_agent_browser$' scripts/install.sh | cut -d: -f1)
 # shellcheck disable=SC2016 # Match the literal helper invocations in install.sh.
 agent_browser_config_line=$(grep -n '^"$script_dir/agent-browser-config" install$' scripts/install.sh | cut -d: -f1)
-[ -n "$agent_clis_line" ] && [ -n "$agentbrowse_config_line" ] && [ -n "$agent_browser_config_line" ] \
-    && [ "$agentbrowse_config_line" -gt "$agent_clis_line" ] \
-    && [ "$agent_browser_config_line" -gt "$agentbrowse_config_line" ] \
-    || fail "agentbrowse and agent-browser configs must be linked in order after the CLIs install"
+[ -n "$agent_clis_line" ] && [ -n "$browser_link_line" ] && [ -n "$agent_browser_config_line" ] \
+    && [ "$browser_link_line" -gt "$agent_clis_line" ] \
+    && [ "$agent_browser_config_line" -gt "$browser_link_line" ] \
+    || fail "AgentStack browser link and config must follow CLI installation"
 
 if grep -Eq 'plugin (uninstall|remove)|plugin marketplace remove' scripts/render-capabilities; then
     fail "render-capabilities uninstalls plugins on the unattended path"
@@ -1319,7 +1311,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1327,7 +1319,7 @@ if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
 fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource \
+for expected_tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource \
     agentscrape agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentnotify agentstack; do
     case "$agent_cli_order" in
         *" $expected_tool "*) ;;
@@ -1411,7 +1403,6 @@ io.arthack.agentbrain.work|agentbrain|worker.log|resident
 io.arthack.agentbrain.share|agentbrain|share.log|resident
 io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
-io.arthack.agentattention.serve|agentattention|server.log|resident
 io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
@@ -1429,6 +1420,10 @@ done
 
 grep -Fq 'io.arthack.agentchats.serve' scripts/install-launchagents \
     || fail "retired AgentChats service lacks its bounded cleanup label"
+grep -Fq 'io.arthack.agentattention.serve' scripts/install-launchagents \
+    || fail "retired AgentAttention service lacks its bounded cleanup label"
+[ ! -e config/launchd/io.arthack.agentattention.serve.plist ] \
+    || fail "retired AgentAttention service template still exists"
 [ ! -e config/launchd/io.arthack.agentchats.serve.plist ] \
     || fail "retired AgentChats web service template still exists"
 for label in io.arthack.agentlab.codex-app-server io.arthack.agentlab.fx-broker io.arthack.agentlab.serve; do
@@ -1493,8 +1488,6 @@ grep -Fq '<string>notify-daemon</string>' config/launchd/io.arthack.agentsource.
 # the standard service PATH keeps that managed command reachable.
 grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notify.plist \
     || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
-grep -Fq '<string>serve</string>' config/launchd/io.arthack.agentattention.serve.plist \
-    || fail "Agentattention server does not enter through the installed serve subcommand"
 /usr/bin/python3 - <<'PYTHON'
 import pathlib
 import plistlib
@@ -1590,9 +1583,6 @@ for candidate in pathlib.Path("config/launchd").glob("io.arthack.agentvoice*.pli
         agentvoice_production_templates.append(candidate.name)
 assert agentvoice_production_templates == ["io.arthack.agentvoice.serve.plist"]
 PYTHON
-if grep -Eq '<key>[^<]*(TOKEN|SECRET)[^<]*</key>' config/launchd/io.arthack.agentattention.serve.plist; then
-    fail "Agentattention server rendered a credential-shaped environment variable"
-fi
 grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/io.arthack.agentsource.receive.plist \
     || fail "Agentsource receiver does not name the private secret by path"
 grep -A1 -F '<string>--port</string>' config/launchd/io.arthack.agentsource.receive.plist \

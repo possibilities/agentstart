@@ -275,10 +275,8 @@ Command-line tools:
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
-  npm install --global agent-browser@0.38.1  # reviewed current release; Agentbrowse provider + Agentscrape share this build
-  ln -sfn "$(realpath "$(npm prefix --global)/bin/agent-browser")" ~/.local/bin/agent-browser  # the candidate Agentscrape resolves before PATH
-  scripts/agentbrowse-config install  # link the locked Artbird-first, already-enabled-Apple-second deployment configuration
-  scripts/agent-browser-config install  # select agentbrowse's short-lived ordered provider; no provider server or static URL
+  link AgentStack's explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade
+  scripts/agent-browser-config install  # select AgentStack's local-only provider; no Artbird fallback
   ~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call
   ~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release
   ~/code/agentstack/scripts/install.sh --install  # verified pinned codexnk dependency, packages/UI build and editable CLI; no server restart
@@ -525,28 +523,9 @@ command -v npm >/dev/null 2>&1 || die "npm is required to install the Native SDK
 printf 'Installing or upgrading the Native SDK CLI to the current released package.\n'
 npm install --global @native-sdk/cli
 
-# agent-browser is the driver shared by Agentbrowse and Agentscrape. It is
-# pinned at a reviewed current release rather than blindly tracking npm latest:
-# Agentbrowse implements this release's provider protocol, and Agentscrape
-# resolves the stable candidate below before PATH. Raising this version means
-# verifying both consumers against the new build.
-agent_browser_version=0.38.1
-printf 'Installing agent-browser %s for Agentbrowse and Agentscrape.\n' \
-    "$agent_browser_version"
-npm install --global "agent-browser@$agent_browser_version"
-
-# Publish the stable candidate Agentscrape resolves before falling back to PATH.
-# Both consumers run under launchd, whose minimal PATH never reaches a tool
-# installed under a Node version manager, and the version-manager path itself
-# changes with every Node upgrade. Resolve npm's physical global entrypoint
-# before replacing the stable address, so a prior stable link cannot select
-# itself through PATH.
-printf 'Linking the stable agent-browser candidate into ~/.local/bin.\n'
-agent_browser_npm_prefix=$(npm prefix --global) \
-    || die "could not resolve npm's global prefix after installing agent-browser"
-link_agent_browser "$agent_browser_npm_prefix"
-[ "$("$HOME/.local/bin/agent-browser" --version)" = "agent-browser $agent_browser_version" ] \
-    || die "installed agent-browser does not match the reviewed release $agent_browser_version"
+# AgentStack's Package API manages agent-browser releases independently.
+# No unconditional install here: manual update policy and an explicit uninstall
+# must survive an ordinary AgentStart converge.
 
 command -v npx >/dev/null 2>&1 || die "npx is required to install agent skills"
 
@@ -635,6 +614,9 @@ if [ "$agent_clis_status" -ne 0 ]; then
     exit "$agent_clis_status"
 fi
 
+printf 'Linking AgentStack\x27s managed agent-browser, if installed.\n'
+link_agent_browser
+
 devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
 if [ ! -x "$devin_native" ]; then
     if [ -e "$HOME/.local/bin/devin" ] || [ -L "$HOME/.local/bin/devin" ]; then
@@ -655,14 +637,9 @@ fi
 
 "$script_dir/agentstart" config apply --notify
 
-# Agentbrowse and agent-browser do not write these configs during normal
-# browsing, so the operator defaults can stay linked directly to AgentStart's
-# tracked sources. Run both after the fleet CLI loop: a successful full
-# converge must not select the provider before its command and manual recovery
-# helper install successfully.
-printf "Linking AgentStart's ordered agentbrowse deployment configuration.\n"
-"$script_dir/agentbrowse-config" install
-printf "Linking AgentStart's default agentbrowse provider configuration.\n"
+# Select only AgentStack's local provider. Never restore the old Artbird-first
+# AgentBrowse deployment configuration through ordinary convergence.
+printf "Linking AgentStart's local-only browser provider configuration.\n"
 "$script_dir/agent-browser-config" install
 
 # agentmux reads an instance's config at start and never writes it, so the

@@ -25,25 +25,23 @@ export AGENTSTART_AGENT_BROWSER_CONFIG_TARGET="$target_config"
 cmp -s "$source_config" "$target_config" \
     || fail "linked agent-browser config does not resolve to the tracked source"
 /usr/bin/jq -e '
-    .provider == "agentbrowse" and
+    .provider == "agentstack" and
     (.plugins == [{
-        "name": "agentbrowse",
+        "name": "agentstack",
         "command": "/bin/sh",
-        "args": ["-c", "exec \"$HOME/.local/bin/agentbrowse\" provider"],
+        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browser/dist/src/provider.js\""],
         "capabilities": ["browser.provider"]
     }])
 ' "$target_config" >/dev/null \
-    || fail "installed config does not select the agentbrowse provider"
+    || fail "installed config does not select the local-only AgentStack provider"
 
-# The plugin command addresses the managed link through HOME instead of PATH.
-# A stale Bun-global command earlier on PATH must therefore be irrelevant.
-mkdir -p "$HOME/.local/bin" "$test_root/shadow-bin"
-cat >"$HOME/.local/bin/agentbrowse" <<'EOF'
-#!/bin/sh
-cat >/dev/null
-printf '%s\n' '{"protocol":"agent-browser.plugin.v1","success":true,"manifest":{"name":"agentbrowse","capabilities":["browser.provider"]}}'
+# The plugin command addresses the AgentStack checkout instead of a PATH
+# command. An old AgentBrowse command earlier on PATH cannot become a fallback.
+mkdir -p "$HOME/code/agentstack/packages/browser/dist/src" "$test_root/shadow-bin"
+cat >"$HOME/code/agentstack/packages/browser/dist/src/provider.js" <<'EOF'
+process.stdin.resume();
+process.stdin.on('end', () => console.log(JSON.stringify({protocol:'agent-browser.plugin.v1',success:true,manifest:{name:'agentstack',capabilities:['browser.provider']}})));
 EOF
-chmod +x "$HOME/.local/bin/agentbrowse"
 cat >"$test_root/shadow-bin/agentbrowse" <<'EOF'
 #!/bin/sh
 exit 64
@@ -52,10 +50,10 @@ chmod +x "$test_root/shadow-bin/agentbrowse"
 plugin_response=$(
     printf '%s' '{"protocol":"agent-browser.plugin.v1","type":"plugin.manifest","capability":"plugin.manifest","request":{}}' \
         | PATH="$test_root/shadow-bin:$PATH" /bin/sh -c \
-            'exec "$HOME/.local/bin/agentbrowse" provider'
+            'exec /opt/homebrew/bin/node "$HOME/code/agentstack/packages/browser/dist/src/provider.js"'
 )
 printf '%s\n' "$plugin_response" \
-    | /usr/bin/jq -e '.success == true and .manifest.name == "agentbrowse"' >/dev/null \
+    | /usr/bin/jq -e '.success == true and .manifest.name == "agentstack"' >/dev/null \
     || fail "provider command was shadowed by an earlier PATH entry"
 
 # The converge is rerunnable.

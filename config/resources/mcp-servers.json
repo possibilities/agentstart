@@ -8,20 +8,8 @@
         "all"
       ]
     },
-    "agentattention": {
-      "command": "${HOME}/.local/bin/agentattention",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentbrain": {
       "command": "${HOME}/.local/bin/agentbrain",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentbrowse": {
-      "command": "${HOME}/.local/bin/agentbrowse",
       "args": [
         "mcp"
       ]

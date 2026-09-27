@@ -20,15 +20,15 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   AgentStack separately owns Codex sign-ins for its Bots and isolated Grok/Devin
   ACP Worker accounts; those credentials do not select AgentUsage accounts. Each
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
-  contracts, it does not reach inside — but it decides that every
-  one of them is installed. `install-agent-clis` runs each checkout's own
+  contracts, it does not reach inside — but it decides which
+  active checkouts are installed. `install-agent-clis` runs each active checkout's own
   installer, and `config/launchd/` defines AgentStart-owned fleet services;
   the explicit exceptions below have their own service owner. Two owners
   would race to render the same service. A fleet checkout
   ships the code; this repository decides that it is present and when it
-  runs. AgentBrowse is also a service-ownership exception: its explicit
-  `scripts/install-host` owns Hypeman installation and service recovery on both
-  Mac and Linux. AgentStart must not render a competing Hypeman service.
+  runs. AgentStack's Browser Package API owns the separate local-only Hypeman
+  installation and private agent-browser toolchain. AgentBrowse is archived;
+  AgentStart must not reinstall it or render a competing Hypeman service.
   AgentVoice is the explicit exception: its approved default-server
   topology makes `agentvoice/scripts/install.sh --install` the sole owner of
   `io.arthack.agentvoice.server`, including plist rendering and service lifecycle.

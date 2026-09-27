@@ -47,7 +47,6 @@ SERVICES=(
     "io.arthack.agentbrain.share|agentbrain|share.log|resident"
     "io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic"
     "io.arthack.agentusage.observe|agentusage|observer.log|resident"
-    "io.arthack.agentattention.serve|agentattention|server.log|resident"
     "io.arthack.agenthud.serve|agenthud|server.log|resident"
     "io.arthack.agentvoice.serve|agentvoice|server.log|resident"
     "io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident"
@@ -63,6 +62,7 @@ SERVICES=(
 # no templates. Full convergence removes them before touching current jobs;
 # --service provides the exact-target cleanup path.
 RETIRED_SERVICES=(
+    io.arthack.agentattention.serve
     io.arthack.agentchats.serve
     # Retire AgentLab in reverse dependency order: console, broker, daemon.
     io.arthack.agentlab.serve
@@ -511,8 +511,12 @@ retired_plist_ownership() {
     local label="$1" plist="$launch_agents_dir/$1.plist"
     if [ -L "$plist" ]; then printf 'foreign'; return 0; fi
     [ -e "$plist" ] || { printf 'absent'; return 0; }
-    if [ -f "$plist" ] &&
-        sed -n '2p' "$plist" 2>/dev/null | grep -Fqx "<!-- $(owned_marker "$label") -->"; then
+    local second third marker
+    marker="<!-- $(owned_marker "$label") -->"
+    second=$(sed -n '2p' "$plist" 2>/dev/null) || second=""
+    third=$(sed -n '3p' "$plist" 2>/dev/null) || third=""
+    if [ -f "$plist" ] && { [ "$second" = "$marker" ] ||
+        { [[ "$second" == '<!DOCTYPE plist PUBLIC '* ]] && [ "$third" = "$marker" ]; }; }; then
         printf 'ours'
         return 0
     fi

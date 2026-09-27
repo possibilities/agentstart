@@ -34,15 +34,10 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # native Claude/Codex launches. The full installer invokes
 # install-harness-shims after this loop.
 #
-# An explicit Agentscrape session maps through the configured agent-browser
-# provider to an Agentbrowse Browser profile. Agentscrape and Agentbrain have
-# no install-order relationship beyond both preceding their resident services.
-#
-# Agentbrowse owns the Hypeman host installer and its short-lived provider.
-# Host installation is explicit through agentbrowse/scripts/install-host;
-# this command installation never starts VMs or performs a runtime migration.
-# agentattention follows it because its browser-interaction processor imports
-# agentbrowse's supported OpenTUI surface from the adjacent installed checkout.
+# Agentscrape uses agent-browser with AgentStack's local-only provider. Browser
+# installation and Hypeman lifecycle belong to AgentStack's Package API. The
+# retired AgentAttention process still imports AgentBrowse and remains broken
+# until migrated separately; do not reinstall either CLI from this loop.
 #
 # agentwork follows agentmux: it is a file:../agentmux dependency. It is a
 # setup (programs for agentmux's parts), not a command; nothing goes on PATH.
@@ -72,7 +67,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # AgentNotify installs the native app and CLI without launching or restarting it.
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
-for tool in agentwiki agentboard agentbrowse agentattention agentutils agentsearch agentkeys agentsource agentscrape \
+for tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource agentscrape \
     agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles agentstack agentmux agentnotify agentwork; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then

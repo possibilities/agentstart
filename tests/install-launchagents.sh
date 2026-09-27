@@ -20,8 +20,8 @@ mkdir -p "$launch_agents" "$bin_dir" "$state_dir"
 export AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT="$test_voice_checkout"
 export AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION=1111111111111111111111111111111111111111
 
-printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentattention"
-chmod +x "$bin_dir/agentattention"
+printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agentusage"
+chmod +x "$bin_dir/agentusage"
 
 run_installer() {
     HOME="$test_home" \
@@ -132,22 +132,24 @@ printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not
     || fail "unprepared AgentVoice test server was not skipped"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.serve' | grep -F 'not configured; would skip' >/dev/null \
     || fail "unprepared AgentVoice test reader was not skipped"
-printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'install' >/dev/null \
-    || fail "absent current Agentattention service was not planned for install"
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'absent; nothing to remove' >/dev/null \
+    || fail "retired AgentAttention service was not inert"
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentusage.observe' | grep -F 'install' >/dev/null \
+    || fail "absent current AgentUsage service was not planned for install"
 HOME="$test_home" \
     XDG_STATE_HOME="$state_dir" \
     AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
     AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
     AGENTSTART_INSTALL_LAUNCHCTL=none \
     "$root/scripts/install-launchagents" --install >/dev/null
-attention_plist="$launch_agents/io.arthack.agentattention.serve.plist"
-grep -Fq 'agentstart-installer-owned: io.arthack.agentattention.serve.v1' "$attention_plist" \
+brain_plist="$launch_agents/io.arthack.agentusage.observe.plist"
+grep -Fq 'agentstart-installer-owned: io.arthack.agentusage.observe.v1' "$brain_plist" \
     || fail "current service lacks its exact ownership marker"
 plan=$(run_installer --check)
-printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'converge' >/dev/null \
+printf '%s\n' "$plan" | grep -F 'io.arthack.agentusage.observe' | grep -F 'converge' >/dev/null \
     || fail "owned current service was not planned for convergence"
 
-printf '<!-- independent service -->\n' >"$attention_plist"
+printf '<!-- independent service -->\n' >"$brain_plist"
 if HOME="$test_home" \
     XDG_STATE_HOME="$state_dir" \
     AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
@@ -156,32 +158,32 @@ if HOME="$test_home" \
     "$root/scripts/install-launchagents" --install >/dev/null 2>&1; then
     fail "independent current service was accepted"
 fi
-grep -Fxq '<!-- independent service -->' "$attention_plist" \
+grep -Fxq '<!-- independent service -->' "$brain_plist" \
     || fail "independent current service was overwritten"
-rm "$attention_plist"
+rm "$brain_plist"
 
 # A symlink is foreign even when its target has our marker or has disappeared.
-foreign_target="$test_root/foreign-attention.plist"
-printf '<!-- agentstart-installer-owned: io.arthack.agentattention.serve.v1 -->\n' >"$foreign_target"
-cp "$foreign_target" "$test_root/foreign-attention.before"
+foreign_target="$test_root/foreign-brain.plist"
+printf '<!-- agentstart-installer-owned: io.arthack.agentusage.observe.v1 -->\n' >"$foreign_target"
+cp "$foreign_target" "$test_root/foreign-brain.before"
 for link_state in existing dangling; do
     if [ "$link_state" = dangling ]; then rm "$foreign_target"; fi
-    ln -s "$foreign_target" "$attention_plist"
+    ln -s "$foreign_target" "$brain_plist"
     plan=$(run_installer --check)
-    printf '%s\n' "$plan" | grep -F 'io.arthack.agentattention.serve' | grep -F 'REFUSE' >/dev/null \
+    printf '%s\n' "$plan" | grep -F 'io.arthack.agentusage.observe' | grep -F 'REFUSE' >/dev/null \
         || fail "$link_state service symlink was not planned for refusal"
     if run_installer --install >/dev/null 2>&1; then
         fail "$link_state service symlink was accepted"
     fi
-    [ -L "$attention_plist" ] && [ "$(readlink "$attention_plist")" = "$foreign_target" ] \
+    [ -L "$brain_plist" ] && [ "$(readlink "$brain_plist")" = "$foreign_target" ] \
         || fail "$link_state service symlink was replaced or redirected"
     if [ "$link_state" = existing ]; then
-        cmp "$test_root/foreign-attention.before" "$foreign_target" \
+        cmp "$test_root/foreign-brain.before" "$foreign_target" \
             || fail "foreign service symlink target was changed"
     else
         [ ! -e "$foreign_target" ] || fail "dangling service symlink target was created"
     fi
-    rm "$attention_plist"
+    rm "$brain_plist"
 done
 
 HOME="$test_home" \
@@ -207,7 +209,6 @@ with open(sys.argv[1], "rb") as handle:
     value = plistlib.load(handle)
 assert value["ProgramArguments"] == [sys.argv[2], "daemon", "run"]
 PYTHON
-rm -- "$bin_dir/agentusage" "$launch_agents/io.arthack.agentusage.observe.plist"
 
 # AgentHUD follows the same resident editable-reader frame, and its exact
 # selector is the deployment path that must not converge or restart neighbors.
@@ -218,7 +219,7 @@ chmod +x "$bin_dir/agenthud"
 target_plan=$(run_installer --check --service "$hud_label")
 printf '%s\n' "$target_plan" | grep -F "$hud_label" | grep -F 'install' >/dev/null \
     || fail "targeted HUD plan omitted its absent service"
-if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentattention.serve' >/dev/null; then
+if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentusage.observe' >/dev/null; then
     fail "targeted HUD plan included a neighboring service"
 fi
 if run_installer --check --service io.arthack.unknown.serve >/dev/null 2>&1; then
@@ -252,7 +253,7 @@ case "$1" in
 esac
 EOF
 chmod +x "$target_launchctl"
-cp "$attention_plist" "$test_root/attention-before-targeted.plist"
+cp "$brain_plist" "$test_root/brain-before-targeted.plist"
 AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
     AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
     AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
@@ -269,7 +270,7 @@ assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "St
 assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
 assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agenthud/server.log"
 PYTHON
-cmp "$attention_plist" "$test_root/attention-before-targeted.plist" \
+cmp "$brain_plist" "$test_root/brain-before-targeted.plist" \
     || fail "targeted HUD installation rewrote a neighboring service"
 cp "$hud_plist" "$test_root/hud-before-repeat.plist"
 AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
@@ -294,7 +295,7 @@ target_status=$(
 )
 printf '%s\n' "$target_status" | grep -F "$hud_label" | grep -F 'state=running' | grep -F 'pid=73' >/dev/null \
     || fail "targeted HUD status omitted its healthy job"
-if printf '%s\n' "$target_status" | grep -F 'io.arthack.agentattention.serve' >/dev/null; then
+if printf '%s\n' "$target_status" | grep -F 'io.arthack.agentusage.observe' >/dev/null; then
     fail "targeted HUD status included a neighboring service"
 fi
 printf '<!-- independent HUD -->\n' >"$hud_plist"
@@ -325,7 +326,7 @@ fi
 
 : >"$target_launchctl_log"
 : >"$target_launchctl_state"
-cp "$attention_plist" "$test_root/attention-before-voice-targeted.plist"
+cp "$brain_plist" "$test_root/brain-before-voice-targeted.plist"
 AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
     AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
     AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
@@ -345,7 +346,7 @@ assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "St
 assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
 assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agentvoice/server.log"
 PYTHON
-cmp "$attention_plist" "$test_root/attention-before-voice-targeted.plist" \
+cmp "$brain_plist" "$test_root/brain-before-voice-targeted.plist" \
     || fail "targeted AgentVoice reader installation rewrote a neighboring service"
 [ "$(grep -c '^bootout ' "$target_launchctl_log")" -eq 1 ] \
     || fail "canonical reader convergence did not replace the temporary submitted job"
@@ -457,7 +458,7 @@ for test_label in "$test_server_label" "$test_reader_label"; do
 
     : >"$target_launchctl_log"
     : >"$target_launchctl_state"
-    cp "$attention_plist" "$test_root/attention-before-$test_label.plist"
+    cp "$brain_plist" "$test_root/brain-before-$test_label.plist"
     if [ "$test_label" = "$test_reader_label" ]; then
         cp "$test_server_plist" "$test_root/test-server-before-reader.plist"
     fi
@@ -466,7 +467,7 @@ for test_label in "$test_server_label" "$test_reader_label"; do
         AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
         AGENTSTART_TEST_STATE_DIR="$voice_state_dir" \
         run_installer --install --service "$test_label" >/dev/null
-    cmp "$attention_plist" "$test_root/attention-before-$test_label.plist" \
+    cmp "$brain_plist" "$test_root/brain-before-$test_label.plist" \
         || fail "targeted AgentVoice test installation rewrote a neighboring service"
     cmp "$voice_plist" "$test_root/voice-before-test-targets.plist" \
         || fail "targeted AgentVoice test installation rewrote the production reader"
@@ -662,7 +663,7 @@ cat >"$status_launchctl" <<'EOF'
 set -euo pipefail
 [ "$1" = print ] || exit 1
 case "$2" in
-    */io.arthack.agentbrain.work | */io.arthack.agentattention.serve)
+    */io.arthack.agentbrain.work | */io.arthack.agentusage.observe)
         printf 'state = running\npid = 42\n'
         ;;
     */io.arthack.agentbrain.doctor)
