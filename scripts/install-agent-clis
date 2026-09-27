@@ -35,16 +35,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # install-harness-shims after this loop.
 #
 # Agentscrape uses agent-browser with AgentStack's local-only provider. Browser
-# installation and Hypeman lifecycle belong to AgentStack's Package API. The
-# retired AgentAttention process still imports AgentBrowse and remains broken
-# until migrated separately; do not reinstall either CLI from this loop.
-#
-# agentwork follows agentmux: it is a file:../agentmux dependency. It is a
-# setup (programs for agentmux's parts), not a command; nothing goes on PATH.
-#
-# agentgrok has no install-order relationship with any fleet tool. At runtime
-# it reads the Grok Build CLI's login and shells out to `grok models` to renew
-# it; the `grok` cask is installed by scripts/install.sh, not by this loop.
+# installation and Hypeman lifecycle belong to AgentStack's Package API.
+# Archived checkouts (Attention, Grok, HUD, Keys, Mux, Sounds, Source, Utils,
+# Work) are no longer installer participants.
 # AgentVoice needs stock Codex and a C compiler, provisioned by the outer
 # installer. Its installer owns the default waiting server and prepares the
 # production web build consumed later by AgentStart's resident transcript
@@ -53,10 +46,6 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # protocol so a normal running menu does not block the fleet. During a live-call
 # cutover, AGENTSTART_PRESERVE_AGENTVOICE_SERVICE=1 selects its supported
 # --command-only mode instead, so no menu, call, or service is restarted.
-# AgentHUD is an independent checkout and ordinary installer participant. Its
-# installer prepares the editable command, dependencies, and production assets
-# without touching its AgentStart-owned LaunchAgent, which converges later.
-#
 # agentroles follows agentvoice: it runs claude, codex and agentvoice through
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
 # own `install` command is a user action that writes Codex plugin state, never
@@ -67,8 +56,8 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # AgentNotify installs the native app and CLI without launching or restarting it.
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
-for tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource agentscrape \
-    agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles agentstack agentmux agentnotify agentwork; do
+for tool in agentwiki agentboard agentsearch agentscrape \
+    agentbrain agentusage agentvoice agentroles agentstack agentnotify; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

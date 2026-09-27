@@ -41,9 +41,6 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   the separate `io.arthack.agentvoice.serve` transcript-reader LaunchAgent
   through AgentVoice's installed `agentvoice serve --production --tailscale`
   contract. Bare direct `agentvoice serve` remains editable for development.
-  AgentStart also owns the separate `io.arthack.agenthud.serve` web-view
-  LaunchAgent through the independent
-  AgentHUD checkout's installed `agenthud serve` contract.
   AgentStart owns the direct MCP resource inventory used by
   managed Claude, Codex, and AgentVoice sessions. Gog owns its Google credentials;
   AgentStart installs Gog and binds each declared mailbox at MCP startup.
@@ -176,11 +173,10 @@ Where things go:
   if it has one. The `agent*` skills scan needs nothing. A loop member's
   installer must be rerunnable, because a present checkout that fails stops
   the whole install.
-- AgentHUD is an ordinary independent fleet checkout under `~/code/agenthud`.
-  Its `scripts/install.sh --install` owns the editable command, dependencies,
-  and production assets without service effects. `install-agent-clis` invokes
-  that contract directly. AgentStart separately owns the resident HUD
-  LaunchAgent; no AgentVoice installer or redirect sits between them.
+- Archived fleet checkouts are not CLI installer or shared-skill participants.
+  AgentStart retires only its exact-marker-owned HUD and Source services and
+  exact old command/config links; it leaves archived source and private state
+  intact. See [ADR 0049](docs/adr/0049-retire-archived-fleet-checkouts.md).
 - AgentLab is retired from the active fleet and preserved as archived reference
   source. AgentStart does not install its command, build its assets, supervise
   its Codex or Fx daemons, or publish its Portless route. The three former exact
@@ -237,12 +233,11 @@ AgentStart owns `roles/default`: prompt Markdown and its complete MCP inventory.
 `scripts/render-roles` assembles it through the normal resource sync and safely
 retires intact AgentStart-owned `manager` and `worker` outputs. Changing the
 common inventory does not automatically change the role roster. The default role
-omits the Attention, Chats, Grok, HUD, Keys, Mux, and Sounds MCPs and,
-through `roles/default/skills-exclude.json`, their dedicated skills (`attention`,
-`chats`, `grokbot`, `hud`, `keys`, `sounds`; AgentMux has no standalone
-skill). The prompt drops those owners' workflows rather than prescribing a
-replacement; generic native worker report-and-review accountability remains,
-and there is no separate worker role. Preserve this boundary through
+omits the Chats MCP and, through `roles/default/skills-exclude.json`, its skill.
+Archived owners are also absent from the shared inventory and exact-pruned from
+the managed skill set. The prompt retains generic native worker report-and-review
+accountability without prescribing a replacement, and there is no separate
+worker role. Preserve this boundary through
 explicit-role launch rendering. See
 [the default-role cutover](docs/adr/0040-collapse-explicit-roles-to-default.md)
 and [the skill prune](docs/adr/0042-prune-removed-mcp-skills-from-default-role.md).

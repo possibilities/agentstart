@@ -69,18 +69,16 @@ flags, and skip-versus-fail semantics are load-bearing:
     version-matched core skills, and the Homebrew-installed Hunk review TUI
     with its version-matched bundled skill;
   - smolmux's repository-owned source installer and pinned Companion, plus the
-    generated live Herdr config and linked smolmux key config;
-  - the current released `@native-sdk/cli` and pinned `agent-browser` npm globals, plus the
-    linked ordered agentbrowse deployment and provider configs backed by
-    `agentbrowse provider`;
-  - individual fleet MCPs including AgentHUD, Agentdesk, termctrl, agent-browser, account-bound Gog,
+    linked smolmux key config;
+  - the current released `@native-sdk/cli` and AgentStack's private
+    `agent-browser` release with its local-only provider config;
+  - individual fleet MCPs including Agentdesk, termctrl, agent-browser, account-bound Gog,
     and the fleet-owned shadcn registry through one shared resource inventory;
   - the `~/.claude/AGENTS.md` and `~/.codex/AGENTS.md` guidance links;
     the extension prompt links;
   - the external skills and fixed private fleet resources;
-  - the agentwiki, archival agentboard, agentbrowse-infra, agentbrowse,
-    agentattention, agentsearch, agentkeys, agentusage, and
-    agentgrok, and independent agenthud CLIs;
+  - active checkout CLIs, including agentwiki, archival agentboard,
+    agentsearch and agentusage; archived checkouts are not reinstalled;
   - AgentUsage’s owned Claude/Codex accounts and single proxy through its
     existing observer daemon; enroll/import accounts before switching balanced
     consumers, then converge the service after AgentUsage.
@@ -91,12 +89,6 @@ flags, and skip-versus-fail semantics are load-bearing:
 
   The machine's installer calls this and refuses to finish without it.
   `--check` prints the plan without changing anything.
-- `scripts/install-launchagents --install --service io.arthack.agenthud.serve`
-  — converge only the resident editable HUD at
-  `https://agenthud.localhost`. The same selector works with `--check` and
-  `--status`; a healthy unchanged job is not restarted. AgentHUD's own installer
-  prepares its editable command, dependencies, and assets first, without
-  managing this or any other service.
 - `scripts/install-launchagents --install --service io.arthack.agentvoice.serve`
   — converge only the resident AgentVoice transcript reader at
   `https://agentvoice.localhost`. The matching `--check` and `--status` forms
@@ -188,42 +180,10 @@ checkout skips it.
 `~/.config/smolmux/config.toml`. smolmux does not write that file, and its `[keys]`
 schema carries the operator's `ctrl+space` prefix.
 
-`scripts/agentmux-config install` links `config/agentmux/instances/default.yaml`
-into `~/.config/agentmux/instances/default.yaml`: the default agentmux instance's
-config, in agentmux's grammar: the prefix, the harness defaults, the setup
-(`~/code/agentwork`, whose `bin/tray` is the agent list), and a section per
-configured Panel saying which program runs there and its visibility wish. The
-agent-list program ships its own identity; AgentMux automatically keeps that
-Panel hidden with no Agents, reveals it with the first and hides it after the
-last. This is product behavior, independent of the personal `needs-agents` flag.
-AgentMux reads Config at start or explicit `config.apply` and never writes it. agentmux and agentwork install in the fleet CLI loop; agentwork
-puts nothing on PATH.
-
-`scripts/agentbrowse-config install` links the version-2 Hypeman deployment:
-Artbird first, local Mac second. AgentBrowse's explicit `scripts/install-host`
-owns runtime dependencies and automatic service recovery on each host. Its
-private connection files must exist before linking this policy. Browser launch
-never installs infrastructure or acquires an image.
-
-The same file locks the Live View video capture policy. The shared
-`browser.video` policy keeps Chromium's display at 60 Hz and captures 30 VP8
-frames per second; only Artbird overrides it to 60 fps, 4,792,320 bits/s, and a
-60-frame keyframe interval, the shape agentbrowse measured for a remote browser
-backend. The local Hypeman backend deliberately carries no override and stays on the
-shared policy until that shape is validated locally. Agentbrowse verifies
-capture settings as part of target ownership, so after the policy changes it
-rejects an existing Browser target at its next launch or `create` until that
-target is destroyed and recreated explicitly; `list`, `resolve`, and `view`
-keep working, and Browser profiles, cookies, and authentication are preserved.
-
 `scripts/agent-browser-config install` links
 `config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
-selects agentbrowse and registers the managed
-`~/.local/bin/agentbrowse provider` command as the short-lived
-`browser.provider` plugin. It resolves that link through `$HOME`, not `PATH`,
-so an older Bun-global command cannot shadow it. The plugin returns each
-Browser target's CDP URL dynamically; no provider server or static instance
-URL is configured.
+selects AgentStack's local-only provider. AgentStack owns the private browser
+runtime; this repository links only its already installed executable.
 
 ## Working on it
 

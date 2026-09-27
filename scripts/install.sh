@@ -257,6 +257,7 @@ Command-line tools:
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
+  scripts/retire-archived-checkouts --apply  # exact old command/config links only; preserve source and private state
   scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent
   agentstart config apply  # Validate generated preference snapshots; watcher reports native drift without writing Funk
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
@@ -273,7 +274,6 @@ Command-line tools:
   ~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin
   scripts/smolmux-config install  # link the operator's Ctrl-Space smolmux key configuration
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
-  scripts/agentmux-config install  # link the operator's default agentmux instance config (setup, parts, prefix, harnesses)
   npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
   link AgentStack's explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade
   scripts/agent-browser-config install  # select AgentStack's local-only provider; no Artbird fallback
@@ -312,7 +312,6 @@ EOF
     "$script_dir/install-statusline" --check
     "$script_dir/opencode-config" --check
     "$script_dir/install-launchagents" --check
-    printf '  scripts/configure-agentsource-webhooks --check  # silent when Funnel, inspectable GitHub hook state, reconciliation provenance, and the live receiver agree; otherwise an agent-ready handoff\n'
     "$script_dir/sync-skills" --check
     if [ -f "$code_root/agentchats/scripts/install.sh" ]; then
         "$code_root/agentchats/scripts/install.sh" --check
@@ -626,6 +625,7 @@ if [ ! -x "$devin_native" ]; then
 fi
 [ -x "$devin_native" ] || die "official Devin installer did not prepare $devin_native"
 "$script_dir/install-harness-shims"
+"$script_dir/retire-archived-checkouts" --apply
 
 # Zen itself is the machine layer's Brewfile cask. What AgentStart owns is the
 # agent-facing container capability: a managed policies.json inside the app
@@ -641,13 +641,6 @@ fi
 # AgentBrowse deployment configuration through ordinary convergence.
 printf "Linking AgentStart's local-only browser provider configuration.\n"
 "$script_dir/agent-browser-config" install
-
-# agentmux reads an instance's config at start and never writes it, so the
-# operator's default instance config stays linked to AgentStart's tracked
-# copy. After the fleet CLI loop, which installs agentmux and the agentwork
-# setup the config names.
-printf "Linking AgentStart's agentmux instance configuration.\n"
-"$script_dir/agentmux-config" install
 
 # agentchats — the coding-agent session search CLI — installs by the
 # agentchats checkout's own contract: the editable CLI link plus the local
@@ -698,9 +691,3 @@ converge_repo_content
 # layer keeps its own services, which are the reverse-DNS labels.
 printf 'Installing the fleet launch agents.\n'
 "$script_dir/install-launchagents" --install
-
-# Authorization is never implicit in ordinary convergence. Diagnose the
-# receiver and inspectable webhook path after its CLI and resident service
-# exist; incomplete state prints an agent-ready handoff while a healthy machine
-# remains quiet.
-"$script_dir/configure-agentsource-webhooks" --check || true

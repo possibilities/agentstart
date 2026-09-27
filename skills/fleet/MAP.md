@@ -9,22 +9,21 @@ Four kinds of edge:
   Breaking the target skill strands the routing.
 - **serves** (dotted): a launchd service running fleet code, a tool reading
   another's data on disk, or a tool loading another fleet project's supported
-  library surface. AgentStart owns fleet service convergence except the
+   library surface. AgentStart owns fleet service convergence except the
    declared owner contracts: AgentStack owns local Hypeman, and
   AgentVoice owns its default-server LaunchAgent. AgentStart delegates to
-  those installers and never renders a competing service; the separate HUD
-  web view remains an AgentStart-owned fleet job. Machine services remain
+   those installers and never renders a competing service. Machine services remain
   outside the fleet.
 - **pins**: a binary installed at an exact version because a consumer locks
   or resolves it by contract.
 
 ## Runtime call graph
 
-Herdr and AgentSurface were retired from installation on 2026-09-24. The
-AgentSurface checkout and some Herdr-specific consumer code remain as historical
-source, not active fleet edges; the `bus`, `herdr`, and Herdr-dependent `tend`
-skills are no longer installed. AgentChats keeps native search and resume without
-its Surface-hosted picker, and AgentSource observes Git and CI without Herdr.
+The operator archived Attention, Grok, HUD, Keys, Mux, Sounds, Source, Surface,
+Utils, Work and several older projects on 2026-09-27. AgentStart no longer
+installs their commands, MCPs, skills or services. Historical edge details
+remain in Git history and ADRs. Known consumers outside AgentStart that still
+name archived commands are listed below; they are not healthy active edges.
 
 ```mermaid
 flowchart LR
@@ -42,30 +41,16 @@ flowchart LR
         brain[agentbrain]
         scrape[agentscrape]
         browser[agent-browser]
-        browse[agentbrowse]
-        attention[agentattention]
-        jobsearch[Jobsearch]
     end
 
-    source[agentsource]
-    hud[agenthud]
     wiki[agentwiki]
     chats[agentchats]
-    mux[agentmux]
-    smolmux[smolmux]
-    work[agentwork Tray]
     voice[agentvoice]
     roles[agentroles]
-    grok[agentgrok]
     stack[agentstack]
-    grokCli[grok — Grok Build CLI]
-    hub[xAI Computer Hub]
 
-    grok -->|token refresh: runs the CLI's own read-only command when the login is expired| grokCli
     stack -->|Bot app-server with private account identity| codex
     stack -->|one account-bound ACP stdio runtime; durable Worker sessions in owned worktrees| opencode & devin
-    grok -->|WebSocket bot_client: bot.* verbs, bot.command relay to the user's Grok Bot box| hub
-    usage -->|Grok Bot card: agentgrok usage --json, display-only weekly allowance| grok
 
     voice -->|owned stock app-server child over private native WebSocket; exact-root web input and explicit speech through a guarded host gateway; role skills via skills/extraRoots/set, role MCPs via per-thread config| codex
     roles -->|--system-prompt-file / --append-system-prompt-file, --mcp-config, --plugin-dir on a cache-rendered plugin| claude
@@ -81,19 +66,14 @@ flowchart LR
     scrape -->|stable session; drives| browser
      browser -->|local provider: launch + close over stdio| stack
      stack -->|disposable targets and private toolchain| hypeman[local Hypeman / Kernel]
-     attention -.->|retired process still imports agentbrowse/opentui| browse
-    jobsearch -->|bounded attention create| attention
-    hud -.->|read-only native observation| voice
     chats -.->|indexes session stores| harnesses
-     claude & codex -->|default managed individual stdio MCPs| contractServers[agenthud / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentgrok / agentsounds / agentchats]
+     claude & codex -->|managed individual stdio MCPs| contractServers[agentwiki / agentbrain / agentsearch / agentscrape / agentchats / agentnotify]
      claude & codex & voice -->|explicit role MCP subset| roleServers[agentwiki / agentbrain / agentsearch / agentscrape / agentnotify]
     claude & codex & voice -->|native MCPs| browser & terminal[termctrl] & desk[agentdesk]
     desk -->|owned Computer Use app-server| codex
     claude & codex & voice -->|two account-bound stdio MCPs| gog[Gog]
     gog -->|authenticated account| gmail[Gmail]
     harnesses -->|fleet registry MCP stdio| shadcn[shadcn]
-    mux -->|private Runtime: lifecycle commands, event.subscribe + state.get over duplex UDS| smolmux
-    work -->|agentmux/client: observe snapshot + filtered events, agent.show| mux
 ```
 
 ## Install and service layer
@@ -117,14 +97,13 @@ flowchart LR
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
      stack ==>|opt-in exact release installation and update policy| browser[agent-browser]
      start ==>|managed binary link and local-only provider config| browser
-     start ==>|checkout contracts| fleet[agentwiki / archival agentboard / agentutils / agentsearch / agentkeys / agentsource / agentscrape / agentbrain / agentusage / agentgrok / agentchats / agentroles / agentstack]
-    start ==>|AgentHUD-owned no-service installer| hudInstall[agenthud]
+     start ==>|checkout contracts| fleet[agentwiki / archival agentboard / agentsearch / agentscrape / agentbrain / agentusage / agentchats / agentroles / agentstack / agentnotify]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     start ==>|default: editable command + client native audio; explicit optional install-agentvoice-android: browser/Termux proof on named SSH host| voiceInstall[agentvoice]
     start -.->|bounded interim jobs: fixed test checkout + explicit workspace; named reader| voiceTest[agentvoice test server / reader]
     start ==>|permission-only PATH shims| claude & codex
     skills ==>|globally installed, persistently disabled skills-only agent plugin| codexDesktop[Codex desktop / unmanaged Codex]
-     start -.->|config/launchd + install-launchagents| services[agentbrain work + share + doctor / agentusage observe / agenthud serve / agentscrape process-queue / agentsource receive + notify / agentwiki serve]
+     start -.->|config/launchd + install-launchagents| services[agentbrain work + share + doctor / agentusage observe / agentscrape process-queue / agentwiki serve]
 ```
 
 ## Skill routing
@@ -135,19 +114,11 @@ it. Extracted from the SKILL.md files themselves.
 ```mermaid
 flowchart LR
     subgraph fleetSkills [Fleet skills]
-        hud -.-> chats
-        brain -.-> chats & wiki
-        scrape -.-> brain & browser & search
-        search -.-> brain & chats & scrape & wiki
-        browser -.-> attention & scrape & search
-        attention -.-> browser
-        jobsearch -.-> attention & browser
-        stateinsurance -.-> attention & browser
-        wiki -.-> hud & brain & chats
-        desktop -.-> browser
-        grokbot -.-> notify & wiki
+        brain -.-> wiki
+        scrape -.-> brain & search
+        search -.-> brain & scrape & wiki
+        wiki -.-> brain
         chats
-        keys
     end
 
     subgraph guidanceSkills [agentguidance skills]
@@ -158,25 +129,37 @@ flowchart LR
 
     desktop -.-> notify
 
-    guidelines[GUIDELINES.md — operator preferences] -.-> brain & chats & hud & notify & wiki & terminalControl[terminal-control]
+    guidelines[GUIDELINES.md — operator preferences] -.-> brain & notify & wiki & terminalControl[terminal-control]
 ```
 
 Skill names and descriptions are the capability discovery surface. There is
 no prompt-level tool catalog. `agentguidance/scripts/render` splices SYSTEM.md
 and GUIDELINES.md into the linked implementation or maintenance references of
 collab, build, and maintain; GUIDELINES preserves the
-operator's research reuse, work tracking, notification, document-placement,
+operator's research reuse, notification, document-placement,
 and managed-PTY preferences. The `tool-advertisement-policy` wiki page records
 this separation of operating preferences from discovery.
 
-`keys` references no other skill and none reference it. `email` routes to
-`notify`, so mail work that stalls still reaches the human. Both are discovered
-through their descriptions, like the other resource skills.
+`email` routes to `notify`, so mail work that stalls still reaches the human.
+Some retained skill prose still mentions the archived `browser` or `attention`
+skills; those are unresolved incoming references, not advertised active routes.
 
 A trap this section has already caught twice: a project's *own* `search`
 subcommand (agentboard's and agentwiki's) reads exactly like a reference to
 the `search` skill in a bare name-grep. Verify a routing edge from the
 sentence around the match, never from the name alone.
+
+## Unresolved incoming references to archived checkouts
+
+These are confirmed source dependencies outside AgentStart, not healthy
+installed edges. Do not silently claim a replacement or re-enable a checkout.
+
+| Consumer | Archived dependency | Consequence / evidence |
+| --- | --- | --- |
+| AgentUsage and AgentStack Usage | `agentgrok usage --json` | Their optional Grok Bot card goes stale or unavailable after command retirement; `agentusage/src/grok-bot/observe.ts`, `agentstack/packages/usage/src/collect.ts`. |
+| Jobsearch and Stateinsurance | AgentAttention workflow | Their authored handoffs and Jobsearch's `attention create` CLI require the archived command; `jobsearch/cli/src/verbs/attention.ts`, both project skills. |
+| Agentscrape and Agentdesk skills | Browser skill | Their runbooks still route page interaction to a skill whose AgentBrowse source is archived; `agentscrape/skills/scrape/SKILL.md`, `agentdesk/skills/desktop/SKILL.md`. The AgentStack `agent-browser` provider is a different active runtime. |
+| Funk and other project documentation | Source/HUD/Mux historical paths | References may describe prior configurations or generated receipts; distinguish active machine calls from history before editing. |
 
 ## Edges with evidence
 
@@ -207,16 +190,10 @@ sentence around the match, never from the name alone.
 | agentstart | Claude Code / Codex / Fx | `install-harness-shims` binds Codex and Fx to the absolute executables reported by codexnk/fxnk `--print-bin`; Claude resolves its official executable through PATH. Claude/Codex retain default unattended permissions; utilities and explicit permission overrides pass through. Fx passes all arguments unchanged. No account, role or model selection is added | `agentstart/scripts/install-harness-shims`; `agentstart/tests/validate.sh`; `agentstart/docs/adr/0041-bind-harness-shims-to-owned-forks.md` |
 | agentstart | Devin CLI | Full installation gets the official native CLI only if its versioned binary is absent. `install-harness-shims` replaces only its exact public native symlink or an AgentStart-owned prior wrapper with an atomic `~/.local/bin/devin` command. New terminal sessions run in the original checkout with a temporary `.devin` snapshot of default Role skills/MCPs and manual `/prime`; `io.arthack.agentstart.clean-devin` cleans ended marked snapshots using PID plus kernel start time. Utilities and ACP pass to the native executable unchanged. Native login and history remain Devin-owned. | `agentstart/scripts/install.sh`; `agentstart/scripts/install-harness-shims`; `agentstart/scripts/devin-invocation.ts`; `agentstart/scripts/devin-cleanup.ts`; `agentstart/config/launchd/io.arthack.agentstart.clean-devin.plist`; `agentstart/docs/adr/0047-run-terminal-devin-in-place-with-cleanup.md` |
 | agentstart | codexnk | invokes the workshop's release installer with an exact stable tag and Integration SHA; codexnk verifies GitHub asset digest, archive, fork flags and ownership receipts, then atomically publishes its private libexec binary. Vendor Codex remains separate, and active processes are not replaced | `agentstart/scripts/install.sh`; `codexnk/scripts/install.sh`; `codexnk/scripts/install.py`; `codexnk/MAINTAIN.md` |
-| agentstart | agentsource | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, securely creates or preserves the private webhook secret, atomically links `~/.local/bin/agentsource` to the checkout's TypeScript entrypoint, and records the deployed commit. The explicit `configure-agentsource-webhooks --apply` path discovers this node's Funnel origin and calls `agentsource webhook-configure` to reconcile signed hooks; ordinary install only runs its non-mutating, agent-oriented diagnostic | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/configure-agentsource-webhooks`; `agentsource/scripts/install.sh`; `agentsource/src/cli.ts` |
-| agentsource notifier | agentsource receiver, terminal-notifier | the resident `notify-daemon` subscribes to the receiver's `ci:*` Unix-socket channels with reconnect, remembers one PASS/FAIL verdict per project's primary-branch head in an owner-only state file, coalesces flips for ninety seconds, and posts one grouped notification through `terminal-notifier` on PATH naming what flipped plus every project still red. AgentStart's router submits only through AgentNotify and returns 127 without submission when AgentNotify is unavailable. A missing notifier is logged, never fatal | `agentsource/src/ci-notifier.ts`; `agentsource/src/channel-client.ts` (`subscribeChannels`); `agentstart/config/launchd/io.arthack.agentsource.notify.plist` |
-| agentstart | agentutils | `install-agent-clis` invokes the checkout's hardened installer, which runs a frozen Bun install, atomically links `~/.local/bin/agentutils` to the checkout's TypeScript entrypoint, and records the deployed commit; the Editor utility lives at the required `agentutils editor` subcommand and follows the fleet's editable, rerunnable installation contract | `agentstart/scripts/install-agent-clis`; `agentutils/scripts/install.sh`; asserted by `agentstart/tests/validate.sh` and `agentutils/test/install.test.ts` |
 | agentstart | agentstack Browser | `install-agent-clis` invokes AgentStack's installer, then links only an already installed private agent-browser release and the local-only AgentStack provider config. Ordinary convergence never reinstalls AgentBrowse or downgrades agent-browser; missing private installation remains opt-in | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/agent-browser-link.sh`; `agentstart/scripts/agent-browser-config`; `agentstart/config/agent-browser/config.json`; `agentstack/packages/browser/src/system.ts` |
 | agent-browser | agentstack Browser | the `agentstack` provider calls the Browser Package API over its Unix socket for a disposable local Hypeman/Kernel target and exact-lease cleanup. The provider refuses an old AgentBrowse-backed owner socket. Driver 0.38.1 suppresses provider-close failures, so a CLI close success alone cannot certify release; use the durable ledger and target inventory | `agentstart/config/agent-browser/config.json`; `agentstack/packages/browser/src/provider.ts`; `agentstack/packages/browser/src/backend.ts`; `agentstack/docs/adr/0076-internal-disposable-browser-lifecycle.md` |
-| agentstart | agentattention retirement | `install-agent-clis` no longer installs the command and the exact owned LaunchAgent is retired. The archived AgentBrowse dependency in AgentAttention's browser processor remains unmodified and is temporarily broken | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-launchagents`; `agentattention/src/tui/processors/browser.ts` |
-| agentbrowse (opt-in screencast helper) | agent-browser | `tools/screencast/run.ts` uses the installed driver with a unique disposable namespace/session and a task-only AgentBrowse configuration selecting the existing local Hypeman backend. It records the exact guest virtual display through authenticated exec; no global default or installer change. | `agentbrowse/tools/screencast/run.ts`; `agentbrowse/tools/screencast/README.md` |
-| Jobsearch | agentattention | `jobsearch attention create --file` validates one of the three bounded first-party payloads, invokes `agentattention --json create`, verifies the returned contract, title, and payload, then records only the producer-side continuation. The combined skill separately uses Agentattention's read/wait CLI surface to consume authoritative terminal outcomes | `jobsearch/cli/src/verbs/attention.ts` (`defaultAgentattentionRunner`, `commandFor`, `createAttentionRequest`); `jobsearch/.claude/skills/jobsearch/SKILL.md` |
 | agentstart | Codex fleet skills | renders fixed private resources and a skills-only plugin, name-disabled by default; explicit roles select their own resources | `agentstart/scripts/render-capabilities`; `agentstart/scripts/sync-codex-skill-policy`; `agentstart/scripts/render-roles` |
-| Explicit default role / AgentVoice | individual stdio MCP servers | the rendered `default` role omits AgentAttention, AgentChats, AgentGrok, AgentHUD, AgentKeys, AgentMux, and AgentSounds and excludes their dedicated skills (`attention`, `chats`, `grokbot`, `hud`, `keys`, `sounds`) via `skills-exclude.json`, dropping their prompt workflows entirely; bare Claude/Codex permission shims inject no fleet inventory | `agentstart/config/resources/mcp-servers.json`; `agentstart/roles/default/mcp.json`; `agentstart/roles/default/skills-exclude.json`; `agentstart/scripts/render-roles`; `agentstart/scripts/install-harness-shims`; `agentstart/docs/adr/0040-collapse-explicit-roles-to-default.md`; `agentstart/docs/adr/0042-prune-removed-mcp-skills-from-default-role.md` |
+| Explicit default role / AgentVoice | individual stdio MCP servers | The common inventory no longer carries archived owners; the default role additionally omits AgentChats and its skill. Bare Claude/Codex permission shims inject no fleet inventory. | `agentstart/config/resources/mcp-servers.json`; `agentstart/roles/default/mcp.json`; `agentstart/scripts/render-roles`; `agentstart/docs/adr/0049-retire-archived-fleet-checkouts.md` |
 | email skill | Gog | selects the correct account-bound MCP server for Gmail search/read. Sends, drafts, exact MIME/headers and complete pagination use the CLI with the full --account address. Existing send authorization is retained and uncertain sends are reconciled. Google auth repair uses the supported human sign-in flow | agentguidance/skills/email/SKILL.md; agentguidance/skills/email/references/messages-and-mime.md; installed Gog MCP catalog and CLI help |
 | Jobsearch | Gog Gmail | the email reader invokes the Gog CLI with the explicit account, readonly and no-input flags, fetches every page and complete matching thread, and validates headers before the pure sync core can store or stamp anything. Auth failures retain exit 4; timeout, malformed data and incomplete reads cannot advance watermarks | jobsearch/cli/src/email/gog.ts; jobsearch/cli/src/email/index.ts; jobsearch/cli/test/gog-email.test.ts |
 | Claude Code / Codex / AgentVoice | shadcn | AgentStart starts `npx shadcn@latest mcp` over stdio through `agentstart mcp shadcn`, always from its fixed registry directory. Explicit roles select that definition from the common inventory; bare permission shims inject no MCP inventory. The caller's project files and npm overrides do not define this registry service; project edits still use the shadcn CLI in that project | `agentstart/scripts/agentstart`; `agentstart/config/resources/mcp-servers.json`; `agentstart/config/resources/shadcn/*`; asserted by `agentstart/tests/shadcn-mcp.py` and both repositories' resource tests |
@@ -224,19 +201,8 @@ sentence around the match, never from the name alone.
 | fxnk | Fx | binds `~/source/vercel-labs--fx` to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. Fx's repo-local `/maintain` skill separately reconciles, gates, and publishes Integration against one captured upstream snapshot | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/MAINTAIN.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
 | agentstart | smolmux | delegates the complete source installation to Smolmux's repository-owned `scripts/install.sh`: the editable `smolmux` Bun command, exact source-built `smolmux-zmx` Companion pin, and `smolmux doctor`. Smolmux sessions run arbitrary commands and own no Fx pin or agent-specific MCP command. AgentStart supplies only the shared binary destination, then links the tracked operator config into `~/.config/smolmux/config.toml`; smolmux uses the operator's `ctrl+space` prefix. Smolmux publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (smolmux block); `smolmux/scripts/install.sh`; `smolmux/scripts/local-gate.sh`; `smolmux/scripts/install-companion.sh`; `smolmux/.github/workflows/ci.yml`; `smolmux/docs/adr/0015-a-socket-is-the-whole-control-surface.md`; `smolmux/docs/adr/0016-sessions-are-arbitrary-commands.md`; `agentstart/config/smolmux/config.toml`; `agentstart/scripts/smolmux-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/smolmux-config.sh` |
 | smolmux explorer | Ghostty CLI | At startup the optional local explorer reads resolved terminal appearance with `ghostty +show-config --changes-only=false --no-pager`, resolving the executable from PATH or the macOS application bundle. Only allowlisted appearance values reach the browser. Missing, failed or timed-out discovery uses bundled defaults; incompatible output affects font/theme matching. | `smolmux/examples/explorer/ghostty-config.ts`; `smolmux/examples/explorer/appearance.ts`; `smolmux/examples/explorer/serve.ts` |
-| Direct MCP hosts | agenthud / agentwiki / agentbrain / agentsearch / agentscrape / agentkeys / agentgrok / agentsounds / agentchats | starts `<cli> mcp` over stdio and receives tools generated from that CLI's own agent contract. Each server dispatches through its command table in process; only `audience: agent` leaves are exposed. Bare Claude and Codex permission shims inject no MCP inventory; explicit roles select their authored entries. The `default` role omits AgentChats, AgentGrok, AgentHUD, AgentKeys, AgentMux, and AgentSounds and excludes their dedicated skills. Existing JSON objects and domain-error envelopes are preserved as structured content and standalone JSON text; plain text and Markdown keep their original format. Transport shutdown closes the owned stdio server. AgentBoard, AgentAttention and AgentBrowse are absent from this active inventory. | `agentstart/config/agent-contract/MCP.md`; `agentstart/config/resources/mcp-servers.json`; `agentstart/roles/default/mcp.json`; `agentstart/scripts/render-roles` |
-| agenthud | AgentVoice current session state | `snapshot --native`, the HUD API, and the read-only web projection invoke the installed `agentvoice threads --json` export through AgentHUD's bounded consumer-owned adapter to associate durable assignments with exact instance, generation, root, thread, and turn identities. The adapter accepts at most 1 MiB for 20 seconds, accepts contract versions 1–4 without importing AgentVoice internals, validates version 3 canonical collaboration task identity, and reads version 4 optional native `startedAt` / `completedAt` turn timing without inventing observation-time fallbacks. Legacy, missing, malformed, conflicting, stale, invalid, or incomplete observation never changes Work. | `agenthud/src/native-observer.ts`; `agenthud/src/projection.ts`; `agenthud/src/api.ts`; `agenthud/skills/hud/SKILL.md`; `agentvoice/src/threads/command.ts`; `agentvoice/src/threads/export.ts` |
-| Direct MCP hosts | agentsounds | serves `notify` and `guide` through the same typed handlers as the CLI. MCP preserves explicit flag presence, requires absolute recipe/export paths, and cancels and reaps active playback on cancellation or transport shutdown. The human audition TUI and operator hooks remain available | `agentsounds/src/commands.ts`; `agentsounds/src/mcp-tools.ts`; `agentsounds/src/mcp-server.ts`; `agentsounds/src/mcp.ts`; `agentsounds/test/mcp.test.ts` |
-| agentstart | agentsounds | invokes the checkout-owned installer for frozen dependencies, an editable command and a private deployed-SHA receipt. The installer preserves independent files, recipes, cached WAVs, and existing Bun links | `agentstart/scripts/install-agent-clis`; `agentsounds/scripts/install.sh`; `agentsounds/test/install.test.ts` |
-| Direct MCP hosts | agentattention | serves 12 producer tools from the authored contract through shared typed client handlers. Config selection and human claim/resolve/return remain outside the tool surface; cancellation and stdio shutdown abort live HTTP waits and event streams. Domain failures preserve their envelope and partial prune failures retain failed-item details | `agentattention/src/mcp-tools.ts`; `agentattention/src/mcp-server.ts`; `agentattention/src/mcp.ts`; `agentattention/test/mcp.test.ts`; `agentattention/docs/mcp.md` |
 | Direct MCP hosts | agent-browser / agentstack Browser | the registered `agent_browser` namespace drives page actions; the Browser Package API manages local disposable targets and the private toolchain. Saved-profile selection, human handoff and remote-file staging are deferred. Driver upgrades must verify provider launch/close semantics; 0.38.1 can hide failed close | `agentstart/config/resources/mcp-servers.json`; `agentstart/config/agent-browser/config.json`; `agentstack/packages/browser/api.ts`; `agentstack/packages/browser/src/provider.ts` |
-| agentgrok | grok (Grok Build CLI) | reuses the CLI's login at `$GROK_HOME/auth.json` as the hub bearer token, and when it is expired or within 90 s of it runs the refresh command — `grok models` by default, `AGENTGROK_REFRESH_COMMAND` to override — so the CLI renews its own file under its own lock, then reads it again. agentgrok never writes `auth.json`; `AGENTGROK_TOKEN` bypasses the CLI entirely. A change to the CLI's login file layout or to `grok models` needing interaction breaks every agentgrok call once the token expires | `agentgrok/src/auth.ts` (`resolveCredential`, `spawnRefresh`); `agentgrok/docs/adr/0002-token-refresh-shells-out-to-the-grok-cli.md`; pinned by `agentgrok/test/auth.test.ts` |
-| agentgrok | xAI Computer Hub (external, `wss://computer-hub.grok.com/v1/tools`) | one WebSocket per command as `?role=bot_client`: hello, then JSON-RPC `bot.roster`, `bot.status`, `bot.vncDescriptor`, `bot.transcript.offbox`, `bot.usage`, `bot.subscribe`/`unsubscribe`, and `bot.command` relaying one of the hub's 43 allowlisted gateway commands to the user's Grok Bot box; `bot.event` notifications carry `hub:turn_finished`. The hub answers 400 without the role parameter, which the protocol crate does not document. Not a fleet edge — recorded because it is the whole product | `agentgrok/src/hub.ts`, `agentgrok/src/relay.ts`; wire shapes from `xai-org/grok-build` `crates/common/xai-tool-protocol/src/bot_relay.rs`; `agentgrok/docs/adr/0001-the-hub-relay-is-the-transport.md` |
-| agentusage | agentgrok | the Grok Bot card runs `agentgrok usage --json` (override `AGENTUSAGE_GROK_BOT_BIN`) and stores an allowlisted weekly percent, period, and plan flags. It does not read the grok CLI token, does not enter Grok selection, and drops the hub manage URL. Changing that envelope or retiring `usage` blanks or stales the card | `agentusage/src/grok-bot/observe.ts`; `agentusage/src/daemon.ts`; `agentusage/docs/adr/0019-observe-grok-bot-usage.md`; `agentgrok/src/cli.ts` (`usage`) |
-| agentmux | smolmux | An external singleton supervisor starts/stops its private named Runtime; neither controller is a terminal App. Requires smolmux 0.11.0+ typed observable stop with connection-bound bounded preparation. Attach presents a fresh frame after measured terminal size/background, synchronous Layout refit and a tokenized render boundary; stale Restore pixels stay hidden. The daemon seals new work, stops native resources and acknowledges preparation without recursively stopping. Stop joins one operation; failure stays sealed, readable and retryable. The shared lifecycle helper verifies the exact Runtime owner has exited after Apps end, rather than treating socket closure as proof. Runtime crashes recover normal Layout only while running; accepted stop persists intent and recovers for cleanup. | `agentmux/src/supervisor.ts`; `agentmux/src/smolmux.ts` (`MIN_SMOLMUX_VERSION`); `agentmux/src/daemon.ts` (`connectRuntime`, `prepareStop`, `stop`); `smolmux/src/terminal-client.ts` (`client.present`); `smolmux/src/runtime.ts` (`present`, `resize`); `smolmux/lifecycle`; controller-loss/concurrent-stop/residue qualification in `agentmux/test/instance.e2e.test.ts` |
-| agentwork Tray | agentmux | imports `agentmux/client` and `agentmux/protocol` from the sibling package, observes the current snapshot and filtered Agent/theme/stop events over the duplex Unix socket, and sends `agent.show` when a row is pressed. Disconnect clears the displayed projection until reconnect; changing the package exports, snapshot, or event contract breaks the Tray | `agentwork/package.json`; `agentwork/src/tui/tray.ts` (`runTray`); `agentmux/src/api-client.ts` (`observe`); `agentmux/events.schema.json` |
-| agentmux | agentwork Tray | resolves the Panel command executable and reads its adjacent `tray.agentmux.json` before first Layout. AgentWork declares `agent-list`; AgentMux 0.35.0+ automatically gates that Panel on Agent presence while retaining its API, visibility wish and PTY policy. No personal Config gate or command-name heuristic establishes identity | `agentmux/src/panel-app.ts`; `agentmux/src/daemon.ts` (`wants`); `agentwork/bin/tray.agentmux.json`; `agentmux/test/panel-app.test.ts`; `agentmux/test/instance.e2e.test.ts` (intrinsic agent-list visibility) |
-| agentstart | every `agent*` CLI | owns `config/agent-contract/schema.json`, the one machine-readable self-description each CLI publishes as `<cli> guide --json`, and `scripts/validate-agent-contract.ts`, which EXECUTES that schema rather than restating it. `--agent-help`, `--agent-teaser`, and `--help` are renders of the contract, not second authorships beside it; thirteen of sixteen CLIs go further and derive their argument parser from it, so a declared flag and an accepted flag cannot disagree. Each repository owns its own conformance test and resolves the validator through AgentStart's checkout | `agentstart/config/agent-contract/{schema.json,README.md,MCP.md,example.json}`; `agentstart/scripts/validate-agent-contract.ts`; `agentstart/scripts/json-schema-subset.ts`; asserted by `agentstart/tests/agent-contract.test.ts` and each repository's own contract test |
+| agentstart | active `agent*` CLIs | owns `config/agent-contract/schema.json`, the one machine-readable self-description an active CLI publishes as `<cli> guide --json`, and `scripts/validate-agent-contract.ts`, which executes that schema rather than restating it. `--agent-help`, `--agent-teaser`, and `--help` render the contract, not second authorships beside it. Each active repository owns its conformance test and resolves the validator through AgentStart's checkout | `agentstart/config/agent-contract/{schema.json,README.md,MCP.md,example.json}`; `agentstart/scripts/validate-agent-contract.ts`; `agentstart/scripts/json-schema-subset.ts`; asserted by `agentstart/tests/agent-contract.test.ts` and each repository's own contract test |
 | agentstart | Hunk | installs or upgrades the Homebrew formula, resolves the version-matched `hunk-review` skill through `hunk skill path hunk-review`, and copies that bundled skill into the fixed resources. It deliberately never installs the skill from GitHub head, which could teach a newer session API than the local binary accepts | `agentstart/scripts/install.sh` (`install_hunk_skill`), asserted by `agentstart/tests/validate.sh`; `hunk/src/core/run/paths.ts` (`resolveBundledSkillPath`) |
 | agentstart | Terminal Control skill | the existing fixed-resource renderer applies the authored MCP workflow after the version-matched vendor skill arrives. It preserves vendor frontmatter and keeps the exact CLI guide beside its original sibling files; repeated rendering and vendor refresh do not recursively wrap the generated body | `agentstart/scripts/render-capabilities`; `agentstart/scripts/render-terminal-control-skill`; `agentstart/config/terminal-control/skill-body.md`; `agentstart/tests/render-terminal-control-skill.py` |
 | agentstart | AgentVoice default role | the fixed-resource renderer publishes the canonical `default` directory from AgentStart-owned prompts, the `skills-exclude.json`-filtered share of the common portable skills, and its complete MCP resource. It retires intact AgentStart-owned `manager` and `worker` outputs without aliases. Its ownership receipt records content-only prompt, rendered-MCP and resolved-skill hashes with AgentVoice's directory-role v1 framing. AgentVoice loads the selected default role through process-local skill roots and per-thread MCP config, captures the generation's resolved content hashes, and compares them with the current directory in status; source edits do not reload a live generation | `agentstart/scripts/render-roles`; `agentstart/scripts/render-capabilities`; `agentstart/config/agentvoice/server.json`; `agentstart/tests/render-roles.py`; `agentstart/docs/adr/0040-collapse-explicit-roles-to-default.md`; `agentvoice/src/core/role-content.ts`; `agentvoice/src/core/role.ts`; `agentvoice/src/core/runtime.ts` |
@@ -255,15 +221,12 @@ sentence around the match, never from the name alone.
 | --- | --- | --- | --- |
 | agentvoice serve | portless | Locked 0.15.6 foreground route `https://agentvoice.localhost`; bare direct use remains editable Vite development while AgentStart's resident reader runs the installer-prepared production build with `agentvoice serve --production --tailscale`. Tailscale mode adds the exact Portless-injected tailnet-only origin while retaining localhost and refusing Funnel/ngrok. Requires the existing shared loopback HTTPS proxy; no sudo or call startup. AgentStart keeps it resident as `io.arthack.agentvoice.serve`; full convergence prepares AgentVoice before launch-agent convergence, and exact-label convergence can replace or diagnose the reader without operating AgentVoice's separately owned waiting server, menu app, clients, calls, test services or future Native SDK shell. | `agentvoice/src/web-serve.ts`; `agentvoice/src/web-target.ts`; `agentvoice/web/server/{dev,preview,local-origin}.ts`; `agentvoice/web/README.md`; `agentvoice/scripts/install.ts`; `agentstart/config/launchd/io.arthack.agentvoice.serve.plist`; `agentstart/scripts/{install-agent-clis,install-launchagents}`; `agentstart/docs/adr/0022-supervise-agentvoice-transcript-reader.md` |
 | agentvoice test serve | portless | Bounded interim route `https://agentvoice-test.localhost`, plus its explicit Portless tailnet-only origin, executed from the fixed parallel-test checkout and pinned to `~/.local/state/agentvoice/test-workspace`. AgentStart keeps the named reader resident as `io.arthack.agentvoice-test.serve` beside the independently supervised `io.arthack.agentvoice-test.wait`. The reader stays offline when that exact workspace socket is absent; it never falls back to the default reader/server. | `agentvoice/docs/parallel-test-environment.md`; `agentvoice/src/web-serve.ts`; `agentvoice/web/server/live-reader.ts`; `agentstart/config/launchd/io.arthack.agentvoice-test.wait.plist`; `agentstart/config/launchd/io.arthack.agentvoice-test.serve.plist`; `agentstart/scripts/install-launchagents`; `agentstart/docs/adr/0023-supervise-replaceable-agentvoice-test-services.md` |
-| agenthud serve | portless | Fixed `https://agenthud.localhost` route, plus an explicit Portless tailnet-only origin, editable Vite/HMR by default with an explicit production mode. Exact-origin checks cover both routes; Funnel/ngrok remain disabled. AgentStart keeps it resident as `io.arthack.agenthud.serve`; an exact-label convergence can install or diagnose HUD without touching AgentVoice, the retired AgentChats plist, the shared proxy, or another fleet job. AgentHUD's own installer prepares the command, dependencies, and web assets without a service action. | `agenthud/src/{launcher,web-origin,api}.ts`; `agenthud/web/server/{dev,dev-server}.ts`; `agenthud/scripts/install.sh`; `agentstart/config/launchd/io.arthack.agenthud.serve.plist`; `agentstart/scripts/install-launchagents`; `agentstart/docs/adr/0011-keep-agenthud-resident.md` |
-| agentstart | agentbrain, agentchats, agenthud, agentvoice, agentscrape, agentsource, agentusage, agentwiki | installs their commands through checkout contracts. AgentChats keeps its CLI and MCP but no web service. AgentHUD prepares its own assets without a service action. AgentStart owns the active `agentbrain.work/.share/.doctor`, `agenthud.serve`, `agentvoice.serve`, `agentusage.observe`, `agentscrape.process-queue`, `agentsource.receive/.notify`, and `agentwiki.serve` jobs. It retires only exact-marker-owned AgentAttention, AgentChats web and AgentLab service jobs; AgentAttention's source still imports archived AgentBrowse. Brain's optional pinned Agentscrape session remains caller-owned, without a saved-profile guarantee under the new provider. Exact-label convergence does not touch neighboring jobs or restart a healthy identical service. AgentVoice alone owns its default server. | `agentstart/config/launchd/*.plist`; `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-launchagents`; `agentstart/tests/{install-agent-clis.test.ts,install-launchagents.sh,validate.sh}` |
+| agentstart | agentbrain, agentchats, agentvoice, agentscrape, agentusage, agentwiki | Installs active checkout commands and owns the `agentbrain.work/.share/.doctor`, `agentvoice.serve`, `agentusage.observe`, `agentscrape.process-queue`, and `agentwiki.serve` jobs. Exact-marker retirement removes former HUD and Source jobs without touching private records. AgentVoice alone owns its default server. | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install-launchagents`; `agentstart/docs/adr/0049-retire-archived-fleet-checkouts.md` |
 | agentstart | agentvoice test service lifecycle | AgentStart additionally owns the two interim `io.arthack.agentvoice-test.*` labels. They are the sole source-checkout exception to the public-command service rule, use distinct logs, share only the explicit test workspace, and remain separate from AgentVoice's default-server owner and the production transcript reader. | `agentstart/docs/adr/0023-supervise-replaceable-agentvoice-test-services.md`; `agentstart/config/launchd/io.arthack.agentvoice-test.wait.plist`; `agentstart/config/launchd/io.arthack.agentvoice-test.serve.plist`; `agentstart/tests/install-launchagents.sh` |
-| agentattention | agentbrowse | the first-party browser-interaction processor loads Agentbrowse's supported `agentbrowse/opentui` package surface, discovers the attention item's exact Browser target name, embeds `LiveViewRenderable`, and requests/releases control around the human interaction. It never modifies or imports the pinned external agent-browser project | `agentattention/package.json`; `agentattention/src/tui/processors/browser.ts`; `agentbrowse/package.json` (`./opentui` export); `agentbrowse/src/opentui/core.ts` |
 | machine installer + updater | agentstart | the only inbound edges from outside the fleet: the installer calls `scripts/install.sh --install` and nothing else about the fleet, because agentstart installs every fleet command and every fleet service and discovers the tailnet bind address itself; the machine's scheduled updater calls only `scripts/sync-skills` by path — unattended convergence refreshes fixed resources without running the full installer | `agentstart/scripts/install.sh` (the documented external interface), `agentstart/scripts/install-agent-clis`, `agentstart/scripts/install-launchagents`, `funk/libexec/funk-update` |
-| Legacy AgentBoard data | agentwiki | preserved Board items can hold wiki slugs through `link` / `unlink`, so changing wiki's slug scheme breaks historical links even though active guidance sends durable work to HUD | `agentboard/skills/board/references/board-model.md`; `agentwiki/skills/wiki/SKILL.md`; `agentwiki/src/slug.ts` |
+| Legacy AgentBoard data | agentwiki | preserved Board items can hold wiki slugs through `link` / `unlink`, so changing wiki's slug scheme breaks historical links even though Board and HUD are no longer active work surfaces | `agentboard/skills/board/references/board-model.md`; `agentwiki/skills/wiki/SKILL.md`; `agentwiki/src/slug.ts` |
 | agentchats | Claude Code, Codex | owns its session index end to end, with no third-party indexer left in the fleet: readers for the two local transcript stores (`~/.claude/projects/<slug>/<uuid>.jsonl`, `~/.codex/sessions/.../rollout-<stamp>-<uuid>.jsonl`), an incremental ingest, and one SQLite + FTS5 database at `~/.local/state/agentchats/index.db`. The index is derived state — a pruned transcript leaves search, and the whole database rebuilds from the stores with `agentchats index`. Its stdio MCP tools share typed CLI handlers, preserve exact JSON/error/Markdown results, and stop incomplete indexing on cancellation; agents search through the direct MCP, while the human picker remains available. Nothing downstream may treat the derived index as authoritative | `agentchats/src/parse/claude.ts:3`; `agentchats/src/parse/codex.ts:2`; `agentchats/src/store/ingest.ts`; `agentchats/src/store/schema.ts:63`; `agentchats/src/store/paths.ts:50`; `agentchats/src/cli/commands.ts`; `agentchats/scripts/install.sh` |
 | desktop skill / MCP hosts | Agentdesk / Codex Computer Use | native harness Computer Use remains available; otherwise agentdesk mcp wraps one owned supported Codex app-server and dynamically preserves its CUA schemas, images and consent flow. Guide and initialize do not start Codex; dynamic discovery or use does. Each stdio connection owns and reaps its child, with no model turn for tool discovery. Browser pages still use the browser workflow | agentdesk/skills/desktop/SKILL.md; agentdesk/src/mcp.ts; agentdesk/scripts/install.sh; agentstart/config/resources/mcp-servers.json |
-| agentkeys | stowed machine configs | audits the interception chain across Karabiner/skhd/Ghostty/tmux/Neovim — files the machine layer stows | `agentkeys` skill description; the machine's stow packages |
 | legacy agentboard, agentchats | each other's CLIs | the shared "agent* state dump" bearings convention remains readable for recovery: one cross-tool contract for workspace-scoped bearings, with a common ~4-chars-per-token `--budget` and silence as the all-clear | `agentchats/src/cli/state.ts`, `agentboard/src/brief.ts:140,151-158`, `agentboard/src/contract.ts:576-581` |
 | agentstart statusline | agentusage | displays `AGENTUSAGE_ACCOUNT` when an explicit prepared launch supplies it; bare shims do not prepare accounts | `agentstart/config/statusline/claude-statusline.sh`; `agentusage/src/service/prepare.ts` |
 
@@ -309,18 +272,12 @@ remains intact, with no Responses provider injection into its Realtime path.
 
 | From | Routes to | Notable natures |
 | --- | --- | --- |
-| hud | chats | for a Codex collaboration worker absent from AgentVoice observation, the manager uses AgentChats `routing` to obtain exact attempt, parent/child turn, model and effort citations for a transcript binding. AgentHUD never scans transcripts or treats the receipt as live activity. Resource permission and physical-state coordination use their direct human and notification owners rather than an AgentHUD record (`agenthud/skills/hud/SKILL.md`; `agenthud/docs/adr/0009-bind-codex-collaboration-transcripts.md`; `agentchats/skills/chats/SKILL.md`; `agentstart/docs/adr/0029-retire-agenthud-resource-lease-recording.md`) |
 | brain | wiki | authored documents route to wiki. Saved research is useful context; a local miss is not a prerequisite for current web research. The worker's Agentscrape extraction is a runtime dependency, not a skill-routing edge (`agentbrain/skills/brain/SKILL.md`; `agentbrain/skills/brain/references/ingestion.md`) |
-| scrape | brain, browser, search | URL discovery routes to search, page interaction and sign-in to browser, and worthwhile source ingestion to brain. Immediate extraction does not require ingestion first (`agentscrape/skills/scrape/SKILL.md`) |
+| scrape | brain, search | URL discovery routes to search and durable source admission to brain. Its old Browser-skill referral needs an owner update; the runtime still uses agent-browser directly. | `agentscrape/skills/scrape/SKILL.md`; `agentscrape/src/browser.ts` |
 | search | brain, scrape, wiki | saved reading supplies context; known-source reading routes to scrape, saved sources to brain, and a requested durable synthesis to wiki. An explicit current-research request does not depend on empty local results (`agentsearch/skills/search/SKILL.md`) |
-| browser | scrape, search | human-only interaction with the resolved exact live target uses AgentBrowse's `view` and an explicit human outcome through conversation or AgentNotify; automation pauses during human control. Fetching public content uses scrape and finding pages uses search (`agentbrowse/skills/browser/SKILL.md`; `agentbrowse/skills/browser/references/lifecycle.md`) |
-| attention | browser | prepared browser handoffs load browser for the stable session, resolve its exact live target through AgentBrowse MCP, then create and await a durable item through Attention MCP. Native harness questions remain appropriate for in-session clarification (`agentattention/skills/attention/SKILL.md`; `agentattention/skills/attention/references/runtime.md`) |
-| jobsearch | attention, browser | the combined work-round skill loads attention for every human handoff and browser before interactive pages; its producer workflow hands only exact live Browser targets to Agentattention (`jobsearch/.claude/skills/jobsearch/SKILL.md`; `jobsearch/.claude/skills/references/attention-workflow.md`) |
-| stateinsurance | attention, browser | the project work-round skill routes bounded questions, document approvals, and exact-target MyMaineConnection interaction to attention while browser owns the stable `mainecare` session, persistent profile, and live-target handoff (`stateinsurance/.claude/skills/stateinsurance/SKILL.md`; `stateinsurance/AGENTS.md`) |
-| desktop | browser, notify | page interaction uses browser; peer panes are not controlled with GUI input; a brief input takeover is announced in the current conversation or through notify when the human is away (`agentdesk/skills/desktop/SKILL.md`) |
+| desktop | notify | The retained skill routes native input takeover notices to notify; its old browser-skill referral is unresolved after Browser skill retirement. | `agentdesk/skills/desktop/SKILL.md`; `agentstart/docs/adr/0049-retire-archived-fleet-checkouts.md` |
 | wiki | brain | collected source material routes to brain; Wiki's `search` is its own subcommand, not the search skill (`agentwiki/skills/wiki/SKILL.md`) |
 | GUIDELINES.md (this repo) | brain, notify, wiki, terminal-control | spliced into linked collab/build/maintain references; applies research reuse and human-controlled resource authority, preserves notifications and managed PTY work, and routes durable wiki knowledge while honoring requested artifact formats and destinations. Capability discovery uses skill descriptions |
-| grokbot | notify, wiki | a bot waiting on a human decision or sign-in is announced through notify; a result worth preserving uses wiki. An unfinished or timed-out turn is reconciled before another prompt is sent (`agentgrok/skills/grokbot/SKILL.md`; `agentgrok/skills/grokbot/references/operations-and-recovery.md`) |
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
 
 ## Checked and absent
@@ -844,8 +801,8 @@ AgentFX observer, and automatic comparison profile are no longer active fleet
 edges. Their accepted ADRs remain as history, and durable execution, routing,
 binding, transcript and Result records remain readable by their owning projects.
 
-AgentGrok and GrokBot remain active through the runtime, MCP, install and skill
-edges documented above. AgentStart also retains Grok Build and the exact
+At that date AgentGrok and GrokBot remained active; they were retired from
+AgentStart's fleet inventory on 2026-09-27 (ADR 0049). AgentStart retains Grok Build and the exact
 fxnk-owned Fx Integration installation.
 
 ## Retired AgentLab runtime integration (2026-09-20)

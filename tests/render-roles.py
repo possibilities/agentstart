@@ -232,8 +232,8 @@ class RoleRender(unittest.TestCase):
             self.assertNotIn(retired, guidance)
 
     def test_shipped_default_skill_filter_excludes_removed_mcp_skills(self):
-        excluded = ["attention", "chats", "grokbot", "hud", "keys", "sounds"]
-        retained = ["browser", "build", "collab", "maintain", "notifications",
+        excluded = ["chats"]
+        retained = ["build", "collab", "maintain", "notifications",
                     "notify", "wiki"]
         for name in excluded + retained:
             skill = self.resources / "skills" / name

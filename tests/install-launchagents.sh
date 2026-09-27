@@ -124,8 +124,8 @@ for agentlab_label in \
 done
 
 plan=$(run_installer --check)
-printf '%s\n' "$plan" | grep -F "skipped io.arthack.agenthud.serve (no $bin_dir/agenthud)" >/dev/null \
-    || fail "missing AgentHUD binary was not skipped"
+printf '%s\n' "$plan" | grep -F "io.arthack.agenthud.serve" | grep -F "absent; nothing to remove" >/dev/null \
+    || fail "retired AgentHUD service was not inert"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentlab.serve' | grep -F 'absent; nothing to remove' >/dev/null \
     || fail "absent retired AgentLab service was not reported as inert"
 printf '%s\n' "$plan" | grep -F 'io.arthack.agentvoice-test.wait' | grep -F 'not configured; would skip' >/dev/null \
@@ -210,25 +210,17 @@ with open(sys.argv[1], "rb") as handle:
 assert value["ProgramArguments"] == [sys.argv[2], "daemon", "run"]
 PYTHON
 
-# AgentHUD follows the same resident editable-reader frame, and its exact
-# selector is the deployment path that must not converge or restart neighbors.
+# HUD and Source are retired through exact-marker cleanup, not installed.
+for label in io.arthack.agenthud.serve io.arthack.agentsource.notify io.arthack.agentsource.receive; do
+    plist="$launch_agents/$label.plist"
+    printf '<?xml version="1.0"?>\n<!-- agentstart-installer-owned: %s.v1 -->\n' "$label" >"$plist"
+    plan=$(run_installer --check --service "$label")
+    printf '%s\n' "$plan" | grep -F "$label" | grep -F 'would boot out and remove owned plist' >/dev/null \
+        || fail "retired service was not planned for removal: $label"
+    run_installer --install --service "$label" >/dev/null
+    [ ! -e "$plist" ] || fail "retired service survived: $label"
+done
 hud_label=io.arthack.agenthud.serve
-hud_plist="$launch_agents/$hud_label.plist"
-printf '#!/bin/sh\nexit 0\n' >"$bin_dir/agenthud"
-chmod +x "$bin_dir/agenthud"
-target_plan=$(run_installer --check --service "$hud_label")
-printf '%s\n' "$target_plan" | grep -F "$hud_label" | grep -F 'install' >/dev/null \
-    || fail "targeted HUD plan omitted its absent service"
-if printf '%s\n' "$target_plan" | grep -F 'io.arthack.agentusage.observe' >/dev/null; then
-    fail "targeted HUD plan included a neighboring service"
-fi
-if run_installer --check --service io.arthack.unknown.serve >/dev/null 2>&1; then
-    fail "targeted convergence accepted an unknown service label"
-fi
-if run_installer --check --service >/dev/null 2>&1; then
-    fail "targeted convergence accepted a missing service label"
-fi
-
 target_launchctl="$test_root/target-launchctl"
 target_launchctl_log="$test_root/target-launchctl.log"
 target_launchctl_state="$test_root/target-launchctl.loaded"
@@ -253,61 +245,12 @@ case "$1" in
 esac
 EOF
 chmod +x "$target_launchctl"
-cp "$brain_plist" "$test_root/brain-before-targeted.plist"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$hud_label" >/dev/null
-/usr/bin/python3 - "$hud_plist" "$bin_dir/agenthud" "$test_home" "$state_dir" <<'PYTHON'
-import plistlib
-import sys
-with open(sys.argv[1], "rb") as handle:
-    value = plistlib.load(handle)
-assert value["ProgramArguments"] == [sys.argv[2], "serve", "--tailscale"]
-assert value["EnvironmentVariables"]["HOME"] == sys.argv[3]
-assert sys.argv[2].rsplit("/", 1)[0] in value["EnvironmentVariables"]["PATH"].split(":")
-assert value["KeepAlive"] and value["RunAtLoad"] and value["ProcessType"] == "Standard"
-assert value["Umask"] == 63 and value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == sys.argv[4] + "/agenthud/server.log"
-PYTHON
-cmp "$brain_plist" "$test_root/brain-before-targeted.plist" \
-    || fail "targeted HUD installation rewrote a neighboring service"
-cp "$hud_plist" "$test_root/hud-before-repeat.plist"
-AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$hud_label" >/dev/null
-cmp "$hud_plist" "$test_root/hud-before-repeat.plist" \
-    || fail "repeat targeted HUD installation changed an identical plist"
-[ "$(grep -c '^bootstrap ' "$target_launchctl_log")" -eq 1 ] \
-    || fail "repeat targeted HUD installation reloaded its healthy unchanged service"
-if grep -q '^bootout ' "$target_launchctl_log"; then
-    fail "repeat targeted HUD installation stopped its healthy unchanged service"
+if run_installer --check --service io.arthack.unknown.serve >/dev/null 2>&1; then
+    fail "targeted convergence accepted an unknown service label"
 fi
-if grep -v -F "$hud_label" "$target_launchctl_log" >/dev/null; then
-    fail "targeted HUD installation called launchctl for a neighboring service"
+if run_installer --check --service >/dev/null 2>&1; then
+    fail "targeted convergence accepted a missing service label"
 fi
-target_status=$(
-    AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-        AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-        AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-        run_installer --status --service "$hud_label"
-)
-printf '%s\n' "$target_status" | grep -F "$hud_label" | grep -F 'state=running' | grep -F 'pid=73' >/dev/null \
-    || fail "targeted HUD status omitted its healthy job"
-if printf '%s\n' "$target_status" | grep -F 'io.arthack.agentusage.observe' >/dev/null; then
-    fail "targeted HUD status included a neighboring service"
-fi
-printf '<!-- independent HUD -->\n' >"$hud_plist"
-if AGENTSTART_INSTALL_LAUNCHCTL="$target_launchctl" \
-    AGENTSTART_TEST_LAUNCHCTL_LOG="$target_launchctl_log" \
-    AGENTSTART_TEST_LAUNCHCTL_STATE="$target_launchctl_state" \
-    run_installer --install --service "$hud_label" >/dev/null 2>&1; then
-    fail "targeted HUD installation accepted a foreign ownership marker"
-fi
-grep -Fxq '<!-- independent HUD -->' "$hud_plist" \
-    || fail "targeted HUD installation overwrote a foreign service"
-rm -- "$bin_dir/agenthud" "$hud_plist"
 
 # The AgentVoice reader uses the same exact-label frame independently of the
 # AgentVoice-owned waiting server. Its first canonical convergence replaces the
@@ -699,34 +642,14 @@ install_brain_session() {
         "$root/scripts/install-launchagents" --install
 }
 
-assert_brain_session() {
-    /usr/bin/python3 - "$launch_agents/io.arthack.agentbrain.work.plist" "$1" <<'PYTHON'
-import plistlib
-import sys
+install_brain_session >/dev/null
+/usr/bin/python3 - "$launch_agents/io.arthack.agentbrain.work.plist" <<'PYTHON'
+import plistlib, sys
 with open(sys.argv[1], "rb") as handle:
     environment = plistlib.load(handle)["EnvironmentVariables"]
-    actual = environment["AGENTSCRAPE_BROWSER_SESSION"]
-assert actual == sys.argv[2], (actual, sys.argv[2])
-assert environment["AGENTSCRAPE_OWN_PINNED_SESSION"] == "1"
+assert "AGENTSCRAPE_BROWSER_SESSION" not in environment
+assert "AGENTSCRAPE_OWN_PINNED_SESSION" not in environment
 PYTHON
-}
-
-AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=brain-auth install_brain_session >/dev/null
-assert_brain_session brain-auth
-unset AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION
-install_brain_session >/dev/null
-assert_brain_session brain-auth
-cp "$launch_agents/io.arthack.agentbrain.work.plist" "$test_root/worker-before.plist"
-for invalid_session in '-bad' 'bad session' 'bad/session' "$(printf '%0129d' 0)"; do
-    if AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION="$invalid_session" install_brain_session >/dev/null 2>&1; then
-        fail "invalid browser session was accepted"
-    fi
-    cmp "$test_root/worker-before.plist" "$launch_agents/io.arthack.agentbrain.work.plist" \
-        || fail "invalid browser session replaced the installed Worker"
-done
-
-AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION='' install_brain_session >/dev/null
-assert_brain_session ''
 
 # The config watcher uses the same manifest/render/lifecycle owner and pins
 # state consistently with one-shot invocations, including non-default XDG.

@@ -26,24 +26,6 @@
         "mcp"
       ]
     },
-    "agentgrok": {
-      "command": "${HOME}/.local/bin/agentgrok",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agenthud": {
-      "command": "${HOME}/.local/bin/agenthud",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentkeys": {
-      "command": "${HOME}/.local/bin/agentkeys",
-      "args": [
-        "mcp"
-      ]
-    },
     "agentnotify": {
       "command": "${HOME}/.local/bin/agentnotify",
       "args": [
@@ -58,12 +40,6 @@
     },
     "agentsearch": {
       "command": "${HOME}/.local/bin/agentsearch",
-      "args": [
-        "mcp"
-      ]
-    },
-    "agentsounds": {
-      "command": "${HOME}/.local/bin/agentsounds",
       "args": [
         "mcp"
       ]

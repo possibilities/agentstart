@@ -2,11 +2,9 @@
 
 AgentStart owns one explicit working role, `default`. Its source directory
 contains the human-facing manager prompt Markdown and its own `mcp.json`. The
-role inventory omits AgentAttention, AgentChats, AgentGrok, AgentHUD, AgentKeys,
-AgentMux, and AgentSounds MCPs. `skills-exclude.json` removes the
-omitted owners' dedicated skills (`attention`, `chats`, `grokbot`, `hud`,
-`keys`, `sounds`; AgentMux has no standalone skill) from the role's share of the
-common skill set, and the prompt drops their owners' workflows rather than
+role inventory omits AgentChats. `skills-exclude.json` removes its skill
+from the role's share of the common skill set; archived owners' MCPs and skills
+are retired from the shared resources entirely. The prompt drops their workflows rather than
 prescribing a replacement system. Changing the general
 fleet inventory does not silently change its MCP roster.
 
@@ -58,12 +56,9 @@ See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-cod
 
 ## Role MCP boundary
 
-The default role does not start the AgentAttention, AgentChats, AgentGrok, AgentHUD,
-AgentKeys, AgentMux, AgentSounds, or AgentSurface MCP, and it does not ship those
-owners' dedicated skills (`attention`, `bus`, `chats`, `grokbot`, `hud`, `keys`,
-`sounds`; AgentMux has no standalone skill). This is an explicit-role
-startup and skill boundary, not a retirement of those tools, their skills in the
-common fleet set, the common managed inventory, or their independent services.
+The default role does not start AgentChats or ship its `chats` skill. This is
+an explicit-role boundary. Archived checkouts are a separate fleet retirement:
+their MCPs, skills and services are absent from the shared managed resources.
 The role's prompt keeps generic worker report-and-review and notification
 responsibilities without prescribing the omitted owners' commands.
 Rendering a role change does not reload an active AgentVoice generation; it

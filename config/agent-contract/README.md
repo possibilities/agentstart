@@ -93,7 +93,7 @@ agreement when present. Compute it rather than maintaining it by hand.
 ## Nested commands
 
 Commands form a tree, not a list. `agentwiki artifacts list`, `agentboard groom
-export`, `agentbrowse profile create`, and `agentbrain jobs show` are real, and
+export`, `agentbrain sources show`, and `agentbrain jobs show` are real, and
 flattening them loses information the fleet already publishes — AgentBoard's
 guide names `groom export` in `read_only_commands` today.
 

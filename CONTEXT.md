@@ -72,20 +72,17 @@ canonical guidance, the fleet-owned shadcn registry MCP, the session-only Claude
 plugin, and the globally installed but inert Codex skills-only plugin. Bare
 shims supply no skills or MCP inventory; the
 explicit `default` role supplies its own MCP and skill layer. Its MCP roster
-omits Attention, Chats, Grok, HUD, Keys, Mux, Sounds, and Surface, and its skill
-set excludes those owners' dedicated skills and their workflows;
+omits Chats, and its skill set excludes the Chats skill. Archived owners' MCPs
+and skills are removed from the common inventory as well;
 the inventory has no AgentStart-owned HTTP projection. There are no selectable
 packs. _Avoid_: capability pack, common pack, projection.
 
-**AgentHUD** — the independent `~/code/agenthud` project, `agenthud` command,
-and `hud` skill: the durable Work owner and read-only HUD projection for managed
-sessions. Its installer prepares only the command, dependencies, and web assets;
-AgentStart owns the resident `io.arthack.agenthud.serve` LaunchAgent that runs
-the editable default view at `https://agenthud.localhost`. Legacy AgentBoard data,
-CLI, and stdio MCP implementation remain available for archival queries, while
-Board/Groom skills and the AgentBoard MCP are absent from active fleet
-resources. AgentBoard has no socket service endpoint.
-_Avoid_: Board redirect, dual write, AgentVoice-owned AgentHUD.
+**Archived fleet checkouts** — preserved source and data under `~/archive`,
+not active CLI, MCP, skill, or service participants. AgentStart retires only
+its exact owned links and LaunchAgents for the named former owners; existing
+session snapshots are not rewritten. Legacy AgentBoard CLI and data remain
+available for archival queries without Board/Groom skills or an active MCP.
+_Avoid_: compatibility redirect, dual installation, deleting private state.
 
 **Archived AgentLab** — the retired AgentLab (Greybird) project preserved as
 reference source and history, outside the active fleet. AgentStart keeps no
@@ -138,9 +135,8 @@ directly. _Avoid_: OpenAI policy (that is one rendered representation).
 **Working role** — The AgentStart-owned `default` directory of prompt Markdown
 and its complete MCP inventory. Its manager owns human dialogue and overall
 delivery; native workers own assignments and report to their parent without a
-separate role directory. The inventory omits Attention, Chats, Grok, HUD, Keys,
-Mux, Sounds, and Surface MCPs and excludes their dedicated skills (`attention`,
-`bus`, `chats`, `grokbot`, `hud`, `keys`, `sounds`) and their workflows; generic
+separate role directory. The inventory omits Chats and excludes its skill;
+archived owners are absent from the common inventory. Generic
 native worker report-and-review accountability remains. Role exposure does not
 authenticate or revoke native tools. _Avoid_: manager role,
 worker role, AgentVoice-owned prompt.

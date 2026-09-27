@@ -46,8 +46,8 @@ esac
 # without touching any binary. scripts/install.sh ends with this, and the scheduled
 # updater calls it directly every six hours, because a stale runbook misleads
 # a session as badly as a stale binary does. Every agent* checkout under
-# ~/code that exports skills/<name>/SKILL.md is a source, except for the two
-# explicitly retired Board entrypoints below.
+# ~/code that exports skills/<name>/SKILL.md is a source, except for retired
+# fleet entrypoints below. Exact-name pruning also removes old copies.
 #
 #   That convention is the whole interface: AgentStart discovers participants
 #   instead of listing them, so a project that grows or renames a skill is
@@ -61,10 +61,9 @@ script_dir=$(cd -P -- "$(dirname -- "$0")" && pwd)
 resources_root="${AGENTSTART_RESOURCES_ROOT:-$HOME/.local/share/agentstart/resources}"
 skills_root="$resources_root/skills"
 skills_state_root="$resources_root/skills-state"
-# Board remains installed for archival reads, but its planning entrypoints are
-# retired from managed sessions. Keep this list narrow: it controls both source
-# discovery and exact-name pruning from AgentStart's owned resource tree.
-retired_fleet_skills=(board groom bus herdr)
+# Board remains installed for archival reads. The other names belong to
+# archived checkouts and must not survive as stale managed capabilities.
+retired_fleet_skills=(board groom attention browser bus grokbot herdr hud keys sounds)
 
 is_retired_fleet_skill() {
     local candidate="$1"

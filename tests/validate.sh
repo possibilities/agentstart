@@ -24,25 +24,21 @@ scripts/install-opencode
 scripts/install-harness-shims
 scripts/install-notification-shim
 scripts/install-launchagents
-scripts/configure-agentsource-webhooks
-scripts/agentbrowse-config
+scripts/retire-archived-checkouts
 scripts/agent-browser-config
 scripts/agent-browser-link.sh
 scripts/smolmux-config
-scripts/agentmux-config
 scripts/agentvoice-config
 scripts/install-zen-open
 config/zen/zen-open
 config/zen/zen-usage
 tests/validate.sh
-tests/agentbrowse-config.sh
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/smolmux-config.sh
-tests/agentmux-config.sh
 tests/agentvoice-config.sh
-tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
+tests/retire-archived-checkouts.sh
 tests/fixtures/npx
 "
 
@@ -57,26 +53,19 @@ fi
 
 for script in scripts/install.sh scripts/sync-skills scripts/check-role-plugins scripts/install-agent-clis scripts/install-agentvoice-android scripts/install-pi scripts/install-opencode scripts/opencode-config \
     scripts/run-skills-cli \
-    scripts/install-harness-shims scripts/render-capabilities scripts/install-launchagents \
-    scripts/configure-agentsource-webhooks \
+    scripts/install-harness-shims scripts/render-capabilities scripts/install-launchagents scripts/retire-archived-checkouts \
     scripts/sync-codex-skill-policy \
     scripts/render-skill-invocation-policy \
-    scripts/agentbrowse-config scripts/agent-browser-config scripts/smolmux-config scripts/agentmux-config scripts/agentvoice-config \
+    scripts/agent-browser-config scripts/smolmux-config scripts/agentvoice-config \
     scripts/install-zen-open; do
     [ -x "$script" ] || fail "installer script is not executable: $script"
 done
-[ -x tests/agentbrowse-config.sh ] \
-    || fail "agentbrowse config test is not executable: tests/agentbrowse-config.sh"
 [ -x tests/agent-browser-config.sh ] \
     || fail "agent-browser config test is not executable: tests/agent-browser-config.sh"
 [ -x tests/agent-browser-link.sh ] \
     || fail "agent-browser link test is not executable: tests/agent-browser-link.sh"
 [ -x tests/smolmux-config.sh ] \
     || fail "smolmux config test is not executable: tests/smolmux-config.sh"
-[ -x tests/agentmux-config.sh ] \
-    || fail "agentmux instance config test is not executable: tests/agentmux-config.sh"
-[ -x tests/agentsource-webhooks.sh ] \
-    || fail "Agentsource webhook test is not executable: tests/agentsource-webhooks.sh"
 [ -x tests/install-launchagents.sh ] \
     || fail "launch agent installer test is not executable: tests/install-launchagents.sh"
 [ -x config/terminal-control/termctrl ] \
@@ -93,27 +82,6 @@ tests/check-role-plugins.sh
 PYTHONDONTWRITEBYTECODE=1 python3 tests/project-docs.py
 PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
 
-[ -s config/agentbrowse/config.json ] \
-    || fail "default agentbrowse config is missing or empty"
-/usr/bin/jq -e '
-    .version == 2 and
-    (.backends | map(.id)) == ["artbird", "local"] and
-    (.backends | all(.type == "hypeman" and .cpus == 2 and .memory == "3G")) and
-    .backends[0].video == {"fps": 60, "targetBitrateBps": 4792320, "keyframeMaxDistance": 60} and
-    (.backends[1] | has("video") | not) and
-    .images.defaultImage == "docker.io/onkernel/chromium-headful@sha256:da9ee68cb9d2de0b3c26885ff3bdcf04c944254a36eb127219028ac017ff56f3" and
-    .browser.video == {
-        "screenRefreshRate": 60,
-        "fps": 30,
-        "cpuUsed": 4,
-        "threads": 4,
-        "targetBitrateBps": 2396160,
-        "keyframeMaxDistance": 30
-    }
-' config/agentbrowse/config.json >/dev/null \
-    || fail "default agentbrowse config does not declare the locked ordered fallback and Live View capture policy"
-tests/agentbrowse-config.sh
-
 [ -s config/agent-browser/config.json ] \
     || fail "default agent-browser config is missing or empty"
 /usr/bin/jq -e '
@@ -128,8 +96,8 @@ tests/agentbrowse-config.sh
     || fail "default agent-browser config does not select AgentStack's local provider"
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
-tests/agentsource-webhooks.sh
 tests/install-launchagents.sh
+tests/retire-archived-checkouts.sh
 for script in render-mcp-resources install-gog; do
     [ -x "scripts/$script" ] || fail "MCP delivery helper is not executable: $script"
 done
@@ -171,8 +139,7 @@ python3 - <<'PYTHON'
 import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
-fleet=["agentbrain","agentchats",
-       "agentdesk","agentgrok","agenthud","agentkeys","agentnotify","agentscrape","agentsearch","agentsounds","agentwiki","termctrl"]
+fleet=["agentbrain","agentchats","agentdesk","agentnotify","agentscrape","agentsearch","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
     assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
@@ -180,7 +147,7 @@ assert servers["agent_browser"] == {"command":"${HOME}/.local/bin/agent-browser"
 for name in ["mikebannister","notimpossiblemike"]:
     assert servers["gog_"+name] == {"command":"gog","args":["--account",name+"@gmail.com","mcp","--allow-write"]}
 assert servers["shadcn"] == {"command":"${HOME}/.local/bin/agentstart","args":["mcp","shadcn"]}
-role_omissions={"agentchats","agentgrok","agenthud","agentkeys","agentmux","agentsounds"}
+role_omissions={"agentchats"}
 role_servers=json.loads(Path("roles/default/mcp.json").read_text())["mcpServers"]
 assert set(role_servers) == set(servers) - role_omissions
 assert role_omissions.isdisjoint(role_servers)
@@ -289,27 +256,16 @@ grep -q '```mermaid' skills/fleet/MAP.md \
 if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
-if jq -e '.skills[] | select(.id == "tend" or .id == "bus" or .id == "herdr")' \
+if jq -e '.skills[] | select(.id == "tend" or .id == "bus" or .id == "herdr" or .id == "browser" or .id == "hud" or .id == "attention" or .id == "grokbot" or .id == "keys" or .id == "sounds")' \
     site/public/fleet-resources.json >/dev/null; then
-    fail "the fleet resource snapshot still advertises a retired Herdr skill"
+    fail "the fleet resource snapshot still advertises an archived skill"
 fi
 grep -F '"chats"' site/scripts/snapshot-fleet-resources.mjs >/dev/null \
     || fail "the fleet resource catalog omits chats"
 jq -e '.skills[] | select(.id == "chats")' site/public/fleet-resources.json >/dev/null \
     || fail "the fleet resource snapshot omits chats"
-jq -e '.skills[] | select(.id == "hud") | .content
-    | contains("For AgentFX, prepare the Assignment") | not' \
-    site/public/fleet-resources.json >/dev/null \
-    || fail "the fleet resource snapshot still advertises AgentFX dispatch through HUD"
-jq -e '.skills[] | select(.id == "hud") | .content
-    | contains("separate native and exact-ID AgentFX observation") | not' \
-    site/public/fleet-resources.json >/dev/null \
-    || fail "the fleet resource snapshot still advertises live AgentFX observation"
-grep -F 'accepts contract versions 1–4' skills/fleet/MAP.md >/dev/null \
-    || fail "the fleet map does not carry AgentVoice thread export version 4"
-# shellcheck disable=SC2016 # Backticks are literal contract field names.
-grep -F 'optional native `startedAt` / `completedAt` turn timing' skills/fleet/MAP.md >/dev/null \
-    || fail "the fleet map does not document authoritative v4 turn timing"
+grep -F 'Unresolved incoming references to archived checkouts' skills/fleet/MAP.md >/dev/null \
+    || fail "the fleet map hides archived dependency fallout"
 
 # Model invocability is one portable fact in SKILL.md. The common-pack render
 # derives Codex's inverse product field; source manifests must not become a
@@ -1236,7 +1192,6 @@ grep -Fqx 'prefix = "ctrl+space"' config/smolmux/config.toml \
 grep -F '"$script_dir/smolmux-config" install' scripts/install.sh >/dev/null \
     || fail "installer does not link the smolmux config"
 tests/smolmux-config.sh
-tests/agentmux-config.sh
 tests/agentvoice-config.sh
 # shellcheck disable=SC2016 # Match the literal installer variable.
 grep -F '"$script_dir/agentvoice-config" install' scripts/install.sh >/dev/null \
@@ -1311,7 +1266,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource agentscrape \\ agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentroles"*) ;;
+    *"for tool in agentwiki agentboard agentsearch agentscrape \\ agentbrain agentusage agentvoice agentroles agentstack agentnotify"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1319,16 +1274,18 @@ if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
 fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
-for expected_tool in agentwiki agentboard agentutils agentsearch agentkeys agentsource \
-    agentscrape agentbrain agentusage agentsounds agentgrok agentvoice agenthud agentnotify agentstack; do
-    case "$agent_cli_order" in
-        *" $expected_tool "*) ;;
+for expected_tool in agentwiki agentboard agentsearch agentscrape agentbrain \
+    agentusage agentvoice agentroles agentstack agentnotify; do
+    case "$agent_cli_order " in
+        *" $expected_tool "* | *" $expected_tool;"*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;
     esac
 done
-case "$agent_cli_order" in
-    *" grok-swap "*) fail "agent CLI loop still installs the retired Grok account owner" ;;
-esac
+for retired_tool in grok-swap agentutils agentkeys agentsource agentsounds agentgrok agenthud agentmux agentwork; do
+    case "$agent_cli_order" in
+        *" $retired_tool "*) fail "agent CLI loop still installs $retired_tool" ;;
+    esac
+done
 account_bar=$(printf '{}\n' | AGENTUSAGE_ACCOUNT=claude-7 CLAUDE_CONFIG_DIR=/shared/native config/statusline/claude-statusline.sh)
 printf '%s' "$account_bar" | grep -F 'claude-7' >/dev/null || fail "Claude statusline lost managed identity"
 
@@ -1394,22 +1351,16 @@ grep -F '"$script_dir/install-launchagents" --install' scripts/install.sh >/dev/
 # shellcheck disable=SC2016 # Match the literal helper invocation in the script.
 grep -F '"$script_dir/install-launchagents" --check' scripts/install.sh >/dev/null \
     || fail "installation plan omits the fleet launch agents"
-# shellcheck disable=SC2016 # Match the literal non-mutating diagnostic invocation.
-grep -F '"$script_dir/configure-agentsource-webhooks" --check || true' scripts/install.sh >/dev/null \
-    || fail "ordinary install does not emit agent guidance for incomplete webhook wiring"
 expected_services='io.arthack.agentstart.watch-config|agentstart|config-watch.log|resident
 io.arthack.agentstart.clean-devin|agentstart|devin-cleanup.log|periodic
 io.arthack.agentbrain.work|agentbrain|worker.log|resident
 io.arthack.agentbrain.share|agentbrain|share.log|resident
 io.arthack.agentbrain.doctor|agentbrain|doctor.log|periodic
 io.arthack.agentusage.observe|agentusage|observer.log|resident
-io.arthack.agenthud.serve|agenthud|server.log|resident
 io.arthack.agentvoice.serve|agentvoice|server.log|resident
 io.arthack.agentvoice-test.wait|agentvoice|test-server.log|resident
 io.arthack.agentvoice-test.serve|agentvoice|test-reader.log|resident
 io.arthack.agentscrape.process-queue|agentscrape|queue-processor.log|queue-triggered
-io.arthack.agentsource.receive|agentsource|receiver.log|resident
-io.arthack.agentsource.notify|agentsource|notifier.log|resident
 io.arthack.agentwiki.serve|agentwiki|server.log|resident'
 grep -Fq '<string>cleanup</string>' config/launchd/io.arthack.agentstart.clean-devin.plist \
     || fail "Devin cleanup service does not invoke agentstart devin cleanup"
@@ -1422,6 +1373,12 @@ grep -Fq 'io.arthack.agentchats.serve' scripts/install-launchagents \
     || fail "retired AgentChats service lacks its bounded cleanup label"
 grep -Fq 'io.arthack.agentattention.serve' scripts/install-launchagents \
     || fail "retired AgentAttention service lacks its bounded cleanup label"
+for label in io.arthack.agenthud.serve io.arthack.agentsource.receive io.arthack.agentsource.notify; do
+    grep -Fq "$label" scripts/install-launchagents \
+        || fail "retired service lacks its bounded cleanup label: $label"
+    [ ! -e "config/launchd/$label.plist" ] \
+        || fail "retired service template still exists: $label"
+done
 [ ! -e config/launchd/io.arthack.agentattention.serve.plist ] \
     || fail "retired AgentAttention service template still exists"
 [ ! -e config/launchd/io.arthack.agentchats.serve.plist ] \
@@ -1480,29 +1437,9 @@ while IFS= read -r label; do
         || fail "manifest names a service with no template: $label"
 done < <(sed -n 's/^ *"\(io\.arthack\.[a-z-]*\.[a-z-]*\)|.*/\1/p' scripts/install-launchagents)
 
-grep -Fq '<string>webhook-daemon</string>' config/launchd/io.arthack.agentsource.receive.plist \
-    || fail "Agentsource receiver does not enter through the installed webhook-daemon subcommand"
-grep -Fq '<string>notify-daemon</string>' config/launchd/io.arthack.agentsource.notify.plist \
-    || fail "Agentsource notifier does not enter through the installed notify-daemon subcommand"
-# The notifier uses the managed AgentNotify-only terminal-notifier router;
-# the standard service PATH keeps that managed command reachable.
-grep -Fq '<string>__PATH__</string>' config/launchd/io.arthack.agentsource.notify.plist \
-    || fail "Agentsource notifier does not take the standard PATH that reaches terminal-notifier"
 /usr/bin/python3 - <<'PYTHON'
 import pathlib
 import plistlib
-
-template = pathlib.Path("config/launchd/io.arthack.agenthud.serve.plist")
-assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agenthud.serve.v1 -->"
-value = plistlib.loads(template.read_bytes())
-assert value["ProgramArguments"] == ["__PROGRAM__", "serve", "--tailscale"]
-assert value["EnvironmentVariables"] == {"HOME": "__HOME__", "PATH": "__PATH__"}
-assert value["KeepAlive"] is True
-assert value["RunAtLoad"] is True
-assert value["ProcessType"] == "Standard"
-assert value["Umask"] == 63
-assert value["ThrottleInterval"] == 10
-assert value["StandardOutPath"] == value["StandardErrorPath"] == "__LOG__"
 
 template = pathlib.Path("config/launchd/io.arthack.agentvoice.serve.plist")
 assert template.read_text().splitlines()[1] == "<!-- agentstart-installer-owned: io.arthack.agentvoice.serve.v1 -->"
@@ -1583,13 +1520,5 @@ for candidate in pathlib.Path("config/launchd").glob("io.arthack.agentvoice*.pli
         agentvoice_production_templates.append(candidate.name)
 assert agentvoice_production_templates == ["io.arthack.agentvoice.serve.plist"]
 PYTHON
-grep -Fq '<string>__SECRET_FILE__</string>' config/launchd/io.arthack.agentsource.receive.plist \
-    || fail "Agentsource receiver does not name the private secret by path"
-grep -A1 -F '<string>--port</string>' config/launchd/io.arthack.agentsource.receive.plist \
-    | grep -Fq '<string>8787</string>' \
-    || fail "Agentsource receiver does not pin its Funnel-coupled HTTP port"
-if grep -Eq '<key>[^<]*SECRET[^<]*</key>' config/launchd/io.arthack.agentsource.receive.plist; then
-    fail "Agentsource receiver rendered a credential-shaped environment variable"
-fi
 
 printf 'ok\n'

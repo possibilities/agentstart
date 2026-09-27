@@ -69,13 +69,9 @@ comment beside the key:
   The AgentVoice test pair installs only while its dedicated checkout and
   dependencies are prepared.
 
-Agentbrain's Worker can reuse a Browser profile authenticated through
-Agentbrowse. Supply `AGENTSTART_INSTALL_AGENTBRAIN_BROWSER_SESSION=SESSION`
-when installing to pin Agentscrape to that stable session. Subsequent installs
-preserve the installed pin; an explicitly empty value clears it. The session
-name is not a credential. Authentication stays in Agentbrowse's Browser profile.
-Keep that session exclusive to the single resident Worker: another browser
-client navigating it during extraction can change which page is read.
+Agentbrain's Worker no longer inherits the old AgentBrowse saved-profile pin.
+Agentscrape uses AgentStack's disposable browser provider by default; an
+Agentbrain source requiring authentication needs a separately owned policy.
 
 ## Adding a service
 
@@ -98,12 +94,9 @@ reports whether its old plist is absent, owned, or foreign. The matching
 it refuses symlinks and foreign occupants. AgentChats' CLI, OpenTUI picker,
 index, and stdio MCP remain installed independently of this retired web job.
 
-`io.arthack.agenthud.serve` keeps the durable Work view resident. It invokes
-`agenthud serve`, whose default is the editable Vite/HMR view from AgentHUD's
-canonical checkout and whose fixed local Portless origin is
-`https://agenthud.localhost`. AgentHUD's own installer prepares the command,
-dependencies, and optional production build without touching this service;
-AgentStart alone owns the LaunchAgent lifecycle.
+`io.arthack.agenthud.serve` and `io.arthack.agentsource.receive` / `.notify`
+are retired labels. Only an exact-marker-owned installed plist may be booted
+out and removed; archived source and private state remain untouched.
 
 `io.arthack.agentvoice.serve` independently keeps the AgentVoice transcript
 reader resident at `https://agentvoice.localhost`. It invokes the public
