@@ -1,5 +1,8 @@
 {
   "keybinds": {
+    "prompt.stash": "ctrl+shift+s",
+    "prompt.stash.pop": "ctrl+shift+p",
+    "prompt.stash.list": "<leader>shift+s",
     "session.tab.next": "alt+2",
     "session.tab.previous": "alt+1"
   }

@@ -13,7 +13,7 @@ def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in ("--check", "--install"):
         sys.exit("Usage: opencode-config [--check|--install]")
     if sys.argv[1] == "--check":
-        print("  scripts/opencode-config --install  # merge Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings")
+        print("  scripts/opencode-config --install  # merge prompt-stash and Alt+1/Alt+2 session-tab bindings into OpenCode 2 CLI settings")
         return
 
     source = Path(__file__).resolve().parent.parent / "config/opencode/cli.json"

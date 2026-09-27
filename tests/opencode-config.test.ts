@@ -29,7 +29,13 @@ test("creates the OpenCode 2 CLI bindings and leaves an identical file untouched
   const content = readFileSync(f.target, "utf8");
   expect(JSON.parse(content)).toEqual({
     $schema: "https://opencode.ai/v2/cli.json",
-    keybinds: { "session.tab.next": "alt+2", "session.tab.previous": "alt+1" },
+    keybinds: {
+      "prompt.stash": "ctrl+shift+s",
+      "prompt.stash.pop": "ctrl+shift+p",
+      "prompt.stash.list": "<leader>shift+s",
+      "session.tab.next": "alt+2",
+      "session.tab.previous": "alt+1",
+    },
   });
   const before = lstatSync(f.target);
   expect(f.run().exitCode).toBe(0);
@@ -44,7 +50,14 @@ test("merges bindings into native settings without dropping other keys", () => {
   expect(f.run().exitCode).toBe(0);
   expect(JSON.parse(readFileSync(f.target, "utf8"))).toEqual({
     tabs: { mode: "on" },
-    keybinds: { "app.exit": "ctrl+c", "session.tab.next": "alt+2", "session.tab.previous": "alt+1" },
+    keybinds: {
+      "app.exit": "ctrl+c",
+      "prompt.stash": "ctrl+shift+s",
+      "prompt.stash.pop": "ctrl+shift+p",
+      "prompt.stash.list": "<leader>shift+s",
+      "session.tab.next": "alt+2",
+      "session.tab.previous": "alt+1",
+    },
   });
   expect(lstatSync(f.target).mode & 0o777).toBe(0o640);
 });
@@ -67,6 +80,6 @@ test("refuses redirected and malformed native settings rather than replacing the
 
 test("check advertises convergence without writing settings", () => {
   const f = fixture();
-  expect(f.run("--check").stdout.toString()).toContain("Alt+1/Alt+2");
+  expect(f.run("--check").stdout.toString()).toContain("prompt-stash");
   expect(existsSync(f.target)).toBe(false);
 });
