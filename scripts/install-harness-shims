@@ -19,10 +19,10 @@ operator_cli="$script_dir/agentstart"
 bin_dir="${AGENTSTART_INSTALL_BIN_DIR:-$HOME/.local/bin}"
 cli="$bin_dir/agentstart"
 cli_marker='# agentstart-installer-owned: agentstart.cli.v1'
-code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"
 fork_binary() {
     local owner="$1" harness="$2" installer target
-    installer="$code_root/$owner/scripts/install.sh"
+    installer="$workshops_root/$owner/scripts/install.sh"
     [ -x "$installer" ] || die "missing $owner installer: $installer"
     target=$("$installer" --print-bin) || die "$owner could not report its binary"
     case "$target" in /*) ;; *) die "$owner returned a non-absolute binary path" ;; esac

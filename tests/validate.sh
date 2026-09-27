@@ -386,13 +386,13 @@ EOF
 done
 for shim_owner in codexnk fxnk; do
     shim_harness=${shim_owner%nk}
-    mkdir -p "$shim_home/code/$shim_owner/scripts"
+    mkdir -p "$shim_home/workshops/$shim_owner/scripts"
     printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$shim_real_bin/$shim_harness" \
-        >"$shim_home/code/$shim_owner/scripts/install.sh"
-    chmod +x "$shim_home/code/$shim_owner/scripts/install.sh"
+        >"$shim_home/workshops/$shim_owner/scripts/install.sh"
+    chmod +x "$shim_home/workshops/$shim_owner/scripts/install.sh"
 done
 HOME="$shim_home" \
-    AGENTSTART_CODE_ROOT="$shim_home/code" \
+    AGENTSTART_WORKSHOPS_ROOT="$shim_home/workshops" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$root/scripts/install-harness-shims" >/dev/null
 for shim_harness in claude codex; do
@@ -840,6 +840,12 @@ install_plan=$(HOME="$code_skills_home" AGENTSTART_CODE_ROOT="$code_skills_root"
 # The full installer owns the current CLI-only cask.
 grep -F 'install_or_upgrade_cask grok-build' scripts/install.sh >/dev/null \
     || fail "the full installer does not converge the Grok Build cask"
+# shellcheck disable=SC2016 # Match literal shell variable references in the installer.
+grep -F 'codexnk_installer="$workshops_root/codexnk/scripts/install.sh"' scripts/install.sh >/dev/null \
+    || fail "installer does not resolve codexnk from the workshop root"
+# shellcheck disable=SC2016 # Match the literal configurable Workshop root.
+grep -F 'workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"' scripts/install-harness-shims >/dev/null \
+    || fail "harness shims do not resolve the workshop root"
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
@@ -849,6 +855,7 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
+    '~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.4 --sha f2905ff011ff8fda607e91dfdd8f13b6083b1642  # isolated pinned Codex fork; vendor binary preserved' \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin' \
     'scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
@@ -857,7 +864,7 @@ for required_install in \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/code/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/workshops/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build' \
     'brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain' \
@@ -1036,7 +1043,7 @@ grep -F 'install_private_skill_pack "$plannotator_skill_source"' scripts/install
 grep -Eq '^fx_integration_sha=[0-9a-f]{40}$' scripts/install.sh \
     || fail "installer does not carry one full lowercase Fx Integration consumer pin"
 # shellcheck disable=SC2016 # Match the literal configurable code-root contract.
-grep -F 'fxnk_installer="$code_root/fxnk/scripts/install.sh"' scripts/install.sh >/dev/null \
+grep -F 'fxnk_installer="$workshops_root/fxnk/scripts/install.sh"' scripts/install.sh >/dev/null \
     || fail "installer does not resolve fxnk's Fx installation contract"
 # shellcheck disable=SC2016 # Match the literal installer variable invocation.
 grep -F '"$fxnk_installer" --install --sha "$fx_integration_sha"' scripts/install.sh >/dev/null \

@@ -53,7 +53,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   swap tools are no longer fleet installer dependencies. AgentUsage's observer/proxy service
   converges last. Old checkouts, credentials and backups are preserved.
   Fx's fork lifecycle and integration installer are owned by
-  `~/code/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
+  `~/workshops/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
   with its tracked, ship-gate-approved Integration pin as the harness
   installation contract instead of reaching into
   `~/source/vercel-labs--fx`. fxnk installs
@@ -70,6 +70,12 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   codexnk path, never PATH or a request-selected executable, and its installer
   does not start or restart servers.
   The `fork-rebase-policy` wiki page is the contract.
+- First-party fork Workshops live under `~/workshops/<name>`, separate from
+  fleet and other projects in `~/code` and outside Clones in `~/source`.
+  AgentStart resolves its Codex and Fx Workshop installers from
+  `AGENTSTART_WORKSHOPS_ROOT` (default `~/workshops`); `AGENTSTART_CODE_ROOT`
+  still selects only the fleet root. Never put Workshop checkouts back in
+  the fleet root to make a consumer work.
 - AgentStart owns the terminal Devin wrapper at `~/.local/bin/devin`, while the
   official CLI keeps its own versioned binary, login and session storage. New
   terminal sessions run in place with a temporary `.devin` snapshot of the

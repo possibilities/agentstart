@@ -197,10 +197,10 @@ test("harness installer replaces only the native link or its own old marker", ()
   const publicBin = join(home, ".local/bin"); mkdirSync(publicBin, { recursive: true });
   const publicDevin = join(publicBin, "devin"); symlinkSync(vendor, publicDevin);
   for (const tool of ["codexnk", "fxnk"]) {
-    const installer = join(home, "code", tool, "scripts/install.sh");
+    const installer = join(home, "workshops", tool, "scripts/install.sh");
     write(installer, "#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n"); chmodSync(installer, 0o755);
   }
-  const env = { ...process.env, HOME: home, AGENTSTART_CODE_ROOT: join(home, "code"),
+  const env = { ...process.env, HOME: home, AGENTSTART_WORKSHOPS_ROOT: join(home, "workshops"),
     AGENTSTART_INSTALL_BIN_DIR: publicBin, AGENTSTART_RESOURCES_ROOT: resources,
     FAKE_DEVIN_CWD: join(root, "record"), FAKE_DEVIN_ARGS: join(root, "args") };
   const installer = resolve(import.meta.dir, "../scripts/install-harness-shims");

@@ -13,6 +13,7 @@ repo_root=$(cd -P -- "$script_dir/.." && pwd)
 # from, and a worktree run must still find the real fleet rather than silently
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"
 # Fx maintenance advances this only after fxnk's exact-SHA local gate and ship
 # gate approve the published Integration commit. Ordinary convergence reuses
 # that reviewed consumer pin; it never treats the current remote tip as an
@@ -253,7 +254,7 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   install the official Devin CLI only when its native versioned binary is absent; retain native updates independently
-  ~/code/codexnk/scripts/install.sh --install --tag codexnk-v0.1.4 --sha f2905ff011ff8fda607e91dfdd8f13b6083b1642  # isolated pinned Codex fork; vendor binary preserved
+  ~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.4 --sha f2905ff011ff8fda607e91dfdd8f13b6083b1642  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
@@ -263,7 +264,7 @@ Command-line tools:
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
-  ~/code/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin
+  ~/workshops/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade hunk  # review-first diff TUI whose bundled agent skill follows the installed build
   brew install or upgrade rustup  # Terminal Control builds from crates.io with the current stable Rust toolchain
@@ -384,7 +385,7 @@ printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
 
-codexnk_installer="$code_root/codexnk/scripts/install.sh"
+codexnk_installer="$workshops_root/codexnk/scripts/install.sh"
 [ -x "$codexnk_installer" ] || die "codexnk installer is unavailable: $codexnk_installer"
 "$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"
 
@@ -418,7 +419,7 @@ install_or_upgrade_formula zig
 # fxnk owns Fx fork maintenance and the hardened integration installer.
 # AgentStart decides that the harness is present and invokes that public
 # contract without reaching into its checkout or duplicating its branch logic.
-fxnk_installer="$code_root/fxnk/scripts/install.sh"
+fxnk_installer="$workshops_root/fxnk/scripts/install.sh"
 [ -x "$fxnk_installer" ] || die "fxnk installer is unavailable: $fxnk_installer"
 printf 'Installing Fx through the fxnk integration contract.\n'
 "$fxnk_installer" --install --sha "$fx_integration_sha"

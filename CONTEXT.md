@@ -7,6 +7,13 @@ Each fleet repo owns its own hardened installer and exports its own skills;
 AgentStart invokes contracts and never reaches inside a sibling checkout.
 _Avoid_: suite, monorepo, workspace.
 
+**Workshop** — a first-party repository under `~/workshops` that owns the
+maintenance specification and delivery contract for a downstream fork. Its
+bound upstream checkout may live under `~/source` or inside the Workshop.
+AgentStart consumes the `codexnk` and `fxnk` installer contracts from this
+root, independently of the fleet's `~/code` root.
+_Avoid_: clone, fork checkout, fleet repo.
+
 **The boundary rubric** — the one-sentence ownership test for this
 repository: depended on by or deeply related to the fleet → AgentStart; the
 machine itself (Homebrew, Stow, launchd, macOS settings, account migration)
