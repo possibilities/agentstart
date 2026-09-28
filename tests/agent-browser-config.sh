@@ -29,7 +29,7 @@ cmp -s "$source_config" "$target_config" \
     (.plugins == [{
         "name": "agentstack",
         "command": "/bin/sh",
-        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browser/dist/src/provider.js\""],
+        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""],
         "capabilities": ["browser.provider"]
     }])
 ' "$target_config" >/dev/null \
@@ -37,8 +37,8 @@ cmp -s "$source_config" "$target_config" \
 
 # The plugin command addresses the AgentStack checkout instead of a PATH
 # command. An old AgentBrowse command earlier on PATH cannot become a fallback.
-mkdir -p "$HOME/code/agentstack/packages/browser/dist/src" "$test_root/shadow-bin"
-cat >"$HOME/code/agentstack/packages/browser/dist/src/provider.js" <<'EOF'
+mkdir -p "$HOME/code/agentstack/packages/browse/dist/src" "$test_root/shadow-bin"
+cat >"$HOME/code/agentstack/packages/browse/dist/src/provider.js" <<'EOF'
 process.stdin.resume();
 process.stdin.on('end', () => console.log(JSON.stringify({protocol:'agent-browser.plugin.v1',success:true,manifest:{name:'agentstack',capabilities:['browser.provider']}})));
 EOF
@@ -50,7 +50,7 @@ chmod +x "$test_root/shadow-bin/agentbrowse"
 plugin_response=$(
     printf '%s' '{"protocol":"agent-browser.plugin.v1","type":"plugin.manifest","capability":"plugin.manifest","request":{}}' \
         | PATH="$test_root/shadow-bin:$PATH" /bin/sh -c \
-            'exec /opt/homebrew/bin/node "$HOME/code/agentstack/packages/browser/dist/src/provider.js"'
+            'exec /opt/homebrew/bin/node "$HOME/code/agentstack/packages/browse/dist/src/provider.js"'
 )
 printf '%s\n' "$plugin_response" \
     | /usr/bin/jq -e '.success == true and .manifest.name == "agentstack"' >/dev/null \

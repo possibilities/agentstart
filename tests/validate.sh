@@ -89,7 +89,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
     (.plugins == [{
         "name": "agentstack",
         "command": "/bin/sh",
-        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browser/dist/src/provider.js\""],
+        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""],
         "capabilities": ["browser.provider"]
     }])
 ' config/agent-browser/config.json >/dev/null \

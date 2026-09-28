@@ -35,7 +35,7 @@ validate_config() {
         ([.plugins[] | select(
             .name == "agentstack" and
             .command == "/bin/sh" and
-            .args == ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browser/dist/src/provider.js\""] and
+            .args == ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""] and
             .capabilities == ["browser.provider"]
         )] | length == 1)
     ' "$config_source" >/dev/null \

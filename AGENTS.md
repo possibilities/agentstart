@@ -26,7 +26,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   the explicit exceptions below have their own service owner. Two owners
   would race to render the same service. A fleet checkout
   ships the code; this repository decides that it is present and when it
-  runs. AgentStack's Browser Package API owns the separate local-only Hypeman
+  runs. AgentStack's Browse Package API owns the separate local-only Hypeman
   installation and private agent-browser toolchain. AgentBrowse is archived;
   AgentStart must not reinstall it or render a competing Hypeman service.
   AgentVoice is the explicit exception: its approved default-server
