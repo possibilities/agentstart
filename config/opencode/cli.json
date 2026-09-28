@@ -3,7 +3,9 @@
     "prompt.stash": "ctrl+shift+s",
     "prompt.stash.pop": "ctrl+shift+p",
     "prompt.stash.list": "<leader>shift+s",
+    "prompt.editor": "ctrl+g",
     "session.tab.next": "alt+2",
-    "session.tab.previous": "alt+1"
+    "session.tab.previous": "alt+1",
+    "session.first": "home,alt+home"
   }
 }

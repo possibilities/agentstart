@@ -33,8 +33,10 @@ test("creates the OpenCode 2 CLI bindings and leaves an identical file untouched
       "prompt.stash": "ctrl+shift+s",
       "prompt.stash.pop": "ctrl+shift+p",
       "prompt.stash.list": "<leader>shift+s",
+      "prompt.editor": "ctrl+g",
       "session.tab.next": "alt+2",
       "session.tab.previous": "alt+1",
+      "session.first": "home,alt+home",
     },
   });
   const before = lstatSync(f.target);
@@ -55,8 +57,10 @@ test("merges bindings into native settings without dropping other keys", () => {
       "prompt.stash": "ctrl+shift+s",
       "prompt.stash.pop": "ctrl+shift+p",
       "prompt.stash.list": "<leader>shift+s",
+      "prompt.editor": "ctrl+g",
       "session.tab.next": "alt+2",
       "session.tab.previous": "alt+1",
+      "session.first": "home,alt+home",
     },
   });
   expect(lstatSync(f.target).mode & 0o777).toBe(0o640);
