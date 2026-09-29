@@ -44,6 +44,14 @@
   edit there. Set tool working directories and worker assignments to the owned
   worktree; routine isolation needs no extra approval. Resolve ownership
   conflicts or report a blocker before writing.
+- Keep the whole agent tree isolated: one writer per worktree. Before
+  dispatching an editing child, its parent creates or verifies a separate
+  worktree and branch from an explicit committed base and starts the child
+  there. Children return commits and verification evidence to their parent;
+  the parent owns review, integration into its worktree, combined checks,
+  authorized final landing, and cleanup. Children do not independently race
+  to land on `main`. Apply this recursively within existing delegation
+  authority; read-only helpers need no separate worktree.
 - Build forward: the new shape replaces the old. Shims, deprecation
   windows, and migrations are opt-in — name what breaks and for whom
   before a breaking change lands; the softer path is asked for, never
