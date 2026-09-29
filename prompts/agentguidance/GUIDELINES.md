@@ -34,11 +34,16 @@
   workshop's own consumer step, never by hand. Upstream pull requests are
   evidence, not dependencies, and nothing moves their branches in passing.
   The `fork-rebase-policy` wiki page is the overview, not the contract.
-- Honor the checkout, worktree, branch, and ownership assigned to the task.
-  When an authorized change needs isolation, create or reuse an owned
-  worktree under the active role's workflow. Do not reshape another worker's
-  branch or worktree. Resolve conflicting ownership before depending on it;
-  routine isolation does not require the user to name the Git operation.
+- Before the first repository edit, create or verify a task-owned worktree
+  and task branch under the active role's workflow. This includes small,
+  documentation, prompt, and configuration changes, even when the canonical
+  checkout is clean. Honor an assigned task worktree; the starting directory
+  alone is not an assignment. Do not author in the canonical checkout or on
+  `main`, `master`, or the integration branch unless the human explicitly
+  directs that exception. “Land on main” means integrate verified work, not
+  edit there. Set tool working directories and worker assignments to the owned
+  worktree; routine isolation needs no extra approval. Resolve ownership
+  conflicts or report a blocker before writing.
 - Build forward: the new shape replaces the old. Shims, deprecation
   windows, and migrations are opt-in — name what breaks and for whom
   before a breaking change lands; the softer path is asked for, never
