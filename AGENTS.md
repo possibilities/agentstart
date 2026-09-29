@@ -14,10 +14,10 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   path here resolves from `$HOME` — nothing may assume a particular account
   name.
 - The fleet lives beside this checkout: every `~/code/agent*` checkout
-  without exception — including `~/code/agentguidance`, the general guidance
+  without exception, plus `~/code/stack` — including `~/code/agentguidance`, the general guidance
   skills and their renderer. AgentUsage owns general Claude/Codex/Grok account
   storage and observation, plus Claude/Codex preparation and the shared proxy.
-  AgentStack separately owns Codex sign-ins for its Bots and isolated Grok/Devin
+  Stack separately owns Codex sign-ins for its Bots and isolated Grok/Devin
   ACP Worker accounts; those credentials do not select AgentUsage accounts. Each
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides which
@@ -26,7 +26,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   the explicit exceptions below have their own service owner. Two owners
   would race to render the same service. A fleet checkout
   ships the code; this repository decides that it is present and when it
-  runs. AgentStack's Browse Package API owns the separate local-only Hypeman
+  runs. Stack's Browse Package API owns the separate local-only Hypeman
   installation and private agent-browser toolchain. AgentBrowse is archived;
   AgentStart must not reinstall it or render a competing Hypeman service.
   AgentVoice is the explicit exception: its approved default-server
@@ -64,9 +64,9 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   stable tag and Integration SHA. The Codex and Fx shims bind the absolute
   paths their workshop installers report through `--print-bin`, never another
   executable found later on PATH. Vendor Codex remains separately installed.
-  AgentStack's checkout-owned setup also consumes that verified release
+  Stack's checkout-owned setup also consumes that verified release
   installer as its required runtime dependency; keep its exact tag/SHA pin
-  aligned with this repository. AgentStack launches the fixed home-relative
+  aligned with this repository. Stack launches the fixed home-relative
   codexnk path, never PATH or a request-selected executable, and its installer
   does not start or restart servers.
   The `fork-rebase-policy` wiki page is the contract.
@@ -82,7 +82,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   default Role's skills/MCPs — shared by concurrent sessions in the same
   project, merged alongside an existing `.devin` without overwriting it, and
   removed after the last session exits by an AgentStart-owned periodic
-  cleanup service. `devin acp`, native utilities, and AgentStack's per-account
+  cleanup service. `devin acp`, native utilities, and Stack's per-account
   ACP processes bypass this wrapper's snapshot; `/prime` is a manually invoked
   skill. Do not reinstall or remove the sticky user-level `default` Devin plugin
   during fleet convergence. Retire that

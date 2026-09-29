@@ -23,7 +23,7 @@ not deleted or rewritten. New managed sessions receive the reduced inventory;
 already running Codex sessions are not terminated.
 
 This does not substitute implementations for consumers in other repositories.
-AgentUsage and AgentStack's optional Grok Bot observation and Jobsearch's
+AgentUsage and Stack's optional Grok Bot observation and Jobsearch's
 AgentAttention workflow need their owners' separate decisions before their
 dependencies can be considered healthy. Historical ADRs and prior receipts
 retain their old names and paths as evidence, not active instructions.

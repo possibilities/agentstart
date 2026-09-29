@@ -70,7 +70,7 @@ comment beside the key:
   dependencies are prepared.
 
 Agentbrain's Worker no longer inherits the old AgentBrowse saved-profile pin.
-Agentscrape uses AgentStack's disposable browser provider by default; an
+Agentscrape uses Stack's disposable browser provider by default; an
 Agentbrain source requiring authentication needs a separately owned policy.
 
 ## Adding a service

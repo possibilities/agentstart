@@ -1,10 +1,10 @@
 {
-  "provider": "agentstack",
+  "provider": "stack",
   "plugins": [
     {
-      "name": "agentstack",
+      "name": "stack",
       "command": "/bin/sh",
-      "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""],
+      "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/stack/packages/browse/dist/src/provider.js\""],
       "capabilities": ["browser.provider"]
     }
   ]

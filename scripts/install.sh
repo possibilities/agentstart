@@ -282,11 +282,11 @@ Command-line tools:
   scripts/smolmux-config install  # link the operator's Ctrl-Space smolmux key configuration
   scripts/agentvoice-config install  # link the operator's AgentVoice server settings
   npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below
-  link AgentStack's explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade
-  scripts/agent-browser-config install  # select AgentStack's local-only provider; no Artbird fallback
+  link Stack's explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade
+  scripts/agent-browser-config install  # select Stack's local-only provider; no Artbird fallback
   ~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call
   ~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release
-  ~/code/agentstack/scripts/install.sh --install  # verified pinned codexnk dependency, packages/UI build and editable CLI; no server restart
+  ~/code/stack/scripts/install.sh --install  # verified pinned codexnk dependency, packages/UI build and editable CLI; no server restart
   install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier
   bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
 Agent documentation:
@@ -555,7 +555,7 @@ command -v npm >/dev/null 2>&1 || die "npm is required to install the Native SDK
 printf 'Installing or upgrading the Native SDK CLI to the current released package.\n'
 npm install --global @native-sdk/cli
 
-# AgentStack's Package API manages agent-browser releases independently.
+# Stack's Package API manages agent-browser releases independently.
 # No unconditional install here: manual update policy and an explicit uninstall
 # must survive an ordinary AgentStart converge.
 
@@ -646,7 +646,7 @@ if [ "$agent_clis_status" -ne 0 ]; then
     exit "$agent_clis_status"
 fi
 
-printf 'Linking AgentStack\x27s managed agent-browser, if installed.\n'
+printf 'Linking Stack\x27s managed agent-browser, if installed.\n'
 link_agent_browser
 
 devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
@@ -670,7 +670,7 @@ fi
 
 "$script_dir/agentstart" config apply --notify
 
-# Select only AgentStack's local provider. Never restore the old Artbird-first
+# Select only Stack's local provider. Never restore the old Artbird-first
 # AgentBrowse deployment configuration through ordinary convergence.
 printf "Linking AgentStart's local-only browser provider configuration.\n"
 "$script_dir/agent-browser-config" install

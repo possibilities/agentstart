@@ -30,16 +30,16 @@ validate_config() {
         || die "agent-browser config is missing or empty: $config_source"
     # shellcheck disable=SC2016 # Match the literal $HOME expanded by the plugin shell.
     "$jq_bin" -e '
-        .provider == "agentstack" and
+        .provider == "stack" and
         (.plugins | type == "array") and
         ([.plugins[] | select(
-            .name == "agentstack" and
+            .name == "stack" and
             .command == "/bin/sh" and
-            .args == ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""] and
+            .args == ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/stack/packages/browse/dist/src/provider.js\""] and
             .capabilities == ["browser.provider"]
         )] | length == 1)
     ' "$config_source" >/dev/null \
-        || die "agent-browser config does not declare agentstack as the default provider: $config_source"
+        || die "agent-browser config does not declare stack as the default provider: $config_source"
 }
 
 install_config() {
@@ -61,7 +61,7 @@ usage() {
 Usage: agent-browser-config <command>
 
 Commands:
-  install   Link AgentStart's local-only AgentStack provider config into agent-browser
+  install   Link AgentStart's local-only Stack provider config into agent-browser
 EOF
 }
 

@@ -85,15 +85,15 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
 [ -s config/agent-browser/config.json ] \
     || fail "default agent-browser config is missing or empty"
 /usr/bin/jq -e '
-    .provider == "agentstack" and
+    .provider == "stack" and
     (.plugins == [{
-        "name": "agentstack",
+        "name": "stack",
         "command": "/bin/sh",
-        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/agentstack/packages/browse/dist/src/provider.js\""],
+        "args": ["-c", "exec /opt/homebrew/bin/node \"$HOME/code/stack/packages/browse/dist/src/provider.js\""],
         "capabilities": ["browser.provider"]
     }])
 ' config/agent-browser/config.json >/dev/null \
-    || fail "default agent-browser config does not select AgentStack's local provider"
+    || fail "default agent-browser config does not select Stack's local provider"
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/install-launchagents.sh
@@ -891,8 +891,8 @@ for required_install in \
     '~/code/smolmux/scripts/install.sh --install  # canonical consumer path: editable smolmux plus its exact source-built smolmux-zmx Companion pin' \
     'scripts/smolmux-config install  # link the operator'"'"'s Ctrl-Space smolmux key configuration' \
     'npm install --global @native-sdk/cli  # current released Native SDK CLI; its discovery skill is installed from upstream below' \
-    'link AgentStack'"'"'s explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade' \
-    'scripts/agent-browser-config install  # select AgentStack'"'"'s local-only provider; no Artbird fallback' \
+    'link Stack'"'"'s explicitly installed agent-browser release at ~/.local/bin/agent-browser; no automatic install or downgrade' \
+    'scripts/agent-browser-config install  # select Stack'"'"'s local-only provider; no Artbird fallback' \
     'native skills list' \
     'native skills get core' \
     'ln -sfn ~/.local/share/agentstart/resources/guidance/AGENTS.md ~/.claude/AGENTS.md' \
@@ -1241,7 +1241,7 @@ fi
 grep -F 'refusing to replace independent file' scripts/agent-browser-link.sh >/dev/null \
     || fail "installer would replace an independent ~/.local/bin/agent-browser"
 grep -Fx 'link_agent_browser' scripts/install.sh >/dev/null \
-    || fail "installer does not publish AgentStack's managed browser release"
+    || fail "installer does not publish Stack's managed browser release"
 
 # The fleet statusline is one bar in two harness idioms: a render command for
 # Claude and an ordered pick from Codex's fixed item set. Codex has no custom
@@ -1276,7 +1276,7 @@ agent_browser_config_line=$(grep -n '^"$script_dir/agent-browser-config" install
 [ -n "$agent_clis_line" ] && [ -n "$browser_link_line" ] && [ -n "$agent_browser_config_line" ] \
     && [ "$browser_link_line" -gt "$agent_clis_line" ] \
     && [ "$agent_browser_config_line" -gt "$browser_link_line" ] \
-    || fail "AgentStack browser link and config must follow CLI installation"
+    || fail "Stack browser link and config must follow CLI installation"
 
 if grep -Eq 'plugin (uninstall|remove)|plugin marketplace remove' scripts/render-capabilities; then
     fail "render-capabilities uninstalls plugins on the unattended path"
@@ -1289,7 +1289,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentsearch agentscrape \\ agentbrain agentusage agentvoice agentroles agentstack agentnotify"*) ;;
+    *"for tool in agentwiki agentboard agentsearch agentscrape \\ agentbrain agentusage agentvoice agentroles stack agentnotify"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1298,7 +1298,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentsearch agentscrape agentbrain \
-    agentusage agentvoice agentroles agentstack agentnotify; do
+    agentusage agentvoice agentroles stack agentnotify; do
     case "$agent_cli_order " in
         *" $expected_tool "* | *" $expected_tool;"*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

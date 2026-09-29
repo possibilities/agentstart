@@ -11,8 +11,8 @@ die() { printf 'agent-browser-link fixture: %s\n' "$*" >&2; exit 1; }
 source "$repo_root/scripts/agent-browser-link.sh"
 
 export HOME="$fixture_root/home"
-export AGENTSTACK_STATE_DIR="$fixture_root/state"
-binary="$AGENTSTACK_STATE_DIR/browser/toolchain/current/node_modules/agent-browser/bin/agent-browser-darwin-arm64"
+export STACK_STATE_DIR="$fixture_root/state"
+binary="$STACK_STATE_DIR/browser/toolchain/current/node_modules/agent-browser/bin/agent-browser-darwin-arm64"
 target="$HOME/.local/bin/agent-browser"
 mkdir -p "$(dirname "$binary")" "$(dirname "$target")"
 
@@ -30,6 +30,10 @@ rm "$target"
 link_agent_browser
 [ "$(readlink "$target")" = "$binary" ] || die "managed release was not linked"
 [ "$("$target")" = 'agent-browser fixture' ] || die "stable link does not execute managed release"
+
+ln -sfn "$HOME/.local/state/agentstack/browser/toolchain/current/node_modules/agent-browser/bin/agent-browser-darwin-arm64" "$target"
+link_agent_browser
+[ "$(readlink "$target")" = "$binary" ] || die "legacy Stack link was not migrated"
 
 ln -sfn "$fixture_root/foreign" "$target"
 if (link_agent_browser) 2>/dev/null; then die "foreign symlink was replaced"; fi

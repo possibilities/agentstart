@@ -70,7 +70,7 @@ flags, and skip-versus-fail semantics are load-bearing:
     with its version-matched bundled skill;
   - smolmux's repository-owned source installer and pinned Companion, plus the
     linked smolmux key config;
-  - the current released `@native-sdk/cli` and AgentStack's private
+  - the current released `@native-sdk/cli` and Stack's private
     `agent-browser` release with its local-only provider config;
   - individual fleet MCPs including Agentdesk, termctrl, agent-browser, account-bound Gog,
     and the fleet-owned shadcn registry through one shared resource inventory;
@@ -182,7 +182,7 @@ schema carries the operator's `ctrl+space` prefix.
 
 `scripts/agent-browser-config install` links
 `config/agent-browser/config.json` into `~/.agent-browser/config.json`. It
-selects AgentStack's local-only provider. AgentStack owns the private browser
+selects Stack's local-only provider. Stack owns the private browser
 runtime; this repository links only its already installed executable.
 
 ## Working on it
