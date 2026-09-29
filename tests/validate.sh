@@ -907,6 +907,7 @@ for required_install in \
     'https://github.com/vercel/ai-elements: ai-elements' \
     'https://github.com/shadcn/ui: shadcn' \
     'https://github.com/vercel-labs/native: native-sdk' \
+    'https://github.com/openclaw/openclaw/tree/main/.agents/skills/test-audit: test-audit' \
     'https://github.com/backnotprop/plannotator/tree/v0.27.9/apps/skills/core: plannotator, plannotator-review, plannotator-annotate, plannotator-last' \
     'anomalyco/terminal-control@v<installed termctrl version>: terminal-control' \
     'hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it' \
@@ -921,6 +922,8 @@ for required_install in \
     printf '%s\n' "$install_plan" | grep -F "$required_install" >/dev/null \
         || fail "installation plan is missing: $required_install"
 done
+grep -F 'https://github.com/openclaw/openclaw/tree/main/.agents/skills/test-audit test-audit' scripts/install.sh >/dev/null \
+    || fail "the full installer does not install the OpenClaw test-audit subtree"
 
 # Retired Herdr integrations must not come back through either the full
 # installer or its dry-run plan. The skill-sync retirement list is separate.

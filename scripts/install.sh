@@ -308,6 +308,7 @@ Fixed private fleet resources:
   https://github.com/vercel/ai-elements: ai-elements
   https://github.com/shadcn/ui: shadcn
   https://github.com/vercel-labs/native: native-sdk
+  https://github.com/openclaw/openclaw/tree/main/.agents/skills/test-audit: test-audit
   https://github.com/backnotprop/plannotator/tree/v0.27.9/apps/skills/core: plannotator, plannotator-review, plannotator-annotate, plannotator-last
   anomalyco/terminal-control@v<installed termctrl version>: terminal-control
   hunk skill path hunk-review  # the review skill ships inside the binary and stays version-matched to it
@@ -579,6 +580,12 @@ install_private_skill_pack https://github.com/shadcn/ui shadcn
 
 printf 'Installing the Native SDK discovery skill.\n'
 install_private_skill_pack https://github.com/vercel-labs/native native-sdk
+
+# Install the complete subtree so campaign mode can load its companion
+# CAMPAIGN.md. The fixed resource renderer carries it into the default role.
+printf 'Installing the OpenClaw test-audit skill.\n'
+install_private_skill_pack \
+    https://github.com/openclaw/openclaw/tree/main/.agents/skills/test-audit test-audit
 
 # Use the tagged core subtree rather than repository head or Claude's
 # injection-form variants. One portable set is rendered into both managed
