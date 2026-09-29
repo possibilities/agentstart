@@ -133,6 +133,30 @@ test("concurrent invocations share one snapshot and clean up together", () => {
   expect(readFileSync(join(repo, ".devin/skills/review/SKILL.md"), "utf8")).toContain("Edited during");
 });
 
+test("a new invocation cannot join a snapshot while cleanup is reaping it", async () => {
+  const first = prepareDevinInvocation(repo, home, resources, state);
+  let newcomer: ReturnType<typeof Bun.spawn> | undefined;
+  cleanupDevinInvocations(state, () => {
+    if (!newcomer) {
+      newcomer = Bun.spawn([process.execPath, "-e", `
+        import { prepareDevinInvocation } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/devin-invocation.ts"))};
+        prepareDevinInvocation(${JSON.stringify(repo)}, ${JSON.stringify(home)}, ${JSON.stringify(resources)}, ${JSON.stringify(state)});
+      `], { cwd: repo, stdout: "pipe", stderr: "pipe" });
+      // Give the new process a chance to join. Under the root lock it must
+      // wait until cleanup has finished instead of joining a doomed snapshot.
+      for (let i = 0; i < 100 && invocationRecords(state, realpathSync(repo)).length < 2; i++)
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+    return null;
+  });
+  expect(newcomer).toBeDefined();
+  expect(await newcomer!.exited).toBe(0);
+  const records = invocationRecords(state, realpathSync(repo));
+  expect(records).toHaveLength(1);
+  expect(JSON.parse(readFileSync(records[0]!, "utf8")).snapshot).not.toBe(first.invocation.snapshot);
+  expect(existsSync(join(repo, ".devin/skills/prime/SKILL.md"))).toBe(true);
+});
+
 test("merges into a foreign .devin without claiming project files", () => {
   write(join(repo, ".devin/config.json"), "{ \"custom\": true }\n");
   write(join(repo, ".devin/skills/mine/SKILL.md"), "project skill\n");

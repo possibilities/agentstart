@@ -6,6 +6,7 @@ import { lstatSync, mkdirSync, openSync, closeSync, readFileSync, readdirSync, r
 import { isAbsolute, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { processIdentity, type ProcessIdentity } from "./devin-process.ts";
+import { lockDevinRoot } from "./devin-root-lock.ts";
 
 const utilities = new Set(["acp", "auth", "mcp", "models", "skills", "rules", "plugins", "version", "doctor", "update", "setup", "cloud", "ssh", "forward", "worker", "uninstall", "help", "sandbox", "airgap"]);
 const resumeFlags = new Set(["-c", "--continue", "-r", "--resume"]);
@@ -202,67 +203,70 @@ export function prepareDevinInvocation(cwd: string, home: string, resourcesRoot:
   if (!wrapper) throw new Error("could not identify the Devin wrapper process");
   const invocation: Invocation = { owner, id: randomUUID(), snapshot: "", created: false, cwd: repo, wrapper };
 
-  const target = join(repo, ".devin");
+  const unlock = lockDevinRoot(stateDir, repo);
   try {
-    mkdirSync(target, { mode: 0o700 });
-    invocation.created = true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    const stat = lstatSync(target);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("project .devin exists and is not a directory");
-  }
-
-  // The marker decides whether this session creates the snapshot or joins one a
-  // concurrent invocation already owns. Exclusive writes resolve the race. The
-  // created flag follows the mkdir: a directory this invocation made is wholly
-  // AgentStart's even when it adopts a marker another merger won.
-  const marker = join(target, markerRel);
-  const adopted = adoptMarker(target);
-  let joined = adopted !== null;
-  if (adopted) {
-    invocation.snapshot = adopted.id;
-  } else {
-    invocation.snapshot = invocation.id;
+    const target = join(repo, ".devin");
     try {
-      writeFileSync(marker, canonicalMarker(invocation.snapshot), { mode: 0o600, flag: "wx" });
+      mkdirSync(target, { mode: 0o700 });
+      invocation.created = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const raced = adoptMarker(target);
-      if (!raced) throw new Error("project .devin ownership marker changed underneath the invocation");
-      invocation.snapshot = raced.id;
-      joined = true;
+      const stat = lstatSync(target);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("project .devin exists and is not a directory");
     }
-  }
 
-  // Register before writing files so a killed wrapper still leaves a record the
-  // periodic cleanup can reconcile.
-  const record = invocationPath(stateDir, repo, invocation.id);
-  let fd: number;
-  try { fd = openSync(record, "wx", 0o600); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`Devin invocation already recorded: ${record}`);
-    throw error;
-  }
-  try { writeFileSync(fd, JSON.stringify(invocation)); }
-  finally { closeSync(fd); }
+    // The marker decides whether this session creates the snapshot or joins one a
+    // concurrent invocation already owns. Exclusive writes resolve the race. The
+    // created flag follows the mkdir: a directory this invocation made is wholly
+    // AgentStart's even when it adopts a marker another merger won.
+    const marker = join(target, markerRel);
+    const adopted = adoptMarker(target);
+    let joined = adopted !== null;
+    if (adopted) {
+      invocation.snapshot = adopted.id;
+    } else {
+      invocation.snapshot = invocation.id;
+      try {
+        writeFileSync(marker, canonicalMarker(invocation.snapshot), { mode: 0o600, flag: "wx" });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const raced = adoptMarker(target);
+        if (!raced) throw new Error("project .devin ownership marker changed underneath the invocation");
+        invocation.snapshot = raced.id;
+        joined = true;
+      }
+    }
 
-  // Joined sessions only claim matching content; creating and merging sessions
-  // also write the files they are missing. Foreign content is never overwritten.
-  const ownedDirs = new Set<string>();
-  const claimed: Record<string, string> = { [markerRel]: hashOf(readFileSync(marker)) };
-  const conflicts: string[] = [];
-  for (const [relative, content] of expectedEntries(role, home)) {
-    const result = claimFile(target, relative, content, !joined, ownedDirs);
-    if (result === "claimed") claimed[relative] = hashOf(content);
-    else if (result === "conflict" && !joined) conflicts.push(relative);
-  }
-  const gitignore = Buffer.from(renderGitignore(Object.keys(claimed), ownedDirs));
-  const gi = claimFile(target, ".gitignore", gitignore, !joined, ownedDirs);
-  if (gi === "claimed") claimed[".gitignore"] = hashOf(gitignore);
-  else if (gi === "conflict" && !joined) conflicts.push(".gitignore");
-  invocation.files = claimed;
-  saveInvocation(record, invocation);
-  return { repo, record, invocation, conflicts };
+    // Register before writing files so a killed wrapper still leaves a record the
+    // periodic cleanup can reconcile.
+    const record = invocationPath(stateDir, repo, invocation.id);
+    let fd: number;
+    try { fd = openSync(record, "wx", 0o600); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`Devin invocation already recorded: ${record}`);
+      throw error;
+    }
+    try { writeFileSync(fd, JSON.stringify(invocation)); }
+    finally { closeSync(fd); }
+
+    // Joined sessions only claim matching content; creating and merging sessions
+    // also write the files they are missing. Foreign content is never overwritten.
+    const ownedDirs = new Set<string>();
+    const claimed: Record<string, string> = { [markerRel]: hashOf(readFileSync(marker)) };
+    const conflicts: string[] = [];
+    for (const [relative, content] of expectedEntries(role, home)) {
+      const result = claimFile(target, relative, content, !joined, ownedDirs);
+      if (result === "claimed") claimed[relative] = hashOf(content);
+      else if (result === "conflict" && !joined) conflicts.push(relative);
+    }
+    const gitignore = Buffer.from(renderGitignore(Object.keys(claimed), ownedDirs));
+    const gi = claimFile(target, ".gitignore", gitignore, !joined, ownedDirs);
+    if (gi === "claimed") claimed[".gitignore"] = hashOf(gitignore);
+    else if (gi === "conflict" && !joined) conflicts.push(".gitignore");
+    invocation.files = claimed;
+    saveInvocation(record, invocation);
+    return { repo, record, invocation, conflicts };
+  } finally { unlock(); }
 }
 
 export function saveInvocation(record: string, invocation: Invocation): void {
