@@ -56,7 +56,7 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   `~/workshops/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
   with its tracked, ship-gate-approved Integration pin as the harness
   installation contract instead of reaching into
-  `~/source/vercel-labs--fx`. fxnk installs
+  `~/workshops/fxnk/fork`. fxnk installs
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
   auto-updater. Both fork owners refuse a checkout whose fork remote is not
   ours. Codex's `codexnk` workshop owns a separate receipt-verified release
@@ -72,6 +72,12 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   The `fork-rebase-policy` wiki page is the contract.
 - First-party fork Workshops live under `~/workshops/<name>`, separate from
   fleet and other projects in `~/code` and outside Clones in `~/source`.
+  A Workshop owns its fork checkout under ignored `fork/` (or `fork/<repo>`
+  for multiple forks); new persistent maintenance worktrees live under ignored
+  `worktrees/`. `~/source` holds upstream reference clones on their default
+  branches, with only tracked source and Git metadata; generated build output
+  and dependencies belong in development checkouts. Coordinate any relocation
+  with an active agent before moving its checkout.
   AgentStart resolves its Codex and Fx Workshop installers from
   `AGENTSTART_WORKSHOPS_ROOT` (default `~/workshops`); `AGENTSTART_CODE_ROOT`
   still selects only the fleet root. Never put Workshop checkouts back in

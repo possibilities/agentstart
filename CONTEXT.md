@@ -9,7 +9,9 @@ _Avoid_: suite, monorepo, workspace.
 
 **Workshop** — a first-party repository under `~/workshops` that owns the
 maintenance specification and delivery contract for a downstream fork. Its
-bound upstream checkout may live under `~/source` or inside the Workshop.
+bound fork checkout lives inside the Workshop at ignored `fork/`, or
+`fork/<repo>` when it owns multiple forks. Persistent maintenance worktrees
+live at ignored `worktrees/`; `~/source` holds upstream reference clones.
 AgentStart consumes the `codexnk` and `fxnk` installer contracts from this
 root, independently of the fleet's `~/code` root.
 _Avoid_: clone, fork checkout, fleet repo.
