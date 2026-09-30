@@ -17,8 +17,8 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   without exception, plus `~/code/stack` — including `~/code/agentguidance`, the general guidance
   skills and their renderer. AgentUsage owns general Claude/Codex/Grok account
   storage and observation, plus Claude/Codex preparation and the shared proxy.
-  Stack separately owns Codex sign-ins for its Bots and isolated Grok/Devin
-  ACP Worker accounts; those credentials do not select AgentUsage accounts. Each
+  Stack separately owns Codex sign-ins for its Bots and isolated Codex/Devin
+  ACP and Claude SDK Worker accounts; those credentials do not select AgentUsage accounts. Each
   fleet repo owns its own hardened installer and exports its own skills; AgentStart invokes
   contracts, it does not reach inside — but it decides which
   active checkouts are installed. `install-agent-clis` runs each active checkout's own
