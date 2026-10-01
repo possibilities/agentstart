@@ -101,7 +101,7 @@ flowchart LR
     start ==>|Homebrew stable + binary-bundled review skill| hunk[Hunk]
      stack ==>|opt-in exact release installation and update policy| browser[agent-browser]
      start ==>|managed binary link and local-only provider config| browser
-      start ==>|checkout contracts; agentacp after agentroles| fleet[agentwiki / archival agentboard / agentsearch / agentscrape / agentbrain / agentusage / agentchats / agentroles / agentacp / stack / agentnotify]
+     start ==>|checkout contracts; agentacp after agentroles| fleet[agentwiki / archival agentboard / agentsearch / agentscrape / agentbrain / agentusage / agentchats / agentroles / agentacp / stack / agentnotify]
     start ==>|skills scan + post-sync hooks| skills[fixed private fleet resources, agentguidance rendered]
     start ==>|default: editable command + client native audio; explicit optional install-agentvoice-android: browser/Termux proof on named SSH host| voiceInstall[agentvoice]
     start -.->|bounded interim jobs: fixed test checkout + explicit workspace; named reader| voiceTest[agentvoice test server / reader]
@@ -209,7 +209,7 @@ installed edges. Do not silently claim a replacement or re-enable a checkout.
 | agentroles | Devin CLI | An explicit `agentroles install --devin <role>` can still create a sticky user plugin, but AgentStart's ordinary default Role no longer depends on it. That legacy local `default` plugin is removed only after the in-place wrapper proves its MCPs, skills and manual `/prime` without plugin state. AgentRoles is not Devin's launch harness | `agentroles/src/devin-plugin.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0005-devin-plugins-are-sticky-user-installs.md`; `agentstart/scripts/devin-invocation.ts` |
 | agentstart | agentroles | `install-agent-clis` invokes the checkout-owned `scripts/install.sh --install`: frozen dependency install, an ownership-checked `~/.local/bin/agentroles` link and a deployed-SHA receipt. Nothing is installed for any harness; `agentroles install` remains a user action. AgentStart's read-only `sync-skills --check` path invokes `agentroles install --check` for each already-rendered canonical role and propagates stale state without refreshing either plugin | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/sync-skills`; `agentstart/scripts/check-role-plugins`; `agentroles/scripts/install.sh`; `agentroles/src/main.ts` |
 | agentstart | agentacp | Invokes the checkout-owned `scripts/install.sh --install` after AgentRoles. Missing checkouts skip, broken present installers fail. AgentACP owns its command installation and on-demand broker; AgentStart adds no resident LaunchAgent. | `agentstart/scripts/install-agent-clis`; `agentstart/scripts/install.sh`; `agentstart/tests/install-agent-clis.test.ts`; `agentstart/docs/adr/0051-equip-opted-in-devin-acp-and-claude-completions.md` |
-| agentacp | AgentRoles → OpenCode ACP | Owns a private process group started in `~/code` with `agentroles <fixed rendered default Role> -- opencode acp`. Session requests carry their exact cwd. AgentRoles delivers its existing native skills/MCP/append resources to the intrinsically private ACP process. Breaking the public ACP launch or Role rendering breaks OpenCode control. | `agentacp/src/native.ts`; `agentacp/src/broker.ts`; `agentroles/src/deliver/opencode.ts` (verified in the integration task worktrees; delivery pending integration) |
+| agentacp | AgentRoles → OpenCode ACP | Owns a private process group started in `~/code` with `agentroles <fixed rendered default Role> -- opencode acp`. Session requests carry their exact cwd. AgentRoles delivers its existing native skills/MCP/append resources to the intrinsically private ACP process. Breaking the public ACP launch or Role rendering breaks OpenCode control. | `agentacp/src/native.ts`; `agentacp/src/broker.ts`; `agentroles/src/deliver/opencode.ts` |
 | agentacp | AgentStart public Devin shim → native ACP | Starts PATH `devin acp` in `~/code` with `AGENTSTART_DEVIN_ACP_ROLE=1`. AgentStart alone snapshots the default Role at each validated session cwd's real Git root before forwarding original `session/new`/`session/load` frames. Existing wrapper/child identity records and root locks retain resources until all references end; Stack's direct native ACP stays outside this opt-in. Breaking the shim, flag or snapshot contract breaks Devin Role resources. | `agentacp/src/{native,environment,broker}.ts`; `agentstart/scripts/{devin-invocation.ts,devin-acp.ts,devin-acp-prepare.ts,devin-cleanup.ts}`; `agentstart/tests/devin-acp.test.ts` |
 | Claude default Role | agentacp MCP / completion Monitor | Declares `${HOME}/.local/bin/agentacp mcp` and a native `monitors.json` command for invocation-scoped OpenCode/Devin completion delivery. MCP tools are harness-prefixed; Monitor stdout writes one durable completion/permission event per line, then acknowledges the exact owner event. A crash before acknowledgement can replay; stdout delivery is not proof of human/Claude reading. The environment guard requires `AGENTROLES_HARNESS=claude` plus a fresh invocation UUID; non-Claude inventory exposure does not authorize recursive control. | `agentstart/roles/default/{mcp.json,monitors.json}`; `agentstart/config/resources/mcp-servers.json`; `agentstart/scripts/render-roles`; `agentacp/src/{main,mcp,monitor,service,environment}.ts` |
 | agentstart | Gog | installs Gog through Homebrew and binds the two declared mailboxes in the fixed direct MCP inventory. Google OAuth and credential storage stay in Gog | `agentstart/scripts/install-gog`; `agentstart/config/resources/mcp-servers.json`; `agentstart/tests/gog-install.py` |
@@ -311,13 +311,15 @@ remains intact, with no Responses provider injection into its Realtime path.
 
 ## ACP integration verification scope
 
-AgentACP and AgentRoles bridge source was read directly in their task-owned
-implementation worktrees on 2026-10-01. The actual ACP launch owner is
-`agentacp/src/native.ts` (not a guessed `acp.ts`); fresh Role-run identity is
-issued in `agentroles/src/main.ts` before `runHarness`. The source edges above
-are confirmed. Parent integration still owns the sibling workers' acceptance,
-combined runtime proof, installation and final delivery; this source inspection
-does not claim an installed live Claude Monitor or restart an active session.
+AgentACP and AgentRoles bridge source was reviewed on 2026-10-01. The ACP launch
+owner is `agentacp/src/native.ts`; fresh Role-run identity is issued in
+`agentroles/src/main.ts` before `runHarness`. `agentacp/docs/verification.md`
+records the combined broker/public-shim proof and two interactive Claude
+instances receiving only their own Monitor completions. Those completion
+checks used wire-fixture ACP endpoints, while separate native admission-only
+probes established Role resources and model/effort discovery. They do not
+claim live provider responses or arbitrary task execution. Installed resource
+convergence does not refresh an already-running Claude session.
 
 ## Checked and absent
 
