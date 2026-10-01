@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { invocationRecords, type Invocation } from "../scripts/devin-invocation.ts";
 import { cleanupDevinInvocations } from "../scripts/devin-cleanup.ts";
-import { processIdentity } from "../scripts/devin-process.ts";
+import { processIdentity, type ProcessIdentity } from "../scripts/devin-process.ts";
 
 // Authoring gate: the public stdio boundary owns protocol byte preservation,
 // session-cwd preparation-before-admission, and native-process reference lifetime.
@@ -13,6 +13,16 @@ import { processIdentity } from "../scripts/devin-process.ts";
 const entry = resolve(import.meta.dir, "../scripts/devin-invocation.ts");
 let root: string, home: string, resources: string, state: string, native: string, repo: string;
 const children: ReturnType<typeof Bun.spawn>[] = [];
+const nativeIdentityFiles: string[] = [];
+function matchesNative(identity: ProcessIdentity): boolean {
+  const current = processIdentity(identity.pid);
+  return current?.pid === identity.pid && current.started === identity.started;
+}
+function signalNative(identity: ProcessIdentity, signal: NodeJS.Signals): boolean {
+  if (!matchesNative(identity)) return false;
+  try { process.kill(identity.pid, signal); return true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return false; throw error; }
+}
 function write(path: string, body: string) { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, body); }
 function gitRepo(path: string) {
   mkdirSync(path, { recursive: true });
@@ -31,7 +41,10 @@ beforeEach(() => {
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-writeFileSync(process.env.FAKE_PID, String(process.pid));
+import { processIdentity } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/devin-process.ts"))};
+const identity = processIdentity(process.pid);
+if (!identity) throw new Error('could not identify the native fixture');
+writeFileSync(process.env.FAKE_IDENTITY, JSON.stringify(identity));
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => {
   writeFileSync(process.env.FAKE_SIGNAL, signal); if (!process.env.FAKE_IGNORE_SIGNALS) process.exit(0);
 });
@@ -69,9 +82,10 @@ if (process.env.FAKE_IGNORE_EOF) { setInterval(() => {}, 1000); await new Promis
 });
 afterEach(async () => {
   for (const child of children.splice(0)) if (child.exitCode === null) { child.kill("SIGKILL"); await child.exited; }
-  if (existsSync(join(root, "pid"))) {
-    const pid = Number(readFileSync(join(root, "pid"), "utf8"));
-    if (processIdentity(pid)) { try { process.kill(pid, "SIGKILL"); } catch {} }
+  // Retain every launch's own kernel identity, including native children whose
+  // wrapper was killed. A reused PID is not authorization to signal a process.
+  for (const path of nativeIdentityFiles.splice(0)) {
+    if (existsSync(path)) signalNative(JSON.parse(readFileSync(path, "utf8")) as ProcessIdentity, "SIGKILL");
   }
   rmSync(root, { recursive: true, force: true });
 });
@@ -85,9 +99,11 @@ async function waitFor(predicate: () => boolean) {
   await bounded((async () => { while (!predicate()) await Bun.sleep(10); })());
 }
 function launch(extraEnv: Record<string, string> = {}, args = ["acp"], publicCommand?: string) {
+  const identityFile = join(root, `native-identity-${nativeIdentityFiles.length}.json`);
+  nativeIdentityFiles.push(identityFile);
   const child = Bun.spawn(publicCommand ? [publicCommand, ...args] : [process.execPath, entry, "--native", native, "--", ...args], {
     cwd: join(home, "code"), env: { ...process.env, HOME: home, AGENTSTART_RESOURCES_ROOT: resources,
-      AGENTSTART_DEVIN_ACP_ROLE: "1", FAKE_RECEIVED: join(root, "received"), FAKE_PID: join(root, "pid"),
+      AGENTSTART_DEVIN_ACP_ROLE: "1", FAKE_RECEIVED: join(root, "received"), FAKE_IDENTITY: identityFile,
       FAKE_SIGNAL: join(root, "signal"), ...extraEnv }, stdin: "pipe", stdout: "pipe", stderr: "pipe",
   });
   children.push(child);
@@ -108,7 +124,8 @@ function launch(extraEnv: Record<string, string> = {}, args = ["acp"], publicCom
     let result = buffer; buffer = "";
     while (true) { const chunk = await reader.read(); if (chunk.done) return result; result += Buffer.from(chunk.value).toString(); }
   }
-  return { child, line, send, request, rest };
+  const nativeIdentity = () => JSON.parse(readFileSync(identityFile, "utf8")) as ProcessIdentity;
+  return { child, line, send, request, rest, nativeIdentity };
 }
 
 test("opted-in ACP prepares each session cwd before native admission and preserves all other bytes", async () => {
@@ -206,8 +223,15 @@ test("overlapping ACP wrappers share snapshots and both process identities prote
   // identity, rather than mere wrapper/PID existence, must retain its resources.
   second.child.kill("SIGKILL"); await bounded(second.child.exited);
   expect(cleanupDevinInvocations(state)).toBe(0);
-  process.kill(two.result.pid, "SIGTERM");
-  await waitFor(() => !processIdentity(two.result.pid));
+  const identity = second.nativeIdentity();
+  expect(identity.pid).toBe(two.result.pid);
+  // Simulate a PID reused for a different kernel start identity. The cleanup
+  // signal guard must leave this still-owned native process and snapshot live.
+  expect(signalNative({ ...identity, started: "1.000001" }, "SIGTERM")).toBe(false);
+  expect(processIdentity(identity.pid)).toEqual(identity);
+  expect(cleanupDevinInvocations(state)).toBe(0);
+  expect(signalNative(identity, "SIGTERM")).toBe(true);
+  await waitFor(() => !matchesNative(identity));
   expect(cleanupDevinInvocations(state)).toBe(2);
   expect(existsSync(join(repo, ".devin"))).toBe(false);
 });
