@@ -126,6 +126,29 @@ function hashOf(content: Buffer | string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+/** Only the generation's original writer can attest that preparation finished. */
+function snapshotPrepared(stateDir: string, repo: string, snapshot: string): boolean {
+  // The second path is the previous single-invocation record format. Joined
+  // records are not witnesses: older wrappers could save a marker-only manifest
+  // after joining an interrupted preparation.
+  for (const record of [invocationPath(stateDir, repo, snapshot), join(stateDir, `${hashOf(repo)}.json`)]) {
+    let previous: Invocation;
+    try {
+      const stat = lstatSync(record);
+      if (!stat.isFile() || stat.isSymbolicLink()) continue;
+      previous = JSON.parse(readFileSync(record, "utf8"));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) continue;
+      throw error;
+    }
+    const files = previous?.files;
+    if (previous?.owner === owner && previous.id === snapshot && (previous.snapshot ?? previous.id) === snapshot &&
+        previous.cwd === repo && files && typeof files === "object" && !Array.isArray(files) &&
+        files[markerRel] === hashOf(canonicalMarker(snapshot))) return true;
+  }
+  return false;
+}
+
 type Claim = "claimed" | "missing" | "conflict";
 /** Claims an existing identical file, or writes it when allowed. Never overwrites. */
 function claimFile(target: string, relative: string, content: Buffer, write: boolean, ownedDirs: Set<string>): Claim {
@@ -242,6 +265,14 @@ export function prepareDevinInvocation(cwd: string, home: string, resourcesRoot:
         invocation.snapshot = raced.id;
         joined = true;
       }
+    }
+
+    // A marker proves ownership, not readiness. It is published before rendering
+    // so failed/killed preparations remain visible to cleanup. Under the root
+    // lock, only the original writer's saved manifest proves a finished render;
+    // do not try to repair a partial generation or refresh a shared ready one.
+    if (joined && !snapshotPrepared(stateDir, repo, invocation.snapshot)) {
+      throw new Error("project .devin snapshot preparation is incomplete; end its invocations and allow cleanup before retrying");
     }
 
     // Register before writing files so a killed wrapper still leaves a record the

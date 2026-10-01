@@ -21,6 +21,16 @@ periodic cleanup waits for every root reference to end. Protocol stdout remains
 clean, failures retain the exact RPC ID, permissions remain native, and native
 models, prompts, capabilities, session fields and notifications are not rewritten.
 
+Admission readiness is witnessed by the original snapshot generation writer's
+saved file manifest, not its early ownership marker or a later joiner's manifest.
+Rendering failures and interrupted preparation can leave the marker and an
+unfinished record behind; retries refuse that generation until the existing
+process-identity cleanup can reconcile it. This strengthens ADR 0048's join
+condition without a second readiness file, automatic recovery, or deletion of
+foreign content. Checking completeness against the current Role would wrongly
+require a shared snapshot to refresh during resource sync, so complete generations
+retain the existing no-rewrite join behavior.
+
 The default Role adds `agentacp mcp` to the common inventory and a native Claude
 `monitors.json` completion Monitor. AgentRoles supplies a fresh
 `AGENTROLES_INVOCATION_ID` and `AGENTROLES_HARNESS` to every Role-run process;

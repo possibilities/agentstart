@@ -212,7 +212,14 @@ test("a blocked snapshot admission does not block an unrelated native RPC", asyn
 test("overlapping ACP wrappers share snapshots and both process identities protect cleanup", async () => {
   const first = launch(), second = launch({ FAKE_IGNORE_EOF: "1" });
   first.request(1, repo); const one = JSON.parse(await first.line());
+  // A completed shared generation stays stable while Role resource sync moves
+  // on. Its completion witness must not require the current Role's new files.
+  write(join(resources, "roles/default/skills/after-sync/SKILL.md"), "New Role skill.\n");
+  write(join(resources, "roles/default/mcp.json"), JSON.stringify({ mcpServers: { example: { command: "${HOME}/bin/replaced", args: [] } } }));
   second.request(2, repo); const two = JSON.parse(await second.line());
+  expect(one.result.ready).toBe(true); expect(two.result.ready).toBe(true);
+  expect(two.result.mcp).toEqual(one.result.mcp);
+  expect(existsSync(join(repo, ".devin/skills/after-sync/SKILL.md"))).toBe(false);
   const records = invocationRecords(state, realpathSync(repo)).map(path => JSON.parse(readFileSync(path, "utf8")) as Invocation);
   expect(records).toHaveLength(2); expect(records[0]!.snapshot).toBe(records[1]!.snapshot);
   expect(new Set(records.map(record => record.wrapper.pid))).toEqual(new Set([first.child.pid, second.child.pid]));
@@ -282,7 +289,7 @@ test("opt-in is exact and default ACP, utilities and cloud/help stay native", as
   expect(await new Response(invalid.child.stderr).text()).toContain("must be 0 or 1");
 });
 
-test("the installed public Devin shim carries the opt-in and retains its explicit bypass", async () => {
+function installPublicShim(): string {
   const vendor = join(home, ".local/share/devin/cli/_versions/current/bin/devin");
   mkdirSync(dirname(vendor), { recursive: true }); copyFileSync(native, vendor); chmodSync(vendor, 0o755);
   const bin = join(home, ".local/bin"), publicDevin = join(bin, "devin"); mkdirSync(bin, { recursive: true }); symlinkSync(vendor, publicDevin);
@@ -294,6 +301,11 @@ test("the installed public Devin shim carries the opt-in and retains its explici
     env: { ...process.env, HOME: home, AGENTSTART_INSTALL_BIN_DIR: bin, AGENTSTART_WORKSHOPS_ROOT: join(home, "workshops") }, stdout: "pipe", stderr: "pipe",
   });
   expect(result.exitCode, result.stderr.toString()).toBe(0);
+  return publicDevin;
+}
+
+test("the installed public Devin shim carries the opt-in and retains its explicit bypass", async () => {
+  const publicDevin = installPublicShim();
   const equipped = launch({}, ["acp"], publicDevin); equipped.request(1, repo);
   expect(JSON.parse(await equipped.line()).result.ready).toBe(true);
   equipped.child.stdin.end(); await bounded(equipped.child.exited); expect(cleanupDevinInvocations(state)).toBe(1);
@@ -301,6 +313,56 @@ test("the installed public Devin shim carries the opt-in and retains its explici
   expect(JSON.parse(await bypass.line()).result.ready).toBe(false);
   bypass.child.stdin.end(); expect(await bounded(bypass.child.exited)).toBe(0);
   expect(existsSync(join(repo, ".devin"))).toBe(false);
+});
+
+test("public ACP retries never admit a snapshot whose preparation failed after registration", async () => {
+  // The marker survives a rendering failure. Previously a repaired Role made
+  // the retry join that marker without ever writing the missing resources.
+  // Exercise both owned-directory staging and a merge beside foreign content;
+  // helper/transport tests never retried this failure in one native runtime.
+  const publicDevin = installPublicShim(), merged = join(root, "merged"), fresh = join(root, "fresh");
+  gitRepo(merged); gitRepo(fresh);
+  const foreignConfig = "project configuration\n", foreignSkill = "project skill\n";
+  write(join(merged, ".devin/config.json"), foreignConfig);
+  write(join(merged, ".devin/skills/mine/SKILL.md"), foreignSkill);
+  const mcp = join(resources, "roles/default/mcp.json");
+  write(mcp, JSON.stringify({ mcpServers: { example: { command: "${HOME}/bin/example" } } }));
+  const f = launch({}, ["acp"], publicDevin), markers = new Map<string, string>();
+  for (const cwd of [repo, merged]) {
+    const id = `failed-${cwd}`;
+    f.request(id, cwd);
+    expect(JSON.parse(await f.line())).toEqual({ jsonrpc: "2.0", id, error: { code: -32000, message: "AgentStart Devin Role snapshot preparation failed" } });
+    markers.set(cwd, readFileSync(join(cwd, ".devin/agentstart-owner.json"), "utf8"));
+    expect(existsSync(join(cwd, ".devin/skills/review/SKILL.md"))).toBe(false);
+  }
+  write(mcp, JSON.stringify({ mcpServers: { example: { command: "${HOME}/bin/example", args: [] } } }));
+  for (const cwd of [repo, merged]) {
+    for (const method of ["session/new", "session/load"]) {
+      const id = `retry-${method}-${cwd}`;
+      f.request(id, cwd, method);
+      expect(JSON.parse(await f.line())).toEqual({ jsonrpc: "2.0", id, error: { code: -32000, message: "AgentStart Devin Role snapshot preparation failed" } });
+    }
+    expect(readFileSync(join(cwd, ".devin/agentstart-owner.json"), "utf8")).toBe(markers.get(cwd)!);
+    expect(existsSync(join(cwd, ".devin/skills/review/SKILL.md"))).toBe(false);
+  }
+  expect(existsSync(join(root, "received"))).toBe(false);
+  expect(readFileSync(join(merged, ".devin/config.json"), "utf8")).toBe(foreignConfig);
+  expect(readFileSync(join(merged, ".devin/skills/mine/SKILL.md"), "utf8")).toBe(foreignSkill);
+  // The runtime and repaired Role still work at a fresh root, so the rejection
+  // is incomplete-generation admission, not an unrelated transport failure.
+  f.request("fresh", fresh);
+  const response = JSON.parse(await f.line());
+  expect(response.id).toBe("fresh"); expect(response.result.ready).toBe(true);
+  expect(response.result.mcp.mcpServers.example.args).toEqual([]);
+  expect(readFileSync(join(root, "received"), "utf8")).toBe(JSON.stringify({ jsonrpc: "2.0", id: "fresh", method: "session/new", params: { cwd: fresh, mcpServers: [], model: "native-choice" } }) + "\n");
+  expect(cleanupDevinInvocations(state)).toBe(0);
+  f.child.stdin.end(); await bounded(f.child.exited);
+  expect(cleanupDevinInvocations(state)).toBe(3);
+  expect(existsSync(join(repo, ".devin"))).toBe(false);
+  expect(existsSync(join(fresh, ".devin"))).toBe(false);
+  expect(existsSync(join(merged, ".devin/agentstart-owner.json"))).toBe(false);
+  expect(readFileSync(join(merged, ".devin/config.json"), "utf8")).toBe(foreignConfig);
+  expect(readFileSync(join(merged, ".devin/skills/mine/SKILL.md"), "utf8")).toBe(foreignSkill);
 });
 
 test("oversized and truncated frames fail closed and terminate native without protocol diagnostics", async () => {
