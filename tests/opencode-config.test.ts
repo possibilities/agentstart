@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -49,7 +49,12 @@ test("merges bindings into native settings without dropping other keys", () => {
   const f = fixture();
   mkdirSync(join(f.home, ".config", "opencode"), { recursive: true });
   writeFileSync(f.target, JSON.stringify({ tabs: { mode: "on" }, keybinds: { "app.exit": "ctrl+c", "session.tab.next": "ctrl+tab" } }), { mode: 0o640 });
-  expect(f.run().exitCode).toBe(0);
+  // Force the installer's own read to advance access time. That is not a
+  // concurrent edit and must not prevent merging or preserving the file mode.
+  const initial = lstatSync(f.target);
+  utimesSync(f.target, initial.atimeMs / 1000 - 60, initial.mtimeMs / 1000);
+  const result = f.run();
+  expect(result.exitCode, result.stderr.toString()).toBe(0);
   expect(JSON.parse(readFileSync(f.target, "utf8"))).toEqual({
     tabs: { mode: "on" },
     keybinds: {

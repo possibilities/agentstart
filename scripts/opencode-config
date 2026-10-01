@@ -9,6 +9,15 @@ import sys
 import tempfile
 
 
+def file_revision(info):
+    if info is None:
+        return None
+    # Reading settings may advance atime; identity, metadata and write times
+    # still guard against a concurrent replacement or mutation.
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_nlink,
+            info.st_uid, info.st_gid, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
 def main() -> None:
     if len(sys.argv) != 2 or sys.argv[1] not in ("--check", "--install"):
         sys.exit("Usage: opencode-config [--check|--install]")
@@ -52,7 +61,7 @@ def main() -> None:
             output.write("\n")
         os.chmod(name, stat.S_IMODE(existing.st_mode) if existing else 0o600)
         current = target.lstat() if target.exists() or target.is_symlink() else None
-        if current != existing:
+        if file_revision(current) != file_revision(existing):
             raise ValueError(f"OpenCode CLI settings changed during installation: {target}")
         os.replace(name, target)
     finally:
