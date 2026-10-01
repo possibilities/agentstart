@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "agentacp": {
+      "command": "${HOME}/.local/bin/agentacp",
+      "args": ["mcp"]
+    },
     "agent_browser": {
       "command": "${HOME}/.local/bin/agent-browser",
       "args": [

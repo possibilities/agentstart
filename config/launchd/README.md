@@ -157,7 +157,10 @@ invokes `agentstart config watch --notify`, reconciles filesystem events and
 a 30-second fallback, and uses Funk notifications. Its [one-way preference
 contract](../harness-preferences.md) forbids writing authored preferences.
 
-`io.arthack.agentstart.clean-devin` is a periodic cleanup job for terminal
+AgentACP uses an on-demand broker and installs no resident LaunchAgent here.
+Its owned ACP children do not create a second service owner.
+
+`io.arthack.agentstart.clean-devin` is a periodic cleanup job for terminal and opted-in local ACP
 Devin Role snapshots; it invokes `agentstart devin cleanup` at login and every
 30 seconds. See [Devin terminal invocations](../devin-invocation.md) for the
 PID/start-time guard and exact-marker cleanup boundary.

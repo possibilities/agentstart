@@ -71,7 +71,8 @@ done
 # Devin's vendor launcher is a symlink to its separately installed versioned
 # binary. Replace only that exact link or our own prior wrapper. ACP and utility
 # subcommands pass through to the native binary; terminal sessions get a
-# disposable Role snapshot in their original checkout.
+# disposable Role snapshot in their original checkout. Only the broker's exact
+# AGENTSTART_DEVIN_ACP_ROLE=1 opt-in equips local ACP session cwd admissions.
 devin_native="$HOME/.local/share/devin/cli/_versions/current/bin/devin"
 devin_public="$bin_dir/devin"
 devin_marker='# AgentStart-managed Devin invocation shim v1'

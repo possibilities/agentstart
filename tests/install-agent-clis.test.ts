@@ -82,6 +82,16 @@ test("live-call convergence uses AgentVoice's command-only contract", () => {
   );
 });
 
+test("AgentACP installs after its AgentRoles dependency and never after a failed dependency", () => {
+  const f = fixture();
+  f.installer("agentroles"); f.installer("agentacp");
+  expect(f.run().exitCode).toBe(0);
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentroles:--install\nagentacp:--install\n");
+  f.installer("agentroles", 17);
+  expect(f.run().exitCode).toBe(17);
+  expect(readFileSync(join(f.base, "calls"), "utf8")).toBe("agentroles:--install\nagentacp:--install\nagentroles:--install\n");
+});
+
 test("an archived AgentHUD checkout is not an installer participant", () => {
   const f = fixture();
   f.installer("agentvoice");

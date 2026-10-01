@@ -88,8 +88,11 @@ Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
   default Role's skills/MCPs — shared by concurrent sessions in the same
   project, merged alongside an existing `.devin` without overwriting it, and
   removed after the last session exits by an AgentStart-owned periodic
-  cleanup service. `devin acp`, native utilities, and Stack's per-account
-  ACP processes bypass this wrapper's snapshot; `/prime` is a manually invoked
+  cleanup service. `devin acp` normally passes through. Only local ACP with
+  `AGENTSTART_DEVIN_ACP_ROLE=1` prepares that same snapshot at each session's
+  requested cwd before native admission; broker startup cwd is not a project.
+  Native utilities and Stack's direct per-account ACP processes bypass the
+  snapshot; `/prime` is a manually invoked
   skill. Do not reinstall or remove the sticky user-level `default` Devin plugin
   during fleet convergence. Retire that
   exact plugin through the bounded helper only after the installed wrapper's
@@ -185,6 +188,13 @@ Where things go:
   if it has one. The `agent*` skills scan needs nothing. A loop member's
   installer must be rerunnable, because a present checkout that fails stops
   the whole install.
+- AgentACP follows AgentRoles in that loop. Its on-demand broker owns its
+  private OpenCode/Devin ACP children; AgentStart installs no resident
+  AgentACP LaunchAgent. The default Role's `agentacp mcp` and native Claude
+  `monitors.json` completion Monitor inherit AgentRoles invocation identity.
+  AgentACP refuses non-Claude owners rather than recursively controlling its
+  own harnesses. Keep the native Monitor separate from AgentVoice's v1 role
+  content framing.
 - Archived fleet checkouts are not CLI installer or shared-skill participants.
   AgentStart retires only its exact-marker-owned HUD and Source services and
   exact old command/config links; it leaves archived source and private state
@@ -241,7 +251,8 @@ Where things go:
 
 ## Skills
 
-AgentStart owns `roles/default`: prompt Markdown and its complete MCP inventory.
+AgentStart owns `roles/default`: prompt Markdown, its complete MCP inventory,
+and the Claude-native `monitors.json` resource.
 `scripts/render-roles` assembles it through the normal resource sync and safely
 retires intact AgentStart-owned `manager` and `worker` outputs. Changing the
 common inventory does not automatically change the role roster. The default role

@@ -66,6 +66,46 @@ class RoleRender(unittest.TestCase):
         self.render(1)
         self.assertFalse((self.resources / "roles/default").exists())
 
+    def test_native_monitors_are_owned_idempotent_and_separate_from_voice_content(self):
+        # Public convergence boundary: monitor edits must republish, native shell
+        # variables must survive, and AgentVoice v1 readers must retain their
+        # exact framing. Existing prompt/MCP/skill cases cannot catch this drift.
+        self.render()
+        role = self.resources / "roles/default"
+        old = json.loads((role / ".agentstart-role.json").read_text())
+        monitors = b'[{"name":"fixture","command":"\\\"${HOME}/bin/tool\\\" monitor","description":"fixture","when":"always"}]\n'
+        source = self.sources / "default/monitors.json"
+        source.write_bytes(monitors)
+        self.render()
+        self.assertEqual((role / "monitors.json").read_bytes(), monitors)
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+        self.assertEqual(receipt["owner"], "agentstart-role-v4")
+        self.assertEqual(receipt["content"], old["content"])
+        self.assertEqual(receipt["monitors_sha256"], hashlib.sha256(monitors).hexdigest())
+        self.assertEqual((role / "monitors.json").stat().st_mode & 0o777, 0o600)
+        inode = role.stat().st_ino
+        self.render()
+        self.assertEqual(role.stat().st_ino, inode)
+        source.write_bytes(monitors.replace(b"fixture", b"updated"))
+        self.render()
+        self.assertNotEqual(role.stat().st_ino, inode)
+        (role / "monitors.json").write_text("human change")
+        self.render(1)
+        self.assertEqual((role / "monitors.json").read_text(), "human change")
+
+    def test_independent_or_invalid_monitor_files_are_never_adopted(self):
+        self.render()
+        role = self.resources / "roles/default"
+        (role / "monitors.json").write_text("independent monitor")
+        self.render(1)
+        self.assertEqual((role / "monitors.json").read_text(), "independent monitor")
+        (role / "monitors.json").unlink()
+        for body in ('{}', '[{"name":"bad"}]', '[{"name":"bad","command":4}]',
+                     '[{"name":"bad","command":"tool","description":"x","when":"never"}]'):
+            (self.sources / "default/monitors.json").write_text(body)
+            self.render(1)
+            self.assertFalse((role / "monitors.json").exists())
+
     def test_changed_destination_is_preserved(self):
         self.render()
         mcp = self.resources / "roles/default/mcp.json"

@@ -139,7 +139,7 @@ python3 - <<'PYTHON'
 import json
 from pathlib import Path
 servers=json.loads(Path("config/resources/mcp-servers.json").read_text())["mcpServers"]
-fleet=["agentbrain","agentchats","agentdesk","agentnotify","agentscrape","agentsearch","agentwiki","termctrl"]
+fleet=["agentacp","agentbrain","agentchats","agentdesk","agentnotify","agentscrape","agentsearch","agentwiki","termctrl"]
 assert set(servers) == set(fleet+["agent_browser","gog_mikebannister","gog_notimpossiblemike","shadcn"])
 for name in fleet:
     assert servers[name] == {"command":"${HOME}/.local/bin/"+name,"args":["mcp"]}
@@ -364,7 +364,7 @@ trap 'rm -rf "$skip_test_dir"' EXIT
 # Bare harness shims set unattended permission defaults on session commands.
 [ -x "$root/scripts/codex-invocation" ] || fail "Codex invocation helper is not executable"
 bun test "$root/tests/codex-invocation.test.ts" "$root/tests/harness-config.test.ts"
-bun test "$root/tests/devin-invocation.test.ts" "$root/tests/retire-devin-default-plugin.test.ts"
+bun test "$root/tests/devin-invocation.test.ts" "$root/tests/devin-acp.test.ts" "$root/tests/retire-devin-default-plugin.test.ts"
 "$root/scripts/validate-agent-contract.ts" "$root/scripts/agentstart"
 [ -x "$root/scripts/claude-invocation" ] || fail "Claude invocation helper is not executable"
 PYTHONDONTWRITEBYTECODE=1 python3 "$root/tests/claude-invocation.py"
@@ -864,6 +864,7 @@ grep -F 'workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"' scripts
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
     '~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release' \
+    '~/code/agentacp/scripts/install.sh --install' \
     'install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier' \
     'brew install or upgrade --cask grok-build  # official Grok Build CLI/TUI; no terminal integration' \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
@@ -1292,7 +1293,7 @@ grep -F 'mv -f -- "$manifest.next" "$manifest"' scripts/render-capabilities >/de
 # inventories independently of native harness launches.
 agent_cli_order=$(tr '\n' ' ' <scripts/install-agent-clis | tr -s ' ')
 case "$agent_cli_order" in
-    *"for tool in agentwiki agentboard agentsearch agentscrape \\ agentbrain agentusage agentvoice agentroles stack agentnotify"*) ;;
+    *"for tool in agentwiki agentboard agentsearch agentscrape \\ agentbrain agentusage agentvoice agentroles agentacp stack agentnotify"*) ;;
     *) fail "agent CLI installer changed its tool list or ordering" ;;
 esac
 if grep -F 'install-hud.sh' scripts/install-agent-clis >/dev/null; then
@@ -1301,7 +1302,7 @@ fi
 # Every checkout with an installer is in the loop; a name missing from it is a
 # tool nothing installs.
 for expected_tool in agentwiki agentboard agentsearch agentscrape agentbrain \
-    agentusage agentvoice agentroles stack agentnotify; do
+    agentusage agentvoice agentroles agentacp stack agentnotify; do
     case "$agent_cli_order " in
         *" $expected_tool "* | *" $expected_tool;"*) ;;
         *) fail "agent CLI loop no longer installs $expected_tool" ;;

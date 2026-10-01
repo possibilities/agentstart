@@ -48,6 +48,8 @@ def inspect_owned(role):
         fields.add("skills")
     if owner == CONTENT_OWNER:
         fields.add("content")
+        if "monitors_sha256" in receipt:
+            fields.add("monitors_sha256")
     if owner not in (OWNER, FILTERED_OWNER, CONTENT_OWNER) or set(receipt) != fields:
         raise ValueError(f"unrecognized role ownership: {role}")
     if owner == CONTENT_OWNER:
@@ -64,7 +66,11 @@ def inspect_owned(role):
         raise ValueError(f"invalid role links: {role}")
     if filtered and "skills" in links:
         raise ValueError(f"filtered role has a shared skills link: {role}")
-    expected = {MARKER, "mcp.json", *links} | ({"skills"} if filtered else set())
+    monitored = "monitors_sha256" in receipt
+    if monitored and (not isinstance(receipt["monitors_sha256"], str)
+                      or not re.fullmatch(r"[a-f0-9]{64}", receipt["monitors_sha256"])):
+        raise ValueError(f"invalid role monitor receipt: {role}")
+    expected = {MARKER, "mcp.json", *links} | ({"skills"} if filtered else set()) | ({"monitors.json"} if monitored else set())
     if {p.name for p in role.iterdir()} != expected:
         raise ValueError(f"role has independent files: {role}")
     for name, target in links.items():
@@ -88,12 +94,14 @@ def inspect_owned(role):
             if not path.is_symlink() or os.readlink(path) != target:
                 raise ValueError(f"role skill link changed independently: {path}")
     mcp = role / "mcp.json"
-    for path in (marker, mcp):
+    for path in (marker, mcp, *((role / "monitors.json",) if monitored else ())):
         entry = path.lstat()
         if not stat.S_ISREG(entry.st_mode) or entry.st_uid != os.getuid() or entry.st_nlink != 1 or entry.st_mode & 0o022:
             raise ValueError(f"unsafe role file: {path}")
     if hashlib.sha256(mcp.read_bytes()).hexdigest() != receipt["mcp_sha256"]:
         raise ValueError(f"role MCP inventory changed independently: {role}")
+    if monitored and hashlib.sha256((role / "monitors.json").read_bytes()).hexdigest() != receipt["monitors_sha256"]:
+        raise ValueError(f"role monitors changed independently: {role}")
     return ((info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns), marker.read_bytes())
 
 
@@ -203,13 +211,36 @@ def prepare(source, resources):
         raise ValueError(f"conflicting effective prompts: {source}")
     render = runpy.run_path(str(Path(__file__).with_name("render-mcp-resources")))["render"]
     mcp = (json.dumps(render(source / "mcp.json", Path.home()), indent=2) + "\n").encode()
+    monitors = None
+    path = source / "monitors.json"
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1024 * 1024:
+            raise ValueError(f"invalid role monitor source: {path}")
+        monitors = path.read_bytes()
+        values = json.loads(monitors)
+        if (not isinstance(values, list) or len(values) > 32
+                or any(not isinstance(entry, dict)
+                       or set(entry) - {"name", "command", "description", "when"}
+                       or any(not isinstance(entry.get(key), str) or not entry[key].strip()
+                              for key in ("name", "command"))
+                       or not isinstance(entry.get("description"), str)
+                       or ("when" in entry and (not isinstance(entry["when"], str)
+                           or (entry["when"] != "always" and not re.fullmatch(r"on-skill-invoke:.+", entry["when"]))))
+                       or "${user_config." in entry["command"]
+                       for entry in values)
+                or len({entry["name"] for entry in values}) != len(values)):
+            raise ValueError(f"invalid native monitor array: {path}")
     record = {"owner": CONTENT_OWNER, "links": links,
               "mcp_sha256": hashlib.sha256(mcp).hexdigest(),
               "content": role_content(source, resources, links, skills, mcp)}
+    # Additive ownership evidence, not a change to AgentVoice's v1 framing. Its
+    # content readers still observe only the prompt/MCP/skills they consume.
+    if monitors is not None:
+        record["monitors_sha256"] = hashlib.sha256(monitors).hexdigest()
     if skills is not None:
         record["skills"] = skills
     receipt = (json.dumps(record, indent=2) + "\n").encode()
-    return links, skills, mcp, receipt
+    return links, skills, mcp, monitors, receipt
 
 
 def render(resources, sources):
@@ -225,7 +256,7 @@ def render(resources, sources):
     before = {name: inspect_owned(parent / name)
               for name in (ROLE, *RETIRED_ROLES)}
     parent.mkdir(exist_ok=True, mode=0o700)
-    links, skills, mcp, receipt = prepared
+    links, skills, mcp, monitors, receipt = prepared
     role = parent / ROLE
     publish = before[ROLE] is None or before[ROLE][1] != receipt
     retire = [name for name in RETIRED_ROLES if before[name] is not None]
@@ -248,6 +279,9 @@ def render(resources, sources):
                     (stage / "skills" / skill_name).symlink_to(target)
             (stage / "mcp.json").write_bytes(mcp)
             (stage / "mcp.json").chmod(0o600)
+            if monitors is not None:
+                (stage / "monitors.json").write_bytes(monitors)
+                (stage / "monitors.json").chmod(0o600)
             (stage / MARKER).write_bytes(receipt)
             (stage / MARKER).chmod(0o600)
 

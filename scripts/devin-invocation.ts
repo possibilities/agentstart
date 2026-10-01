@@ -194,8 +194,15 @@ function renderGitignore(claimed: Iterable<string>, ownedDirs: Set<string>): str
   return `# AgentStart Devin invocation snapshot.\n/.gitignore\n${[...lines].sort().join("\n")}\n`;
 }
 
+export function resolveDevinGitRoot(cwd: string): string {
+  if (!isAbsolute(cwd) || cwd.includes("\0") || !statSync(cwd).isDirectory()) throw new Error("cwd must be an absolute existing directory in a Git repository");
+  return realpathSync(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+    encoding: "utf8", timeout: 5000, maxBuffer: 1024 * 1024, stdio: ["ignore", "pipe", "pipe"],
+  }).trim());
+}
+
 export function prepareDevinInvocation(cwd: string, home: string, resourcesRoot: string, stateDir: string): { repo: string; record: string; invocation: Invocation; conflicts: string[] } {
-  const repo = realpathSync(execFileSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim());
+  const repo = resolveDevinGitRoot(cwd);
   const role = safeRole(resourcesRoot);
   mkdirSync(stateDir, { recursive: true, mode: 0o700 });
   if (lstatSync(stateDir).isSymbolicLink()) throw new Error("Devin state directory is a symlink");
@@ -296,6 +303,11 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
   const native = resolve(argv[1]);
   if (!statSync(native).isFile()) throw new Error("native Devin CLI is unavailable");
   const args = argv.slice(3);
+  if (args[0] === "acp" && !args.some(arg => ["--help", "-h", "--version", "-V", "--cloud"].includes(arg))) {
+    const optIn = env.AGENTSTART_DEVIN_ACP_ROLE;
+    if (optIn !== undefined && optIn !== "0" && optIn !== "1") throw new Error("AGENTSTART_DEVIN_ACP_ROLE must be 0 or 1");
+    if (optIn === "1") return (await import("./devin-acp.ts")).runDevinAcp(native, args, env);
+  }
   let child: ReturnType<typeof Bun.spawn>;
   if (!shouldPassThrough(args) && !legacyWorktreeResume(process.cwd(), env.HOME ?? homedir(), args)) {
     const home = env.HOME ?? homedir();

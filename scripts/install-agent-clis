@@ -50,6 +50,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # PATH and passes agentvoice --role, but installs nothing for any of them. Its
 # own `install` command is a user action that writes Codex plugin state, never
 # part of this loop.
+# agentacp follows agentroles: its on-demand broker uses the installed Role
+# launcher for private OpenCode ACP and AgentStart's opted-in public Devin shim.
+# No resident agentacp LaunchAgent is installed here.
 # Stack setup consumes codexnk's verified GitHub release installer, builds
 # its packages/UI and links its command, without starting or restarting servers.
 # Its shared runtime pin must match the outer installer's Codex consumer pin.
@@ -57,7 +60,7 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
 for tool in agentwiki agentboard agentsearch agentscrape \
-    agentbrain agentusage agentvoice agentroles stack agentnotify; do
+    agentbrain agentusage agentvoice agentroles agentacp stack agentnotify; do
     tool_root="$code_root/$tool"
     if [ ! -e "$tool_root" ] && [ ! -L "$tool_root" ]; then
         printf 'AgentStart agent CLIs installer: no checkout at %s; skipping.\n' "$tool_root"

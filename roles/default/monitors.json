@@ -1,0 +1,8 @@
+[
+  {
+    "name": "agentacp-completions",
+    "command": "\"${HOME}/.local/bin/agentacp\" monitor",
+    "description": "OpenCode and Devin ACP completions",
+    "when": "always"
+  }
+]

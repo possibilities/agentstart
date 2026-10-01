@@ -1,7 +1,8 @@
 # Default role
 
 AgentStart owns one explicit working role, `default`. Its source directory
-contains the human-facing manager prompt Markdown and its own `mcp.json`. The
+contains the human-facing manager prompt Markdown, its own `mcp.json`, and
+Claude-native `monitors.json`. The
 role inventory omits AgentChats. `skills-exclude.json` removes its skill
 from the role's share of the common skill set; archived owners' MCPs and skills
 are retired from the shared resources entirely. The prompt drops their workflows rather than
@@ -16,6 +17,9 @@ receipt records content-only hashes using the same
 `agentvoice-role-content-v1` framing that AgentVoice reports for directory roles;
 it covers resolved prompt, rendered MCP, and resolved skill bytes without storing
 their bodies. Independently changed role contents are refused, not overwritten.
+The native Monitor has its own additive v4 `monitors_sha256` ownership hash;
+it does not enter AgentVoice's v1 prompt/MCP/skill content framing. Its shell
+`${HOME}` variable remains native command syntax rather than MCP substitution.
 Convergence removes the retired `manager` and `worker` rendered directories only
 when their intact receipts still prove AgentStart ownership; independently changed
 directories are preserved and stop the cutover.
@@ -36,6 +40,8 @@ child. Fx and OpenCode need no install. Devin CLI has no per-invocation role
 delivery; `agentroles install --devin <rendered-role>` installs a sticky
 user-level plugin for every Devin session on this machine. Ordinary terminal
 sessions instead use AgentStart's [temporary in-place snapshot](../docs/devin-invocation.md).
+AgentACP's local `devin acp` opt-in prepares that same snapshot at each session
+cwd, while normal ACP and Stack's account-bound direct native ACP stay unchanged.
 `scripts/sync-skills --check` runs AgentRoles' read-only
 `install --check` comparison for the rendered role when the resources and CLI
 are available. It fails on a stale copy but never refreshes it; run the
@@ -55,6 +61,16 @@ See [default-role cutover](../docs/adr/0040-collapse-explicit-roles-to-default.m
 See [role freshness decision](../docs/adr/0017-attest-role-content-and-audit-codex-copies.md).
 
 ## Role MCP boundary
+
+The default Role declares `agentacp mcp` and its `agentacp-completions` native
+Claude Monitor. AgentRoles supplies every Role-run process a fresh
+`AGENTROLES_INVOCATION_ID` and its `AGENTROLES_HARNESS`. AgentACP admits only
+Claude owners; the common inventory deliberately carries this guarded resource
+rather than a second harness overlay. Controlled OpenCode/Devin cannot recurse
+into the bridge. The Monitor reports completions for the same invocation,
+without reloading active AgentVoice generations or automatically loading
+Devin's manual `/prime` guidance. See
+[the integration decision](../docs/adr/0051-equip-opted-in-devin-acp-and-claude-completions.md).
 
 The default role does not start AgentChats or ship its `chats` skill. This is
 an explicit-role boundary. Archived checkouts are a separate fleet retirement:

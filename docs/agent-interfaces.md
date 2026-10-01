@@ -22,6 +22,7 @@ second prompt catalog.
 | Gmail | Account-bound Gog MCPs for semantic reads; Gog CLI for sends, drafts, exact MIME, and complete pagination | The two surfaces share Gog authentication and divide work at their current schema boundary. |
 | shadcn registry work | Fleet shadcn MCP | The fixed registry configuration must be independent of the caller's project directory. |
 | Delegation, model choice, questions, approvals, and task lifecycle | Native Claude Code or Codex mechanisms selected by the active role | The harness already owns execution state and permission semantics. |
+| Claude-controlled OpenCode and Devin ACP sessions | AgentACP harness-prefixed MCP tools; native Claude completion Monitor | The on-demand broker owns independent native ACP children. Native models, session cwd and permissions stay native; the Role-run invocation identity scopes completion delivery and rejects non-Claude recursive owners. |
 | Herdr sessions, Hunk review, Plannotator review, AgentRoles launches, and operator notification | Owning CLI or TUI, guided by its skill | These workflows are interactive, terminal-bound, or intentionally process-local. |
 | Fork maintenance and inactive-worktree tending | Skill-local scripts plus native Git and Herdr commands | The scripts are deterministic implementation contracts within the workflow, not general remote services. |
 | Open a URL in a named Zen container | `zen-open` CLI | One-shot local launch through the browser's managed `ext+container:` handler; no cross-process contract needed. |

@@ -55,7 +55,16 @@ The former V1 executable is retired after V2 verification; already running
 V1 sessions are not terminated.
 _Avoid_: agent (ambiguous with the fleet apps), IDE.
 
-**Devin terminal invocation** — AgentStart's owned `~/.local/bin/devin` wrapper around the official versioned binary. Terminal sessions run in the original checkout with a temporary `.devin` snapshot of the current default Role's skills and MCPs; `/prime` loads its append prompt only when manually called. Many sessions may share a Git root and its snapshot, and the snapshot merges alongside an existing project `.devin` without overwriting it. A periodic AgentStart cleanup service removes the marked snapshot once every wrapper and native child process identity for the root has ended. Utility and ACP commands pass directly to the native CLI. The native login and session database remain Devin-owned. _Avoid_: global Devin plugin, per-session worktree, second credential store.
+**Devin invocation** — AgentStart's owned `~/.local/bin/devin` wrapper around the official versioned binary. Terminal sessions run in the original checkout with a temporary `.devin` snapshot of the current default Role's skills and MCPs; `/prime` loads its append prompt only when manually called. Many sessions may share a Git root and its snapshot, and the snapshot merges alongside an existing project `.devin` without overwriting it. A periodic AgentStart cleanup service removes the marked snapshot once every wrapper and native child process identity for the root has ended. Utilities and ACP normally pass directly to the native CLI. Local ACP with the exact `AGENTSTART_DEVIN_ACP_ROLE=1` opt-in prepares resources at each `session/new` or `session/load` cwd before forwarding the unchanged request, never at broker startup cwd. Stack's account-bound direct native ACP remains outside the shim. The native login and session database remain Devin-owned. _Avoid_: global Devin plugin, per-session worktree, second credential store.
+
+**AgentACP broker** — The on-demand fleet bridge that owns two Role-equipped
+ACP servers started in `~/code`: AgentRoles' private OpenCode ACP launch and the
+public Devin shim's explicit session-cwd snapshot opt-in. Claude receives its
+harness-prefixed MCP tools and completion Monitor through the default Role.
+AgentRoles gives each Role run a fresh invocation ID and harness identity;
+AgentACP admits only Claude owners to its MCP/Monitor. No AgentStart resident
+LaunchAgent, native permission grant, prompt injection, or account selector is
+added. _Avoid_: second Role renderer, ACP daemon service, auto-prime.
 
 **Codex invocation profile** — A private, uniquely named native profile copied
 from Funk's authored preferences for one Codex runtime process. AgentStart's
@@ -141,8 +150,8 @@ means model-invocable. The fixed-resource render derives Codex's inverse
 `allow_implicit_invocation` field from it, while Claude consumes the fact
 directly. _Avoid_: OpenAI policy (that is one rendered representation).
 
-**Working role** — The AgentStart-owned `default` directory of prompt Markdown
-and its complete MCP inventory. Its manager owns human dialogue and overall
+**Working role** — The AgentStart-owned `default` directory of prompt Markdown,
+its complete MCP inventory, and Claude-native `monitors.json`. Its manager owns human dialogue and overall
 delivery; native workers own assignments and report to their parent without a
 separate role directory. The inventory omits Chats and excludes its skill;
 archived owners are absent from the common inventory. Generic
