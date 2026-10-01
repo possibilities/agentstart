@@ -144,6 +144,27 @@ operator's research reuse, notification, document-placement,
 and managed-PTY preferences. The `tool-advertisement-policy` wiki page records
 this separation of operating preferences from discovery.
 
+### Portable design family (`~/code/skills`)
+
+The `possibilities/skills` collection owns `design` and five design leaves.
+These are authored, optional catalog-resolved routes, not an AgentStart source
+scan or live Role installation. Its standalone distribution is the standard
+skills CLI; its Claude marketplace selects the six design bundles. The checkout
+is outside the current `agent*` scan. Unavailable specialists have local/project
+guidance fallbacks; a native target does not automatically select Native SDK.
+
+| Caller | Conditional target | Evidence and consequence |
+| --- | --- | --- |
+| `skills/design` | `design-explore`, `design-visual`, `design-interaction`, `design-components`, `design-critique` | `skills/skills/design/SKILL.md`, next-decision table. Resolve actual catalog IDs, including plugin namespaces; leaves do not restart the router. |
+| `skills/design` | `shadcn`, `ai-elements`, `ai-sdk`, `vercel-react-best-practices`, `web-design-guidelines`, `native-sdk` | `skills/skills/design/references/specialists.md`. Match actual component/runtime/toolkit ownership; changing those contracts changes conditional implementation guidance. |
+| `skills/design` | `desktop`, `terminal-control`, available browser integration | Same reference plus `references/platforms/`. Native-window, PTY, and browser evidence are distinct capabilities; unavailable tools limit verification claims rather than block all design work. |
+| `skills/design-components` | `shadcn`, optional `brain`, `search`, `scrape`, `find-skills` discovery | `skills/skills/design-components/SKILL.md` and `references/{shadcn,discovery}.md`. Official-first registry discovery uses explicit `@shadcn`; complete project inspection/adoption uses the project's CLI. Discovery does not automatically install another tool. |
+| `skills/design` | requested `plannotator-*` or `hunk-review` workflow | `skills/skills/design/references/specialists.md`. Optional human-requested review surfaces, not required design dependencies. |
+
+Shoogle's optional HTTP MCP is documented in `skills/docs/integrations.md`;
+the collection installs no MCP or service. `skills/maintenance/design/family.json`
+records family ownership and route exclusions outside runtime bundles.
+
 `email` routes to `notify`, so mail work that stalls still reaches the human.
 Some retained skill prose still mentions the archived `browser` or `attention`
 skills; those are unresolved incoming references, not advertised active routes.
