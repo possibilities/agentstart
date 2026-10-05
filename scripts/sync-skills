@@ -109,6 +109,14 @@ if [ ! -d "$code_root" ]; then
     exit 0
 fi
 
+# Validate the role's external fragment and authored prompt before the first
+# skill copy or retirement. render-capabilities repeats this check immediately
+# before publishing its own plugin/MCP resources.
+if [ "$check_only" -eq 0 ]; then
+    "$script_dir/render-capabilities" --preflight \
+        || die "default role source preflight failed before skill synchronization"
+fi
+
 synchronized=0
 for project in "$code_root"/agent*/; do
     project=${project%/}

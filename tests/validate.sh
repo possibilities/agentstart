@@ -619,6 +619,58 @@ enabled = false
 # END AgentStart managed fleet skills
 EOF
 
+# Compare the whole managed resource tree across a failed preflight, including
+# file bytes, modes, symlink targets, and the absence of newly copied skills.
+resource_snapshot() {
+    python3 - "$1" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1])
+entries = []
+for path in sorted(root.rglob("*")):
+    mode = path.lstat().st_mode
+    name = path.relative_to(root).as_posix()
+    if stat.S_ISLNK(mode):
+        entry = [name, "link", path.readlink().as_posix()]
+    elif stat.S_ISREG(mode):
+        entry = [name, "file", stat.S_IMODE(mode), hashlib.sha256(path.read_bytes()).hexdigest()]
+    elif stat.S_ISDIR(mode):
+        entry = [name, "directory", stat.S_IMODE(mode)]
+    else:
+        entry = [name, "other", mode]
+    entries.append(entry)
+print(hashlib.sha256(json.dumps(entries, separators=(",", ":")).encode()).hexdigest())
+PY
+}
+fixture_resources_root="$code_skills_home/.local/share/agentstart/resources"
+fixture_fragment="$code_skills_root/agentguidance/fragments/domain-model.md"
+fixture_resources_before=$(resource_snapshot "$fixture_resources_root")
+mv "$fixture_fragment" "$fixture_fragment.held"
+set +e
+missing_sync_fragment_output=$(
+    HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+        AGENTSTART_CODE_ROOT="$code_skills_root" \
+        AGENTSTART_NPX_BIN="$root/tests/fixtures/npx" \
+        AGENTSTART_TEST_NPX_LOG="$code_skills_log" \
+        AGENTSTART_CODEX_BIN=/usr/bin/true \
+        "$root/scripts/sync-skills" 2>&1
+)
+missing_sync_fragment_status=$?
+set -e
+mv "$fixture_fragment.held" "$fixture_fragment"
+[ "$missing_sync_fragment_status" -ne 0 ] \
+    || fail "skill sync accepted a missing shared domain fragment"
+printf '%s\n' "$missing_sync_fragment_output" | grep -F 'missing or empty domain fragment' >/dev/null \
+    || fail "skill sync did not identify the missing domain fragment"
+[ "$fixture_resources_before" = "$(resource_snapshot "$fixture_resources_root")" ] \
+    || fail "skill sync changed managed resources before the domain preflight"
+[ ! -s "$code_skills_log" ] \
+    || fail "skill sync invoked the skills tool before the domain preflight"
+
 sync_output=$(
     HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
         AGENTSTART_CODE_ROOT="$code_skills_root" \
@@ -652,7 +704,6 @@ fi
     || fail "skill sync did not invoke the skills tool exactly once per source"
 [ -e "$code_skills_root/agentdemo/post-sync-ran" ] \
     || fail "skill sync did not run a participant's post-sync hook after its skills landed"
-fixture_resources_root="$code_skills_home/.local/share/agentstart/resources"
 fixture_claude_root="$fixture_resources_root/claude/agent"
 fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
 grep -F 'Shared fixture domain guidance.' \
@@ -660,33 +711,7 @@ grep -F 'Shared fixture domain guidance.' \
     || fail "skill sync did not include shared domain guidance in the default role"
 # A missing external fragment must fail before any plugin, MCP, skill, or role
 # resource changes. Compare the complete fixture tree at the resource boundary.
-resource_snapshot() {
-    python3 - "$1" <<'PY'
-import hashlib
-import json
-from pathlib import Path
-import stat
-import sys
-
-root = Path(sys.argv[1])
-entries = []
-for path in sorted(root.rglob("*")):
-    mode = path.lstat().st_mode
-    name = path.relative_to(root).as_posix()
-    if stat.S_ISLNK(mode):
-        entry = [name, "link", path.readlink().as_posix()]
-    elif stat.S_ISREG(mode):
-        entry = [name, "file", stat.S_IMODE(mode), hashlib.sha256(path.read_bytes()).hexdigest()]
-    elif stat.S_ISDIR(mode):
-        entry = [name, "directory", stat.S_IMODE(mode)]
-    else:
-        entry = [name, "other", mode]
-    entries.append(entry)
-print(hashlib.sha256(json.dumps(entries, separators=(",", ":")).encode()).hexdigest())
-PY
-}
 fixture_resources_before=$(resource_snapshot "$fixture_resources_root")
-fixture_fragment="$code_skills_root/agentguidance/fragments/domain-model.md"
 mv "$fixture_fragment" "$fixture_fragment.held"
 set +e
 missing_fragment_output=$(
