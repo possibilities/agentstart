@@ -137,11 +137,10 @@ flowchart LR
 ```
 
 Skill names and descriptions are the capability discovery surface. There is
-no prompt-level tool catalog. `agentguidance/scripts/render` splices SYSTEM.md
-and GUIDELINES.md into the linked implementation or maintenance references of
-collab, build, and maintain; GUIDELINES preserves the
-operator's research reuse, notification, document-placement,
-and managed-PTY preferences. The `tool-advertisement-policy` wiki page records
+no prompt-level tool catalog. The default role carries the broadly applicable
+operator guidance; `agentguidance/scripts/render` still splices SYSTEM.md and
+GUIDELINES.md into the specialist `maintain` reference. The
+`tool-advertisement-policy` wiki page records
 this separation of operating preferences from discovery.
 
 ### Portable design family (`~/code/skills`)
@@ -306,7 +305,7 @@ remains intact, with no Responses provider injection into its Realtime path.
 | search | brain, scrape, wiki | saved reading supplies context; known-source reading routes to scrape, saved sources to brain, and a requested durable synthesis to wiki. An explicit current-research request does not depend on empty local results (`agentsearch/skills/search/SKILL.md`) |
 | desktop | notify | The retained skill routes native input takeover notices to notify; its old browser-skill referral is unresolved after Browser skill retirement. | `agentdesk/skills/desktop/SKILL.md`; `agentstart/docs/adr/0049-retire-archived-fleet-checkouts.md` |
 | wiki | brain | collected source material routes to brain; Wiki's `search` is its own subcommand, not the search skill (`agentwiki/skills/wiki/SKILL.md`) |
-| GUIDELINES.md (this repo) | brain, notify, wiki, terminal-control | spliced into linked collab/build/maintain references; applies research reuse and human-controlled resource authority, preserves notifications and managed PTY work, and routes durable wiki knowledge while honoring requested artifact formats and destinations. Capability discovery uses skill descriptions |
+| Default role and GUIDELINES.md (this repo) | brain, notify, wiki, terminal-control | The role carries general research reuse, notification, document placement, and managed-session guidance; the specialist maintain reference receives the operator extension. Capability discovery uses skill descriptions. |
 | email (agentguidance) | notify | a lapsed credential or consent screen needs the human, who is not reading the transcript — the stall is announced, not waited in (`agentguidance/skills/email/SKILL.md`) |
 
 ## ACP integration verification scope
@@ -781,7 +780,7 @@ AgentLaunch references in this chronology describe historical edges only.
 | Funk process-headroom warning | AgentNotify Unix socket | calls | `funk/libexec/process-headroom.py` sends throttled headroom warnings through the documented `send` JSON-line socket API, without spawning a CLI or launching the app. `funk/libexec/install-process-headroom-agent.py` installs the five-minute machine LaunchAgent; notification body opens a local investigation handoff. A missing app leaves a pending request for the next scheduled check. |
 | Funk Artbird browser watchdog | AgentNotify Unix socket | calls | `funk/libexec/artbird-browser-watchdog.py` sends grouped, idempotent warning and recovery notices through the documented `send` JSON-line socket API. The exact pending request survives delivery failure; the five-minute LaunchAgent remains read-only and opens only its local evidence handoff. |
 | Explicit roles / AgentVoice resources | AgentNotify MCP | serves | `config/resources/mcp-servers.json` exposes `~/.local/bin/agentnotify mcp`; bare shims do not inject it |
-| Fleet building/delivery guidance | notifications skill | routes | `prompts/agentguidance/GUIDELINES.md` prefers AgentNotify’s `skills/notifications/SKILL.md` for durable completion and attention notices. The older `notify` entrypoint routes to that skill and explains the AgentStart router's AgentNotify-only failure boundary. |
+| Default role guidance | notifications skill | routes | The default role prefers AgentNotify’s `skills/notifications/SKILL.md` for durable completion and attention notices. The older `notify` entrypoint routes to that skill and explains the AgentStart router's AgentNotify-only failure boundary. |
 
 AgentNotify’s app owns its private account-local Unix socket. No AgentStart LaunchAgent is installed for it; CLI/MCP launches the app on demand. The managed `~/.local/bin/terminal-notifier` router redirects PATH callers through AgentNotify. Funk explicitly prefers that path even when its caller has Homebrew first. Homebrew terminal-notifier must be unlinked before the router is installed so standard-prefix callers cannot bypass it. If AgentNotify or its read-only readiness check is unavailable, the router returns 127 and submits nothing. Once a request is dispatched, the router preserves its output/status and never retries it. Vendored binaries outside the standard prefixes bypass PATH routing and this compatibility contract. AgentNotify accepts into its durable store and presents only through its own inbox and sticky arrival preview; it never requests system-notification authorization or posts macOS banners, sounds, categories, or Notification Center entries.
 

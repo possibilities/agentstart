@@ -84,6 +84,13 @@ responsibilities without prescribing the omitted owners' commands.
 Rendering a role change does not reload an active AgentVoice generation; it
 becomes available at a later normal role load.
 
+The role carries the broadly useful operator guidance formerly reached only
+through the retired `collab` and `build` skills: research reuse, document
+placement, durable notification, managed sessions, and requested artifact
+delivery. Specialist rules remain with their owner: fork procedures in
+`maintain`, UI and TUI design contracts at their triggers, and machine-specific
+project minting or search syntax in the relevant tool instructions.
+
 AgentStart no longer exposes or installs AgentFX, exports the worker roster to
 it, or distributes provider-specific execution, resume, broker, or comparison
 policy. Native delegation still follows the live collaboration tool catalog,

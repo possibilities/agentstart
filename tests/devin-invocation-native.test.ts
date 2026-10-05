@@ -42,7 +42,7 @@ test("real Devin finds the AgentStart Role without the global default plugin", {
     expect(plugins).not.toContain("default v0.0.0");
     const skills = run(["skills", "list"]);
     expect(skills).toContain("prime");
-    expect(skills).toContain("collab");
+    expect(skills).toContain("domain-modeling");
     const prime = run(["skills", "show", "prime"]);
     expect(prime).toContain("Working with the human");
     const mcp = run(["mcp", "list"]);

@@ -70,10 +70,10 @@ type Selection =
   | { kind: "guidance"; guidanceId: string };
 
 const startingPrompts = [
-  { id: "collab", label: "Start substantial work", prompt: "How should an agent work with me?" },
-  { id: "prompt", label: "Hand work to an agent", prompt: "How do I turn this idea into a good brief?" },
+  { id: "domain-modeling", label: "Name the domain", prompt: "How do we define this project's terms and decisions?" },
+  { id: "agentroles", label: "Equip an agent", prompt: "How do I give this work a focused role?" },
   { id: "search", label: "Research the live web", prompt: "How do we find a current, cited answer?" },
-  { id: "browser", label: "Use a signed-in site", prompt: "Can the agent click through this for me?" },
+  { id: "desktop", label: "Use an app", prompt: "Can the agent operate a native app for me?" },
   { id: "wiki", label: "Keep the conclusion", prompt: "Where should this knowledge live?" },
 ];
 
@@ -100,7 +100,7 @@ export function FleetGuide() {
   const [category, setCategory] = useState("all");
   const [selection, setSelection] = useState<Selection>({
     kind: "skill",
-    skillId: "collab",
+    skillId: "domain-modeling",
     referenceId: null,
   });
   const searchRef = useRef<HTMLInputElement>(null);
