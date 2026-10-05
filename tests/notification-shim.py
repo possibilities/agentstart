@@ -153,7 +153,7 @@ class NotificationShimTests(unittest.TestCase):
         foreign.write_text(FIXTURE); foreign.chmod(0o755)
         self.shim.unlink(); self.shim.symlink_to(foreign)
         self.assertNotEqual(self.install().returncode, 0)
-        self.assertEqual(self.shim.resolve(), foreign)
+        self.assertEqual(self.shim.resolve(), foreign.resolve())
 
 
 if __name__ == '__main__':

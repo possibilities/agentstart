@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { inspect, merge, projectRoot } from "../scripts/codex-invocation";
@@ -9,7 +9,7 @@ let root: string, codexHome: string, source: string, binary: string, cwd: string
 const children: ReturnType<typeof Bun.spawn>[] = [];
 const base = 'model="ambient"\n[projects."/previous"]\ntrust_level="untrusted"\n';
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "agentstart-codex-test-"));
+  root = realpathSync(mkdtempSync(join(tmpdir(), "agentstart-codex-test-")));
   codexHome = join(root, "codex"); mkdirSync(codexHome);
   cwd = join(root, 'work.tree with "quotes"'); mkdirSync(cwd);
   mkdirSync(join(cwd, ".git"));
