@@ -308,6 +308,7 @@ bun test tests/install-agentvoice-android.test.ts
 bun test tests/install-pi.test.ts
 bun test tests/install-opencode.test.ts
 bun test tests/opencode-config.test.ts
+PYTHONDONTWRITEBYTECODE=1 python3 tests/opencode-inventory.py
 bun test tests/agentvoice-network.test.ts
 
 # Prove the executable rejects, not just the exported function: a validator that

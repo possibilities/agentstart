@@ -127,6 +127,7 @@ flags, and skip-versus-fail semantics are load-bearing:
   terminal-notifier remains linked. If AgentNotify is unavailable, the router
   fails without submitting elsewhere. The full installer also converges them.
   The shims do not select accounts, profiles, models, skills, or MCPs.
+
 - `scripts/install-agentvoice-android --install` — an explicit phone proof
   deployment, intentionally outside every default convergence path. It
   delegates to the sibling AgentVoice checkout's `scripts/install-android`
@@ -134,6 +135,28 @@ flags, and skip-versus-fail semantics are load-bearing:
   `$AGENTSTART_AGENTVOICE_ANDROID_HOST` when set. AgentStart selects the fleet
   checkout and host; AgentVoice owns building, reaching the ADB host, and
   validating the installed runtime.
+### OpenCode V2 session inventory
+
+`scripts/opencode-inventory` reads only the `session_v2` metadata table in
+`~/.local/share/opencode/opencode.db`. It prints every ordinary session,
+including historical sessions and children, with title, ID, parent, directory,
+last update, and recorded lifecycle information. Synthetic Funk keepalive
+records are counted and hidden by default; `--include-keepalive` shows them.
+
+```sh
+scripts/opencode-inventory --limit 20 --processes
+scripts/opencode-inventory --json > /tmp/opencode-inventory.json
+scripts/opencode-inventory --db /path/to/first.db --db /path/to/second.db --json
+```
+
+`--directory PATH` filters one directory tree and `--roots-only` omits child
+sessions. `--processes` separately lists observable OpenCode PIDs and working
+directories; it does not associate those processes with session IDs. The
+command uses SQLite read-only mode, including the live WAL, and never reads
+messages or credentials. Idle, suspended, and archived timestamps are persisted
+observations. They cannot establish which session is generating now or which
+was generating when a process crashed. Save a timestamped JSON inventory while
+the process is alive if later comparison is needed.
 General-purpose AI desktop clients are not here by design: the Claude and
 ChatGPT casks belong to the machine layer, as does the `gh` credential
 migration. Grok Build is its CLI-only cask exception.
