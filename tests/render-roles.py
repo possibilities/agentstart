@@ -26,13 +26,16 @@ class RoleRender(unittest.TestCase):
         source = self.sources / "default"
         source.mkdir(parents=True)
         (source / "APPEND_SYSTEM_PROMPT.md").write_text("default")
+        self.fragments = self.root / "fragments"
+        self.fragments.mkdir()
+        (self.fragments / "domain-model.md").write_text("Shared domain guidance.\n")
         (source / "mcp.json").write_text(json.dumps({"mcpServers": {
             "example": {"command": "${HOME}/.local/bin/example", "args": ["mcp"]}}}))
 
     def render(self, expected=0, sources=None):
         result = subprocess.run([
             "python3", str(ROOT / "scripts/render-roles"),
-            str(self.resources), str(sources or self.sources),
+            str(self.resources), str(sources or self.sources), str(self.fragments),
         ], capture_output=True, text=True)
         self.assertEqual(result.returncode, expected, result.stderr)
         return result
@@ -60,6 +63,34 @@ class RoleRender(unittest.TestCase):
         self.assertNotEqual(role.stat().st_ino, inode)
         self.assertEqual(json.loads((role / "mcp.json").read_text())
                          ["mcpServers"]["example"]["args"], ["different"])
+
+    def test_shared_domain_fragment_reaches_the_role_and_is_owned(self):
+        source = self.sources / "default/APPEND_SYSTEM_PROMPT.md"
+        source.write_text("Before\n\n<!-- fragment: domain-model.md -->\n\nAfter\n")
+        self.render()
+        role = self.resources / "roles/default"
+        prompt = role / "APPEND_SYSTEM_PROMPT.md"
+        self.assertFalse(prompt.is_symlink())
+        self.assertEqual(prompt.read_text(), "Before\n\nShared domain guidance.\n\nAfter\n")
+        self.assertEqual(prompt.stat().st_mode & 0o777, 0o600)
+        receipt = json.loads((role / ".agentstart-role.json").read_text())
+        self.assertEqual(receipt["owner"], "agentstart-role-v5")
+        self.assertIn("APPEND_SYSTEM_PROMPT.md", receipt["rendered_prompts"])
+        self.assertNotIn("APPEND_SYSTEM_PROMPT.md", receipt["links"])
+
+        (self.fragments / "domain-model.md").write_text("Changed domain guidance.\n")
+        self.render()
+        self.assertIn("Changed domain guidance.", prompt.read_text())
+        prompt.write_text("independent edit")
+        self.render(1)
+        self.assertEqual(prompt.read_text(), "independent edit")
+
+    def test_missing_domain_fragment_cannot_publish_a_role(self):
+        (self.sources / "default/APPEND_SYSTEM_PROMPT.md").write_text(
+            "<!-- fragment: domain-model.md -->\n")
+        (self.fragments / "domain-model.md").unlink()
+        self.render(1)
+        self.assertFalse((self.resources / "roles/default").exists())
 
     def test_invalid_source_does_not_publish(self):
         (self.sources / "default/mcp.json").write_text('{"mcpServers":{"bad.name":{}}}')
@@ -240,7 +271,11 @@ class RoleRender(unittest.TestCase):
             "APPEND_SYSTEM_PROMPT.md", "VOICE_AGENT_APPEND_SYSTEM_PROMPT.md",
             "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md",
         ):
-            self.assertEqual((role / filename).read_bytes(), (source / filename).read_bytes())
+            expected = (source / filename).read_bytes()
+            if filename == "APPEND_SYSTEM_PROMPT.md":
+                expected = expected.replace(
+                    b"<!-- fragment: domain-model.md -->", b"Shared domain guidance.")
+            self.assertEqual((role / filename).read_bytes(), expected)
         self.assertLessEqual(len((role / "VOICE_ORCHESTRATOR_MULTI_AGENT_MODE.md").read_bytes()),
                              1600)
         self.assertTrue((role / "skills/notifications/SKILL.md").is_file())
@@ -273,7 +308,7 @@ class RoleRender(unittest.TestCase):
 
     def test_shipped_default_skill_filter_excludes_removed_mcp_skills(self):
         excluded = ["chats"]
-        retained = ["build", "collab", "maintain", "notifications",
+        retained = ["domain-modeling", "maintain", "notifications",
                     "notify", "wiki"]
         for name in excluded + retained:
             skill = self.resources / "skills" / name

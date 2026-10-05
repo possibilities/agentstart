@@ -32,7 +32,8 @@ believing any of this.
   interface.
 - `prompts/` — the operator guidance the installer links into the home:
   - `agentguidance/` — the extension prompts `SYSTEM.md` and `GUIDELINES.md`,
-    which agentguidance renders into collab, build, and maintain.
+    which agentguidance renders into specialist guidance such as maintain;
+    the default role carries the general workflow and shared domain fragment.
     Linked into `~/.config/agentguidance/`. Skills are discovered through
     their names and descriptions; there is no separate tool catalog.
   - `AGENTS.md` — the deliberately empty harness guidance source, copied into

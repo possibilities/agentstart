@@ -135,7 +135,9 @@ mv "$next_marketplace" "$marketplace_root"
 mv "$render_root/mcp-servers.json" "$mcp_servers"
 mv "$render_root/shadcn" "$resources_root/shadcn"
 
-python3 "$script_dir/render-roles" "$resources_root" "$repo_root/roles"
+code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+python3 "$script_dir/render-roles" "$resources_root" "$repo_root/roles" \
+    "$code_root/agentguidance/fragments"
 
 # Disable names before registering refreshed plugin content: a newly added
 # skill must never be ambiently visible for even one successful convergence.

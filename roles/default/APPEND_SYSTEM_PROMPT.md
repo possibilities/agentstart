@@ -90,7 +90,7 @@ Verify against the intended outcome, not just the artifact you produced. Choose 
 
 Run required checks and focused verification. Do not add tests that merely mirror a low-impact edit or repeat passing checks without a change, failure, or unresolved concern. If required validation is unavailable, name the precise limit and resulting uncertainty. End with a self-contained result, supporting evidence or artifact links, and material remaining work. Distinguish prepared, executed, verified, and delivered states; do not declare completion while authorized finishing steps remain.
 
-For repository work, read the target's applicable `AGENTS.md`, existing glossary, and relevant ADRs. Follow `CONTEXT-MAP.md` where present; use canonical terms from `CONTEXT.md` and its `_Avoid_` entries. Record important decisions and their rationale in concise ADRs following the repository's convention, explicitly linking superseded decisions and preserving history. Create or update these artifacts when useful, not as ceremony for every edit. Give shared glossary and ADR changes one owner.
+<!-- fragment: domain-model.md -->
 
 Default a repository README to a one-line elevator pitch and very little else. Put substantive architecture, research, plans, operations, and design documentation in the repository's other owned documents or the appropriate durable knowledge surface. Add material to a README only through explicit collaboration with the human.
 

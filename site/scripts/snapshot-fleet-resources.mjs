@@ -16,7 +16,7 @@ const categoryCatalog = [
     id: "work",
     label: "Shape and run work",
     description: "Turn an idea into the right kind of collaboration, plan, or autonomous run.",
-    skills: ["collab", "build"],
+    skills: ["domain-modeling", "writing-for-agents"],
   },
   {
     id: "knowledge",
@@ -61,9 +61,8 @@ const displayNames = {
   "ai-elements": "AI Elements",
   "ai-sdk": "AI SDK",
   brain: "Brain",
-  build: "Build",
   chats: "Past Chats",
-  collab: "Collaborate",
+  "domain-modeling": "Domain Modeling",
   desktop: "Desktop",
   email: "Email",
   "find-skills": "Find Skills",
@@ -80,6 +79,7 @@ const displayNames = {
   "vercel-react-best-practices": "React Best Practices",
   "web-design-guidelines": "Review a Web Interface",
   wiki: "Durable Wiki",
+  "writing-for-agents": "Writing for Agents",
 };
 
 const utilityCatalog = [];
@@ -300,7 +300,7 @@ const snapshot = {
     label: category.label,
     description: category.description,
   })),
-  startingSkills: ["collab", "search", "wiki"],
+  startingSkills: ["domain-modeling", "search", "wiki"],
   skills,
   guidance,
   utilities,

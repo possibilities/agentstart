@@ -11,7 +11,11 @@ fleet inventory does not silently change its MCP roster.
 
 The normal `scripts/sync-skills` path renders launchable directories at
 `~/.local/share/agentstart/resources/roles/default`. The renderer
-expands `${HOME}` in MCP commands and links prompts to their authored files.
+expands `${HOME}` in MCP commands and links most prompts to their authored files.
+The default append prompt incorporates AgentGuidance's
+`fragments/domain-model.md` at render time, so the installed prompt is an owned
+regular file. Updating that fragment and running `scripts/sync-skills` refreshes
+the role; a missing fragment stops rendering before publication.
 The role links each retained shared skill individually. Each ownership
 receipt records content-only hashes using the same
 `agentvoice-role-content-v1` framing that AgentVoice reports for directory roles;

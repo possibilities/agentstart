@@ -111,8 +111,8 @@ install_private_skill_pack() {
 # AgentStart owns one guidance slot for each managed harness. Link both AGENTS.md
 # locations to the fixed resource set's canonical AGENTS.md, which stays
 # deliberately empty — global advice belongs in the extension prompts below,
-# rendered into the collab and build skills, not in a file loaded into every
-# session. An independent non-symlink file with content at either target is
+# rendered into specialist skills and the default role, not in a file loaded
+# into every session. An independent non-symlink file with content at either target is
 # preserved and reported — the same conflict rule the guidance file itself
 # prescribes for repositories.
 link_agent_guidance() {

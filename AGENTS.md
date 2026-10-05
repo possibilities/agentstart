@@ -1,6 +1,6 @@
 # AgentStart agent guidance
 
-Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
+Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
 [decision records](docs/adr/) before changing ownership or convergence.
 
 ## Repository context
@@ -238,7 +238,8 @@ Where things go:
   is a rule plus, when detail exists, the named wiki contract page
   (`fork-rebase-policy`, `document-placement-policy`, `fleet-tui-design`)
   — never the detail itself, which lives in the page and is read at the
-  trigger. These lines render into collab, build, and maintain. Skill names
+  trigger. The specialist `maintain` skill receives these extensions; the
+  default role owns general collaboration and build guidance. Skill names
   and descriptions provide capability discovery; do not add a second tool
   catalog to prompts. Standing tool preferences belong in GUIDELINES.md;
   `agentwiki get tool-advertisement-policy` records that boundary.
@@ -288,7 +289,7 @@ tests/validate.sh
 ```
 
 After changing installation behavior, also run
-`scripts/install.sh --install` and compare the installed `collab` manifest
-with its agentguidance source template — the same convergence check the
-fleet's guidance prescribes. `AGENTS.md` is the sole repository guidance
+`scripts/install.sh --install` and compare the installed default role prompt
+with its AgentGuidance domain fragment after convergence — the same source
+ownership check the fleet's guidance prescribes. `AGENTS.md` is the sole repository guidance
 entrypoint.

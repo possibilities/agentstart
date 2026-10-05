@@ -1,4 +1,7 @@
-# AgentStart context
+# AgentStart glossary
+
+Names for the fleet capabilities and ownership boundaries this repository
+coordinates.
 
 **The fleet** — the agent apps in `~/code` whose checkouts are named
 `agent*` — `agentguidance` carries the general skills — plus `chats` from
@@ -74,7 +77,8 @@ _Avoid_: temporary Codex home, config sync, trust database.
 
 **Extension prompts** — the operator's `SYSTEM.md` and `GUIDELINES.md` under
 `prompts/agentguidance/`, linked into `~/.config/agentguidance` and rendered
-by agentguidance into the collab/build skills. Those two names are
+by AgentGuidance into its remaining specialist skill references. The default
+AgentStart role receives general guidance directly. Those two names are
 agentguidance's contract; an unrecognized file renders to nothing. _Avoid_:
 config files, dotfiles.
 

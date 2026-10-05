@@ -115,9 +115,9 @@ def check_repository(root, excludes=()):
             if not any(ADR_NAME.match(Path(target).name) for _, target in links):
                 report("warning", "replacement-link", relative, 1,
                        "replacement language has no complete local ADR file link; review the intended scope")
-    if "CONTEXT.md" in texts and "CONTEXT.md" not in texts.get("AGENTS.md", ""):
+    if "GLOSSARY.md" in texts and "GLOSSARY.md" not in texts.get("AGENTS.md", ""):
         report("warning", "glossary-entrypoint", "AGENTS.md", 1,
-               "CONTEXT.md exists but the root entrypoint does not name it")
+               "GLOSSARY.md exists but the root entrypoint does not name it")
     return dict(repository=str(root), documents=len(files), findings=findings)
 
 

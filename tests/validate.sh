@@ -256,7 +256,7 @@ grep -q '```mermaid' skills/fleet/MAP.md \
 if grep -F '../' skills/fleet/SKILL.md >/dev/null; then
     fail "the fleet skill reaches outside its own directory and would ship broken"
 fi
-if jq -e '.skills[] | select(.id == "tend" or .id == "bus" or .id == "herdr" or .id == "browser" or .id == "hud" or .id == "attention" or .id == "grokbot" or .id == "keys" or .id == "sounds")' \
+if jq -e '.skills[] | select(.id == "build" or .id == "collab" or .id == "tend" or .id == "bus" or .id == "herdr" or .id == "browser" or .id == "hud" or .id == "attention" or .id == "grokbot" or .id == "keys" or .id == "sounds")' \
     site/public/fleet-resources.json >/dev/null; then
     fail "the fleet resource snapshot still advertises an archived skill"
 fi
@@ -330,7 +330,7 @@ rm -f "$contract_probe"
 # The sweep covers tests/ as well, so both patterns are assembled rather than
 # written out: a guard that spells what it hunts for matches its own source and
 # can only pass by exempting itself.
-hygiene_paths="scripts prompts config skills tests README.md AGENTS.md CONTEXT.md"
+hygiene_paths="scripts prompts config skills tests README.md AGENTS.md GLOSSARY.md"
 home_literal="/$(printf 'Users')/"
 # shellcheck disable=SC2086 # $hygiene_paths is a deliberate list of targets.
 if grep -rn "$home_literal" $hygiene_paths 2>/dev/null; then
@@ -503,11 +503,14 @@ mkdir -p \
     "$code_skills_root/agentboard/skills/board" \
     "$code_skills_root/agentboard/skills/groom" \
     "$code_skills_root/agentbus/skills/bus" \
+    "$code_skills_root/agentguidance/fragments" \
     "$code_skills_root/agentdemo/skills/demo" \
     "$code_skills_root/agentdemo/skills/second" \
     "$code_skills_root/agentexample/skills/example" \
     "$code_skills_root/agentquiet/src" \
     "$code_skills_root/notagent/skills/x"
+printf 'Shared fixture domain guidance.\n' \
+    >"$code_skills_root/agentguidance/fragments/domain-model.md"
 for code_skills_fixture in \
     agentboard/skills/board \
     agentboard/skills/groom \
@@ -652,6 +655,9 @@ fi
 fixture_resources_root="$code_skills_home/.local/share/agentstart/resources"
 fixture_claude_root="$fixture_resources_root/claude/agent"
 fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
+grep -F 'Shared fixture domain guidance.' \
+    "$fixture_resources_root/roles/default/APPEND_SYSTEM_PROMPT.md" >/dev/null \
+    || fail "skill sync did not include shared domain guidance in the default role"
 [ ! -e "$fixture_resources_root/skills/board" ] \
     && [ ! -e "$fixture_resources_root/skills/groom" ] \
     || fail "skill sync retained active Board or Groom guidance"
@@ -755,6 +761,7 @@ fixture_codex_config_next="$fixture_codex_config.next"
 mv "$fixture_codex_config_next" "$fixture_codex_config"
 if HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
     AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
+    AGENTSTART_CODE_ROOT="$code_skills_root" \
     AGENTSTART_CODEX_BIN=/usr/bin/false \
     "$root/scripts/render-capabilities" --install >/dev/null 2>&1; then
     fail "Codex resource rendering accepted a failed plugin refresh"
@@ -763,6 +770,7 @@ grep -F 'name = "agent:stale"' "$fixture_codex_config" >/dev/null \
     || fail "failed Codex plugin refresh pruned a stale skill disable"
 HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
     AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
+    AGENTSTART_CODE_ROOT="$code_skills_root" \
     AGENTSTART_CODEX_BIN=/usr/bin/true \
     "$root/scripts/render-capabilities" --install >/dev/null
 if grep -F 'name = "agent:stale"' "$fixture_codex_config" >/dev/null; then

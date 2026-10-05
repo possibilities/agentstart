@@ -64,10 +64,10 @@ test("checks in a complete, advice-focused resource snapshot", async () => {
   assert.ok(snapshot.skills.every((skill) => snapshot.categories.some((category) => category.id === skill.category)));
   assert.ok(snapshot.startingSkills.every((id) => snapshot.skills.some((skill) => skill.id === id)));
   assert.ok(snapshot.guidance.some((item) => item.id === "guidance/AGENTS.md"));
-  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.codex, "$agent:collab");
-  assert.equal(snapshot.skills.find((skill) => skill.id === "collab")?.dialects.claude, "/agent:collab");
+  assert.equal(snapshot.skills.find((skill) => skill.id === "domain-modeling")?.dialects.codex, "$agent:domain-modeling");
+  assert.equal(snapshot.skills.find((skill) => skill.id === "domain-modeling")?.dialects.claude, "/agent:domain-modeling");
   assert.deepEqual(
-    Object.keys(snapshot.skills.find((skill) => skill.id === "collab")?.dialects ?? {}).sort(),
+    Object.keys(snapshot.skills.find((skill) => skill.id === "domain-modeling")?.dialects ?? {}).sort(),
     ["claude", "codex"],
   );
   assert.equal(snapshot.utilities.length, 0);
