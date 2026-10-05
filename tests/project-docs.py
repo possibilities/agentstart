@@ -64,7 +64,7 @@ Read [`the guide`](docs/with%20space.md#part).
         self.assertEqual([item["code"] for item in self.findings()], ["missing-local-target"])
 
     def test_glossary_and_unlinked_replacement_are_advisory(self):
-        self.write("CONTEXT.md", "# Terms\n")
+        self.write("GLOSSARY.md", "# Terms\n")
         self.write("docs/adr/0001-first.md", "# First\n\nSuperseded by ADR 0002.\n")
         self.assertEqual({item["code"] for item in self.findings()}, {"replacement-link", "glossary-entrypoint"})
         self.assertTrue(all(item["level"] == "warning" for item in self.findings()))

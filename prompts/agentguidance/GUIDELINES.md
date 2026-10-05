@@ -78,7 +78,7 @@
 - Route documents by reader and lifetime: asked-for documents, finished
   research worth finding again, and ruling decisions go to the wiki. The
   repo keeps what it owns (`AGENTS.md`,
-  `CONTEXT.md`, `README`, ADRs, the docs that ship with the code), and
+  `GLOSSARY.md`, `README`, ADRs, the docs that ship with the code), and
   successor-session context is a dated `~/handoffs/` file, deleted by its
   consumer. The `document-placement-policy` wiki page is the contract.
 - Use `wiki` for durable authored knowledge that belongs in the shared wiki.

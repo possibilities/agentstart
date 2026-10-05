@@ -1,4 +1,6 @@
-# AgentStart context
+# AgentStart glossary
+
+Names for the fleet capabilities and ownership boundaries this repository coordinates.
 
 **The fleet** — the agent apps in `~/code` whose checkouts are named
 `agent*` — `agentguidance` carries the general skills — plus `chats` from

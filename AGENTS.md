@@ -1,6 +1,6 @@
 # AgentStart agent guidance
 
-Read [CONTEXT.md](CONTEXT.md) for the fleet's terms and the relevant
+Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
 [decision records](docs/adr/) before changing ownership or convergence.
 
 ## Repository context

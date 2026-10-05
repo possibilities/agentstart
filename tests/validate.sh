@@ -330,7 +330,7 @@ rm -f "$contract_probe"
 # The sweep covers tests/ as well, so both patterns are assembled rather than
 # written out: a guard that spells what it hunts for matches its own source and
 # can only pass by exempting itself.
-hygiene_paths="scripts prompts config skills tests README.md AGENTS.md CONTEXT.md"
+hygiene_paths="scripts prompts config skills tests README.md AGENTS.md GLOSSARY.md"
 home_literal="/$(printf 'Users')/"
 # shellcheck disable=SC2086 # $hygiene_paths is a deliberate list of targets.
 if grep -rn "$home_literal" $hygiene_paths 2>/dev/null; then
