@@ -89,7 +89,10 @@ through the retired `collab` and `build` skills: research reuse, document
 placement, durable notification, managed sessions, and requested artifact
 delivery. Specialist rules remain with their owner: fork procedures in
 `maintain`, UI and TUI design contracts at their triggers, and machine-specific
-project minting or search syntax in the relevant tool instructions.
+project-specific cold-storage paths and search command syntax in
+the relevant tool instructions or operator extension. Those details are
+deliberately omitted from the always-loaded role because their tasks provide
+a narrower point to load them.
 
 AgentStart no longer exposes or installs AgentFX, exports the worker roster to
 it, or distributes provider-specific execution, resume, broker, or comparison
