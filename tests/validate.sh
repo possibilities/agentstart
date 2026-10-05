@@ -658,6 +658,53 @@ fixture_codex_root="$fixture_resources_root/codex-marketplace/plugins/agent"
 grep -F 'Shared fixture domain guidance.' \
     "$fixture_resources_root/roles/default/APPEND_SYSTEM_PROMPT.md" >/dev/null \
     || fail "skill sync did not include shared domain guidance in the default role"
+# A missing external fragment must fail before any plugin, MCP, skill, or role
+# resource changes. Compare the complete fixture tree at the resource boundary.
+resource_snapshot() {
+    python3 - "$1" <<'PY'
+import hashlib
+import json
+from pathlib import Path
+import stat
+import sys
+
+root = Path(sys.argv[1])
+entries = []
+for path in sorted(root.rglob("*")):
+    mode = path.lstat().st_mode
+    name = path.relative_to(root).as_posix()
+    if stat.S_ISLNK(mode):
+        entry = [name, "link", path.readlink().as_posix()]
+    elif stat.S_ISREG(mode):
+        entry = [name, "file", stat.S_IMODE(mode), hashlib.sha256(path.read_bytes()).hexdigest()]
+    elif stat.S_ISDIR(mode):
+        entry = [name, "directory", stat.S_IMODE(mode)]
+    else:
+        entry = [name, "other", mode]
+    entries.append(entry)
+print(hashlib.sha256(json.dumps(entries, separators=(",", ":")).encode()).hexdigest())
+PY
+}
+fixture_resources_before=$(resource_snapshot "$fixture_resources_root")
+fixture_fragment="$code_skills_root/agentguidance/fragments/domain-model.md"
+mv "$fixture_fragment" "$fixture_fragment.held"
+set +e
+missing_fragment_output=$(
+    HOME="$code_skills_home" CODEX_HOME="$code_skills_home/.codex" \
+        AGENTSTART_RESOURCES_ROOT="$fixture_resources_root" \
+        AGENTSTART_CODE_ROOT="$code_skills_root" \
+        AGENTSTART_CODEX_BIN=/usr/bin/true \
+        "$root/scripts/render-capabilities" --install 2>&1
+)
+missing_fragment_status=$?
+set -e
+mv "$fixture_fragment.held" "$fixture_fragment"
+[ "$missing_fragment_status" -ne 0 ] \
+    || fail "resource rendering accepted a missing shared domain fragment"
+printf '%s\n' "$missing_fragment_output" | grep -F 'missing or empty domain fragment' >/dev/null \
+    || fail "resource rendering did not identify the missing domain fragment"
+[ "$fixture_resources_before" = "$(resource_snapshot "$fixture_resources_root")" ] \
+    || fail "a missing domain fragment changed already-published resources"
 [ ! -e "$fixture_resources_root/skills/board" ] \
     && [ ! -e "$fixture_resources_root/skills/groom" ] \
     || fail "skill sync retained active Board or Groom guidance"

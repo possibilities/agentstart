@@ -49,6 +49,24 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 "$script_dir/render-mcp-resources" --check "$template_root/mcp-servers.json"
 "$script_dir/render-mcp-resources" --check "$repo_root/roles/default/mcp.json"
 
+# The role renderer runs after plugin and MCP publication. Check the external
+# fragment and authored role prompt now, before changing any resource bytes.
+code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
+python3 - "$repo_root/roles/default" "$code_root/agentguidance/fragments/domain-model.md" <<'PY'
+from pathlib import Path
+import sys
+
+source, fragment = map(Path, sys.argv[1:])
+prompt = source / "APPEND_SYSTEM_PROMPT.md"
+marker = b"<!-- fragment: domain-model.md -->"
+if source.is_symlink() or not source.is_dir() or not prompt.is_file():
+    raise SystemExit(f"AgentStart resources: missing default role source: {source}")
+if prompt.read_bytes().count(marker) != 1:
+    raise SystemExit(f"AgentStart resources: default role needs one domain fragment marker: {prompt}")
+if not fragment.is_file() or not fragment.read_bytes().strip():
+    raise SystemExit(f"AgentStart resources: missing or empty domain fragment: {fragment}")
+PY
+
 mkdir -p "$resources_root/guidance" "$resources_root/claude"
 cp "$repo_root/prompts/AGENTS.md" "$resources_root/guidance/AGENTS.md"
 
@@ -135,7 +153,6 @@ mv "$next_marketplace" "$marketplace_root"
 mv "$render_root/mcp-servers.json" "$mcp_servers"
 mv "$render_root/shadcn" "$resources_root/shadcn"
 
-code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 python3 "$script_dir/render-roles" "$resources_root" "$repo_root/roles" \
     "$code_root/agentguidance/fragments"
 
