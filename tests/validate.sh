@@ -337,16 +337,12 @@ home_literal="/$(printf 'Users')/"
 if grep -rn "$home_literal" $hygiene_paths 2>/dev/null; then
     fail "a literal home-directory path assumes an account name; resolve from \$HOME instead"
 fi
-# The same rule for the operator's account name, which is knowable at runtime
-# and therefore never belongs in a path or machine-specific value. The
-# account-wide `io.arthack.*` launch service namespace is an explicit naming
-# contract, not a runtime account assumption.
+# Also reject the operator's account name when used as a path component.
+# Matching arbitrary words rejects unrelated prose on CI accounts like "runner".
 operator_account=$(id -un)
 # shellcheck disable=SC2086 # $hygiene_paths is a deliberate list of targets.
-if grep -rn "$operator_account" $hygiene_paths 2>/dev/null \
-    | grep -vF 'io.arthack.' \
-    | grep -vF 'io\.arthack\.'; then
-    fail "the operator's account name is spelled in the repository; resolve it at runtime"
+if grep -rnE "(/|~)${operator_account}(/|$)" $hygiene_paths 2>/dev/null; then
+    fail "the operator's account name is spelled in a path; resolve it at runtime"
 fi
 [ -s LICENSE ] || fail "public repository is missing its LICENSE"
 
