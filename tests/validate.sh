@@ -947,7 +947,7 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
-    '~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.7 --sha 3aae20d1ad1d41734b7303b4f0a4bfe95eb56d8c  # isolated pinned Codex fork; vendor binary preserved' \
+    '~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.8 --sha 6ddf4f91251200f5e330d35a8e142fb4b435baa1  # isolated pinned Codex fork; vendor binary preserved' \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin' \
     'scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \
