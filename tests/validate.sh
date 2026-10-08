@@ -97,6 +97,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 scripts/check-project-docs.py "$root"
 tests/agent-browser-config.sh
 tests/agent-browser-link.sh
 tests/install-launchagents.sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/agentbrain-network.py
 tests/retire-archived-checkouts.sh
 for script in render-mcp-resources install-gog; do
     [ -x "scripts/$script" ] || fail "MCP delivery helper is not executable: $script"

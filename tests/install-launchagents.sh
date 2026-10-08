@@ -17,6 +17,13 @@ bin_dir="$test_home/.local/bin"
 state_dir="$test_home/.local/state"
 test_voice_checkout="$test_root/agentvoice-checkout"
 mkdir -p "$launch_agents" "$bin_dir" "$state_dir"
+# Full installer tests never consult the real tailnet or activate optional share
+# ingress. Network/cutover behavior has its own real-boundary fixture suite.
+offline_bin="$test_root/offline-bin"
+mkdir -p "$offline_bin"
+printf '#!/bin/sh\nprintf '\''{"BackendState":"Stopped"}\\n'\''\n' >"$offline_bin/tailscale"
+chmod +x "$offline_bin/tailscale"
+export PATH="$offline_bin:$PATH"
 export AGENTSTART_INSTALL_AGENTVOICE_TEST_CHECKOUT="$test_voice_checkout"
 export AGENTSTART_INSTALL_AGENTVOICE_TEST_REVISION=1111111111111111111111111111111111111111
 
@@ -594,7 +601,6 @@ HOME="$test_home" \
     AGENTSTART_INSTALL_LAUNCH_AGENTS_DIR="$launch_agents" \
     AGENTSTART_INSTALL_BIN_DIR="$bin_dir" \
     AGENTSTART_INSTALL_LAUNCHCTL=none \
-    AGENTSTART_INSTALL_SHARE_HOST=none \
     "$root/scripts/install-launchagents" --install >/dev/null
 
 # Status is owner-provided and read-only. It reports lifecycle state and log
