@@ -10,12 +10,13 @@
 		<string>__PROGRAM__</string>
 		<string>share</string>
 		<string>serve</string>
-		<!-- The bind address is never defaulted into this template. Agentbrain's
-		     ADR 0017 requires naming the tailnet address to accept device shares,
-		     so the installer renders one the operator supplied and installs no
-		     service at all when they supplied none. -->
+		<!-- AgentStart publishes only a tailnet-private raw TCP forwarder.
+		     The backend never binds the Tailscale or LAN interface; pin both
+		     host and port so CLI defaults and PORT cannot move the endpoint. -->
 		<string>--host</string>
-		<string>__SHARE_HOST__</string>
+		<string>127.0.0.1</string>
+		<string>--port</string>
+		<string>8787</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>

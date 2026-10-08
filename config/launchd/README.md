@@ -65,7 +65,8 @@ comment beside the key:
 - **Arguments and extra environment**, including values that must be
   discovered from another service at install time.
 - **Conditional installation.** `io.arthack.agentbrain.share` installs only
-  when an operator names a bind address; there is no default, by its ADR 0017.
+  when Tailscale is connected; an existing job is retained offline. Its supervised
+  topology is defined by the [private share ingress procedure](../../docs/agentbrain-share-ingress.md).
   The AgentVoice test pair installs only while its dedicated checkout and
   dependencies are prepared.
 

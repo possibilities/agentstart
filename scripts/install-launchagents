@@ -143,15 +143,18 @@ service_path() {
         "$bun_dir" "$node_dir" "$bin_dir"
 }
 
-tailnet_address() {
-    command -v tailscale >/dev/null 2>&1 || return 0
-    tailscale ip -4 2>/dev/null | head -n 1 | grep -E '^[0-9.]+$' || true
+tailnet_connected() {
+    command -v tailscale >/dev/null 2>&1 || return 1
+    tailscale status --json 2>/dev/null | /usr/bin/python3 -c '
+import json, sys
+try:
+    sys.exit(0 if json.load(sys.stdin).get("BackendState") == "Running" else 1)
+except (ValueError, AttributeError):
+    sys.exit(1)
+'
 }
 
-# A value the operator supplied, or another installer discovered, once. Reading
-# it back out of the service we are about to replace is what keeps it from
-# being silently dropped on every reinstall — a tailnet bind address is not
-# recoverable from anything else on the machine.
+# Preserve per-service settings without adopting other private configuration.
 preserved_env() {
     local label="$1" key="$2" plist="$launch_agents_dir/$1.plist"
     [ -f "$plist" ] && [ ! -L "$plist" ] || return 0
@@ -189,35 +192,9 @@ service_tokens() {
             printf 'STATE_ROOT=%s\n' "$state_root"
             ;;
         io.arthack.agentbrain.share)
-            # Agentbrain's ADR 0017: accepting device shares requires naming the
-            # tailnet address, and there is no default. With none supplied and
-            # none already installed, the ingress is simply not installed.
-            # The address this host answers on inside the tailnet is the one
-            # fact no project knows for itself, so it is read from tailscale
-            # here. A tailnet that is down at install time is not a reason to
-            # fail, and not a reason to withdraw an ingress either: the
-            # already-installed address is kept.
-            local host
-            if [ -n "${AGENTSTART_INSTALL_SHARE_HOST+set}" ]; then
-                host="$AGENTSTART_INSTALL_SHARE_HOST"
-            else
-                host="$(tailnet_address)"
-                [ -n "$host" ] || host="$(preserved_arg "$label" --host)"
-            fi
-            case "$host" in
-                "" | none) return 10 ;;
-                # A bind address is the operator's decision to expose a
-                # listener, so it is validated before anything is written
-                # rather than discovered by a service that starts, is refused
-                # by the CLI, and is restarted forever by KeepAlive.
-                0.0.0.0 | ::)
-                    die "refusing to supervise an any-interface share bind: $host"
-                    ;;
-                *[![:alnum:].:_-]* | -*)
-                    die "refusing unsafe share bind address: $host"
-                    ;;
-            esac
-            printf 'SHARE_HOST=%s\n' "$host"
+            # First activation still requires a connected tailnet. Once owned,
+            # retain the loopback service while offline, never a stale IP bind.
+            [ -f "$launch_agents_dir/$label.plist" ] || tailnet_connected || return 10
             ;;
         io.arthack.agentvoice.serve)
             printf 'STATE_ROOT=%s\n' "$state_root"
@@ -449,6 +426,12 @@ install_service() {
     fi
     [ "$status" -eq 0 ] || die "could not resolve values for $label"
 
+    if [ "$label" = io.arthack.agentbrain.share ]; then
+        # This must precede rendering/loading: a retained public route to 8787
+        # would otherwise expose the new loopback backend at cutover time.
+        /usr/bin/python3 "$script_dir/agentbrain-network.py" --preflight
+    fi
+
     if [ "$check_only" -eq 1 ]; then
         local plan
         case "$ownership" in
@@ -477,9 +460,13 @@ install_service() {
     render_plist "$label" "$program" "$log" "$destination" "$tokens"
     if [ "$render_changed" -eq 0 ] && service_loaded "$label"; then
         note "unchanged and loaded $label"
-        return 0
+    else
+        reload_service "$label" "$destination"
     fi
-    reload_service "$label" "$destination"
+    if [ "$label" = io.arthack.agentbrain.share ]; then
+        service_loaded "$label" || die "share backend not loaded; private route not published"
+        /usr/bin/python3 "$script_dir/agentbrain-network.py" --install
+    fi
 }
 
 # Retire one obsolete job only when its installed plist carries the exact
@@ -612,6 +599,15 @@ status_services() {
             continue
         fi
         case "$label" in
+            io.arthack.agentbrain.share)
+                if [ "$(preserved_arg "$label" --host)" != 127.0.0.1 ] ||
+                    [ "$(preserved_arg "$label" --port)" != 8787 ] ||
+                    ! /usr/bin/python3 "$script_dir/agentbrain-network.py" --status; then
+                    printf '  %-42s %-15s %s\n' "$label" FAIL 'share listener or private route unhealthy'
+                    failures=$((failures + 1))
+                    continue
+                fi
+                ;;
             io.arthack.agentvoice-test.wait | io.arthack.agentvoice-test.serve)
                 desired_revision=$(printf '%s\n' "$tokens" |
                     sed -n 's/^TEST_SOURCE_REVISION=//p' | sed -n '1p')
