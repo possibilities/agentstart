@@ -19,8 +19,8 @@ workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=e639de6aded41ae168a8888b920ff71db41877d0
-codexnk_release_tag=codexnk-v0.1.8
-codexnk_integration_sha=6ddf4f91251200f5e330d35a8e142fb4b435baa1
+codexnk_release_tag=codexnk-v0.1.9
+codexnk_integration_sha=f90eede076ea40885897c5f2e165b4d48f0fb28f
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -258,7 +258,7 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   install the official Devin CLI only when its native versioned binary is absent; retain native updates independently
-  ~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.8 --sha 6ddf4f91251200f5e330d35a8e142fb4b435baa1  # isolated pinned Codex fork; vendor binary preserved
+  ~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.9 --sha f90eede076ea40885897c5f2e165b4d48f0fb28f  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
