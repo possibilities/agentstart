@@ -957,7 +957,7 @@ for required_install in \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/workshops/fxnk/scripts/install.sh --install --sha e639de6aded41ae168a8888b920ff71db41877d0  # exact ship-gate-approved Fx Integration consumer pin' \
+    '~/workshops/fxnk/scripts/install.sh --install --sha b262bacbebef751c2cc6e927bd19fb980a0ac597  # exact ship-gate-approved Fx Integration consumer pin' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade uv  # isolated twitter-cli install; also needed when the machine layer did not provide uv' \
     'uv tool install "git+https://github.com/public-clis/twitter-cli.git@7c634e0d396b1e7af9f63315b414925fe4f29ae7"  # twitter-cli 0.8.6; browser login is per machine and never part of installation' \
