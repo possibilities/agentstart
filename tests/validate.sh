@@ -1044,8 +1044,8 @@ for declared_tab in \
     '"devin-1|account-1|https://app.devin.ai/settings/usage"' \
     '"devin-2|account-2|https://app.devin.ai/settings/usage"' \
     '"claude-1|account-1|https://claude.ai/code#settings/usage"' \
-    '"codex-1|account-1|https://chatgpt.com/codex/cloud/settings/analytics#usage"' \
-    '"codex-2|account-2|https://chatgpt.com/codex/cloud/settings/analytics#usage"' \
+    '"codex-1|account-1|https://chatgpt.com/settings/usage?tab=overview"' \
+    '"codex-2|account-2|https://chatgpt.com/settings/usage?tab=overview"' \
     '"account-1|account-1|"' \
     '"account-2|account-2|"' \
     '"account-3|account-3|"'; do
