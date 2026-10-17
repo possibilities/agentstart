@@ -70,9 +70,14 @@ comment beside the key:
   The AgentVoice test pair installs only while its dedicated checkout and
   dependencies are prepared.
 
-Agentbrain's Worker no longer inherits the old AgentBrowse saved-profile pin.
-Agentscrape uses Stack's disposable browser provider by default; an
-Agentbrain source requiring authentication needs a separately owned policy.
+Agentbrain's ingestion worker sets `AGENT_BROWSER_STACK_BROWSER=agentbrain`.
+Provision that dedicated named standalone browser through Stack Browse before
+starting the worker; installation does not create a browser or start a VM.
+Agentscrape owns each temporary controller and detaches it after extraction,
+while Stack retains the named browser profile. The worker never selects a Bot
+or human browser. An authentication-dependent source still requires an explicit
+operator sign-in to that dedicated profile. Stack Brain separately uses fresh
+constrained research guests and never shares this legacy worker's profile.
 
 ## Adding a service
 

@@ -653,6 +653,7 @@ install_brain_session >/dev/null
 import plistlib, sys
 with open(sys.argv[1], "rb") as handle:
     environment = plistlib.load(handle)["EnvironmentVariables"]
+assert environment["AGENT_BROWSER_STACK_BROWSER"] == "agentbrain"
 assert "AGENTSCRAPE_BROWSER_SESSION" not in environment
 assert "AGENTSCRAPE_OWN_PINNED_SESSION" not in environment
 PYTHON
