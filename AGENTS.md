@@ -64,11 +64,10 @@ Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
   stable tag and Integration SHA. The Codex and Fx shims bind the absolute
   paths their workshop installers report through `--print-bin`, never another
   executable found later on PATH. Vendor Codex remains separately installed.
-  Stack's checkout-owned setup also consumes that verified release
-  installer as its required runtime dependency; keep its exact tag/SHA pin
-  aligned with this repository. Stack launches the fixed home-relative
-  codexnk path, never PATH or a request-selected executable, and its installer
-  does not start or restart servers.
+  Stack independently installs a complete digest-pinned official Codex package
+  at `~/.local/libexec/stack/codex/codex` through its checkout-owned installer.
+  Its runtime pin is independent of the terminal shim's workshop pin. Stack's
+  installer builds and links its command without starting or restarting servers.
   The `fork-rebase-policy` wiki page is the contract.
 - First-party fork Workshops live under `~/workshops/<name>`, separate from
   fleet and other projects in `~/code` and outside Clones in `~/source`.

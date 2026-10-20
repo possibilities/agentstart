@@ -53,9 +53,9 @@ code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
 # agentacp follows agentroles: its on-demand broker uses the installed Role
 # launcher for private OpenCode ACP and AgentStart's opted-in public Devin shim.
 # No resident agentacp LaunchAgent is installed here.
-# Stack setup consumes codexnk's verified GitHub release installer, builds
+# Stack setup installs its own digest-pinned official Codex package, builds
 # its packages/UI and links its command, without starting or restarting servers.
-# Its shared runtime pin must match the outer installer's Codex consumer pin.
+# Its runtime pin and installed path are independent of the terminal Codex shim.
 # AgentNotify installs the native app and CLI without launching or restarting it.
 # install-harness-shims installs the terminal-notifier router afterward.
 # Its stdio MCP connects to the app-owned socket and can launch the app on demand.
