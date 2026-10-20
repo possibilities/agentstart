@@ -164,7 +164,7 @@ test("native exit status and spawn failures clean up; stdin remains native input
   expect(await child.exited).toBe(0); expect(profiles()).toEqual([]);
 });
 
-test("installed shim supplies only default permissions; explicit bypass stays native", async () => {
+test("installed shim uses official Codex without a workshop or PATH fallback; permission defaults remain optional", async () => {
   const bin = join(root, "bin"); mkdirSync(bin);
   const scripts = {
     uname: "#!/bin/bash\nprintf 'Darwin\\n'\n",
@@ -172,7 +172,9 @@ test("installed shim supplies only default permissions; explicit bypass stays na
   };
   for (const [name, body] of Object.entries(scripts)) writeFileSync(join(bin, name), body, { mode: 0o755 });
   writeFileSync(join(bin, "codex"), "#!/bin/sh\necho unexpected-PATH-fallback\nexit 42\n", { mode: 0o755 });
-  for (const owner of ["codexnk", "fxnk"]) {
+  mkdirSync(join(root, ".local/bin"), { recursive: true });
+  symlinkSync(binary, join(root, ".local/bin/codex"));
+  for (const owner of ["fxnk"]) {
     const directory = join(root, "workshops", owner, "scripts");
     mkdirSync(directory, { recursive: true });
     writeFileSync(join(directory, "install.sh"), `#!/bin/sh\nprintf '%s\\n' '${binary.replaceAll("'", "'\\''")}'\n`, { mode: 0o755 });
@@ -183,7 +185,7 @@ test("installed shim supplies only default permissions; explicit bypass stays na
     PATH: `${shimDir}:${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
   };
   const installer = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });
-  expect(await installer.exited).toBe(0);
+  expect(await installer.exited, await new Response(installer.stderr).text()).toBe(0);
   const runShim = async (bypass: string) => {
     const child = Bun.spawn([join(shimDir, "codex"), "exec", "test prompt"], {
       cwd, env: { ...env, AGENTSTART_SHIM_BYPASS: bypass }, stdout: "pipe", stderr: "pipe",

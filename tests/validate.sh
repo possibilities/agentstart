@@ -382,13 +382,12 @@ printf '\n'
 EOF
     chmod +x "$shim_real_bin/$shim_harness"
 done
-for shim_owner in codexnk fxnk; do
-    shim_harness=${shim_owner%nk}
-    mkdir -p "$shim_home/workshops/$shim_owner/scripts"
-    printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$shim_real_bin/$shim_harness" \
-        >"$shim_home/workshops/$shim_owner/scripts/install.sh"
-    chmod +x "$shim_home/workshops/$shim_owner/scripts/install.sh"
-done
+mkdir -p "$shim_home/.local/bin"
+ln -s "$shim_real_bin/codex" "$shim_home/.local/bin/codex"
+mkdir -p "$shim_home/workshops/fxnk/scripts"
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$shim_real_bin/fx" \
+    >"$shim_home/workshops/fxnk/scripts/install.sh"
+chmod +x "$shim_home/workshops/fxnk/scripts/install.sh"
 HOME="$shim_home" \
     AGENTSTART_WORKSHOPS_ROOT="$shim_home/workshops" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
@@ -432,13 +431,10 @@ shim_override_output=$(
 )
 [ "$shim_override_output" = 'real codex <-c> <approval_policy=on-request> <exec> <hello>' ] \
     || fail "Codex shim overrode an explicit approval policy: $shim_override_output"
-shim_fork_output=$(PATH=/usr/bin:/bin "$shim_home/.local/share/agentstart/shims/codex" --version)
-[ "$shim_fork_output" = 'real codex <--version>' ] || fail "Codex fork binding depends on PATH"
+shim_official_output=$(PATH=/usr/bin:/bin "$shim_home/.local/share/agentstart/shims/codex" --version)
+[ "$shim_official_output" = 'real codex <--version>' ] || fail "official Codex binding depends on PATH"
 shim_fx_output=$(PATH=/usr/bin:/bin "$shim_home/.local/share/agentstart/shims/fx" 'two words')
 [ "$shim_fx_output" = 'real fx <two words>' ] || fail "Fx fork shim changed arguments or depends on PATH"
-# shellcheck disable=SC2016 # Match the exact installer contract.
-grep -F '"$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke codexnk's exact release contract"
 
 # Terminal Control's named-session daemon must leave the invoking harness's
 # process group, while every other command remains a direct pass-through. The
@@ -932,9 +928,6 @@ grep -F 'rev=$twitter_cli_revision' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal executable version verification.
 grep -F '"$twitter_bin" --version' scripts/install.sh >/dev/null \
     || fail "the full installer does not verify twitter-cli's executable"
-# shellcheck disable=SC2016 # Match literal shell variable references in the installer.
-grep -F 'codexnk_installer="$workshops_root/codexnk/scripts/install.sh"' scripts/install.sh >/dev/null \
-    || fail "installer does not resolve codexnk from the workshop root"
 # shellcheck disable=SC2016 # Match the literal configurable Workshop root.
 grep -F 'workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"' scripts/install-harness-shims >/dev/null \
     || fail "harness shims do not resolve the workshop root"
@@ -948,7 +941,6 @@ for required_install in \
     'curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink' \
     'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh' \
     'install the official Devin CLI only when its native versioned binary is absent; retain native updates independently' \
-    '~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.9 --sha f90eede076ea40885897c5f2e165b4d48f0fb28f  # isolated pinned Codex fork; vendor binary preserved' \
     'scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin' \
     'scripts/install-zen-open --install  # managed Zen policy: force-install the ext+container handler extension + pre-authorize the scheme; publish ~/.local/bin/zen-open and zen-usage; skip when the Zen app is absent' \
     'npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources' \

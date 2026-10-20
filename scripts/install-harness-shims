@@ -33,7 +33,14 @@ fork_binary() {
     fi
     printf '%s\n' "$target"
 }
-codex_binary=$(fork_binary codexnk codex)
+# The official installer owns this stable launcher. Bind it explicitly so a
+# stale fork or another shim elsewhere on PATH cannot select the runtime.
+codex_binary="$HOME/.local/bin/codex"
+[ -f "$codex_binary" ] && [ -x "$codex_binary" ] \
+    || die "official Codex is not installed: $codex_binary; run scripts/install.sh --install"
+if [ -e "$shim_dir/codex" ] && [ "$codex_binary" -ef "$shim_dir/codex" ]; then
+    die "official Codex launcher resolves to the AgentStart shim"
+fi
 fx_binary=$(fork_binary fxnk fx)
 if [ -L "$cli" ] || { [ -e "$cli" ] && ! grep -Fxq "$cli_marker" "$cli"; }; then
     die "refusing to replace an independent agentstart command: $cli"

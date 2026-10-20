@@ -6,8 +6,8 @@ load this source through AgentStart's shim.
 The [preference watcher](../harness-preferences.md) retains a last-good copy
 when an edit is invalid and reports native drift. AgentStart installs the
 permission-default shim through `scripts/install-harness-shims`, bound to the
-codexnk installer's absolute binary path. Permission bypass still uses the fork;
-an explicit vendor-binary path bypasses both. Bun is required,
+official installer's `~/.local/bin/codex` launcher. Permission bypass keeps
+that binding; an explicit official-binary path bypasses the shim. Bun is required,
 as it is for the fleet CLIs. Codex must support native profile files (0.134.0+;
 runtime proof performed on 0.153.4).
 

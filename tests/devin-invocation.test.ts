@@ -220,7 +220,8 @@ test("harness installer replaces only the native link or its own old marker", ()
   mkdirSync(dirname(vendor), { recursive: true }); copyFileSync(native, vendor); chmodSync(vendor, 0o755);
   const publicBin = join(home, ".local/bin"); mkdirSync(publicBin, { recursive: true });
   const publicDevin = join(publicBin, "devin"); symlinkSync(vendor, publicDevin);
-  for (const tool of ["codexnk", "fxnk"]) {
+  symlinkSync("/usr/bin/true", join(home, ".local/bin/codex"));
+  for (const tool of ["fxnk"]) {
     const installer = join(home, "workshops", tool, "scripts/install.sh");
     write(installer, "#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n"); chmodSync(installer, 0o755);
   }

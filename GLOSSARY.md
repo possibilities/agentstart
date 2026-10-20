@@ -15,8 +15,8 @@ maintenance specification and delivery contract for a downstream fork. Its
 bound fork checkout lives inside the Workshop at ignored `fork/`, or
 `fork/<repo>` when it owns multiple forks. Persistent maintenance worktrees
 live at ignored `worktrees/`; `~/source` holds upstream reference clones.
-AgentStart consumes the `codexnk` and `fxnk` installer contracts from this
-root, independently of the fleet's `~/code` root.
+AgentStart consumes the `fxnk` installer contract from this root, independently
+of the fleet's `~/code` root.
 _Avoid_: clone, fork checkout, fleet repo.
 
 **The boundary rubric** — the one-sentence ownership test for this
@@ -51,8 +51,8 @@ _Avoid_: latest Fx, Fx version, integration tip.
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi,
 OpenCode 2 (`opencode`), or Devin CLI.
 Bare Claude Code and Codex use AgentStart's permission-only shims;
-Codex and Fx shims bind the exact workshop-owned installations; Fx passes
-arguments unchanged. Pi is installed as a bare CLI outside that launch path.
+Codex binds the official installation and Fx its workshop-owned installation;
+Fx passes arguments unchanged. Pi is installed as a bare CLI outside that launch path.
 OpenCode 2 is installed in a private prefix and exposed as `opencode`.
 The former V1 executable is retired after V2 verification; already running
 V1 sessions are not terminated.

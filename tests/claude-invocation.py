@@ -176,7 +176,9 @@ class Invocation(unittest.TestCase):
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         (bin_dir / "claude").symlink_to(self.native)
-        for owner in ("codexnk", "fxnk"):
+        (self.root / ".local/bin").mkdir(parents=True, exist_ok=True)
+        (self.root / ".local/bin/codex").symlink_to("/usr/bin/true")
+        for owner in ("fxnk",):
             fixture = self.root / "workshops" / owner / "scripts/install.sh"
             fixture.parent.mkdir(parents=True)
             fixture.write_text("#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n")

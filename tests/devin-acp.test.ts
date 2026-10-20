@@ -293,7 +293,8 @@ function installPublicShim(): string {
   const vendor = join(home, ".local/share/devin/cli/_versions/current/bin/devin");
   mkdirSync(dirname(vendor), { recursive: true }); copyFileSync(native, vendor); chmodSync(vendor, 0o755);
   const bin = join(home, ".local/bin"), publicDevin = join(bin, "devin"); mkdirSync(bin, { recursive: true }); symlinkSync(vendor, publicDevin);
-  for (const tool of ["codexnk", "fxnk"]) {
+  symlinkSync("/usr/bin/true", join(home, ".local/bin/codex"));
+  for (const tool of ["fxnk"]) {
     const installer = join(home, "workshops", tool, "scripts/install.sh");
     write(installer, "#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n"); chmodSync(installer, 0o755);
   }

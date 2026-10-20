@@ -1,6 +1,9 @@
 # 0041: Bind harness shims to owned forks
 
-Accepted September 23, 2026.
+Accepted September 23, 2026. Codex installation and binding superseded October 20,
+2026 by [ADR 0053](0053-use-official-codex-for-terminal-launches.md). Fx ownership
+and both harnesses' argument behavior remain unchanged. The original decision
+is retained below.
 
 AgentStart installs Fx through fxnk's existing exact Integration source-build
 contract and Codex through codexnk's stable release installer with an exact tag

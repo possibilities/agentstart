@@ -237,7 +237,9 @@ test("CLI installation is rerunnable, embeds its checkout, and refuses independe
     const {chmodSync} = await import("node:fs"); chmodSync(join(bin,name),0o755);
   }
   const installer = resolve(import.meta.dir,"../scripts/install-harness-shims");
-  for (const owner of ["codexnk", "fxnk"]) {
+  mkdirSync(join(root, ".local/bin"), { recursive: true });
+  symlinkSync("/usr/bin/true", join(root, ".local/bin/codex"));
+  for (const owner of ["fxnk"]) {
     const fixture = join(root,"workshops",owner,"scripts/install.sh");
     put(fixture,"#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n");
     const {chmodSync} = await import("node:fs"); chmodSync(fixture,0o755);

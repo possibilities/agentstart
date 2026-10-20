@@ -58,15 +58,14 @@ Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
   installation contract instead of reaching into
   `~/workshops/fxnk/fork`. fxnk installs
   that exact source build to `~/.local/bin/fx` and disables Fx's independent
-  auto-updater. Both fork owners refuse a checkout whose fork remote is not
-  ours. Codex's `codexnk` workshop owns a separate receipt-verified release
-  installer at `~/.local/libexec/codexnk/codex`; AgentStart supplies its exact
-  stable tag and Integration SHA. The Codex and Fx shims bind the absolute
-  paths their workshop installers report through `--print-bin`, never another
-  executable found later on PATH. Vendor Codex remains separately installed.
+  auto-updater. The Fx owner refuses a checkout whose fork remote is not
+  ours. Codex uses the official installer and its stable launcher at
+  `~/.local/bin/codex`. The Codex shim binds that path; Fx binds its workshop
+  installer's `--print-bin` result. Neither falls back to another executable
+  found on PATH. See [ADR 0053](docs/adr/0053-use-official-codex-for-terminal-launches.md).
   Stack independently installs a complete digest-pinned official Codex package
   at `~/.local/libexec/stack/codex/codex` through its checkout-owned installer.
-  Its runtime pin is independent of the terminal shim's workshop pin. Stack's
+  Its runtime pin is independent of the official terminal installation. Stack's
   installer builds and links its command without starting or restarting servers.
   The `fork-rebase-policy` wiki page is the contract.
 - First-party fork Workshops live under `~/workshops/<name>`, separate from
@@ -77,7 +76,7 @@ Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
   branches, with only tracked source and Git metadata; generated build output
   and dependencies belong in development checkouts. Coordinate any relocation
   with an active agent before moving its checkout.
-  AgentStart resolves its Codex and Fx Workshop installers from
+  AgentStart resolves its Fx Workshop installer from
   `AGENTSTART_WORKSHOPS_ROOT` (default `~/workshops`); `AGENTSTART_CODE_ROOT`
   still selects only the fleet root. Never put Workshop checkouts back in
   the fleet root to make a consumer work.

@@ -19,8 +19,6 @@ workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"
 # that reviewed consumer pin; it never treats the current remote tip as an
 # implicit approval.
 fx_integration_sha=b262bacbebef751c2cc6e927bd19fb980a0ac597
-codexnk_release_tag=codexnk-v0.1.9
-codexnk_integration_sha=f90eede076ea40885897c5f2e165b4d48f0fb28f
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -258,7 +256,6 @@ Command-line tools:
   curl -fsSL https://claude.ai/install.sh | XDG_CACHE_HOME=~/Library/Caches bash  # keep vendor staging off a machine-managed ~/.cache symlink
   curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh
   install the official Devin CLI only when its native versioned binary is absent; retain native updates independently
-  ~/workshops/codexnk/scripts/install.sh --install --tag codexnk-v0.1.9 --sha f90eede076ea40885897c5f2e165b4d48f0fb28f  # isolated pinned Codex fork; vendor binary preserved
   npm install -g --ignore-scripts --min-release-age=0 [--prefix ~/.local when needed] --no-fund --no-audit --loglevel=error --progress=false @earendil-works/pi-coding-agent  # explicit bare Pi CLI install/update; no choice menu, fleet integration, or resources
   scripts/install-opencode --install  # @opencode/cli@2.0.16 in a private prefix; publish ~/.local/bin/opencode and retire the exact V1 binary and owned opencode2 link
   scripts/install-harness-shims  # Claude/Codex permissions, Fx pass-through, Devin in-place/Role wrapper at ~/.local/bin/devin
@@ -287,7 +284,7 @@ Command-line tools:
   ~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call
   ~/code/agentnotify/scripts/install.sh --install  # native menu bar inbox + parity CLI; preserve the current running release
   ~/code/agentacp/scripts/install.sh --install  # after AgentRoles via install-agent-clis; on-demand role-equipped ACP broker, no resident service
-  ~/code/stack/scripts/install.sh --install  # verified pinned codexnk dependency, packages/UI build and editable CLI; no server restart
+  ~/code/stack/scripts/install.sh --install  # complete digest-pinned official Codex package, packages/UI build and editable CLI; no server restart
   install ~/.local/bin/terminal-notifier router  # AgentNotify only; refuse linked Homebrew terminal-notifier
   bun scripts/agentvoice-network.ts --install  # converge an explicitly enabled dedicated tailnet-only route; never grant credentials or enable Funnel
 Agent documentation:
@@ -393,9 +390,7 @@ printf 'Installing Codex CLI with its official installer.\n'
 /usr/bin/curl -fsSL https://chatgpt.com/codex/install.sh \
     | CODEX_NON_INTERACTIVE=1 /bin/sh
 
-codexnk_installer="$workshops_root/codexnk/scripts/install.sh"
-[ -x "$codexnk_installer" ] || die "codexnk installer is unavailable: $codexnk_installer"
-"$codexnk_installer" --install --tag "$codexnk_release_tag" --sha "$codexnk_integration_sha"
+[ -x "$HOME/.local/bin/codex" ] || die "official Codex installer did not publish ~/.local/bin/codex"
 
 "$script_dir/install-pi" --install
 "$script_dir/install-opencode" --install
