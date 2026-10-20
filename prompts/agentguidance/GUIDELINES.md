@@ -28,8 +28,8 @@
   fast-forward. Report a genuinely diverged branch rather than resolving it in
   passing. Ordinary authorized work in a first-party repository continues under
   that repository's instructions without this additional gate.
-- A fork we patch is owned by a Workshop under `~/workshops` (`fxnk` for Fx,
-  `zmax` for zmx): its `MAINTAIN.md` is the contract for that fork, `/maintain` the
+- A fork we patch is owned by a Workshop under `~/workshops` (`zmax` for zmx):
+  its `MAINTAIN.md` is the contract for that fork, `/maintain` the
   procedure, and `integration` the only ref a consumer binds — through the
   workshop's own consumer step, never by hand. Upstream pull requests are
   evidence, not dependencies, and nothing moves their branches in passing.

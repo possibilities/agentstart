@@ -14,7 +14,8 @@ Official native controls already support the terminal Role delivery. Carrying
 an additional fork installation therefore adds maintenance without a remaining
 consumer requirement. Stack continues to own its separately pinned complete
 official package; the terminal shim does not depend on Stack's installation.
-Fx keeps its existing workshop contract and reviewed Integration pin.
+Fx subsequently moved to its official installer under
+[ADR 0054](0054-use-official-fx-for-terminal-launches.md).
 
 Permission defaults, explicit overrides, utility pass-through, native accounts
 and histories keep their existing behavior. Convergence changes future launches;

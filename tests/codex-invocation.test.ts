@@ -164,7 +164,7 @@ test("native exit status and spawn failures clean up; stdin remains native input
   expect(await child.exited).toBe(0); expect(profiles()).toEqual([]);
 });
 
-test("installed shim uses official Codex without a workshop or PATH fallback; permission defaults remain optional", async () => {
+test("installed shims bind official Codex and Fx without workshops or PATH fallback", async () => {
   const bin = join(root, "bin"); mkdirSync(bin);
   const scripts = {
     uname: "#!/bin/bash\nprintf 'Darwin\\n'\n",
@@ -172,16 +172,13 @@ test("installed shim uses official Codex without a workshop or PATH fallback; pe
   };
   for (const [name, body] of Object.entries(scripts)) writeFileSync(join(bin, name), body, { mode: 0o755 });
   writeFileSync(join(bin, "codex"), "#!/bin/sh\necho unexpected-PATH-fallback\nexit 42\n", { mode: 0o755 });
+  writeFileSync(join(bin, "fx"), "#!/bin/sh\necho unexpected-PATH-fallback\nexit 42\n", { mode: 0o755 });
   mkdirSync(join(root, ".local/bin"), { recursive: true });
   symlinkSync(binary, join(root, ".local/bin/codex"));
-  for (const owner of ["fxnk"]) {
-    const directory = join(root, "workshops", owner, "scripts");
-    mkdirSync(directory, { recursive: true });
-    writeFileSync(join(directory, "install.sh"), `#!/bin/sh\nprintf '%s\\n' '${binary.replaceAll("'", "'\\''")}'\n`, { mode: 0o755 });
-  }
+  symlinkSync(binary, join(root, ".local/bin/fx"));
   const shimDir = join(root, ".local/share/agentstart/shims");
   const env = { ...process.env, HOME: root, CODEX_HOME: codexHome,
-    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTSTART_SHIM_BYPASS: "", AGENTSTART_WORKSHOPS_ROOT: join(root, "workshops"),
+    AGENTSTART_CODEX_CONFIG_SOURCE: source, AGENTSTART_SHIM_BYPASS: "",
     PATH: `${shimDir}:${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
   };
   const installer = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });
@@ -199,6 +196,21 @@ test("installed shim uses official Codex without a workshop or PATH fallback; pe
   const native = await runShim("1"); expect(native.profile).toBeNull();
   expect(native.args).toEqual(["exec", "test prompt"]);
   expect(profiles()).toEqual([]);
+  const fx = Bun.spawn([join(shimDir, "fx"), "ask", "native prompt"], {
+    cwd, env, stdout: "pipe", stderr: "pipe",
+  });
+  children.push(fx);
+  expect(await fx.exited).toBe(0);
+  expect(JSON.parse(await new Response(fx.stdout).text()).args).toEqual(["ask", "native prompt"]);
+  const previousFx = readFileSync(join(shimDir, "fx"), "utf8");
+  rmSync(join(root, ".local/bin/fx"));
+  const missingFx = Bun.spawn([join(shimDir, "fx"), "--version"], { env, stdout: "pipe", stderr: "pipe" });
+  expect(await missingFx.exited).not.toBe(0);
+  expect(await new Response(missingFx.stdout).text()).not.toContain("unexpected-PATH-fallback");
+  const reinstallFx = Bun.spawn([resolve(import.meta.dir, "../scripts/install-harness-shims")], { env, stdout: "pipe", stderr: "pipe" });
+  expect(await reinstallFx.exited).toBe(1);
+  expect(readFileSync(join(shimDir, "fx"), "utf8")).toBe(previousFx);
+  symlinkSync(binary, join(root, ".local/bin/fx"));
   const previousShim = readFileSync(join(shimDir, "codex"), "utf8");
   rmSync(binary);
   const missing = Bun.spawn([join(shimDir, "codex"), "--version"], { env, stdout: "pipe", stderr: "pipe" });

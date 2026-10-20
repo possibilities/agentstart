@@ -294,12 +294,9 @@ function installPublicShim(): string {
   mkdirSync(dirname(vendor), { recursive: true }); copyFileSync(native, vendor); chmodSync(vendor, 0o755);
   const bin = join(home, ".local/bin"), publicDevin = join(bin, "devin"); mkdirSync(bin, { recursive: true }); symlinkSync(vendor, publicDevin);
   symlinkSync("/usr/bin/true", join(home, ".local/bin/codex"));
-  for (const tool of ["fxnk"]) {
-    const installer = join(home, "workshops", tool, "scripts/install.sh");
-    write(installer, "#!/bin/sh\nprintf '%s\\n' /usr/bin/true\n"); chmodSync(installer, 0o755);
-  }
+  symlinkSync("/usr/bin/true", join(home, ".local/bin/fx"));
   const result = Bun.spawnSync([resolve(import.meta.dir, "../scripts/install-harness-shims")], {
-    env: { ...process.env, HOME: home, AGENTSTART_INSTALL_BIN_DIR: bin, AGENTSTART_WORKSHOPS_ROOT: join(home, "workshops") }, stdout: "pipe", stderr: "pipe",
+    env: { ...process.env, HOME: home, AGENTSTART_INSTALL_BIN_DIR: bin }, stdout: "pipe", stderr: "pipe",
   });
   expect(result.exitCode, result.stderr.toString()).toBe(0);
   return publicDevin;

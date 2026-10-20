@@ -201,7 +201,7 @@ installed edges. Do not silently claim a replacement or re-enable a checkout.
 | stack | OpenCode / Devin CLI ACP | The `worker` child owns one stdio ACP process for each ready account: OpenCode for Grok and Codex, Devin CLI for Devin. It creates per-Worker Git worktrees and durable session/turn records, supplies Role skills and MCPs, and re-reads native account-bound model/effort options. The account profile, not AgentUsage selection, chooses native credentials. Internal MCP URLs carry an exact Worker/runtime proof; the `serve` Package API exposes only read-only operations to them. `devin acp` bypasses AgentStart's terminal in-place Role shim. | `stack/packages/worker/src/{supervisor,manager,resources,worktree}.ts`; `stack/packages/api/src/{mcp,bot-mcp-identity}.ts`; `stack/docs/adr/0038-durable-acp-worker-execution.md` |
 | agentroles | Claude Code | Delivers prompts/MCPs through native arguments and skills plus `monitors.json` through an invocation-private Claude plugin's native `experimental.monitors` array. Every Role RUN process receives a fresh `AGENTROLES_INVOCATION_ID` and its `AGENTROLES_HARNESS`, replacing inherited correlation. MCP and Monitor children inherit that same invocation identity. AgentStart's shim adds only a default permission mode, not a Role overlay. | `agentroles/src/{main,exec,role,monitors,render}.ts`; `agentroles/src/deliver/claude.ts`; `agentstart/scripts/install-harness-shims` |
 | agentroles | Codex | delivers one explicit role through native CLI `-c` model-instruction and MCP overrides and an installed role plugin; these overrides select embedded TUI mode rather than a shared daemon. The official Codex CLI needs no fork invocation axes or input middleware; the bare shim adds only the default permission mode | `agentroles/src/deliver/codex.ts`; `agentroles/src/codex-plugin.ts`; `codex-rs/tui/src/daemon_startup.rs` |
-| agentroles | Fx | delivers prompt, MCP and skill paths for one invocation through native Fx flags; nonempty roles also suppress ambient skills. fxnk's shape, identity and history axes remain caller controls; no global fleet overlay is applied | `agentroles/src/deliver/fx.ts`; `agentroles/src/main.ts`; `fxnk/MAINTAIN.md` |
+| agentroles | Fx | No Role delivery: official Fx lacks the fork-only per-invocation prompt, MCP and skill flags. An explicit Fx target fails before launch; bare `fx` uses the official CLI | `agentroles/src/main.ts`; `agentroles/docs/adr/0010-retire-fork-only-fx-delivery.md` |
 | agentroles | OpenCode 2 | Accepts only `opencode` and requires V2. It translates the role to native config, appends through a per-launch plugin hook, and runs a private `--standalone` server for ordinary sessions. `opencode acp` is already intrinsically private and retains its native argv (no unsupported `--standalone` flag). Remote-server and other utility launches with a nonempty role are refused. No global fleet overlay is applied. | `agentroles/src/main.ts`; `agentroles/src/deliver/opencode.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0008-opencode-2-only-role-delivery.md` |
 | agentstart | OpenCode 2 | Converges `@opencode/cli@2.0.16` in a marked private npm prefix, publishes `opencode` into `~/.local/bin`, then retires only the verified V1 executable and the owned `opencode2` link. Existing V1 processes and user data remain untouched. | `agentstart/scripts/install-opencode`; `agentstart/scripts/install.sh`; `agentstart/docs/adr/0044-cut-over-opencode-command-to-v2.md`; `agentstart/docs/adr/0046-retire-opencode-v1-executable.md` |
 | agentroles | Devin CLI | An explicit `agentroles install --devin <role>` can still create a sticky user plugin, but AgentStart's ordinary default Role no longer depends on it. That legacy local `default` plugin is removed only after the in-place wrapper proves its MCPs, skills and manual `/prime` without plugin state. AgentRoles is not Devin's launch harness | `agentroles/src/devin-plugin.ts`; `agentroles/src/render.ts`; `agentroles/docs/adr/0005-devin-plugins-are-sticky-user-installs.md`; `agentstart/scripts/devin-invocation.ts` |
@@ -224,8 +224,7 @@ installed edges. Do not silently claim a replacement or re-enable a checkout.
 | email skill | Gog | selects the correct account-bound MCP server for Gmail search/read. Sends, drafts, exact MIME/headers and complete pagination use the CLI with the full --account address. Existing send authorization is retained and uncertain sends are reconciled. Google auth repair uses the supported human sign-in flow | agentguidance/skills/email/SKILL.md; agentguidance/skills/email/references/messages-and-mime.md; installed Gog MCP catalog and CLI help |
 | Jobsearch | Gog Gmail | the email reader invokes the Gog CLI with the explicit account, readonly and no-input flags, fetches every page and complete matching thread, and validates headers before the pure sync core can store or stamp anything. Auth failures retain exit 4; timeout, malformed data and incomplete reads cannot advance watermarks | jobsearch/cli/src/email/gog.ts; jobsearch/cli/src/email/index.ts; jobsearch/cli/test/gog-email.test.ts |
 | Claude Code / Codex / AgentVoice | shadcn | AgentStart starts `npx shadcn@latest mcp` over stdio through `agentstart mcp shadcn`, always from its fixed registry directory. Explicit roles select that definition from the common inventory; bare permission shims inject no MCP inventory. The caller's project files and npm overrides do not define this registry service; project edits still use the shadcn CLI in that project | `agentstart/scripts/agentstart`; `agentstart/config/resources/mcp-servers.json`; `agentstart/config/resources/shadcn/*`; asserted by `agentstart/tests/shadcn-mcp.py` and both repositories' resource tests |
-| agentstart | fxnk | invokes `~/workshops/fxnk/scripts/install.sh --install --sha <pin>` as the required Fx harness installation contract. The tracked Fx Integration consumer pin is an exact commit already approved by fxnk's Local development gate and ship gate; ordinary AgentStart convergence reuses it and never promotes a moving remote tip | `agentstart/scripts/install.sh`, asserted by `agentstart/tests/validate.sh`; `fxnk/scripts/install.sh`; `fxnk/MAINTAIN.md` (Consumer) |
-| fxnk | Fx | binds its ignored `~/workshops/fxnk/fork` checkout to published `fork/integration`, builds ReleaseSafe, atomically installs `~/.local/bin/fx`, and disables the independent auto-upgrader. The Workshop's `/maintain` separately reconciles, gates, and publishes Integration against one captured upstream snapshot | `fxnk/scripts/install.sh`; `agentstart/scripts/install.sh`; `fxnk/MAINTAIN.md`; receipt at `~/.local/state/fxnk/fx-built-commit` |
+| agentstart | Fx | runs the official `https://fx.sh/setup.sh` installer into `~/.local/bin/fx`; the terminal shim binds that default path and passes arguments unchanged | `agentstart/scripts/install.sh`; `agentstart/scripts/install-harness-shims`; `agentstart/docs/adr/0054-use-official-fx-for-terminal-launches.md` |
 | agentstart | smolmux | delegates the complete source installation to Smolmux's repository-owned `scripts/install.sh`: the editable `smolmux` Bun command, exact source-built `smolmux-zmx` Companion pin, and `smolmux doctor`. Smolmux sessions run arbitrary commands and own no Fx pin or agent-specific MCP command. AgentStart supplies only the shared binary destination, then links the tracked operator config into `~/.config/smolmux/config.toml`; smolmux uses the operator's `ctrl+space` prefix. Smolmux publishes no binaries; its four-platform hosted CI is post-push observability, while only its current-Mac local gate blocks merging. | `agentstart/scripts/install.sh` (smolmux block); `smolmux/scripts/install.sh`; `smolmux/scripts/local-gate.sh`; `smolmux/scripts/install-companion.sh`; `smolmux/.github/workflows/ci.yml`; `smolmux/docs/adr/0015-a-socket-is-the-whole-control-surface.md`; `smolmux/docs/adr/0016-sessions-are-arbitrary-commands.md`; `agentstart/config/smolmux/config.toml`; `agentstart/scripts/smolmux-config`; asserted by `agentstart/tests/validate.sh` and `agentstart/tests/smolmux-config.sh` |
 | smolmux explorer | Ghostty CLI | At startup the optional local explorer reads resolved terminal appearance with `ghostty +show-config --changes-only=false --no-pager`, resolving the executable from PATH or the macOS application bundle. Only allowlisted appearance values reach the browser. Missing, failed or timed-out discovery uses bundled defaults; incompatible output affects font/theme matching. | `smolmux/examples/explorer/ghostty-config.ts`; `smolmux/examples/explorer/appearance.ts`; `smolmux/examples/explorer/serve.ts` |
 | Direct MCP hosts | agent-browser / Stack Browse | the registered `agent_browser` namespace drives page actions; the Browse Package API manages local disposable targets and the private toolchain. Saved-profile selection, human handoff and remote-file staging are deferred. Driver upgrades must verify provider launch/close semantics; 0.38.1 can hide failed close | `agentstart/config/resources/mcp-servers.json`; `agentstart/config/agent-browser/config.json`; `stack/packages/browse/api.ts`; `stack/packages/browse/src/provider.ts` |
@@ -268,7 +267,7 @@ installed edges. Do not silently claim a replacement or re-enable a checkout.
 | @native-sdk/cli | current npm release | AgentStart installs npm's unqualified package so the CLI follows the current published release; the Native SDK discovery skill is installed separately from its upstream repository and the installer verifies `native skills list` plus `native skills get core` | `agentstart/scripts/install.sh`; `agentstart/tests/validate.sh`; `https://github.com/vercel-labs/native` |
 | zig | Brewfile-tracked, duplicated in the installer | Native SDK packaging builds against it | `agentstart/scripts/install.sh` |
 | zig@0.15 | 0.15 line, keg-only | Terminal Control's libghostty-vt source build requires the older line beside current Zig | `agentstart/scripts/install.sh` |
-| Fx | `b262bacbebef751c2cc6e927bd19fb980a0ac597` on published `fork/integration` | AgentStart tracks the exact Fx Integration consumer pin approved by fxnk's Local development gate and ship gate; fxnk builds only that SHA, binds the checkout, and disables the binary's independent auto-updater | `agentstart/scripts/install.sh` (`fx_integration_sha`); `fxnk/MAINTAIN.md` (Gate and Consumer); `fxnk/scripts/install.sh`; receipt at `~/.local/state/fxnk/fx-built-commit` |
+| Fx | official current release | vendor bootstrap installs the default `~/.local/bin/fx`; no workshop, source-build pin or auto-upgrade override | `agentstart/scripts/install.sh`; `https://fx.sh/setup.sh` |
 
 General Claude/Codex account management belongs to AgentUsage; Stack
 separately owns the credentials for Codex Servers created through its package
@@ -278,16 +277,15 @@ standalone checkouts, credential stores and backups are left intact. Explicit
 `agentusage accounts import --file` and native `accounts login` enroll accounts
 into the owned pool; there is no runtime store discovery or reverse write.
 
-The Fx and zmx forks are owned by workshop repositories (`fxnk`, `zmax`):
-each workshop's `MAINTAIN.md` is that fork's contract, the shared `maintain`
-skill (agentguidance) is the cycle, and the workshop's consumer step binds the
-result — fxnk's installer and zmax's move of smolmux's Companion pin. The
-`fork-rebase-policy` wiki page is the overview of the arrangement. The former
-`cswax` workshop is archived and has no fleet consumer.
+The zmx fork is owned by the `zmax` Workshop. Its `MAINTAIN.md` is the
+contract, the shared `maintain` skill is the cycle, and the consumer step moves
+Smolmux's Companion pin. The `fork-rebase-policy` wiki page is the overview.
+Fx and Codex now use official terminal installations; their former Workshops
+are not fleet installer or runtime dependencies. The former `cswax` Workshop
+is archived and has no fleet consumer.
 
 | Fork | Integration branch | Owner | Gate |
 | --- | --- | --- | --- |
-| `~/workshops/fxnk/fork` | `integration` | `fxnk` via `/maintain` and `scripts/install.sh --install --sha` | fxnk's exact-SHA Local development gate and ship gate |
 | `~/workshops/zmax/fork` | `integration` | `zmax` via `/maintain` and `scripts/pin-companion.sh` (→ `smolmux/companion.json`); smolmux's builder uses this checkout for its exact pinned commit | `zig fmt --check`, `zig build test`, bats, a `-Dcompanion` ReleaseFast build, smolmux's suite against it |
 
 Codex-swap and codex-multi-auth are no longer fleet dependencies. The shared
@@ -471,9 +469,8 @@ aliases by name. Codex keeps the `-c` flags before a subcommand and the
 ones after it in separate sets and a subcommand carrying its own discards the
 global ones, so a caller that appends flags — codex-swap does — silently drops
 a policy placed in front of the subcommand.
-Updated 2026-08-25 for fxnk's exact-SHA installer contract: AgentStart now
-tracks the ship-gate-approved Fx Integration consumer pin, passes it on every
-convergence, and never mistakes the current remote tip for an approval. Also
+Historical 2026-08-25: AgentStart adopted the exact-SHA Fx fork installer;
+that consumer contract was retired on 2026-10-20 by ADR 0054. Also
 2026-08-25: claude-swap's fork moved to the `cswax` workshop, so agentusage
 consumes it and no unattended converge can rewrite or publish a fork.
 Updated 2026-08-26 for agentsource: the read-only Git attention TUI joins the
@@ -849,8 +846,8 @@ edges. Their accepted ADRs remain as history, and durable execution, routing,
 binding, transcript and Result records remain readable by their owning projects.
 
 At that date AgentGrok and GrokBot remained active; they were retired from
-AgentStart's fleet inventory on 2026-09-27 (ADR 0049). AgentStart retains Grok Build and the exact
-fxnk-owned Fx Integration installation.
+AgentStart's fleet inventory on 2026-09-27 (ADR 0049). AgentStart retains Grok Build. Fx subsequently moved to the official
+installation on 2026-10-20 (ADR 0054).
 
 ## Retired AgentLab runtime integration (2026-09-20)
 
@@ -860,5 +857,5 @@ publishes `agentlab.localhost`, or supervises its console, Codex app-server, or
 Fx broker. The three former exact labels remain temporarily selectable only for
 bounded exact-marker cleanup. Git history, reusable source and documentation,
 durable HUD history, feedback SQLite data, and private state remain preserved.
-Stock Codex, AgentUsage, the fxnk-owned Fx Integration install, and unrelated
-fleet jobs are unchanged. Evidence: `agentstart/docs/adr/0039-retire-agentlab-runtime-integration.md`.
+Stock Codex, AgentUsage and unrelated fleet jobs were unchanged by that
+retirement. Fx subsequently moved to its official installation (ADR 0054). Evidence: `agentstart/docs/adr/0039-retire-agentlab-runtime-integration.md`.

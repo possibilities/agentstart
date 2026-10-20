@@ -15,8 +15,6 @@ maintenance specification and delivery contract for a downstream fork. Its
 bound fork checkout lives inside the Workshop at ignored `fork/`, or
 `fork/<repo>` when it owns multiple forks. Persistent maintenance worktrees
 live at ignored `worktrees/`; `~/source` holds upstream reference clones.
-AgentStart consumes the `fxnk` installer contract from this root, independently
-of the fleet's `~/code` root.
 _Avoid_: clone, fork checkout, fleet repo.
 
 **The boundary rubric** — the one-sentence ownership test for this
@@ -41,17 +39,10 @@ Smolmux owns the editable command, exact source-built Companion pin and doctor
 verification; its arbitrary-command sessions require no Fx pin or agent MCP.
 _Avoid_: release path, bucket installer, AgentStart-owned Smolmux installer.
 
-**Fx Integration consumer pin** — The exact published Fx commit AgentStart
-passes to fxnk's installer after that commit has passed fxnk's Local
-development gate and ship gate. Ordinary convergence reuses the pin; only an
-Fx maintenance cycle advances it, so a moving remote branch is never treated
-as approval.
-_Avoid_: latest Fx, Fx version, integration tip.
-
 **Harness** — an agent CLI a session runs inside: Claude Code, Codex, Fx, Pi,
 OpenCode 2 (`opencode`), or Devin CLI.
 Bare Claude Code and Codex use AgentStart's permission-only shims;
-Codex binds the official installation and Fx its workshop-owned installation;
+Codex and Fx bind their official default installations;
 Fx passes arguments unchanged. Pi is installed as a bare CLI outside that launch path.
 OpenCode 2 is installed in a private prefix and exposed as `opencode`.
 The former V1 executable is retired after V2 verification; already running

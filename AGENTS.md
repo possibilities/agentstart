@@ -52,17 +52,12 @@ Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
   A patch offered upstream lives on its own branch beside it. Claude/Codex
   swap tools are no longer fleet installer dependencies. AgentUsage's observer/proxy service
   converges last. Old checkouts, credentials and backups are preserved.
-  Fx's fork lifecycle and integration installer are owned by
-  `~/workshops/fxnk`; AgentStart invokes `fxnk/scripts/install.sh --install --sha`
-  with its tracked, ship-gate-approved Integration pin as the harness
-  installation contract instead of reaching into
-  `~/workshops/fxnk/fork`. fxnk installs
-  that exact source build to `~/.local/bin/fx` and disables Fx's independent
-  auto-updater. The Fx owner refuses a checkout whose fork remote is not
-  ours. Codex uses the official installer and its stable launcher at
-  `~/.local/bin/codex`. The Codex shim binds that path; Fx binds its workshop
-  installer's `--print-bin` result. Neither falls back to another executable
-  found on PATH. See [ADR 0053](docs/adr/0053-use-official-codex-for-terminal-launches.md).
+  Fx and Codex use their official installers and default launchers at
+  `~/.local/bin/fx` and `~/.local/bin/codex`. Their shims bind those paths and
+  never fall back to another executable on PATH. Fx passes arguments unchanged;
+  Codex retains its permission defaults. See
+  [ADR 0053](docs/adr/0053-use-official-codex-for-terminal-launches.md) and
+  [ADR 0054](docs/adr/0054-use-official-fx-for-terminal-launches.md).
   Stack independently installs a complete digest-pinned official Codex package
   at `~/.local/libexec/stack/codex/codex` through its checkout-owned installer.
   Its runtime pin is independent of the official terminal installation. Stack's
@@ -76,10 +71,6 @@ Read [GLOSSARY.md](GLOSSARY.md) for the fleet's terms and the relevant
   branches, with only tracked source and Git metadata; generated build output
   and dependencies belong in development checkouts. Coordinate any relocation
   with an active agent before moving its checkout.
-  AgentStart resolves its Fx Workshop installer from
-  `AGENTSTART_WORKSHOPS_ROOT` (default `~/workshops`); `AGENTSTART_CODE_ROOT`
-  still selects only the fleet root. Never put Workshop checkouts back in
-  the fleet root to make a consumer work.
 - AgentStart owns the terminal Devin wrapper at `~/.local/bin/devin`, while the
   official CLI keeps its own versioned binary, login and session storage. New
   terminal sessions run in place with a temporary `.devin` snapshot of the

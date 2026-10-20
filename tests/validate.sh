@@ -384,12 +384,8 @@ EOF
 done
 mkdir -p "$shim_home/.local/bin"
 ln -s "$shim_real_bin/codex" "$shim_home/.local/bin/codex"
-mkdir -p "$shim_home/workshops/fxnk/scripts"
-printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$shim_real_bin/fx" \
-    >"$shim_home/workshops/fxnk/scripts/install.sh"
-chmod +x "$shim_home/workshops/fxnk/scripts/install.sh"
+ln -s "$shim_real_bin/fx" "$shim_home/.local/bin/fx"
 HOME="$shim_home" \
-    AGENTSTART_WORKSHOPS_ROOT="$shim_home/workshops" \
     PATH="$shim_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     "$root/scripts/install-harness-shims" >/dev/null
 for shim_harness in claude codex; do
@@ -928,9 +924,9 @@ grep -F 'rev=$twitter_cli_revision' scripts/install.sh >/dev/null \
 # shellcheck disable=SC2016 # Match the literal executable version verification.
 grep -F '"$twitter_bin" --version' scripts/install.sh >/dev/null \
     || fail "the full installer does not verify twitter-cli's executable"
-# shellcheck disable=SC2016 # Match the literal configurable Workshop root.
-grep -F 'workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"' scripts/install-harness-shims >/dev/null \
-    || fail "harness shims do not resolve the workshop root"
+# shellcheck disable=SC2016 # Match the literal vendor default path.
+grep -F 'fx_binary="$HOME/.local/bin/fx"' scripts/install-harness-shims >/dev/null \
+    || fail "Fx shim does not bind the official default installation"
 # shellcheck disable=SC2016,SC2088 # Plan lines are literal, including $ and ~.
 for required_install in \
     '~/code/agentvoice/scripts/install.sh --install --quit-menu  # via install-agent-clis: graceful owned-menu update + editable command + production web assets + native audio + waiting default LaunchAgent; no voice call' \
@@ -949,7 +945,7 @@ for required_install in \
     'curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills' \
     '~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer' \
     'brew install or upgrade zig  # Native SDK packaging requires it' \
-    '~/workshops/fxnk/scripts/install.sh --install --sha b262bacbebef751c2cc6e927bd19fb980a0ac597  # exact ship-gate-approved Fx Integration consumer pin' \
+    'curl -fsSL https://fx.sh/setup.sh | FX_INSTALL_DIR=~/.local/bin bash' \
     'brew install or upgrade llm  # an AI CLI, so AgentStart'"'"'s outright — moved out of the machine'"'"'s Brewfile' \
     'brew install or upgrade uv  # isolated twitter-cli install; also needed when the machine layer did not provide uv' \
     'uv tool install "git+https://github.com/public-clis/twitter-cli.git@7c634e0d396b1e7af9f63315b414925fe4f29ae7"  # twitter-cli 0.8.6; browser login is per machine and never part of installation' \
@@ -1128,23 +1124,12 @@ grep -F 'plannotator_skill_source="https://github.com/backnotprop/plannotator/tr
 # shellcheck disable=SC2016 # Match the literal installer variable.
 grep -F 'install_private_skill_pack "$plannotator_skill_source"' scripts/install.sh >/dev/null \
     || fail "installer does not copy the pinned Plannotator skills into fleet resources"
-# Fx remains a required harness, but fxnk owns its fork and installer. This
-# repository invokes the public contract and carries no second implementation.
-grep -Eq '^fx_integration_sha=[0-9a-f]{40}$' scripts/install.sh \
-    || fail "installer does not carry one full lowercase Fx Integration consumer pin"
-# shellcheck disable=SC2016 # Match the literal configurable code-root contract.
-grep -F 'fxnk_installer="$workshops_root/fxnk/scripts/install.sh"' scripts/install.sh >/dev/null \
-    || fail "installer does not resolve fxnk's Fx installation contract"
-# shellcheck disable=SC2016 # Match the literal installer variable invocation.
-grep -F '"$fxnk_installer" --install --sha "$fx_integration_sha"' scripts/install.sh >/dev/null \
-    || fail "installer does not invoke fxnk's exact-SHA Fx installation contract"
-[ ! -e scripts/install-fx ] \
-    || fail "AgentStart retains a second Fx installer"
-if grep -F 'https://fx.sh/setup.sh' scripts/install.sh >/dev/null; then
-    fail "installer retains the official Fx bootstrap beside the integration build"
-fi
-if grep -F 'upgrade --channel dev' scripts/install.sh >/dev/null; then
-    fail "installer retains the Fx dev channel beside the integration build"
+# Fx uses the vendor bootstrap and its default installation path.
+grep -F 'install_official "Fx" https://fx.sh/setup.sh /bin/bash' scripts/install.sh >/dev/null \
+    || fail "installer does not use the official Fx bootstrap"
+[ ! -e scripts/install-fx ] || fail "AgentStart retains a second Fx installer"
+if grep -Eq 'fx_integration_sha|fxnk|upgrade --channel dev' scripts/install.sh scripts/install-harness-shims; then
+    fail "installer or shims retain the retired Fx fork integration"
 fi
 # A second neutral participant proves the plan is convention-driven rather
 # than fitted to the first fixture.

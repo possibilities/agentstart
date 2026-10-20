@@ -6,7 +6,7 @@
 - `~/code` — the operator's own projects, source and otherwise. A bare
   project name in a request usually means a directory here, unless it is a
   Workshop.
-- `~/workshops` — first-party fork maintenance repositories (`fxnk`, `nekomancer`, `tuilet`, `zmax`). Their bound fork checkouts remain
+- `~/workshops` — first-party fork maintenance repositories (`nekomancer`, `tuilet`, `zmax`). Their bound fork checkouts remain
   where each Workshop declares them, either under `~/source` or inside the
   Workshop; moving a Workshop does not move an external Clone.
 - `/Volumes/Scratch/coldstorage/mike` — cold-storage backups of the previous

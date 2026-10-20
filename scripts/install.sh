@@ -13,12 +13,6 @@ repo_root=$(cd -P -- "$script_dir/.." && pwd)
 # from, and a worktree run must still find the real fleet rather than silently
 # skipping every tool.
 code_root="${AGENTSTART_CODE_ROOT:-$HOME/code}"
-workshops_root="${AGENTSTART_WORKSHOPS_ROOT:-$HOME/workshops}"
-# Fx maintenance advances this only after fxnk's exact-SHA local gate and ship
-# gate approve the published Integration commit. Ordinary convergence reuses
-# that reviewed consumer pin; it never treats the current remote tip as an
-# implicit approval.
-fx_integration_sha=b262bacbebef751c2cc6e927bd19fb980a0ac597
 # Plannotator's core skills describe its CLI surface, so the two pins move as
 # one. The upstream installer runs in binary-only mode below; AgentStart owns
 # skill delivery through the fixed private resources instead of allowing the
@@ -265,7 +259,7 @@ Command-line tools:
   curl -fsSL https://plannotator.ai/install.sh | bash -s -- --version v0.27.9 --minimal --non-interactive  # binary only; AgentStart carries the skills
   ~/.local/bin/plannotator install-runtime agent-terminal  # managed WebTUI/PTY runtime omitted by the minimal installer
   brew install or upgrade zig  # Native SDK packaging requires it
-  ~/workshops/fxnk/scripts/install.sh --install --sha b262bacbebef751c2cc6e927bd19fb980a0ac597  # exact ship-gate-approved Fx Integration consumer pin
+  curl -fsSL https://fx.sh/setup.sh | FX_INSTALL_DIR=~/.local/bin bash
   brew install or upgrade llm  # an AI CLI, so AgentStart's outright — moved out of the machine's Brewfile
   brew install or upgrade uv  # isolated twitter-cli install; also needed when the machine layer did not provide uv
   uv tool install "git+https://github.com/public-clis/twitter-cli.git@7c634e0d396b1e7af9f63315b414925fe4f29ae7"  # twitter-cli 0.8.6; browser login is per machine and never part of installation
@@ -419,13 +413,12 @@ printf 'Installing the Plannotator agent-terminal runtime.\n'
 printf 'Installing or upgrading Zig for Native SDK packaging (intentional duplicate of the machine'\''s Brewfile).\n'
 install_or_upgrade_formula zig
 
-# fxnk owns Fx fork maintenance and the hardened integration installer.
-# AgentStart decides that the harness is present and invokes that public
-# contract without reaching into its checkout or duplicating its branch logic.
-fxnk_installer="$workshops_root/fxnk/scripts/install.sh"
-[ -x "$fxnk_installer" ] || die "fxnk installer is unavailable: $fxnk_installer"
-printf 'Installing Fx through the fxnk integration contract.\n'
-"$fxnk_installer" --install --sha "$fx_integration_sha"
+# Bind the vendor's default location regardless of an inherited installer
+# override. The vendor script leaves shell configuration alone when it is
+# already on PATH, which AgentStart owns through the machine's shell setup.
+FX_INSTALL_DIR="$HOME/.local/bin" PATH="$HOME/.local/bin:$PATH" \
+    install_official "Fx" https://fx.sh/setup.sh /bin/bash
+[ -x "$HOME/.local/bin/fx" ] || die "official Fx installer did not publish ~/.local/bin/fx"
 
 # llm is an AI CLI, so it is AgentStart's outright — moved out of the
 # machine's Brewfile rather than duplicated from it.
